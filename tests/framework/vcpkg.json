@@ -1,0 +1,5 @@
+{
+  "name": "d2bsng-tests",
+  "version-string": "0.0.1",
+  "dependencies": ["doctest", "spdlog"]
+}

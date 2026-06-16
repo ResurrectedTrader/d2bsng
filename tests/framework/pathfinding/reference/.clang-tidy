@@ -1,0 +1,5 @@
+# Disable all clang-tidy checks for the reference d2bs implementation.
+# This is ported code used solely for comparison testing - not our code style.
+
+InheritParentConfig: false
+Checks: '-*'

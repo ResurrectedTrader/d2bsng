@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Local-only MSBuild overrides for the d2bs project.
+
+  Copy this file to "d2bs.local.targets" (same folder) to enable it. That name is
+  gitignored, so your local tweaks are never committed. d2bs.vcxproj imports it
+  automatically when present (see the ExtensionTargets ImportGroup).
+
+  The example below copies the freshly built DLL (and PDB) into a folder of your
+  choice after each build - handy for dropping it straight into a bot/script setup.
+  Set D2bsInstallDir to wherever you want it.
+-->
+<Project>
+  <PropertyGroup>
+    <!-- Where to install d2bs.dll + d2bs.pdb after a successful build. -->
+    <D2bsInstallDir>C:\path\to\your\bot\d2bs</D2bsInstallDir>
+  </PropertyGroup>
+
+  <Target Name="InstallLocalBuild"
+          AfterTargets="Build"
+          Condition="'$(D2bsInstallDir)' != '' And Exists('$(D2bsInstallDir)')">
+    <Message Importance="high" Text="Installing $(TargetFileName) (+ PDB) to $(D2bsInstallDir)" />
+    <Copy SourceFiles="$(TargetPath);$(TargetDir)$(TargetName).pdb"
+          DestinationFolder="$(D2bsInstallDir)"
+          SkipUnchangedFiles="false" />
+  </Target>
+</Project>

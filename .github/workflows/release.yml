@@ -1,0 +1,231 @@
+name: Release
+
+# On push to main: compute the next version ONCE, bake it into the DLL, build
+# and test (as separate checks), then - if both pass - tag that version and
+# publish d2bs.dll + .pdb + d2bsng.d.ts. The API docs are deployed to Pages.
+#
+# The version is decided up front (the `version` job) and reused for both the
+# baked-in D2BS_VERSION and the git tag, so they can never drift. The release
+# concurrency group below serializes runs (cancel-in-progress: false), so two
+# pushes can't race to compute the same next version - a queued run's `version`
+# job only runs after the prior run has pushed its tag.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump (ignored for the first release, which is always 2.0.0)"
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    name: Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Compute next version
+        id: v
+        run: |
+          # Only consider strict vX.Y.Z tags (ignores the v8-... libs tag).
+          # `|| true`: grep exits 1 when no vX.Y.Z tag exists yet (first release).
+          latest=$(git tag | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)
+          if [ -z "$latest" ]; then
+            # First d2bsng release starts at 2.0.0 - legacy d2bs topped out at
+            # 1.6.x, so 2.x lets scripts identify they're running d2bsng.
+            echo "version=2.0.0" >> "$GITHUB_OUTPUT"
+          else
+            # bump: from the manual dispatch input; empty (push trigger) -> patch.
+            bump="${{ inputs.bump }}"; bump="${bump:-patch}"
+            IFS='.' read -r major minor patch <<< "${latest#v}"
+            case "$bump" in
+              major) major=$((major + 1)); minor=0; patch=0 ;;
+              minor) minor=$((minor + 1)); patch=0 ;;
+              *)     patch=$((patch + 1)) ;;
+            esac
+            echo "version=${major}.${minor}.${patch}" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: Build
+    needs: version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true   # D2MOO headers only; its external/ submodules are not used
+      - name: Restore vcpkg cache
+        id: vcpkg
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            vcpkg_installed
+            tests/framework/vcpkg_installed
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'tests/framework/vcpkg.json') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-
+      - name: Set up vcpkg (enable MSBuild manifest restore)
+        shell: pwsh
+        run: |
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" integrate install
+      # V8 monolith libs are not in the repo; seed them once as the v8-14.0.264.0
+      # release asset (v8-libs.zip with x86-release/v8_monolith.lib).
+      - name: Cache V8 monolith libs
+        id: v8
+        uses: actions/cache@v4
+        with:
+          path: dependencies/v8/libs
+          key: v8-libs-${{ runner.os }}-14.0.264.0
+      - name: Fetch V8 monolith libs
+        if: steps.v8.outputs.cache-hit != 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force dependencies/v8/libs | Out-Null
+          gh release download v8-14.0.264.0 --repo $env:GITHUB_REPOSITORY -p v8-libs.zip -O v8-libs.zip
+          Expand-Archive -Force v8-libs.zip dependencies/v8/libs
+      - name: Build (Release)
+        shell: pwsh
+        run: .\build.ps1 Release -Version ${{ needs.version.outputs.version }}
+      # Save the (expensive) vcpkg deps after a successful build, in this job -
+      # not gated on the later release step.
+      - name: Save vcpkg cache
+        if: steps.vcpkg.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            vcpkg_installed
+            tests/framework/vcpkg_installed
+          key: ${{ steps.vcpkg.outputs.cache-primary-key }}
+      # Extract the API surface (needs libclang + the just-restored vcpkg/V8
+      # includes) and render d2bsng.d.ts. api.json + d.ts ship as release
+      # assets; the docs site is assembled later (deploy-docs) from all releases.
+      - name: Generate API JSON + d.ts
+        shell: pwsh
+        run: |
+          pip install --quiet libclang
+          python scripts/extract_api.py -o api.json
+          python scripts/gen_dts.py api.json -o Release/d2bsng.d.ts --version "${{ needs.version.outputs.version }}"
+          Copy-Item api.json Release/api.json
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: d2bs-binaries
+          path: |
+            Release/d2bs.dll
+            Release/d2bs.pdb
+            Release/d2bsng.d.ts
+            Release/api.json
+          retention-days: 1
+          if-no-files-found: error
+
+  tests:
+    name: Tests
+    # Serialized after build so the two jobs share one vcpkg build instead of
+    # racing into two concurrent cold-cache misses (build the deps twice).
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Restore vcpkg cache
+        id: vcpkg
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            vcpkg_installed
+            tests/framework/vcpkg_installed
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'tests/framework/vcpkg.json') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-
+      - name: Set up vcpkg (enable MSBuild manifest restore)
+        shell: pwsh
+        run: |
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" integrate install
+      # The test exe links no V8, so no V8 fetch here.
+      - name: Build + run tests
+        shell: pwsh
+        run: .\build.ps1 test
+      - name: Save vcpkg cache
+        if: steps.vcpkg.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            vcpkg_installed
+            tests/framework/vcpkg_installed
+          key: ${{ steps.vcpkg.outputs.cache-primary-key }}
+
+  deploy-docs:
+    name: Deploy docs
+    # Runs after release so the just-published version's api.json asset exists.
+    # Gathers every release's api.json server-side (no rate limits) into a
+    # same-origin bundle the static page reads - no runtime GitHub API calls.
+    needs: [release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build docs site from releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/releases" --paginate > releases.json
+          python3 scripts/build_docs_site.py \
+            --releases releases.json --data-dir data --out site \
+            --repo "${{ github.repository }}" --download
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
+
+  release:
+    name: Release
+    needs: [version, build, tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: d2bs-binaries
+          path: dist
+      - name: Tag + GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="v${{ needs.version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$v"
+          git push origin "$v"
+          gh release create "$v" --generate-notes --title "$v" \
+            "dist/d2bs.dll#d2bs.dll" \
+            "dist/d2bs.pdb#d2bs.pdb" \
+            "dist/d2bsng.d.ts#d2bsng.d.ts" \
+            "dist/api.json#api.json"

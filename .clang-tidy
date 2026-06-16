@@ -1,0 +1,210 @@
+# clang-tidy configuration for d2bsng
+# Enforces naming conventions from CLAUDE.md
+
+# Only check headers in src/ directory (excludes V8, vcpkg, and test/reference headers)
+HeaderFilterRegex: '.*d2bsng[\\/]src[\\/].*'
+
+# Don't analyze system/external headers
+SystemHeaders: false
+
+# Force the latest C++ standard. Compile DB entries carry `/std:c++latest`,
+# but clang-tidy bypasses MSBuild's driver-mode mapping when invoked
+# directly, so C++17/20 features (inline variables, nested namespaces,
+# defaulted comparison operators, std::optional / std::filesystem /
+# std::variant / std::span) trip the C++14-default frontend. Use the
+# clang-cl (MSVC-compatible) form because the compile DB targets MSVC
+# (i686-pc-windows-msvc); the GNU `-std=` form is rejected as unknown.
+ExtraArgsBefore: ['/std:c++latest']
+
+# Enable most checks, but disable platform-specific and overly strict ones.
+#
+# Notes on individual disables:
+#   -portability-template-virtual-member-function — fires on every
+#     spdlog::sinks::base_sink<> derived class (e.g. ConsoleSink). The
+#     diagnostic is pinned to the spdlog header line where the pure virtual
+#     is declared, so NOLINTNEXTLINE / NOLINTBEGIN at the derived-class
+#     declaration cannot suppress it. Disabled globally.
+#   -modernize-use-constraints - segfaults clang-tidy (access violation) while
+#     matching magic_enum::enum_name in magic_enum.hpp, which the console panels
+#     use. The check only rewrites enable_if into C++20 requires-clauses, so it is
+#     not worth a tool crash that fails the whole lint run.
+Checks: >
+  *,
+  -altera-*,
+  -android-*,
+  -fuchsia-*,
+  -llvmlibc-*,
+  -abseil-*,
+  -google-*,
+  -hicpp-*,
+  -llvm-header-guard,
+  -llvm-include-order,
+  -llvm-qualified-auto,
+  -clang-diagnostic-unused-command-line-argument,
+  -clang-diagnostic-unused-variable,
+  -clang-diagnostic-unused-but-set-variable,
+  -clang-diagnostic-unused-private-field,
+  -clang-analyzer-optin.core.EnumCastOutOfRange,
+  -clang-analyzer-optin.cplusplus.UninitializedObject,
+  -clang-analyzer-core.UndefinedBinaryOperatorResult,
+  -readability-identifier-length,
+  -readability-magic-numbers,
+  -readability-braces-around-statements,
+  -readability-implicit-bool-conversion,
+  -readability-qualified-auto,
+  -readability-function-cognitive-complexity,
+  -readability-convert-member-functions-to-static,
+  -modernize-use-trailing-return-type,
+  -modernize-use-auto,
+  -modernize-use-nodiscard,
+  -modernize-use-equals-delete,
+  -modernize-pass-by-value,
+  -modernize-use-integer-sign-comparison,
+  -modernize-use-constraints,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-reserved-identifier,
+  -bugprone-crtp-constructor-accessibility,
+  -bugprone-unused-local-non-trivial-variable,
+  -bugprone-branch-clone,
+  -bugprone-forwarding-reference-overload,
+  -cppcoreguidelines-macro-usage,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -cppcoreguidelines-pro-type-vararg,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -cppcoreguidelines-pro-type-union-access,
+  -cppcoreguidelines-owning-memory,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-special-member-functions,
+  -cppcoreguidelines-pro-type-member-init,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
+  -cppcoreguidelines-avoid-const-or-ref-data-members,
+  -cppcoreguidelines-avoid-non-const-global-variables,
+  -cppcoreguidelines-avoid-do-while,
+  -cert-dcl37-c,
+  -cert-dcl51-cpp,
+  -cert-err33-c,
+  -misc-no-recursion,
+  -misc-include-cleaner,
+  -misc-use-internal-linkage,
+  -misc-unused-parameters,
+  -misc-const-correctness,
+  -misc-confusable-identifiers,
+  -misc-non-private-member-variables-in-classes,
+  -misc-use-anonymous-namespace,
+  -performance-enum-size,
+  -performance-no-int-to-ptr,
+  -readability-redundant-casting,
+  -portability-template-virtual-member-function
+
+WarningsAsErrors: '*'
+
+CheckOptions:
+  # ============================================================================
+  # Function/Method Naming: PascalCase
+  # ============================================================================
+  - key: readability-identifier-naming.FunctionCase
+    value: CamelCase
+  - key: readability-identifier-naming.MethodCase
+    value: CamelCase
+  - key: readability-identifier-naming.GlobalFunctionCase
+    value: CamelCase
+
+  # ============================================================================
+  # Class/Struct/Enum Naming: PascalCase
+  # ============================================================================
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.StructCase
+    value: CamelCase
+  - key: readability-identifier-naming.EnumCase
+    value: CamelCase
+  - key: readability-identifier-naming.EnumConstantCase
+    value: CamelCase
+  - key: readability-identifier-naming.TypeAliasCase
+    value: CamelCase
+  - key: readability-identifier-naming.TypedefCase
+    value: CamelCase
+  - key: readability-identifier-naming.UnionCase
+    value: CamelCase
+
+  # ============================================================================
+  # Variable Naming: camelCase (clang-tidy calls this camelBack)
+  # ============================================================================
+  - key: readability-identifier-naming.LocalVariableCase
+    value: camelBack
+  - key: readability-identifier-naming.ParameterCase
+    value: camelBack
+  - key: readability-identifier-naming.VariableCase
+    value: camelBack
+
+  # ============================================================================
+  # Member Naming
+  # ============================================================================
+  # Private members: trailing underscore (e.g., path_, mutex_)
+  - key: readability-identifier-naming.PrivateMemberCase
+    value: camelBack
+  - key: readability-identifier-naming.PrivateMemberSuffix
+    value: '_'
+  - key: readability-identifier-naming.PrivateMethodCase
+    value: CamelCase
+  - key: readability-identifier-naming.ProtectedMemberCase
+    value: camelBack
+  - key: readability-identifier-naming.ProtectedMemberSuffix
+    value: '_'
+  # Class static members follow the same convention as instance members
+  - key: readability-identifier-naming.ClassMemberCase
+    value: camelBack
+  - key: readability-identifier-naming.ClassMemberSuffix
+    value: '_'
+
+  # Public members: camelCase, no suffix (for structs)
+  - key: readability-identifier-naming.PublicMemberCase
+    value: camelBack
+
+  # ============================================================================
+  # Constants: UPPER_CASE for global constants and macros
+  # ============================================================================
+  - key: readability-identifier-naming.ConstexprVariableCase
+    value: UPPER_CASE
+  # Exception for V8 class binding pattern 'ClassName'
+  - key: readability-identifier-naming.ConstexprVariableIgnoredRegexp
+    value: 'ClassName'
+  - key: readability-identifier-naming.StaticConstantCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.StaticConstantIgnoredRegexp
+    value: 'ClassName'
+  - key: readability-identifier-naming.GlobalConstantCase
+    value: UPPER_CASE
+  # Exception for class-static-constant convention (e.g. Point::Zero definition
+  # at namespace scope — it's a member constant, not truly global).
+  - key: readability-identifier-naming.GlobalConstantIgnoredRegexp
+    value: 'Zero'
+  - key: readability-identifier-naming.MacroDefinitionCase
+    value: UPPER_CASE
+
+  # ============================================================================
+  # Namespace Naming: lower_case (e.g., d2bs::api::classes)
+  # ============================================================================
+  - key: readability-identifier-naming.NamespaceCase
+    value: lower_case
+
+  # ============================================================================
+  # Template Parameters: PascalCase
+  # ============================================================================
+  - key: readability-identifier-naming.TemplateParameterCase
+    value: CamelCase
+  - key: readability-identifier-naming.TypeTemplateParameterCase
+    value: CamelCase
+  - key: readability-identifier-naming.ValueTemplateParameterCase
+    value: CamelCase
+
+  # ============================================================================
+  # Other settings
+  # ============================================================================
+  - key: misc-unused-parameters.StrictMode
+    value: false
+
+  # Ignore Windows SDK headers for include-cleaner (they bundle everything)
+  - key: misc-include-cleaner.IgnoreHeaders
+    value: 'windows\.h;winsock2\.h;ws2tcpip\.h;winbase\.h;windef\.h;minwindef\.h;.*Windows\.h'

@@ -1,0 +1,64 @@
+{
+  "name": "d2bsng",
+  "version-string": "0.0.1",
+  "dependencies": [
+    "spdlog",
+    "fmt",
+    "sqlite3",
+    "stackwalker",
+    "detours",
+    "magic-enum",
+    "nlohmann-json",
+    {
+      "name": "imgui",
+      "features": [
+        "opengl2-binding",
+        "win32-binding"
+      ]
+    },
+    {
+      "name": "ixwebsocket",
+      "default-features": false
+    }
+  ],
+  "overrides": [
+    {
+      "name": "spdlog",
+      "version": "1.15.3"
+    },
+    {
+      "name": "fmt",
+      "version": "12.0.0"
+    },
+    {
+      "name": "sqlite3",
+      "version": "3.49.1"
+    },
+    {
+      "name": "stackwalker",
+      "version": "2023-06-24"
+    },
+    {
+      "name": "detours",
+      "version": "4.0.1",
+      "port-version": 8
+    },
+    {
+      "name": "imgui",
+      "version": "1.91.9"
+    },
+    {
+      "name": "magic-enum",
+      "version": "0.9.7"
+    },
+    {
+      "name": "nlohmann-json",
+      "version": "3.11.3"
+    },
+    {
+      "name": "ixwebsocket",
+      "version": "11.4.6"
+    }
+  ],
+  "builtin-baseline": "74e6536215718009aae747d86d84b78376bf9e09"
+}

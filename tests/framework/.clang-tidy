@@ -1,0 +1,15 @@
+# clang-tidy overrides for test code
+# Inherits from root .clang-tidy via InheritParentConfig
+
+InheritParentConfig: true
+
+# Extend header filter to also cover test headers (fakes, fixtures, test files).
+# Excludes vcpkg_installed/ and pathfinding/reference/ (reference has its own .clang-tidy).
+HeaderFilterRegex: '.*d2bsng[\\/](src[\\/]|tests[\\/]framework[\\/](fakes|fixtures|pathfinding[\\/]tests)).*'
+
+# Disable checks that fire on doctest macros:
+# - cert-err58-cpp: TEST_CASE macros create static-duration registrator objects
+# - cppcoreguidelines-avoid-non-const-global-variables: same reason
+Checks: >
+  -cert-err58-cpp,
+  -cppcoreguidelines-avoid-non-const-global-variables,

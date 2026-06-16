@@ -1,0 +1,176 @@
+name: CI
+
+# Format runs automatically on every PR (cheap). The ~10-minute build + tests
+# do NOT run on PR pushes - they run only when a maintainer comments `/ci` on
+# the PR, or via the manual "Run workflow" button - so doc/comment-only PRs
+# don't burn a full build.
+on:
+  pull_request:
+    branches: [main]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.event.issue.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  statuses: write       # /ci posts a commit status back to the PR
+  pull-requests: read
+
+jobs:
+  # Cheap, automatic: clang-format on every PR (and on a manual dispatch).
+  format:
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    name: Format
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: clang-format check
+        shell: pwsh
+        run: .\build.ps1 check-format
+
+  # Gate for the expensive jobs: a `/ci` comment from a maintainer, or a manual
+  # dispatch. Resolves the PR head commit (issue_comment checks out the default
+  # branch by default, so build/tests must target the PR head explicitly) and
+  # acknowledges the comment + marks a pending status on the PR.
+  prepare:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.issue.pull_request != null &&
+       startsWith(github.event.comment.body, '/ci') &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+    name: Prepare
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.r.outputs.ref }}
+      sha: ${{ steps.r.outputs.sha }}
+    steps:
+      - name: Resolve target + acknowledge
+        id: r
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            sha=$(gh api "repos/${{ github.repository }}/pulls/${{ github.event.issue.number }}" --jq .head.sha)
+            echo "ref=$sha" >> "$GITHUB_OUTPUT"
+            echo "sha=$sha" >> "$GITHUB_OUTPUT"
+            url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            gh api --silent -X POST "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" -f content=rocket || true
+            gh api --silent -X POST "repos/${{ github.repository }}/statuses/$sha" -f state=pending -f context="CI / build" -f description="Build + tests running" -f target_url="$url" || true
+          else
+            echo "ref=${{ github.ref }}" >> "$GITHUB_OUTPUT"
+            echo "sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: prepare
+    name: Build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
+          submodules: true   # D2MOO headers only; its external/ submodules are not used
+      - name: Restore vcpkg cache
+        id: vcpkg
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            vcpkg_installed
+            tests/framework/vcpkg_installed
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'tests/framework/vcpkg.json') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-
+      - name: Set up vcpkg (enable MSBuild manifest restore)
+        shell: pwsh
+        run: |
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" integrate install
+      # V8 monolith libs are not in the repo; seed them once as the v8-14.0.264.0
+      # release asset (v8-libs.zip with x86-release/v8_monolith.lib).
+      - name: Cache V8 monolith libs
+        id: v8
+        uses: actions/cache@v4
+        with:
+          path: dependencies/v8/libs
+          key: v8-libs-${{ runner.os }}-14.0.264.0
+      - name: Fetch V8 monolith libs
+        if: steps.v8.outputs.cache-hit != 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force dependencies/v8/libs | Out-Null
+          gh release download v8-14.0.264.0 --repo $env:GITHUB_REPOSITORY -p v8-libs.zip -O v8-libs.zip
+          Expand-Archive -Force v8-libs.zip dependencies/v8/libs
+      - name: Build (Release)
+        shell: pwsh
+        run: .\build.ps1 Release
+      - name: Save vcpkg cache
+        if: steps.vcpkg.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            vcpkg_installed
+            tests/framework/vcpkg_installed
+          key: ${{ steps.vcpkg.outputs.cache-primary-key }}
+
+  tests:
+    name: Tests
+    # Serialized after build so the two jobs share one vcpkg build instead of
+    # racing into two concurrent cold-cache misses (build the deps twice).
+    needs: [prepare, build]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
+          submodules: true
+      - name: Restore vcpkg cache
+        id: vcpkg
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            vcpkg_installed
+            tests/framework/vcpkg_installed
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'tests/framework/vcpkg.json') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-
+      - name: Set up vcpkg (enable MSBuild manifest restore)
+        shell: pwsh
+        run: |
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" integrate install
+      # The test exe links no V8, so no V8 fetch here.
+      - name: Build + run tests
+        shell: pwsh
+        run: .\build.ps1 test
+      - name: Save vcpkg cache
+        if: steps.vcpkg.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            vcpkg_installed
+            tests/framework/vcpkg_installed
+          key: ${{ steps.vcpkg.outputs.cache-primary-key }}
+
+  # Post the final build+tests result back onto the PR (comment-triggered runs
+  # don't auto-appear as PR checks, so we set a commit status explicitly).
+  report:
+    needs: [prepare, build, tests]
+    if: always() && github.event_name == 'issue_comment'
+    name: Report
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set commit status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ needs.build.result }}" = "success" ] && [ "${{ needs.tests.result }}" = "success" ]; then
+            state=success; desc="Build + tests passed"
+          else
+            state=failure; desc="Build + tests failed"
+          fi
+          url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          gh api --silent -X POST "repos/${{ github.repository }}/statuses/${{ needs.prepare.outputs.sha }}" -f state=$state -f context="CI / build" -f description="$desc" -f target_url="$url" || true

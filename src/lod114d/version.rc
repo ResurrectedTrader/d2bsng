@@ -1,0 +1,48 @@
+// Windows version resource for d2bs.dll - populates the file's Details tab.
+// The numeric version comes from the build (build.ps1 -> MSBuild -> RC /D
+// defines); the #ifndef fallbacks cover un-parameterized IDE builds. The
+// StringFileInfo "X.Y.Z" is assembled from the numeric parts via stringize -
+// MSBuild's resource compiler strips quotes off a pre-quoted string define, so
+// passing the version as one string doesn't survive.
+#include <winver.h>
+
+#ifndef D2BS_VER_MAJOR
+#define D2BS_VER_MAJOR 2
+#endif
+#ifndef D2BS_VER_MINOR
+#define D2BS_VER_MINOR 0
+#endif
+#ifndef D2BS_VER_PATCH
+#define D2BS_VER_PATCH 0
+#endif
+
+#define D2BS_STR2(x) #x
+#define D2BS_STR(x) D2BS_STR2(x)
+#define D2BS_VER_STR D2BS_STR(D2BS_VER_MAJOR) "." D2BS_STR(D2BS_VER_MINOR) "." D2BS_STR(D2BS_VER_PATCH)
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION D2BS_VER_MAJOR, D2BS_VER_MINOR, D2BS_VER_PATCH, 0
+ PRODUCTVERSION D2BS_VER_MAJOR, D2BS_VER_MINOR, D2BS_VER_PATCH, 0
+ FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+ FILEFLAGS 0x0L
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_DLL
+ FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"  // U.S. English, Unicode
+        BEGIN
+            VALUE "FileDescription", "d2bsng - JavaScript automation framework for Diablo II 1.14d"
+            VALUE "FileVersion", D2BS_VER_STR
+            VALUE "InternalName", "d2bs"
+            VALUE "OriginalFilename", "d2bs.dll"
+            VALUE "ProductName", "d2bsng"
+            VALUE "ProductVersion", D2BS_VER_STR
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

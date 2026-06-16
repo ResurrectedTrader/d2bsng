@@ -1,0 +1,3 @@
+[submodule "dependencies/D2MOO"]
+	path = dependencies/D2MOO
+	url = https://github.com/ThePhrozenKeep/D2MOO.git
