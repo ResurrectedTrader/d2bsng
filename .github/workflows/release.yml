@@ -1,17 +1,12 @@
 name: Release
 
-# On push to main: compute the next version ONCE, bake it into the DLL, build
-# and test (as separate checks), then - if both pass - tag that version and
-# publish d2bs.dll + .pdb + d2bsng.d.ts. The API docs are deployed to Pages.
+# Manual only (Actions -> Release -> Run workflow). Computes the next version
+# ONCE, bakes it into the DLL, builds + tests, then - if both pass - tags that
+# version and publishes d2bs.dll + .pdb + d2bsng.d.ts, then deploys the docs.
 #
 # The version is decided up front (the `version` job) and reused for both the
 # baked-in D2BS_VERSION and the git tag, so they can never drift. The release
-# concurrency group below serializes runs (cancel-in-progress: false), so two
-# pushes can't race to compute the same next version - a queued run's `version`
-# job only runs after the prior run has pushed its tag.
-on:
-  push:
-    branches: [main]
+# concurrency group below serializes runs (cancel-in-progress: false).
   workflow_dispatch:
     inputs:
       bump:
