@@ -13,6 +13,7 @@
 #include "components/script/ScriptEngine.h"
 #include "components/script/ScriptTypes.h"
 #include "components/speedhack/Speedhack.h"
+#include "components/update/UpdateChecker.h"
 #include "game/GameHelpers.h"
 #include "game/GameLock.h"
 #include "game/GameThread.h"
@@ -105,6 +106,18 @@ void GameLoop::OnSleep(std::chrono::milliseconds duration) {
     // held) so reads are consistent; self-throttles and diffs internally.
     characterstate::CharacterState::Instance().OnTick(cur.state, !previous_.inSession && cur.inSession);
     DriveScriptLifecycle(previous_, cur);
+
+    // Surface an available update once per game entry. The checker polls GitHub
+    // releases on its own thread; here we only read the latched flag (lock-free)
+    // and print a one-line ASCII notice on the first frame of each game. No URL -
+    // the notice just tells the user an update exists.
+    if (!previous_.inSession && cur.inSession && update::UpdateChecker::Instance().UpdateAvailable()) {
+        // D2 in-game message color palette index (same palette as the \xFFc
+        // escapes; see game/Console.h). 8 = orange, an attention color distinct
+        // from the usual white system text.
+        constexpr int32_t UPDATE_NOTICE_COLOR = 8;
+        d2bs::game::PrintGameString(update::UpdateChecker::Instance().Message(), UPDATE_NOTICE_COLOR);
+    }
 
     d2bs::game::GameThread::Drain();
 

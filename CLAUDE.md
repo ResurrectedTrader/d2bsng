@@ -145,6 +145,7 @@ d2bsng/
 │   │   │   ├── dde/            DDE service
 │   │   │   ├── exits/          Level-exit finder
 │   │   │   ├── profile/        Profile DTOs
+│   │   │   ├── update/         GitHub-release update checker (6h poll -> in-game notice)
 │   │   │   └── Framework.h/.cpp DLL lifecycle orchestrator
 │   │   └── game/           Game interface headers (NO .cpp files)
 │   └── lod114d/            d2bs.dll - 1.14d game implementation
@@ -219,7 +220,7 @@ These are the intended dependencies. A few deliberate exceptions are noted inlin
 - **utils/** depends on: standard library, Windows headers, third-party libs (spdlog, stackwalker).
 - **framework/game/** (interface) depends on: standard library only. NEVER on V8 or api/. NEVER on components/, with one exception: `game/Menu.h` includes `components/profile/ProfileData.h` so `Login()` can take the profile struct by const-ref rather than duplicating that DTO into the game layer.
 - **framework/api/** depends on: game/ interface, components/, utils/, V8.
-- **framework/components/** depends on: game/ interface, components/config/, utils/, V8. Exception: `components/script/` includes `api/` - the script engine is the JS-API composition root (it owns V8 isolate setup and registers the `api/` ClassRegistry + globals), and a few components reuse `api::v8_convert` instead of duplicating the V8 conversion helpers.
+- **framework/components/** depends on: game/ interface, components/config/, utils/, V8. Exception: `components/script/` includes `api/` - the script engine is the JS-API composition root (it owns V8 isolate setup and registers the `api/` ClassRegistry + globals), and a few components reuse `api::v8_convert` instead of duplicating the V8 conversion helpers. `components/update/` similarly reuses the V8-free `api::classes::PerformHttpRequest` (`api/classes/io/HttpEngine.h`) rather than re-implementing the WinHTTP plumbing.
 - **lod114d/game/** (implementation) depends on: game/ interface, utils/, and sibling port headers (imports/, hooks/, asm_thunks/). NEVER on api/ or V8. NEVER on components/, except config reads (`components/config/AppConfig.h`) and forwarding to the port-chosen console sink (`components/console/`, see "Port-chosen message sink" below).
 
 ### Key Design Decisions

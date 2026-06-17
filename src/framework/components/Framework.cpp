@@ -18,6 +18,7 @@
 #include "components/profile/ProfileService.h"
 #include "components/script/Commands.h"
 #include "components/script/ScriptEngine.h"
+#include "components/update/UpdateChecker.h"
 #include "game/Bridge.h"
 #include "game/Console.h"
 #include "game/GameCallbacks.h"
@@ -108,6 +109,11 @@ void Framework::DoInitialize(HMODULE hModule) {
                 }
             });
 
+        // Best-effort background update check (polls GitHub releases every 6h;
+        // the game loop surfaces a notice on game entry). Independent of game
+        // readiness, so it can start as soon as the framework is up.
+        framework::update::UpdateChecker::Instance().Start();
+
         logger_->info("d2bsng initialized");
     } catch (const std::exception& ex) {
         logger_->error("Framework::Initialize failed: {}", ex.what());
@@ -140,6 +146,10 @@ void Framework::Shutdown() {
         // Stop the DDE service before tearing down other subsystems so that any
         // in-flight DDE handler call finishes against a still-valid framework.
         dde::DdeService::Instance().Stop();
+
+        // Halt the background update poller (joins its thread) before the rest
+        // of teardown so no network work outlives the framework.
+        framework::update::UpdateChecker::Instance().Stop();
 
         ScriptEngine::Instance().Shutdown();
         game::RemoveHooks();
