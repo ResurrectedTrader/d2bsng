@@ -10,8 +10,8 @@
 #include <system_error>
 #include <utility>
 
-#include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
+#include <nlohmann/json.hpp>
 
 // The V8-free HTTP engine (WinHTTP; bypasses the game's SOCKS5 detour). Reused
 // here rather than duplicating the WinHTTP plumbing - this is a documented
@@ -34,8 +34,7 @@ constexpr auto INITIAL_DELAY = std::chrono::seconds{30};
 
 // Hardcoded: the canonical d2bsng releases endpoint. `releases/latest` returns
 // the newest non-draft, non-prerelease release (404 when none exist yet).
-constexpr std::string_view RELEASES_API_URL =
-    "https://api.github.com/repos/ResurrectedTrader/d2bsng/releases/latest";
+constexpr std::string_view RELEASES_API_URL = "https://api.github.com/repos/ResurrectedTrader/d2bsng/releases/latest";
 
 // A comparable major.minor.patch triple. The defaulted operator<=> gives the
 // natural precedence (major, then minor, then patch).
@@ -216,7 +215,8 @@ bool UpdateChecker::CheckOnce() {
         return false;
     }
 
-    const json doc = json::parse(response.body.begin(), response.body.end(), /*cb=*/nullptr, /*allow_exceptions=*/false);
+    const json doc =
+        json::parse(response.body.begin(), response.body.end(), /*cb=*/nullptr, /*allow_exceptions=*/false);
     if (!doc.is_object()) {
         logger_->debug("update check: response was not a JSON object");
         return false;
