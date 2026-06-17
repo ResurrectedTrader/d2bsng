@@ -160,6 +160,8 @@
     <ClCompile Include="components\speedhack\Speedhack.cpp" />
     <!-- Character state -->
     <ClCompile Include="components\characterstate\CharacterState.cpp" />
+    <!-- Update checker -->
+    <ClCompile Include="components\update\UpdateChecker.cpp" />
   </ItemGroup>
   <ItemGroup>
     <!-- V8 Host -->
@@ -278,6 +280,8 @@
     <ClInclude Include="components\characterstate\CharacterState.h" />
     <!-- Speedhack -->
     <ClInclude Include="components\speedhack\Speedhack.h" />
+    <!-- Update checker -->
+    <ClInclude Include="components\update\UpdateChecker.h" />
     <!-- Proxy (bypass control; the connect detour lives in the port) -->
     <ClInclude Include="components\proxy\ProxyBypass.h" />
   </ItemGroup>
