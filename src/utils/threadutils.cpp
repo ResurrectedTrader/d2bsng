@@ -6,6 +6,7 @@
 // #define D2BSNG_HANG_ON_CRASH 1
 
 #include <atlconv.h>
+#include <intrin.h>
 #include <array>
 #include <cstdint>
 #include <string>
@@ -14,11 +15,38 @@
 #include <tlhelp32.h>
 #include <filesystem>
 
+#include "DeferGuard.h"
 #include "utils.h"
 
 #include "stackwalker/MyStackWalker.h"
 
+// Module TLS slot index, emitted by the CRT for any image that uses implicit
+// TLS. Declaring it lets HasThreadLocalStorage() index the per-thread TLS array
+// the same way compiler-generated thread_local access does.
+// NOLINTNEXTLINE(readability-identifier-naming) - CRT-defined symbol name
+extern "C" ULONG _tls_index;
+
 namespace d2bs::thread_utils {
+
+bool HasThreadLocalStorage() noexcept {
+#if defined(_M_IX86)
+    constexpr DWORD TLS_POINTER_TEB_OFFSET = 0x2C;  // TEB.ThreadLocalStoragePointer (x86)
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) - TEB-relative TLS array
+    auto* tlsArray = reinterpret_cast<void* const*>(__readfsdword(TLS_POINTER_TEB_OFFSET));
+#elif defined(_M_X64)
+    constexpr DWORD TLS_POINTER_TEB_OFFSET = 0x58;  // TEB.ThreadLocalStoragePointer (x64)
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) - TEB-relative TLS array
+    auto* tlsArray = reinterpret_cast<void* const*>(__readgsqword(TLS_POINTER_TEB_OFFSET));
+#else
+    #error "HasThreadLocalStorage: unsupported architecture"
+#endif
+    // NULL on threads the loader never ran TLS init for (foreign / loader-
+    // spawned). A non-null array is sized for every TLS module present at thread
+    // init, so indexing our slot is in-bounds; a null per-module block means our
+    // thread_locals aren't backed for this thread either.
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic) - TLS array index
+    return tlsArray != nullptr && tlsArray[_tls_index] != nullptr;
+}
 
 std::vector<uint32_t> EnumerateProcessThreads() {
     std::vector<uint32_t> result;
@@ -321,6 +349,27 @@ LONG WINAPI VectoredExceptionHandler(PEXCEPTION_POINTERS exceptionInfo) {
     if (crashAndExitEntered.load(std::memory_order_acquire)) {
         return EXCEPTION_CONTINUE_SEARCH;
     }
+
+    // Foreign threads without our module TLS (e.g. a staged loader DLL's
+    // workers) would re-fault the instant we touch a thread_local below
+    // (crashContext) or call into a hooked wait while logging (OutputDebugStringA
+    // -> hooked WaitForSingleObject -> ...). We can't diagnose them safely, and
+    // an AV here would otherwise recurse back through the VEH. Let whatever
+    // default handling exists deal with it.
+    if (!HasThreadLocalStorage()) {
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+
+    // Per-thread reentrancy guard: if our own logging path faults (the stack
+    // walk, OutputDebugStringA, corrupt logger state), the nested first-chance
+    // invocation bails here instead of recursing until the stack blows. Safe to
+    // use a thread_local now that TLS is confirmed present above.
+    static thread_local bool inHandler = false;
+    if (inHandler) {
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+    inHandler = true;
+    DeferGuard guard([&] { inHandler = false; });
 
     DWORD code = exceptionInfo->ExceptionRecord->ExceptionCode;
 

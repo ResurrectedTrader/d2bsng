@@ -14,6 +14,7 @@
 #include <mutex>
 
 #include "components/config/AppConfig.h"
+#include "utils/threadutils.h"
 
 #pragma comment(lib, "winmm.lib")
 
@@ -133,11 +134,22 @@ FILETIME Int64ToFileTime(int64_t value) {
     return FILETIME{.dwLowDateTime = u.LowPart, .dwHighDateTime = u.HighPart};
 }
 
+// True if the calling thread should observe scaled time / waits: it opted in
+// AND it has this module's thread-local storage. Foreign threads (e.g. a staged
+// loader DLL's workers) can be created without loader TLS init, leaving
+// TEB->ThreadLocalStoragePointer NULL; reading the `threadOptIn` thread_local on
+// them access-violates. Gating on HasThreadLocalStorage() first keeps every hook
+// body a safe pass-through for such threads, and must run before any thread_local
+// read in a hook.
+bool ThreadOptedIn() {
+    return d2bs::thread_utils::HasThreadLocalStorage() && threadOptIn;
+}
+
 // Read-API hooks ------------------------------------------------------------
 
 DWORD WINAPI HookedGetTickCount() {
     const DWORD real = realGetTickCount();
-    if (!threadOptIn) {
+    if (!ThreadOptedIn()) {
         return real;
     }
     const auto snap = LoadSnapshot(dwMsState);
@@ -148,7 +160,7 @@ DWORD WINAPI HookedGetTickCount() {
 
 ULONGLONG WINAPI HookedGetTickCount64() {
     const ULONGLONG real = realGetTickCount64();
-    if (!threadOptIn) {
+    if (!ThreadOptedIn()) {
         return real;
     }
     const auto snap = LoadSnapshot(u64MsState);
@@ -161,7 +173,7 @@ BOOL WINAPI HookedQueryPerformanceCounter(LARGE_INTEGER* lpPerformanceCount) {
     if (!ok || lpPerformanceCount == nullptr) {
         return ok;
     }
-    if (!threadOptIn) {
+    if (!ThreadOptedIn()) {
         *lpPerformanceCount = realQpc;
         return TRUE;
     }
@@ -172,7 +184,7 @@ BOOL WINAPI HookedQueryPerformanceCounter(LARGE_INTEGER* lpPerformanceCount) {
 
 DWORD WINAPI HookedTimeGetTime() {
     const DWORD real = realTimeGetTime();
-    if (!threadOptIn) {
+    if (!ThreadOptedIn()) {
         return real;
     }
     // Shares dwMsState with GetTickCount - both are DWORD ms counters, close
@@ -189,7 +201,7 @@ VOID WINAPI HookedGetSystemTimeAsFileTime(LPFILETIME lpSystemTimeAsFileTime) {
     }
     FILETIME realFt;
     realGetSystemTimeAsFileTime(&realFt);
-    if (!threadOptIn) {
+    if (!ThreadOptedIn()) {
         *lpSystemTimeAsFileTime = realFt;
         return;
     }
@@ -203,7 +215,7 @@ VOID WINAPI HookedGetSystemTimePreciseAsFileTime(LPFILETIME lpSystemTimeAsFileTi
     }
     FILETIME realFt;
     realGetSystemTimePreciseAsFileTime(&realFt);
-    if (!threadOptIn) {
+    if (!ThreadOptedIn()) {
         *lpSystemTimeAsFileTime = realFt;
         return;
     }
@@ -215,7 +227,7 @@ VOID WINAPI HookedGetSystemTime(LPSYSTEMTIME lpSystemTime) {
     if (lpSystemTime == nullptr) {
         return;
     }
-    if (!threadOptIn) {
+    if (!ThreadOptedIn()) {
         realGetSystemTime(lpSystemTime);
         return;
     }
@@ -230,7 +242,7 @@ VOID WINAPI HookedGetLocalTime(LPSYSTEMTIME lpSystemTime) {
     if (lpSystemTime == nullptr) {
         return;
     }
-    if (!threadOptIn) {
+    if (!ThreadOptedIn()) {
         realGetLocalTime(lpSystemTime);
         return;
     }
@@ -353,7 +365,7 @@ DWORD ScaleTimeout(DWORD ms) {
     if (ms == INFINITE) {
         return INFINITE;
     }
-    if (!threadOptIn) {
+    if (!ThreadOptedIn()) {
         return ms;
     }
     const float s = config::GetAppConfig().speed.load(std::memory_order_relaxed);
@@ -382,11 +394,19 @@ SpeedhackDisabledScope::~SpeedhackDisabledScope() {
 }
 
 NestedWaitGuard::NestedWaitGuard() {
-    ++waitChainDepth;
+    // Skip the thread_local touch on foreign threads with no module TLS (e.g. a
+    // staged loader DLL's workers) - reading waitChainDepth there access-
+    // violates. TLS presence is stable for the life of a thread, so the dtor's
+    // identical check always matches: no unbalanced decrement.
+    if (d2bs::thread_utils::HasThreadLocalStorage()) {
+        ++waitChainDepth;
+    }
 }
 
 NestedWaitGuard::~NestedWaitGuard() {
-    --waitChainDepth;
+    if (d2bs::thread_utils::HasThreadLocalStorage()) {
+        --waitChainDepth;
+    }
 }
 
 void Install() {

@@ -26,6 +26,17 @@ std::string GetStacktraceFromContext(const CONTEXT* context, uint32_t skip = 0);
 std::string GetThreadDescription(uint32_t threadId = 0);
 void SetThreadDescription(const std::string& description, uint32_t threadId = 0);
 
+// Returns true if the calling thread has implicit thread-local storage
+// (thread_local / __declspec(thread)) backed for THIS module. Foreign threads
+// created by code that bypasses loader thread-init - e.g. a staged or manually-
+// mapped DLL spawning its own workers - can have a NULL TEB
+// ThreadLocalStoragePointer; touching ANY thread_local on such a thread access-
+// violates. Code reachable from our process-global API hooks (speedhack, the
+// Sleep hook, the VEH) must gate every thread_local read behind this check.
+// Cheap: one TEB-relative load plus an array index, and it never touches
+// thread_local itself, so it is safe to call from a thread that has none.
+[[nodiscard]] bool HasThreadLocalStorage() noexcept;
+
 // Writes `content` to a timestamped file alongside the host executable
 // (Game.exe directory). Returns the path on success or an empty path on
 // failure. Uses raw Win32 file APIs so it stays usable when the CRT/iostream/

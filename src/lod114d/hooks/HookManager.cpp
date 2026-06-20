@@ -90,6 +90,15 @@ BOOL __fastcall NoOpCursorLock(int /*X*/, int /*Y*/) {
 // steady_clock - already scaled via QPC. Reentrant Sleep relies on the inner
 // loop wrapping its sleep_for in SpeedhackDisabledScope to get real-ms slicing.
 VOID WINAPI HookedSleep(DWORD ms) {
+    // Foreign threads (e.g. a staged loader DLL's workers) may lack this
+    // module's TLS; the thread_locals below (inSleepCallback, and the
+    // speedhack's waitChainDepth / threadOptIn via NestedWaitGuard /
+    // ScaleTimeout) would access-violate. Pass straight through to the real
+    // Sleep - no scaling, no onSleep drive.
+    if (!thread_utils::HasThreadLocalStorage()) {
+        realSleep(ms);
+        return;
+    }
     speedhack::NestedWaitGuard guard;
     if (inSleepCallback) {
         realSleep(ms);

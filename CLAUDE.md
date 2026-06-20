@@ -103,6 +103,39 @@ python scripts/gen_api_docs.py api.json -o api.html   # offline single-version p
 git config core.hooksPath .githooks
 ```
 
+## Worktrees
+
+Creating a git worktree needs two extra steps because of the heavy,
+partly-out-of-tree dependencies:
+
+- `dependencies/v8/include/**` is tracked but deeply nested. Under the long
+  `.claude/worktrees/<name>/...` prefix those paths overflow MAX_PATH and git
+  silently aborts the checkout (leaving a half-populated worktree), so
+  `core.longpaths` must be enabled first.
+- `dependencies/v8/libs` (the V8 monolith `.lib`s) is gitignored and
+  `dependencies/D2MOO` is a submodule - neither is populated by `git worktree
+  add`. Point both at the main checkout with a directory junction (not a copy or
+  re-fetch).
+
+Recipe (PowerShell, from the main checkout root):
+
+```powershell
+$main = (Get-Location).Path
+$wt   = "$main\.claude\worktrees\<name>"
+git config core.longpaths true                      # else deep v8 headers fail to check out
+git worktree add -b <branch> $wt <base-ref>
+# V8 monolith libs (gitignored) - junction from main
+New-Item -ItemType Junction -Path "$wt\dependencies\v8\libs" -Target "$main\dependencies\v8\libs"
+# D2MOO submodule (empty placeholder) - remove, then junction from main
+# (alternatively: git -C $wt submodule update --init dependencies/D2MOO)
+[System.IO.Directory]::Delete("$wt\dependencies\D2MOO", $false)
+New-Item -ItemType Junction -Path "$wt\dependencies\D2MOO" -Target "$main\dependencies\D2MOO"
+```
+
+`build.ps1` does `Set-Location $PSScriptRoot`, so run the *worktree's* `build.ps1`
+to build the worktree. Its output stays under the worktree's `Release\`, so it
+won't collide with a running game that loaded the main checkout's `d2bs.dll`.
+
 ## Git
 
 Commits should not be GPG signed:
