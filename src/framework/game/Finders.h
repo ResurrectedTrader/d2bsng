@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "game/Bridge.h"
 #include "game/Constants.h"
 #include "game/Control.h"
 #include "game/Level.h"
@@ -265,6 +266,9 @@ inline std::optional<Party> Party::FindByName(const std::string& name) {
 inline std::optional<Control> Control::Find(std::optional<ControlType> type, std::optional<uint32_t> x,
                                             std::optional<uint32_t> y, std::optional<uint32_t> xsize,
                                             std::optional<uint32_t> ysize, std::optional<int32_t> localeId) {
+    // One read lock for the whole walk: inner ResolvePtr() locks collapse to
+    // free recursive re-entries, and the control list can't shift mid-iteration.
+    auto guard = Bridge::Lock();
     if (!type && !x && !y && !xsize && !ysize && !localeId) {
         return Control::GetFirst();
     }

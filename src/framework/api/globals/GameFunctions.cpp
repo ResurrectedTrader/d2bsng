@@ -1037,6 +1037,10 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             auto array = v8::Array::New(isolate);
 
+            // One read lock for the whole walk: collapses the per-control
+            // ResolvePtr locks to free recursive re-entries and pins a
+            // consistent control-list snapshot for its duration.
+            auto lock = d2bs::game::Bridge::Lock();
             if (auto firstCtrl = d2bs::game::Control::GetFirst()) {
                 auto context = isolate->GetCurrentContext();
                 uint32_t idx = 0;
