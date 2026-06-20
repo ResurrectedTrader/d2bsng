@@ -136,6 +136,38 @@ New-Item -ItemType Junction -Path "$wt\dependencies\D2MOO" -Target "$main\depend
 to build the worktree. Its output stays under the worktree's `Release\`, so it
 won't collide with a running game that loaded the main checkout's `d2bs.dll`.
 
+Removing a worktree - **detach the junctions first**. Any recursive delete that
+follows them (`git worktree remove`, `rm -rf`, `Remove-Item -Recurse`) walks into
+the junction targets and deletes the *main* checkout's V8 libs (gitignored, slow
+to rebuild) and D2MOO submodule contents. A non-recursive delete removes the
+junction itself and leaves the target intact:
+
+```powershell
+$main = (Get-Location).Path
+$wt   = "$main\.claude\worktrees\<name>"
+# Detach the junctions BEFORE deleting anything - the target stays intact.
+[System.IO.Directory]::Delete("$wt\dependencies\v8\libs", $false)
+[System.IO.Directory]::Delete("$wt\dependencies\D2MOO", $false)
+git worktree remove $wt        # --force if the tree has uncommitted changes
+# git branch -D <branch>       # optional: also drop the worktree's branch
+```
+
+If `git worktree remove` refuses with "'.git' is not a .git file" - a worktree
+whose internal links were written by Cygwin git (`/cygdrive/...` paths that
+Git-for-Windows can't parse) - detach the junctions as above, then remove the
+tree and its admin entry by hand and prune. Delete from a Cygwin / Git-Bash
+shell (`rm -rf "$wt"`) if the deep `v8/include` paths overflow MAX_PATH for
+`Remove-Item`:
+
+```powershell
+Remove-Item -Recurse -Force $wt
+Remove-Item -Recurse -Force "$main\.git\worktrees\<name>"
+git worktree prune
+```
+
+Either way, confirm `dependencies\v8\libs` and `dependencies\D2MOO` in the main
+checkout still hold their files afterward.
+
 ## Git
 
 Commits should not be GPG signed:
