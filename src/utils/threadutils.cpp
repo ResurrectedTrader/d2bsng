@@ -402,6 +402,26 @@ LONG WINAPI VectoredExceptionHandler(PEXCEPTION_POINTERS exceptionInfo) {
             break;
     }
 
+    // Resolve the faulting module up front and bail before doing any work for
+    // faults that aren't ours. We only diagnose - log, stack-walk, and maybe
+    // terminate - faults originating in code we own: our DLL (&__ImageBase,
+    // which statically links V8) or the game's main module. A fault inside a
+    // foreign module (e.g. an obfuscated third-party loader that deliberately
+    // raises and then catches its own illegal-/privileged-instruction
+    // exceptions as control flow), or in unknown memory (expModule == nullptr,
+    // e.g. a V8 JIT code page), is none of our business: return immediately so
+    // we neither spam the console nor burn the rate-limit budget below. A
+    // genuinely unhandled foreign fault still reaches our
+    // SetUnhandledExceptionFilter backstop on the second chance.
+    const auto expAddr = reinterpret_cast<uintptr_t>(exceptionInfo->ExceptionRecord->ExceptionAddress);
+    HMODULE expModule = nullptr;
+    GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                       reinterpret_cast<LPCSTR>(expAddr), &expModule);
+    const auto ourModule = reinterpret_cast<HMODULE>(&__ImageBase);
+    if (expModule == nullptr || (expModule != ourModule && expModule != GetModuleHandleA(nullptr))) {
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+
     // Rate-limit so V8's intentional first-chance AVs (Wasm trap, stack
     // guard, etc.) don't flood the console under normal load. After
     // MAX_LOGS events we silently propagate.
@@ -415,20 +435,13 @@ LONG WINAPI VectoredExceptionHandler(PEXCEPTION_POINTERS exceptionInfo) {
         return EXCEPTION_CONTINUE_SEARCH;
     }
 
-    auto expAddr = reinterpret_cast<uintptr_t>(exceptionInfo->ExceptionRecord->ExceptionAddress);
-
-    // Resolve module name + RVA at the faulting IP so we can tell at a glance
-    // whether the AV is in v8_monolith, Game.exe, our DLL, or somewhere else.
+    // Module name + RVA at the faulting IP for the log line. expModule is
+    // non-null and is our DLL or Game.exe - guaranteed by the early bail above.
     std::string modInfo = " in <unknown module>";
-    HMODULE expModule = nullptr;
-    if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                           reinterpret_cast<LPCSTR>(expAddr), &expModule)) {
-        std::array<char, MAX_PATH> buf{};
-        if (GetModuleFileNameA(expModule, buf.data(), buf.size())) {
-            auto base = reinterpret_cast<uintptr_t>(expModule);
-            modInfo =
-                std::format(" in {}+{:#x}", std::filesystem::path(buf.data()).filename().string(), expAddr - base);
-        }
+    std::array<char, MAX_PATH> buf{};
+    if (GetModuleFileNameA(expModule, buf.data(), buf.size())) {
+        const auto base = reinterpret_cast<uintptr_t>(expModule);
+        modInfo = std::format(" in {}+{:#x}", std::filesystem::path(buf.data()).filename().string(), expAddr - base);
     }
 
     // For AV, ExceptionInformation[0]=op (0=read, 1=write, 8=exec) and
@@ -480,47 +493,29 @@ LONG WINAPI VectoredExceptionHandler(PEXCEPTION_POINTERS exceptionInfo) {
     // terminating paths to avoid duplicate writes.
     OutputDebugStringA(msg.c_str());
 
-    // Terminate only on ERROR-severity NTSTATUS codes (top two bits set):
-    // illegal instruction, stack overflow, integer divide, privileged
-    // instruction, etc. - these are almost always real bugs. Informational
-    // (0x4xxxxxxx) and warning (0x8xxxxxxx) codes are benign SEH signals, not
-    // crashes (e.g. MS_VC_EXCEPTION thread-naming), so we never terminate on
-    // them even if they aren't in the skip-list above. AVs are error-severity
-    // but are often legitimate first-chance (V8 Wasm traps, stack guard), so
-    // they propagate via the path below rather than terminating here.
+    // Terminate on ERROR-severity NTSTATUS codes (top two bits set): illegal
+    // instruction, stack overflow, integer divide, privileged instruction, etc.
+    // - almost always real bugs. Reaching here means the fault is in our own
+    // code (foreign-module faults already bailed out above). Informational
+    // (0x4xxxxxxx) / warning (0x8xxxxxxx) codes are benign SEH signals and never
+    // terminate. AVs are error-severity but are often legitimate first-chance
+    // (V8 Wasm traps, stack guard), so they propagate via the path below rather
+    // than terminating here.
     constexpr DWORD NT_ERROR_SEVERITY_MASK = 0xC0000000U;
     const bool isError = (code & NT_ERROR_SEVERITY_MASK) == NT_ERROR_SEVERITY_MASK;
     const bool isAv = (code == EXCEPTION_ACCESS_VIOLATION);
-
-    // Only hard-terminate when the fault originates in code we own: our DLL
-    // (&__ImageBase, which statically links V8) or the game's main module. An
-    // error-severity fault inside a foreign module - e.g. an obfuscated
-    // third-party loader that deliberately raises and then catches its own
-    // illegal-/privileged-instruction exceptions as control flow - is left to
-    // propagate so that module's own __except / VEH gets its turn. A genuinely
-    // unhandled foreign fault still reaches our SetUnhandledExceptionFilter
-    // backstop on the second chance, so we don't lose real crashes. A fault in
-    // unknown memory (expModule == nullptr, e.g. a V8 JIT code page) counts as
-    // "not ours" and propagates too.
-    const auto ourModule = reinterpret_cast<HMODULE>(&__ImageBase);
-    const auto gameModule = GetModuleHandleA(nullptr);
-    const bool faultInOurCode = expModule != nullptr && (expModule == ourModule || expModule == gameModule);
-
-    if (isError && !isAv && faultInOurCode) {
+    if (isError && !isAv) {
         CrashAndExit(msg, code);
     }
 
 #ifdef D2BSNG_HANG_ON_CRASH
-    // Debug mode: also terminate on AV (which normally propagates) so V8 / D2
-    // __try blocks never get a turn and bury the fault site. Same module gate as
-    // above - foreign-module faults still propagate so their own handlers run.
-    if (faultInOurCode) {
-        CrashAndExit(msg, code);
-    }
+    // Debug mode: also terminate on AV so V8 / D2 __try blocks never get a turn
+    // and bury the fault site. (Foreign-module faults already bailed out above.)
+    CrashAndExit(msg, code);
 #endif
 
-    // Propagating path - a first-chance AV, or any fault in a foreign module:
-    // persist a best-effort record in case a downstream handler swallows it and
+    // First-chance AV in our own code (propagating path): persist a best-effort
+    // record in case a downstream handler (V8 UEF, D2 __try) swallows it and
     // calls ExitProcess before our SEH UEF gets a turn.
     WriteCrashLog(msg);
     spdlog::warn(msg);
