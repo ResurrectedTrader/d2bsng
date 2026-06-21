@@ -26,8 +26,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     auto inst = tpl->InstanceTemplate();
     auto proto = tpl->PrototypeTemplate();
 
-    /// @description Unit type category (0=Player, 1=Monster, 2=Object, 3=Missile, 4=Item, 5=Tile/exit).
-    /// @type {number}
+    /// @description Unit type category.
+    /// @type {UnitType}
     Property(
         isolate, inst, "type", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             auto* data = Unwrap(info.Holder());
@@ -271,9 +271,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
         });
 
     // Reference lines 280-297: only Monsters have pMonsterData; other types return undefined.
-    /// @description Monster special-type bitflags (0x01=super-unique, 0x02=champion, 0x04=unique/boss, 0x08=minion);
-    /// Monster units only.
-    /// @type {number}
+    /// @description Monster special-type bitflags (a bitfield combination); Monster units only.
+    /// @type {MonsterSpecType}
     Property(
         isolate, inst, "spectype", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             auto* data = Unwrap(info.Holder());
@@ -481,9 +480,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             info.GetReturnValue().Set(v8_convert::ToV8(isolate, data->ItemFullName()));
         });
 
-    /// @description Item quality code (1=inferior, 2=normal, 3=superior, 4=magic, 5=set, 6=rare, 7=unique, 8=crafted,
-    /// 9=tempered); Item units only.
-    /// @type {number}
+    /// @description Item quality; Item units only.
+    /// @type {ItemQuality}
     Property(
         isolate, inst, "quality", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             auto* data = Unwrap(info.Holder());
@@ -493,9 +491,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             info.GetReturnValue().Set(static_cast<uint32_t>(data->Quality()));
         });
 
-    /// @description Inventory node/page the item belongs to (NodePage enum: 1=storage, 2=belt, 3=equipped); Item units
-    /// only.
-    /// @type {number}
+    /// @description Inventory node/page the item belongs to; Item units only.
+    /// @type {NodePage}
     Property(
         isolate, inst, "node", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             auto* data = Unwrap(info.Holder());
@@ -505,9 +502,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             info.GetReturnValue().Set(static_cast<uint32_t>(data->Node()));
         });
 
-    /// @description Storage location of the item (ItemLocation enum: 0=ground, 1=equip, 2=belt, 3=inventory, 4=store,
-    /// 5=trade, 6=cube, 7=stash, 255=none); Item units only.
-    /// @type {number}
+    /// @description Storage location of the item; Item units only.
+    /// @type {ItemLocation}
     Property(
         isolate, inst, "location", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             auto* data = Unwrap(info.Holder());
@@ -563,10 +559,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             info.GetReturnValue().Set(v8_convert::ToV8(isolate, data->Description()));
         });
 
-    /// @description Equipment slot (body location) the item is worn in (BodyLocation enum: 0=none, 1=head, 2=amulet,
-    /// 3=body, 4=right primary, 5=left primary, 6=right ring, 7=left ring, 8=belt, 9=feet, 10=gloves, 11=right
-    /// secondary, 12=left secondary); Item units only.
-    /// @type {number}
+    /// @description Equipment slot (body location) the item is worn in; Item units only.
+    /// @type {BodyLocation}
     Property(
         isolate, inst, "bodylocation", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             auto* data = Unwrap(info.Holder());
@@ -614,8 +608,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     // Player-specific properties (read-only on unit template; me object overrides with writable version)
     // =========================================================================
 
-    /// @description Current movement mode of the player (0=walk, 1=run); player unit only.
-    /// @type {number}
+    /// @description Current movement mode of the player; player unit only.
+    /// @type {MoveMode}
     Property(
         isolate, inst, "runwalk", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             auto* data = Unwrap(info.Holder());
@@ -629,8 +623,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             }
         });
 
-    /// @description Active weapon set of the player (0=primary, 1=secondary/swap); player unit only.
-    /// @type {number}
+    /// @description Active weapon set of the player; player unit only.
+    /// @type {WeaponSet}
     Property(
         isolate, inst, "weaponswitch", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             auto* data = Unwrap(info.Holder());
@@ -920,8 +914,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// form).
     /// @param chargeOnly {boolean} - Optional: true restricts to charge skills, false counts non-charge, omitted counts
     /// both.
-    /// @returns {string|number|Array|boolean} - Skill name (modes 0/1), skill id (modes 2/3), all-skills array (mode
-    /// 4), the skill level (multi-arg form), or false when not found / invalid mode.
+    /// @returns {string|number|Array<number[]>|boolean} - Skill name (modes 0/1), skill id (modes 2/3), all-skills
+    /// array (mode 4), the skill level (multi-arg form), or false when not found / invalid mode.
     Method(
         isolate, proto, "getSkill", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
@@ -1190,8 +1184,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// The experience stats are returned as an unsigned double to avoid int32 overflow.
     /// @param subIndex {number} - Optional stat sub-index (default 0); used for per-skill/per-element stats in the
     /// normal path.
-    /// @returns {number|Array|boolean} - The stat value (unsigned double for experience stats), an array for the -1 /
-    /// -2 modes, false on bad args / invalid unit.
+    /// @returns {number|Array<any>|boolean} - The stat value (unsigned double for experience stats), an array for the
+    /// -1 / -2 modes, false on bad args / invalid unit.
     Method(
         isolate, proto, "getStat", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();

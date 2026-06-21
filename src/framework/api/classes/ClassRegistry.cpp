@@ -1,4 +1,7 @@
 #include "ClassRegistry.h"
+
+#include <utility>
+
 #include "api/core/V8Convert.h"
 #include "components/config/AppConfig.h"
 #include "components/gameloop/GameLoop.h"
@@ -26,6 +29,7 @@
 #include "io/JSHttpClient.h"
 #include "io/JSSQLite.h"
 #include "io/JSSocket.h"
+#include "scripting/JSCompatibility.h"
 #include "scripting/JSProfile.h"
 #include "scripting/JSSandbox.h"
 #include "scripting/JSScript.h"
@@ -58,6 +62,7 @@ void RegisterAllClasses(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> glob
     global->Set(isolate, "D2BSScript", JSScript::GetTemplate(isolate));
     global->Set(isolate, "Sandbox", JSSandbox::GetTemplate(isolate));
     global->Set(isolate, "Profile", JSProfile::GetTemplate(isolate));
+    global->Set(isolate, "Compatibility", JSCompatibility::GetTemplate(isolate));
 
     // Network/DB
     global->Set(isolate, "HttpClient", JSHttpClient::GetTemplate(isolate));
@@ -95,6 +100,7 @@ void ClearAllClassCaches(v8::Isolate* isolate) {
     JSScript::ClearCache(isolate);
     JSSandbox::ClearCache(isolate);
     JSProfile::ClearCache(isolate);
+    JSCompatibility::ClearCache(isolate);
 
     // Network/DB
     JSHttpClient::ClearCache(isolate);
@@ -137,8 +143,8 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
           nullptr, v8::Local<v8::Value>(), v8::PropertyAttribute::ReadOnly)
         .Check();
 
-    /// @description Current game difficulty index (0 = Normal, 1 = Nightmare, 2 = Hell).
-    /// @type {number}
+    /// @description Current game difficulty.
+    /// @type {Difficulty}
     me->SetNativeDataProperty(
           context, v8_convert::ToV8(isolate, "diff"),
           +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
@@ -147,8 +153,8 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
           nullptr, v8::Local<v8::Value>(), v8::PropertyAttribute::ReadOnly)
         .Check();
 
-    /// @description Highest difficulty index unlocked for this character (0 = Normal, 1 = Nightmare, 2 = Hell).
-    /// @type {number}
+    /// @description Highest difficulty unlocked for this character.
+    /// @type {Difficulty}
     me->SetNativeDataProperty(
           context, v8_convert::ToV8(isolate, "maxdiff"),
           +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
@@ -207,8 +213,8 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
           nullptr, v8::Local<v8::Value>(), v8::PropertyAttribute::ReadOnly)
         .Check();
 
-    /// @description Whether the current character is an Expansion (LoD) character: 0 = classic, 1 = expansion.
-    /// @type {number}
+    /// @description Whether the current character is an Expansion (LoD) character.
+    /// @type {GameType}
     me->SetNativeDataProperty(
           context, v8_convert::ToV8(isolate, "gametype"),
           +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
@@ -273,8 +279,8 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
     me->SetNativeDataProperty(
           context, v8_convert::ToV8(isolate, "playertype"),
           +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-              info.GetReturnValue().Set((d2bs::game::GetCharFlags() & d2bs::game::CHAR_FLAG_HARDCORE) ==
-                                        d2bs::game::CHAR_FLAG_HARDCORE);
+              info.GetReturnValue().Set(
+                  (d2bs::game::GetCharFlags() & std::to_underlying(d2bs::game::CharFlag::Hardcore)) != 0);
           },
           nullptr, v8::Local<v8::Value>(), v8::PropertyAttribute::ReadOnly)
         .Check();
@@ -353,9 +359,8 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
           nullptr, v8::Local<v8::Value>(), v8::PropertyAttribute::ReadOnly)
         .Check();
 
-    /// @description Raw character flags bitfield for the current character. Bits: 0x04 = hardcore, 0x20 = expansion,
-    /// 0x40 = ladder.
-    /// @type {number}
+    /// @description Raw character flags bitfield for the current character.
+    /// @type {CharFlag}
     me->SetNativeDataProperty(
           context, v8_convert::ToV8(isolate, "charflags"),
           +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
@@ -364,8 +369,8 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
           nullptr, v8::Local<v8::Value>(), v8::PropertyAttribute::ReadOnly)
         .Check();
 
-    /// @description Screen resolution mode index (e.g. 0 = 640x480, 1 = 800x600).
-    /// @type {number}
+    /// @description Screen resolution mode.
+    /// @type {ScreenSize}
     me->SetNativeDataProperty(
           context, v8_convert::ToV8(isolate, "screensize"),
           +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
@@ -405,8 +410,8 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
           nullptr, v8::Local<v8::Value>(), v8::PropertyAttribute::ReadOnly)
         .Check();
 
-    /// @description Active weapon set index (0 = primary slot I, 1 = secondary slot II).
-    /// @type {number}
+    /// @description Active weapon set.
+    /// @type {WeaponSet}
     me->SetNativeDataProperty(
           context, v8_convert::ToV8(isolate, "weaponswitch"),
           +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
@@ -427,15 +432,15 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
           })
         .Check();
 
-    /// @description In-game movement mode: true = always run, false = walk.
-    /// @type {boolean}
+    /// @description In-game movement mode; assign to switch between walk and run.
+    /// @type {MoveMode}
     me->SetNativeDataProperty(
           context, v8_convert::ToV8(isolate, "runwalk"),
           +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-              info.GetReturnValue().Set(d2bs::game::GetAlwaysRun());
+              info.GetReturnValue().Set(d2bs::game::GetAlwaysRun() ? 1U : 0U);
           },
           +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<void>& info) {
-              d2bs::game::SetAlwaysRun(v8_convert::ToBool(info.GetIsolate(), value));
+              d2bs::game::SetAlwaysRun(v8_convert::ToInt32(info.GetIsolate(), value) != 0);
           })
         .Check();
 

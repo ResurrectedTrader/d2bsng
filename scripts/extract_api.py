@@ -228,6 +228,10 @@ def readonly_from(doc, call):
 #   /// @throws {ErrorType} - <when>               (SEMANTIC exceptions only - see below)
 #   /// @callback <param>(arg: type, ...) -> {ret} - <desc>   (a function-typed param)
 #
+# A `{type}` that names an extracted enum or constant namespace (e.g.
+# `@type {Difficulty}`, `@param flag {CompatibilityFlag}`) auto-links to that
+# option-set's table in the docs - see extract_enums().
+#
 # @throws convention: a function/method throws a TypeError when a required
 # argument is missing or has the wrong type (via the shared CheckArgCount /
 # CheckIs* helpers).  That is implied and is NOT documented per entry; @throws
@@ -568,6 +572,7 @@ class ApiExtractor:
         self._constructable = {}  # cpp_class -> bool (false = V8_CLASS_NOT_CONSTRUCTABLE)
         self._ctor = {}  # cpp_class -> {file, line, doc} for the documented New
         self._extends = {}  # cpp_class -> base js name (shared-property inheritance)
+        self._class_js = {}  # cpp_class -> ClassName (JS-visible name), for consistent keying
 
     def process(self, index, path, flags):
         tu = index.parse(
@@ -610,8 +615,15 @@ class ApiExtractor:
         if cur.kind == CursorKind.VAR_DECL and cur.spelling == "ClassName":
             parent = cur.semantic_parent
             if parent:
-                s = first_string_in(cur)
+                # ClassName is a `static constexpr std::string_view ClassName =
+                # "Name";`. libclang hides the literal behind the string_view ctor
+                # (first_string_in returns None), so read it from the tokens. This
+                # is the JS-visible name (e.g. JSDirectory -> "Folder"); record it
+                # so methods/properties key off it, not the "JS"-stripped name.
+                toks = [t.spelling for t in cur.get_tokens()]
+                s = strip_quotes(toks[toks.index("=") + 1]) if "=" in toks else None
                 if s:
+                    self._class_js[parent.spelling] = s
                     self._ensure_class(parent.spelling, js_name=s, path=path)
                 self._scan_constructable(parent)
 
@@ -776,7 +788,7 @@ class ApiExtractor:
 
     def _ensure_class(self, cpp_name, js_name=None, path=None):
         if js_name is None:
-            js_name = cpp_name.removeprefix("JS")
+            js_name = self._class_js.get(cpp_name) or cpp_name.removeprefix("JS")
         if js_name not in self.classes:
             self.classes[js_name] = {
                 "cpp_class": cpp_name,
@@ -956,6 +968,146 @@ def extract_txt_tables(path=TXT_TABLES_FILE):
         {"index": i, "name": nm, "columns": cols_by_var.get(order[i], []) if i < len(order) else []}
         for i, nm in enumerate(names)
     ]
+
+
+# Files parsed with libclang (the same toolchain as the API sources) for the
+# option-set tables: `enum class` definitions whose enumerators back enum-typed
+# `{type}`s, plus the compatibility-flag catalog (RegisterDefaults). Only sets
+# referenced by a doc `{type}` somewhere are emitted.
+ENUM_SOURCES = [
+    REPO_ROOT / "src" / "framework" / "game" / "Types.h",
+    REPO_ROOT / "src" / "framework" / "game" / "Constants.h",
+]
+COMPAT_FLAGS_SOURCE = REPO_ROOT / "src" / "framework" / "components" / "config" / "CompatibilityFlags.cpp"
+
+_INT_LITERAL_RE = re.compile(r"0[xX][0-9a-fA-F]+|\d+")
+
+
+def _enum_is_flags(filepath, line):
+    """A bitfield enum is marked with a `/// @flags` comment line directly above
+    it (so it is typed `number` in the d.ts - a value is an OR-combination).
+    Explicit, not guessed from the enumerator values."""
+    lines = _get_lines(Path(filepath))
+    idx = line - 2  # 1-based; the line above the `enum class`
+    while idx >= 0:
+        text = lines[idx].strip()
+        if not text.startswith("///"):
+            break
+        if "@flags" in text:
+            return True
+        idx -= 1
+    return False
+
+
+def _strip_comment_markers(raw):
+    if not raw:
+        return ""
+    return " ".join(re.sub(r"(?m)^\s*(///?<?|/\*+|\*+/|\*)", "", raw).split())
+
+
+def _enumerator_value(cursor):
+    """The source token of an enumerator's value (preserves hex like 0x04); falls
+    back to the evaluated integer (auto-incremented / non-literal initializers)."""
+    toks = [t.spelling for t in cursor.get_tokens()]
+    if "=" in toks:
+        tok = toks[toks.index("=") + 1]
+        if _INT_LITERAL_RE.fullmatch(tok):
+            return tok
+    return str(cursor.enum_value)
+
+
+def _enumerator_desc(cursor):
+    """An enumerator's description: a leading `///` doc comment, else a trailing
+    `// comment` on its source line."""
+    raw = _strip_comment_markers(cursor.raw_comment)
+    if raw:
+        return raw
+    src = cursor.location.file
+    if src:
+        lines = _get_lines(Path(src.name))
+        i = cursor.location.line - 1
+        if 0 <= i < len(lines):
+            m = re.search(r"//<?\s*(.*)$", lines[i])
+            if m:
+                return m.group(1).strip()
+    return ""
+
+
+def _collect_type_idents(obj, out):
+    """Recursively gather identifiers appearing in any "type" field of *obj*."""
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k == "type" and isinstance(v, str):
+                out.update(re.findall(r"[A-Za-z_]\w*", v))
+            else:
+                _collect_type_idents(v, out)
+    elif isinstance(obj, list):
+        for item in obj:
+            _collect_type_idents(item, out)
+
+
+def _parse_enum_defs(tu, path):
+    """Collect the `enum class` option sets *defined in* path from a parsed TU."""
+    out = {}
+    for cur in tu.cursor.walk_preorder():
+        if (
+            cur.kind == CursorKind.ENUM_DECL
+            and cur.is_definition()
+            and cur.location.file
+            and Path(cur.location.file.name) == path
+        ):
+            rows = [
+                {"value": _enumerator_value(c), "name": c.spelling, "description": _enumerator_desc(c)}
+                for c in cur.get_children()
+                if c.kind == CursorKind.ENUM_CONSTANT_DECL
+            ]
+            if rows:
+                kind = "flags" if _enum_is_flags(path, cur.location.line) else "enum"
+                out[cur.spelling] = {"name": cur.spelling, "kind": kind, "rows": rows}
+    return out
+
+
+def _parse_compat_flag_rows(tu):
+    """Collect the CompatibilityFlag rows from RegisterDefaults()'s documented
+    `Register("name")` calls (read the same way as RegisterConstants)."""
+    rows = []
+    for cur in tu.cursor.walk_preorder():
+        if (
+            cur.spelling == "RegisterDefaults"
+            and cur.is_definition()
+            and cur.kind in (CursorKind.CXX_METHOD, CursorKind.FUNCTION_DECL)
+        ):
+            for call in cur.walk_preorder():
+                if call.kind == CursorKind.CALL_EXPR and callee_spelling(call) == "Register":
+                    name = nth_arg_string(call, 0)
+                    if not name:
+                        continue
+                    src = call.location.file
+                    doc = extract_doc_comment(Path(src.name), call.location.line) if src else {}
+                    rows.append({"name": name, "description": (doc or {}).get("description", "")})
+    return rows
+
+
+def extract_enums(result, flags):
+    """Build the `{name -> option set}` map (enums + the CompatibilityFlag set),
+    parsed with libclang, filtered to those referenced by a doc `{type}` in
+    *result*. Each set: `{name, kind, rows:[{value?, name, description?}]}`."""
+    index = Index.create()
+    opts = TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD | TranslationUnit.PARSE_INCOMPLETE
+
+    defs = {}
+    for path in ENUM_SOURCES:
+        if path.exists():
+            defs.update(_parse_enum_defs(index.parse(str(path), args=flags, options=opts), path))
+
+    if COMPAT_FLAGS_SOURCE.exists():
+        rows = _parse_compat_flag_rows(index.parse(str(COMPAT_FLAGS_SOURCE), args=flags, options=opts))
+        if rows:
+            defs["CompatibilityFlag"] = {"name": "CompatibilityFlag", "kind": "flags", "rows": rows}
+
+    referenced = set()
+    _collect_type_idents(result, referenced)
+    return {name: d for name, d in defs.items() if name in referenced}
 
 
 def _find_string_literal(cur, depth=8):
@@ -1190,6 +1342,10 @@ def main():
 
     result["tables"] = extract_txt_tables()
 
+    # Option sets (enum / flag value tables) referenced by doc `{type}`s. Must run
+    # after the result is assembled so referenced-type filtering can see all docs.
+    result["enums"] = extract_enums(result, flags)
+
     drawable_base = extract_drawable_base()
     if drawable_base and "DrawableBase" not in result["classes"]:
         result["classes"]["DrawableBase"] = drawable_base
@@ -1206,11 +1362,12 @@ def main():
         1 for c in result["classes"].values() if c.get("constructable") is False
     )
     nev = len(result.get("events", []))
+    nen = len(result.get("enums", {}))
     print(
         f"Found: {nc} classes ({nm} methods, {np} properties, {ns} static, "
         f"{nctor} constructors, {nnoctor} non-constructable), "
         f"{ng} global functions, {nk} constants, {nme} 'me' properties, "
-        f"{nev} events",
+        f"{nev} events, {nen} enums",
         file=sys.stderr,
     )
 

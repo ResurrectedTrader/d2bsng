@@ -211,6 +211,10 @@ ul.params>li{margin:3px 0;font-size:14px}
 .returns,.throws{margin:6px 0;font-size:14px}
 .r-label,.t-label{font-weight:600;color:var(--muted);margin-right:6px;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
 .throws ul{margin:4px 0;padding-left:18px}
+table.opt-tbl{border-collapse:collapse;width:100%;font-size:13px;margin:4px 0}
+table.opt-tbl td{border:1px solid var(--border);padding:4px 9px;vertical-align:top}
+table.opt-tbl td.ov,table.opt-tbl td.on{white-space:nowrap;width:1%}
+table.opt-tbl code{background:var(--code-bg);padding:1px 5px;border-radius:4px}
 .member-foot{margin:4px 0 2px}
 .src{font-size:12px;color:var(--muted)}
 .src-plain{cursor:help}
@@ -368,6 +372,17 @@ function renderThrows(doc){
     var ty=esc(x.type||'Error'), d=esc(x.description||''); return '<li><code>'+ty+'</code>'+(d?' &mdash; '+d:'')+'</li>';
   }).join('')+'</ul></div>';
 }
+function renderOptRows(rows){
+  rows=rows||[]; if(!rows.length) return '';
+  var hasVal=rows.some(function(r){ return r.value!==undefined && r.value!==''; });
+  var trs=rows.map(function(r){
+    var c=hasVal ? '<td class="ov"><code>'+esc(r.value!=null?String(r.value):'')+'</code></td>' : '';
+    c+='<td class="on"><code>'+esc(r.name||'')+'</code></td>';
+    c+='<td>'+esc(r.description||'')+'</td>';
+    return '<tr>'+c+'</tr>';
+  }).join('');
+  return '<table class="opt-tbl"><tbody>'+trs+'</tbody></table>';
+}
 function renderSignatures(doc){
   var sigs=(doc&&doc.signatures)||[]; if(!sigs.length) return '';
   return sigs.map(function(s){
@@ -428,9 +443,10 @@ function navSubgroup(anchor,label,leaves,childHtml){
 // ---- whole-API render ----
 function buildApi(data){
   TYPE_LINKS={};
-  var classes=data.classes||{}, globals=data.global_functions||[], constants=data.constants||{}, me=data.me_properties||[], events=data.events||[];
+  var classes=data.classes||{}, globals=data.global_functions||[], constants=data.constants||{}, me=data.me_properties||[], events=data.events||[], enums=data.enums||{};
   Object.keys(classes).forEach(function(n){ TYPE_LINKS[n]=slug('class',n); });
   Object.keys(constants).forEach(function(c){ if(constants[c]&&constants[c].properties) TYPE_LINKS[c]=slug('const',c); });
+  Object.keys(enums).forEach(function(en){ TYPE_LINKS[en]=slug('enum',en); });
 
   var navHtml=[], body=[];
   var nM=0,nP=0,nS=0;
@@ -518,6 +534,22 @@ function buildApi(data){
   events.slice().sort(byName).forEach(function(e){ var a=slug('event',e.name); body.push(renderEvent(e,a)); evLeaves.push([a,e.name,hay(e.name,e.description)]); });
   body.push('</section>');
   navHtml.push(navGroup('events','Events',evLeaves));
+
+  // enums (option sets referenced by typed properties / parameters)
+  var enumNames=Object.keys(enums);
+  if(enumNames.length){
+    body.push('<section class="area"><h2 id="enums" class="spy">Enums</h2><p class="area-intro">Named value sets used by the API. A property or parameter typed with one of these (e.g. <code>Difficulty</code>) takes one of the listed values.</p>');
+    var enLeaves=[];
+    enumNames.sort().forEach(function(en){
+      var d=enums[en], a=slug('enum',en);
+      var h=head(3,a,'<span class="sym-name">'+esc(en)+'</span>',badge(d.kind==='flags'?'flags':'enum','type'));
+      var hayStr=hay(en,(d.rows||[]).map(function(r){return r.name;}).join(' '));
+      body.push('<div class="member" data-hay="'+hayStr+'">'+h+'<div class="member-body">'+renderOptRows(d.rows)+'</div></div>');
+      enLeaves.push([a,en,hayStr]);
+    });
+    body.push('</section>');
+    navHtml.push(navGroup('enums','Enums',enLeaves));
+  }
 
   // data tables (Diablo II .txt schema behind getBaseStat)
   var tables=data.tables||[];

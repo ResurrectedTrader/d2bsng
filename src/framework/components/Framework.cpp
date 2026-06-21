@@ -7,6 +7,7 @@
 
 #include "components/characterstate/CharacterState.h"
 #include "components/config/AppConfig.h"
+#include "components/config/CompatibilityFlags.h"
 #include "components/config/IniConfigStore.h"
 #include "components/config/ScriptPaths.h"
 #include "components/config/Version.h"
@@ -20,6 +21,7 @@
 #include "components/script/ScriptEngine.h"
 #include "components/update/UpdateChecker.h"
 #include "game/Bridge.h"
+#include "game/Compatibility.h"
 #include "game/Console.h"
 #include "game/GameCallbacks.h"
 #include "game/GameHelpers.h"
@@ -73,6 +75,14 @@ void Framework::DoInitialize(HMODULE hModule) {
             return;
         }
         game::InstallHooks(BuildCallbacks());
+
+        // Build the compatibility-flag registry before any script runs: the
+        // framework's built-in flags, then any the game-version port contributes
+        // (see docs/compatibility.md). All default to enabled.
+        config::CompatibilityFlags::Instance().RegisterDefaults();
+        for (const auto& flag : game::GetCompatibilityFlags()) {
+            config::CompatibilityFlags::Instance().Register(flag);
+        }
 
         // Resolve launch-time profile. Reference: reference/d2bs/Helpers.cpp:80-105.
         if (auto launchProfile = game::GetLaunchProfile()) {

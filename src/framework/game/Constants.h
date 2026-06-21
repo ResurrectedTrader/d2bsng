@@ -17,8 +17,14 @@ constexpr uint32_t STAT_LIST_PRESET_FLAG = 0x40;
 constexpr uint32_t NPC_CHARSI_CLASS_ID = 0x9A;
 
 // Character flags (BnetData::nCharFlags). Reference Constants.h PLAYER_TYPE_*.
-constexpr uint32_t CHAR_FLAG_HARDCORE = 0x04;
-constexpr uint32_t CHAR_FLAG_EXPAC = 0x20;
+// Surfaced in the API docs for me.charflags; test against the raw nCharFlags
+// value with std::to_underlying(CharFlag::X).
+/// @flags
+enum class CharFlag : uint32_t {
+    Hardcore = 0x04,
+    Expansion = 0x20,
+    Ladder = 0x40,
+};
 
 // Mercenary class IDs (dwTxtFileNo) - used to filter summoned monsters
 // when identifying a player's hired merc. Values from reference/d2bs/Constants.h.

@@ -7,6 +7,7 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <utility>
 
 #include <Windows.h>
 
@@ -70,8 +71,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature getUnit(special: number)
     /// @param special {number} - 100 = cursor item, 101 = selected unit (falls back to selected inventory item)
     /// @signature getUnit(type: number, name?: string, mode?: number, unitId?: number)
-    /// @param type {number} - unit type (0 = player, 1 = monster, 2 = object, 3 = missile, 4 = item, 5 = tile);
-    /// out-of-range searches all types. Pass -1 (or omit) for no filter.
+    /// @param type {number} - a UnitType value; out-of-range searches all types. Pass -1 (or omit) for no filter.
     /// @param name {string} - unit name filter. Pass -1 (or omit) for no filter.
     /// @param mode {number} - unit mode filter. Pass -1 (or omit) for no filter. Two special forms: if mode >= 100 and
     ///   the unit is an item, it filters by item location matching (mode - 100) - 100=ground, 101=equipped, 102=belt,
@@ -1475,7 +1475,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             // Reference JSGame.cpp:1104 - AllowLoot is a no-op in non-hardcore games.
             if (mode == d2bs::game::PartyMode::AllowLoot &&
-                !(d2bs::game::GetCharFlags() & d2bs::game::CHAR_FLAG_HARDCORE)) {
+                !(d2bs::game::GetCharFlags() & std::to_underlying(d2bs::game::CharFlag::Hardcore))) {
                 args.GetReturnValue().SetFalse();
                 return;
             }
@@ -1630,7 +1630,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 args.GetReturnValue().Set(static_cast<int32_t>(d2bs::game::GetWeaponSwitch()));
             } else {
                 // Reference JSGame.cpp:1243 - classic D2 has no weapon switch.
-                if (!(d2bs::game::GetCharFlags() & d2bs::game::CHAR_FLAG_EXPAC)) {
+                if (!(d2bs::game::GetCharFlags() & std::to_underlying(d2bs::game::CharFlag::Expansion))) {
                     args.GetReturnValue().SetFalse();
                     return;
                 }

@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "components/config/AppConfig.h"
+#include "components/config/CompatibilityFlags.h"
 #include "components/profile/ProfileService.h"
 #include "game/Menu.h"
 
@@ -14,18 +15,18 @@ namespace d2bs::api::classes {
 /// @signature Profile(name: string)
 /// @param name {string} - profile name to load from the INI.
 /// @returns {Profile} - the named profile.
-/// @signature Profile(type: number, charname: string, diff: number)
-/// @param type {number} - ProfileType enum int: 1=singlePlayer, 4=tcpIpHost.
+/// @signature Profile(type: ProfileType, charname: string, diff: Difficulty)
+/// @param type {ProfileType} - 1=singlePlayer or 4=tcpIpHost for this form.
 /// @param charname {string} - character name.
-/// @param diff {number} - difficulty 0=Normal, 1=Nightmare, 2=Hell, 3=highest available; clamped to 0-3.
+/// @param diff {Difficulty} - clamped to 0-3 (3 = highest available).
 /// @returns {Profile} - a single-player or TCP/IP host profile.
-/// @signature Profile(type: number, charname: string, ip: string)
-/// @param type {number} - ProfileType enum int: 5=tcpIpJoin.
+/// @signature Profile(type: ProfileType, charname: string, ip: string)
+/// @param type {ProfileType} - 5=tcpIpJoin for this form.
 /// @param charname {string} - character name.
 /// @param ip {string} - host IP address to join.
 /// @returns {Profile} - a TCP/IP join profile.
-/// @signature Profile(type: number, account: string, pass: string, charname: string, gateway: string)
-/// @param type {number} - ProfileType enum int: 2=battleNet, 3=openBattleNet.
+/// @signature Profile(type: ProfileType, account: string, pass: string, charname: string, gateway: string)
+/// @param type {ProfileType} - 2=battleNet or 3=openBattleNet for this form.
 /// @param account {string} - account/username.
 /// @param pass {string} - account password.
 /// @param charname {string} - character name.
@@ -38,11 +39,15 @@ void JSProfile::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     auto* isolate = args.GetIsolate();
     auto context = isolate->GetCurrentContext();
 
-    // TODO(compatibility): SpiderMonkey allowed `Profile()` without `new`;
-    // kolbot relies on this. Auto-redirect to a construct call so the rest
-    // of this body runs against a real instance. Gate behind a per-script
-    // compatibility flag once the flag system lands.
+    // SpiderMonkey allowed `Profile()` without `new`; kolbot relies on this.
+    // When enabled (Compatibility flag: profileCallWithoutNew), auto-redirect to
+    // a construct call so the rest of this body runs against a real instance;
+    // when disabled, require `new` like an ordinary class.
     if (!args.IsConstructCall()) {
+        if (!d2bs::config::CompatibilityFlags::Instance().IsEnabled("profileCallWithoutNew")) {
+            v8_error::ThrowTypeError(isolate, "Profile must be called with 'new'");
+            return;
+        }
         std::vector<v8::Local<v8::Value>> argv(args.Length());
         for (int32_t i = 0; i < args.Length(); ++i) {
             argv[i] = args[i];
@@ -157,9 +162,8 @@ void JSProfile::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
     auto proto = tpl->PrototypeTemplate();
 
     // Properties
-    /// @description The profile's ProfileType: 0=invalid, 1=singlePlayer, 2=battleNet, 3=openBattleNet,
-    ///   4=tcpIpHost, 5=tcpIpJoin.
-    /// @type {number}
+    /// @description The profile's connection type.
+    /// @type {ProfileType}
     Property(
         isolate, inst, "type", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
             auto* isolate = info.GetIsolate();
@@ -218,9 +222,8 @@ void JSProfile::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
             }
             info.GetReturnValue().Set(v8_convert::ToV8(isolate, data->character));
         });
-    /// @description The profile's configured difficulty: 0=Normal, 1=Nightmare, 2=Hell, 3=highest
-    ///   available.
-    /// @type {number}
+    /// @description The profile's configured difficulty.
+    /// @type {Difficulty}
     Property(
         isolate, inst, "difficulty",
         +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {

@@ -268,7 +268,8 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature load(file: string, ...args: any)
     /// @param file {string} - script path relative to the script base path
     /// @param args {any} - optional serializable values forwarded to the new script
-    /// @returns {Script|boolean|null} - the started Script on success; false if the file is not found or there is no
+    /// @returns {D2BSScript|boolean|null} - the started script on success; false if the file is not found or there is
+    /// no
     ///                                  current script; null if the script failed to start
     /// @throws {Error} - if an extra argument cannot be serialized
     v8_function::Register(
@@ -790,7 +791,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description Opens (creating if needed) a directory relative to the script base path.
     /// @signature dopen(path: string)
     /// @param path {string} - directory path relative to the script base path
-    /// @returns {Directory} - a Directory handle for the opened/created directory
+    /// @returns {Folder} - a Folder handle for the opened/created directory
     /// @throws {Error} - if the path is invalid, or the directory cannot be created (e.g. parent does not exist)
     v8_function::Register(
         isolate, global, "dopen", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -840,7 +841,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param threadId {number} - native thread ID to match
     /// @signature getScript(path: string)
     /// @param path {string} - script path/name to match (slashes normalized to backslashes)
-    /// @returns {Script|null} - the selected Script, or null if none is found
+    /// @returns {D2BSScript|null} - the selected script, or null if none is found
     v8_function::Register(
         isolate, global, "getScript", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
@@ -899,7 +900,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
     /// @description Returns an array of Script objects, one for every currently running script.
     /// @signature getScripts()
-    /// @returns {Script[]} - array of all running Script objects
+    /// @returns {D2BSScript[]} - array of all running script objects
     v8_function::Register(
         isolate, global, "getScripts", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();

@@ -145,6 +145,7 @@
     <ClCompile Include="components\Framework.cpp" />
     <!-- Config -->
     <ClCompile Include="components\config\AppConfig.cpp" />
+    <ClCompile Include="components\config\CompatibilityFlags.cpp" />
     <ClCompile Include="components\config\IniConfigStore.cpp" />
     <!-- DDE -->
     <ClCompile Include="components\dde\DdeService.cpp" />
@@ -229,6 +230,7 @@
     <ClInclude Include="api\classes\drawing\JSLine.h" />
     <ClInclude Include="api\classes\drawing\JSText.h" />
     <!-- Scripting Classes -->
+    <ClInclude Include="api\classes\scripting\JSCompatibility.h" />
     <ClInclude Include="api\classes\scripting\JSProfile.h" />
     <ClInclude Include="api\classes\scripting\JSSandbox.h" />
     <ClInclude Include="api\classes\scripting\JSScript.h" />
@@ -248,6 +250,7 @@
     <ClInclude Include="components\Framework.h" />
     <!-- Config -->
     <ClInclude Include="components\config\AppConfig.h" />
+    <ClInclude Include="components\config\CompatibilityFlags.h" />
     <ClInclude Include="components\config\ConfigStore.h" />
     <ClInclude Include="components\config\IniConfigStore.h" />
     <ClInclude Include="components\config\ScriptPaths.h" />
@@ -258,6 +261,7 @@
     <ClInclude Include="components\dde\DdeService.h" />
     <!-- Game Interface -->
     <ClInclude Include="game\Bridge.h" />
+    <ClInclude Include="game\Compatibility.h" />
     <ClInclude Include="game\Console.h" />
     <ClInclude Include="game\Constants.h" />
     <ClInclude Include="game\Control.h" />

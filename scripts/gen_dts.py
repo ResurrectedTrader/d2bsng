@@ -26,6 +26,12 @@ from pathlib import Path
 
 _IDENT_RE = re.compile(r"^[A-Za-z_$][\w$]*$")
 
+# Type names that map to `number` in TS: constant namespaces (e.g. ProfileType)
+# and numeric bitfield enums (e.g. CharFlag - a value is an OR-combination, not a
+# single member). Populated by build_dts. Value-enum names pass through and get a
+# `type X = <literal union>` alias.
+_NUMBER_TYPES = set()
+
 
 # ── type mapping ────────────────────────────────────────────────────
 
@@ -37,6 +43,8 @@ def ts_type(t, *, is_return=False):
     if t is None or str(t).strip() == "":
         return "void" if is_return else "any"
     t = str(t).strip()
+    if t in _NUMBER_TYPES:
+        return "number"
     if is_return and t == "null":
         return "void"  # "returns null" is the API's way of saying "no result"
     # a bare `function` param type with no callback detail -> the Function type
@@ -191,6 +199,27 @@ def emit_const(name, val):
     return f"{block}declare const {name}: {ts_type(doc.get('type'))};\n"
 
 
+def emit_enum(name, d):
+    """Emit a `type X = ...` alias for an option set: a value-enum becomes a
+    literal union (`0 | 1 | 2`), a string flag-set becomes a string union.
+    Numeric bitfields are not emitted here (they map to `number`)."""
+    rows = d.get("rows", [])
+    has_values = any(r.get("value", "") != "" for r in rows)
+    if not has_values:
+        union = " | ".join(json.dumps(r["name"]) for r in rows) or "string"
+        doc_lines = [
+            f'`{r["name"]}`' + (f' - {r["description"]}' if r.get("description") else "") for r in rows
+        ]
+        label = "Flags:"
+    else:
+        vals = [r.get("value", "") for r in rows]
+        union = " | ".join(vals) if all(v != "" for v in vals) else "number"
+        doc_lines = [f'{r.get("value", "")} = {r["name"]}' for r in rows]
+        label = "Values:"
+    block = jsdoc("\n".join([label] + doc_lines)) if doc_lines else ""
+    return f"{block}type {name} = {union};\n"
+
+
 def build_dts(data, *, version):
     classes = data.get("classes", {})
     globals_ = data.get("global_functions", [])
@@ -198,6 +227,15 @@ def build_dts(data, *, version):
     me_props = data.get("me_properties", [])
     me_extends = data.get("me_extends")
     events = data.get("events", [])
+    enums = data.get("enums", {})
+
+    # Constant namespaces (ProfileType) and numeric bitfield enums (CharFlag) are
+    # `number` in TS; value-enums / string flag-sets get a `type X = ...` alias.
+    global _NUMBER_TYPES
+    _NUMBER_TYPES = {c for c, v in constants.items() if isinstance(v, dict) and "properties" in v}
+    _NUMBER_TYPES |= {
+        n for n, d in enums.items() if d.get("kind") == "flags" and any(r.get("value", "") != "" for r in d["rows"])
+    }
 
     out = []
     out.append("// d2bsng JavaScript API - TypeScript declarations\n")
@@ -207,6 +245,13 @@ def build_dts(data, *, version):
         "// Generated from the V8 bindings by scripts/extract_api.py + scripts/gen_dts.py.\n"
         "// Ambient global declarations: reference this file (or add it to your\n"
         "// tsconfig 'include') for editor completion of d2bsng scripts.\n\n"
+    )
+
+    # Helper types used in API doc `{type}`s that have no global TS definition.
+    out.append("// === Helper types ===\n\n")
+    out.append(
+        "type TypedArray = Int8Array | Uint8Array | Uint8ClampedArray | Int16Array | Uint16Array"
+        " | Int32Array | Uint32Array | Float32Array | Float64Array | BigInt64Array | BigUint64Array;\n\n"
     )
 
     # Classes (declaration order is irrelevant in an ambient .d.ts; base classes
@@ -235,6 +280,16 @@ def build_dts(data, *, version):
                 out.append(emit_namespace_const(cname, cval))
             else:
                 out.append(emit_const(cname, cval))
+        out.append("\n")
+
+    # Enums (value sets referenced by typed members). Numeric bitfields map to
+    # `number` (no alias); value-enums and string flag-sets get a literal union.
+    if enums:
+        out.append("// === Enums ===\n\n")
+        for ename in sorted(enums, key=str.lower):
+            if ename in _NUMBER_TYPES:
+                continue
+            out.append(emit_enum(ename, enums[ename]))
         out.append("\n")
 
     # Global functions (addEventListener is rebuilt below with typed overloads).

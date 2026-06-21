@@ -1,6 +1,7 @@
 #include "CompileSource.h"
 
 #include "api/core/V8Convert.h"
+#include "components/config/CompatibilityFlags.h"
 
 #include <regex>
 
@@ -8,28 +9,31 @@ namespace d2bs::framework::script {
 
 v8::MaybeLocal<v8::Script> CompileSource(v8::Isolate* isolate, v8::Local<v8::Context> context, std::string source,
                                          std::string_view originName) {
-    // Strip UTF-8 BOM.
+    auto& compat = d2bs::config::CompatibilityFlags::Instance();
+
+    // Strip UTF-8 BOM. Always applied - this is source hygiene, not a
+    // compatibility behavior, so it is not gated by a flag.
     if (source.size() >= 3 && static_cast<uint8_t>(source[0]) == 0xEF && static_cast<uint8_t>(source[1]) == 0xBB &&
         static_cast<uint8_t>(source[2]) == 0xBF) {
         source.erase(0, 3);
     }
 
-    // TODO(compatibility): kolbot-era `js_strict(true);` shim - prepend
+    // kolbot-era `js_strict(true);` shim (flag: jsStrictShim) - prepend
     // "use strict";\n and offset the origin line by 1 so error messages
-    // reference the script's original line numbers. Gate behind a
-    // compatibility flag once the flag system lands.
+    // reference the script's original line numbers.
     int32_t lineOffset = 0;
-    if (source.find("js_strict(true);") != std::string::npos) {
+    if (compat.IsEnabled("jsStrictShim") && source.find("js_strict(true);") != std::string::npos) {
         source.insert(0, "\"use strict\";\n");
         lineOffset = 1;
     }
 
-    // TODO(compatibility): kolbot-era `const X = new Runnable` -> `var X`
-    // rewrite. const declarations don't bind to the global object in V8;
-    // kolbot relies on the global binding for cross-script lookup. Gate
-    // behind a compatibility flag once the flag system lands.
-    static const std::regex CONST_RUNNABLE(R"(\bconst\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*new\s+Runnable\b)");
-    source = std::regex_replace(source, CONST_RUNNABLE, "var $1 = new Runnable");
+    // kolbot-era `const X = new Runnable` -> `var X` rewrite (flag:
+    // constRunnableRewrite). const declarations don't bind to the global object
+    // in V8; kolbot relies on the global binding for cross-script lookup.
+    if (compat.IsEnabled("constRunnableRewrite")) {
+        static const std::regex CONST_RUNNABLE(R"(\bconst\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*new\s+Runnable\b)");
+        source = std::regex_replace(source, CONST_RUNNABLE, "var $1 = new Runnable");
+    }
 
     auto sourceStr = v8::String::NewFromUtf8(isolate, source.c_str(), v8::NewStringType::kNormal,
                                              static_cast<int32_t>(source.size()));
@@ -43,16 +47,20 @@ v8::MaybeLocal<v8::Script> CompileSource(v8::Isolate* isolate, v8::Local<v8::Con
     return v8::ScriptCompiler::Compile(context, &compilerSource, v8::ScriptCompiler::kEagerCompile);
 }
 
-// TODO(compatibility): kolbot-era prelude - installs SpiderMonkey extension
-// aliases (String/Array.prototype.contains), raises Error.stackTraceLimit,
-// and installs an Error.prepareStackTrace formatter that require.js relies
-// on. Gate behind a compatibility flag once the flag system lands.
+// The kolbot-era prelude, split into per-feature snippets. Each is gated by a
+// Compatibility flag in ApplyCompatibilityPrelude, except the delay wrapper,
+// which is always installed (see its comment / docs/compatibility.md).
 namespace {
-constexpr std::string_view COMPATIBILITY_PRELUDE = R"(
+
+// flag: stringContains
+constexpr std::string_view PRELUDE_STRING_CONTAINS = R"(
 // SpiderMonkey had its own extensions for these, which later became standard as 'includes'
 String.prototype.contains = String.prototype.includes;
 Array.prototype.contains = Array.prototype.includes;
+)";
 
+// flag: errorStackTrace
+constexpr std::string_view PRELUDE_ERROR_STACK_TRACE = R"(
 // Adjust default error stack trace limit
 Error.stackTraceLimit = 100;
 
@@ -68,7 +76,10 @@ Error.prepareStackTrace = function (error, frames) {
   });
   return out;
 };
+)";
 
+// flag: errorSpiderMonkeyProps
+constexpr std::string_view PRELUDE_ERROR_SM_PROPS = R"(
 // Polyfill that provides SpiderMonkey-specific fileName/lineNumber/columnNumber properties on
 // Error objects. Extract them out of the stacktrace.
 Object.defineProperties(Error.prototype, {
@@ -94,7 +105,10 @@ Object.defineProperties(Error.prototype, {
     configurable: true
   }
 });
+)";
 
+// flag: objectToSource
+constexpr std::string_view PRELUDE_OBJECT_TO_SOURCE = R"(
 // SpiderMonkey shipped Object.prototype.toSource - an eval-roundtrippable repr
 // available on every value. V8 dropped it. Kolbot calls it in three error-
 // logging spots (e.g. AutoBuildThread.js, ConfigOverrides.js) plus one buffer
@@ -156,14 +170,16 @@ Object.defineProperties(Error.prototype, {
     enumerable: false, writable: true, configurable: true,
   });
 })();
+)";
 
-// If you just do:
+// Always installed (not flag-gated). If you just do:
 //
 //   while(true) { delay(1000); }
 //
 // you end up with no JS stack frames, just a native call. TerminateExecution() only fires
 // while unwinding a JS stackframe - wrap delay in a dummy function that provides one so
 // stop() can break out of tight loops.
+constexpr std::string_view PRELUDE_DELAY = R"(
 (() => {
     let originalDelay = globalThis.delay;
     globalThis.delay = function(...args) {
@@ -171,11 +187,29 @@ Object.defineProperties(Error.prototype, {
     };
 })();
 )";
+
 }  // namespace
 
 void ApplyCompatibilityPrelude(v8::Isolate* isolate, v8::Local<v8::Context> context) {
+    auto& compat = d2bs::config::CompatibilityFlags::Instance();
+
+    std::string prelude;
+    if (compat.IsEnabled("stringContains")) {
+        prelude += PRELUDE_STRING_CONTAINS;
+    }
+    if (compat.IsEnabled("errorStackTrace")) {
+        prelude += PRELUDE_ERROR_STACK_TRACE;
+    }
+    if (compat.IsEnabled("errorSpiderMonkeyProps")) {
+        prelude += PRELUDE_ERROR_SM_PROPS;
+    }
+    if (compat.IsEnabled("objectToSource")) {
+        prelude += PRELUDE_OBJECT_TO_SOURCE;
+    }
+    prelude += PRELUDE_DELAY;
+
     v8::Local<v8::Script> script;
-    if (CompileSource(isolate, context, std::string(COMPATIBILITY_PRELUDE), "v8-compatibility.js").ToLocal(&script)) {
+    if (CompileSource(isolate, context, std::move(prelude), "v8-compatibility.js").ToLocal(&script)) {
         v8::Local<v8::Value> dummy;
         (void)script->Run(context).ToLocal(&dummy);
     }

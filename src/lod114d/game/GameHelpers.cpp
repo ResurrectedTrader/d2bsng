@@ -13,12 +13,14 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "DrlgHelpers.h"
 #include "RoomData.h"
 #include "asm_thunks/asm_thunks.h"
 #include "game/Bridge.h"
+#include "game/Compatibility.h"
 #include "game/Constants.h"
 #include "game/Control.h"
 #include "game/Finders.h"
@@ -839,7 +841,7 @@ int32_t GetQuestFlag(uint32_t quest, uint32_t flag) {
 // classes are the only ones with a secondary weapon set.
 void SwapWeapon() {
     auto* data = *d2launch::gpBnetData;
-    if (data == nullptr || (data->nCharFlags & CHAR_FLAG_EXPAC) == 0) {
+    if (data == nullptr || (data->nCharFlags & std::to_underlying(CharFlag::Expansion)) == 0) {
         return;
     }
     std::array<uint8_t, 1> packet = {0x60};
@@ -1303,7 +1305,7 @@ void ClickPartyMember(const Party& party, PartyMode mode) {
         case PartyMode::AllowLoot: {
             // Loot only applies on hardcore.
             auto* data = *d2launch::gpBnetData;
-            if (data == nullptr || (data->nCharFlags & CHAR_FLAG_HARDCORE) == 0) {
+            if (data == nullptr || (data->nCharFlags & std::to_underlying(CharFlag::Hardcore)) == 0) {
                 return;
             }
             asm_thunks::HostilePartyUnit(rosterPtr, 2U);
@@ -2000,6 +2002,13 @@ void LoadMpq(const std::string& path) {
 
 std::optional<std::string> GetLaunchProfile() {
     return GetLaunchOptions().profile;
+}
+
+// === Compatibility ===
+
+std::vector<CompatibilityFlag> GetCompatibilityFlags() {
+    // 1.14d exposes no game-version-specific compatibility flags.
+    return {};
 }
 
 }  // namespace d2bs::game

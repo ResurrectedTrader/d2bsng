@@ -14,6 +14,7 @@ Design docs live in `docs/`. Read the one(s) covering whatever you are about to 
 - `docs/game_thread_safety.md` - identity-based handles, per-frame pointer caching (`HandleCache`), and the game read/write lock model.
 - `docs/window_message_handling.md` - the `WH_GETMESSAGE` input hook (block / dispatch / injected-input tagging), the game-window WndProc subclasses, and the console raw-input summon.
 - `docs/inspector.md` - the V8 inspector (Chrome DevTools) attachment: the ixwebsocket transport, the InspectorServer / InspectorTarget / ScriptInspector split, the inbound-queue threading model, and releasing game locks during a breakpoint pause.
+- `docs/compatibility.md` - the scripting compatibility-flag system: the `CompatibilityFlags` registry, the framework flag catalog, the `game::GetCompatibilityFlags()` extension point, the `Compatibility` JS object, the per-flag gating sites, and why the BOM strip and `delay` wrapper stay un-flagged.
 
 ## Build Commands
 
@@ -77,9 +78,11 @@ Currently tests only cover the **pathfinding engine** (`src/framework/components
 
 The script-visible JS API is documented by a generator pipeline under `scripts/`. The bindings in `src/framework/api/` carry structured `///` doc comments (`@description`, `@signature`, `@param`, `@returns`, `@throws`, `@callback`, `@event`, `@type`, `@mode`); their exact vocabulary lives at the top of `extract_api.py`. The `{type}` fields may be object literals / unions / generics (`{x:number,y:number}`, `Unit|null`, `Array<{x:number}>`) - the parser is brace-balanced.
 
+**Enumerations as option sets**: a `{type}` that names a C++ `enum class` (libclang-parsed from `game/Types.h` / `game/Constants.h`) or a constant namespace (e.g. `ProfileType`) is rendered as a value table, not prose. `extract_api.py` reads the enumerators with libclang - plus the compatibility flags from `CompatibilityFlags::RegisterDefaults()`'s documented `Register("name")` calls - into an `enums` map (only sets referenced by some `{type}` are emitted); `gen_api_docs.py` renders an Enums section and auto-links the type; `gen_dts.py` emits a literal-union alias (`type Difficulty = 0 | 1 | 2 | 3`; bitfields and constant namespaces map to `number`). A bitfield enum is typed `number` (a value is an OR-combination) by marking it `/// @flags`. So document an enum-valued member as `@type {Difficulty}` and keep the values in the C++ enum, not in the description.
+
 | Script | Flow | Notes |
 |--------|------|-------|
-| `extract_api.py` | `src/framework/api/**` -> `api.json` | Walks the V8 bindings with **libclang**, emitting the full surface (classes, globals, constants, the `me` object, events) with a per-entry `since` from git tags. Needs the same vcpkg + V8 + MSVC/SDK include set the build uses. The only script that needs libclang. |
+| `extract_api.py` | `src/framework/api/**` -> `api.json` | Walks the V8 bindings with **libclang**, emitting the full surface (classes, globals, constants, the `me` object, events, enums). Needs the same vcpkg + V8 + MSVC/SDK include set the build uses. The only script that needs libclang. |
 | `gen_dts.py` | `api.json` -> `d2bsng.d.ts` | Ambient TypeScript declarations (JSDoc on every member, typed `addEventListener` overloads) for editor completion. Pure-stdlib. |
 | `gen_api_docs.py` | (`api.json`) -> `index.html` | Emits the static docs **shell**: an embedded JS renderer + CSS, no CDN. An optional baked-in `api.json` is the offline / instant-paint dataset. Pure-stdlib. |
 | `build_docs_site.py` | releases -> `site/` | Deploy-time assembler: pulls every release's `api.json` server-side (via `gh`) into `data/<tag>.json` + a `versions.json` manifest, then wraps the shell. Pure-stdlib + `gh`. |
@@ -378,7 +381,6 @@ Within each handle header (`Unit.h`, `Room.h`, etc.), a comment separator marks 
 | Tag | Location | Meaning |
 |-----|----------|---------|
 | `TODO(implement)` | (any) | Functionality not yet implemented (currently the character-create name entry in Menu.cpp) |
-| `TODO(compatibility)` | `src/framework/components/script/CompileSource.{h,cpp}`, `src/framework/api/classes/scripting/JSProfile.cpp` | SpiderMonkey/kolbot-era compat shims; later gate behind a per-script compatibility flag |
 
 ## Reference Implementation
 

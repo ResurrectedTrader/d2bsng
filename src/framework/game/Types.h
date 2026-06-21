@@ -253,6 +253,38 @@ enum class BodyLocation : uint8_t {
     LeftSecondary = 12,
 };
 
+// Monster special-type bitflags (Unit.spectype).
+/// @flags
+enum class MonsterSpecType : uint32_t {
+    SuperUnique = 0x01,
+    Champion = 0x02,
+    Unique = 0x04,  // unique / boss
+    Minion = 0x08,
+};
+
+// Value-space enums for JS API number properties. The game getters return the
+// raw underlying integer; these document the meaning of each value and back the
+// option-set tables in the API docs.
+enum class GameType : uint32_t {
+    Classic = 0,
+    Expansion = 1,
+};
+
+enum class ScreenSize : uint32_t {
+    Res640x480 = 0,
+    Res800x600 = 1,
+};
+
+enum class WeaponSet : uint32_t {
+    Primary = 0,    // slot I
+    Secondary = 1,  // slot II / swap
+};
+
+enum class MoveMode : uint32_t {
+    Walk = 0,
+    Run = 1,
+};
+
 // ============================================================================
 // Geometric primitives
 // ============================================================================
