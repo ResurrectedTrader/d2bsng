@@ -80,23 +80,28 @@ std::filesystem::path GetPathRelScript(const std::string& relativePath) {
         return {};
     }
 
-    // Construct full path and normalize
-    std::filesystem::path fullPath;
-    std::filesystem::path canonBase;
-    try {
-        fullPath = std::filesystem::weakly_canonical(basePath / relativePath);
-        canonBase = std::filesystem::weakly_canonical(basePath);
-    } catch (const std::filesystem::filesystem_error&) {
-        return {};
-    }
+    // Normalize the joined path lexically - no filesystem access and, crucially, no
+    // symlink resolution. A symlink/junction the user deliberately placed inside the
+    // script tree (e.g. a `shop` directory linked to a shared network share) must stay
+    // addressable; resolving it to its real target would push the path outside the base
+    // and fail the containment check below. Directory traversal is still blocked by the
+    // ".." rejection above, so containment stays sound.
+    std::filesystem::path fullPath = (basePath / relativePath).lexically_normal();
+    std::filesystem::path normBase = basePath.lexically_normal();
 
     // Verify the resolved path is still under the script base directory.
     const auto& fullStr = fullPath.native();
-    const auto& baseStr = canonBase.native();
+    // lexically_normal can leave a trailing separator on the base (e.g. a configured
+    // ScriptPath of "kolbot\"); strip it so the separator-boundary check below treats
+    // "<base>" and "<base>\" identically.
+    std::wstring baseStr = normBase.native();
+    while (baseStr.size() > 1 && (baseStr.back() == L'\\' || baseStr.back() == L'/')) {
+        baseStr.pop_back();
+    }
 
     // Case-insensitive prefix check (Windows/NTFS is case-insensitive).
     auto fullLower = d2bs::utils::ToLower(std::wstring(fullStr));
-    auto baseLower = d2bs::utils::ToLower(std::wstring(baseStr));
+    auto baseLower = d2bs::utils::ToLower(baseStr);
     if (!fullLower.starts_with(baseLower)) {
         return {};
     }
