@@ -708,6 +708,14 @@ uint16_t Unit::SuffixNum() const {
     return u->pItemData->wMagicSuffix[0];
 }
 
+uint16_t Unit::AutoAffixNum() const {
+    auto* u = AsUnit(ResolvePtr());
+    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+        return 0U;
+    }
+    return u->pItemData->wAutoAffix;
+}
+
 std::array<std::optional<std::string>, Unit::MAX_AFFIX_SLOTS> Unit::Prefixes() const {
     static_assert(MAX_AFFIX_SLOTS == ITEMS_MAX_MODS,
                   "Unit::MAX_AFFIX_SLOTS must mirror D2MOO ITEMS_MAX_MODS for binary parity");

@@ -91,6 +91,9 @@ class Unit {
     std::string Suffix() const;
     uint16_t PrefixNum() const;
     uint16_t SuffixNum() const;
+    // Automagic affix id (D2ItemData wAutoAffix) - an inherent affix some items carry;
+    // used for the game's normal-item transformcolor fallback in ItemColor.
+    uint16_t AutoAffixNum() const;
     // Item prefix/suffix arrays - fixed-size 3 slots matching D2's
     // `wMagicPrefix[3]` / `wMagicSuffix[3]` (D2MOO `ITEMS_MAX_MODS == 3`).
     // Empty/zero entries are preserved as nullopt / 0 so JS scripts can
