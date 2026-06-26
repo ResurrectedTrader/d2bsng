@@ -293,7 +293,7 @@ void Script::SetupIsolate() {
 
     auto& appConfig = config::GetAppConfig();
     if (appConfig.memoryLimit > 0) {
-        createParams.constraints.set_max_old_generation_size_in_bytes(appConfig.memoryLimit);
+        createParams.constraints.ConfigureDefaultsFromHeapSize(0, appConfig.memoryLimit);
     }
 
     auto* iso = v8::Isolate::New(createParams);
