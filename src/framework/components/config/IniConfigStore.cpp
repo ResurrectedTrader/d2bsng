@@ -72,7 +72,7 @@ void IniConfigStore::LoadSettings(AppConfig& config) {
     config.v8SingleThreadedPlatform = ReadBool("settings", "V8SingleThreadedPlatform", false);
     // Idle-sleep granularity (ms), clamped to [1, 100] (0 would busy-spin).
     config.idleSleepInterval =
-        std::chrono::milliseconds{std::clamp(ReadInt("settings", "IdleSleepIntervalMs", 1), 1, 100)};
+        std::chrono::milliseconds{std::clamp(ReadInt("settings", "IdleSleepIntervalMs", 10), 1, 100)};
     // Unlike the other atomic fields above, `speed` is not written via
     // .store() directly: speedhack::SetSpeed re-anchors the time-domain bases
     // before publishing the new value to AppConfig.speed, which is required
