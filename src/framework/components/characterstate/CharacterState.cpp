@@ -2,6 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdint>
@@ -129,6 +130,9 @@ int64_t GetTxtInt(std::string_view table, uint32_t row, std::string_view column,
     return n != nullptr ? *n : fallback;
 }
 
+// D2 ITEM_FLAG_IDENTIFIED bit (reference Constants.h ITEM_FLAG_IDENTIFIED).
+constexpr uint32_t ITEM_FLAG_IDENTIFIED = 0x00000010;
+
 // Inventory-graphic name the manager fetches as "<image>.dc6"; port of kolbot's
 // Item.getItemCode. The raw code is wrong for most items: set/unique use the
 // items.txt setinvfile / uniqueitems.txt invfile graphic, exc/elite collapse to
@@ -140,20 +144,36 @@ std::string ResolveImageCode(const game::Unit& item) {
 
     std::string image;
     const auto quality = item.Quality();
-    if (quality == game::ItemQuality::Set) {
-        image = GetTxtString("items", classId, "setinvfile");
-    } else if (quality == game::ItemQuality::Unique) {
+    // Set/unique inventory graphics, mirroring the game's GFXUTIL_SetItemGfxFile: only when
+    // identified, prefer the per-item graphic (setitems/uniqueitems invfile, keyed by
+    // dwFileIndex == UniqueId), then fall back to the base item's setinvfile/uniqueinvfile.
+    // The uniqueinvfile fallback is how the Amulet of the Viper gets its own "invvip" and
+    // unique weapons/armour get their inv*u art; without it they'd collapse to the base sprite.
+    const bool identified = (item.ItemFlags() & ITEM_FLAG_IDENTIFIED) != 0;
+    if (identified && quality == game::ItemQuality::Set) {
+        if (const auto setId = item.UniqueId()) {
+            image = GetTxtString("setitems", *setId, "invfile");
+        }
+        if (image.empty()) {
+            image = GetTxtString("items", classId, "setinvfile");
+        }
+    } else if (identified && quality == game::ItemQuality::Unique) {
         if (const auto uniqueId = item.UniqueId()) {
             image = GetTxtString("uniqueitems", *uniqueId, "invfile");
+        }
+        if (image.empty()) {
+            image = GetTxtString("items", classId, "uniqueinvfile");
         }
     }
     if (!image.empty()) {
         return image;
     }
 
-    // Default path: Tiara/Diadem keep their own code; everything else collapses to
-    // its normal-tier code (normcode) so exc/elite share the base graphic.
-    if (code == "ci2" || code == "ci3") {
+    // Default path: a self-named inventory graphic (invfile == "inv" + code) means the item
+    // has its own art, so keep our code (Tiara/Diadem, Khalim's Flail/Will, …). Otherwise
+    // invfile points at a shared/base graphic, so collapse to the normal-tier code (normcode)
+    // — that is how exc/elite share the base sprite.
+    if (GetTxtString("items", classId, "invfile") == "inv" + code) {
         image = code;
     } else {
         image = GetTxtString("items", classId, "normcode");
@@ -171,77 +191,114 @@ std::string ResolveImageCode(const game::Unit& item) {
     return image;
 }
 
-// D2 ITEM_FLAG_IDENTIFIED bit (reference Constants.h ITEM_FLAG_IDENTIFIED).
-constexpr uint32_t ITEM_FLAG_IDENTIFIED = 0x00000010;
-
 // Palette-shift values above white (20) aren't real inventory colors -> treat as none.
 constexpr int64_t MAX_PALETTE_INDEX = 20;
 
-// Magic/rare color: the matching affix's transformcolor (magicprefix/magicsuffix),
-// suffix then prefix, first with a real color (-1 = none). The "affixes" txt table
-// is the game's combined affix array, registered 1-based, so the affix id indexes
-// it directly. Mirrors the game's ITEMS_GetColor (kolbot's old map hand-copied this).
+// An affix's transformcolor from the combined "affixes" table (-1 = none / no real shift).
+// The table is the game's combined affix array, registered 1-based, so the affix id indexes
+// it directly.
+int32_t AffixTransformColor(uint16_t affixId) {
+    if (affixId == 0) {
+        return -1;
+    }
+    const int64_t tc = GetTxtInt("affixes", affixId, "transformcolor", -1);
+    return (tc < 0 || tc > MAX_PALETTE_INDEX) ? -1 : static_cast<int32_t>(tc);
+}
+
+// Magic/rare color: the matching affix's transformcolor (magicprefix/magicsuffix), suffix
+// then prefix, first with a real color. Mirrors the game's ITEMS_GetColor (kolbot's old map
+// hand-copied this).
 int32_t MatchAffixColor(const game::Unit& item) {
-    const auto affixColor = [](uint16_t affixId) -> int32_t {
-        if (affixId == 0) {
-            return -1;
-        }
-        const int64_t tc = GetTxtInt("affixes", affixId, "transformcolor", -1);
-        return (tc < 0 || tc > MAX_PALETTE_INDEX) ? -1 : static_cast<int32_t>(tc);
-    };
     for (const uint16_t suffix : item.SuffixNums()) {
-        if (const int32_t c = affixColor(suffix); c >= 0) {
+        if (const int32_t c = AffixTransformColor(suffix); c >= 0) {
             return c;
         }
     }
     for (const uint16_t prefix : item.PrefixNums()) {
-        if (const int32_t c = affixColor(prefix); c >= 0) {
+        if (const int32_t c = AffixTransformColor(prefix); c >= 0) {
             return c;
         }
     }
     return -1;
 }
 
-// Inventory palette-shift index (-1 = none): the magic/rare affix transformcolor or the
-// unique/set invtransform, per the game's ITEMS_GetColor. Whether it actually paints is
-// gated by the base item's InvTrans (sent as invTrans, gated manager-side), so this no
-// longer replicates kolbot's item-type allowlist.
+// Itemtype-equiv reachability: is `target` an ancestor-or-self of `typeRow` in the
+// itemtypes equiv1/equiv2 hierarchy? This is the table form of the game's IsOfType /
+// ITEMS_CheckType, whose precomputed type-membership matrix is just the transitive closure
+// of equiv1/equiv2. (equiv 0 = none; out-of-range rows fall through to false via the txt
+// reader, and the depth cap guards against malformed/cyclic data.)
+bool ItemTypeIsA(uint32_t typeRow, uint32_t target, int depth = 0) {
+    if (typeRow == target) {
+        return true;
+    }
+    if (depth > 16) {
+        return false;
+    }
+
+    return std::ranges::any_of(std::array{"equiv1", "equiv2"}, [&](const char* col) {
+        const int64_t equiv = GetTxtInt("itemtypes", typeRow, col, 0);
+        return equiv > 0 && ItemTypeIsA(static_cast<uint32_t>(equiv), target, depth + 1);
+    });
+}
+
+// True if the item belongs to `target` itemtype, checking both of its itemtypes (type and
+// type2) like the game's IsOfType.
+bool ItemIsOfType(const game::Unit& item, uint32_t target) {
+    const uint32_t classId = item.ClassId();
+    return ItemTypeIsA(static_cast<uint32_t>(GetTxtInt("items", classId, "type", 0)), target) ||
+           ItemTypeIsA(static_cast<uint32_t>(GetTxtInt("items", classId, "type2", 0)), target);
+}
+
+// itemtypes.txt "gem" row (matches the game's hardcoded ITEMTYPE_GEM). gem0..gem4 chain to
+// it via equiv; runes/jewels live under "sock" instead, so IsOfType(gem) excludes them even
+// though they share the gems.txt table (runes there carry a real transform=18).
+constexpr uint32_t ITEMTYPE_GEM = 20;
+
+// Inventory palette-shift index (-1 = none): the magic/rare affix transformcolor, the
+// unique/set invtransform, or a socketed gem's transform — per the game's ITEMS_GetColor.
+// Whether it actually paints is gated by the base item's InvTrans (sent as invTrans, gated
+// manager-side), so this no longer replicates kolbot's item-type allowlist.
 int32_t ItemColor(const game::Unit& item) {
     const auto quality = item.Quality();
-    switch (quality) {
-        case game::ItemQuality::Magic:
-        case game::ItemQuality::Set:
-        case game::ItemQuality::Rare:
-        case game::ItemQuality::Unique:
-            break;
-        default:
+
+    // Set/unique return directly — the game's GetItemColor doesn't fall through to the affix
+    // path for these. The per-item id (dwFileIndex == UniqueId) isn't carried by the client
+    // until identified; the game returns no shift then, so match it, else read invtransform
+    // by id from the matching table.
+    if (quality == game::ItemQuality::Set || quality == game::ItemQuality::Unique) {
+        if ((item.ItemFlags() & ITEM_FLAG_IDENTIFIED) == 0) {
             return -1;
-    }
-
-    if (quality == game::ItemQuality::Magic || quality == game::ItemQuality::Rare) {
-        return MatchAffixColor(item);
-    }
-
-    if (quality == game::ItemQuality::Unique) {
-        if (const auto uniqueId = item.UniqueId()) {
-            const int64_t shift = GetTxtInt("uniqueitems", *uniqueId, "invtransform", -1);
+        }
+        const auto* table = quality == game::ItemQuality::Unique ? "uniqueitems" : "setitems";
+        if (const auto id = item.UniqueId()) {
+            const int64_t shift = GetTxtInt(table, *id, "invtransform", -1);
             return (shift < 0 || shift > MAX_PALETTE_INDEX) ? -1 : static_cast<int32_t>(shift);
         }
         return -1;
     }
 
-    // Set: an unidentified set item doesn't carry its specific set-item id on the
-    // client (dwFileIndex is unset until ID), so it can't be looked up - fall back to
-    // a generic colour. Once identified, read invtransform by id, mirroring the unique
-    // branch and the game's ITEMS_GetColor (setitems[dwFileIndex].nInvTransform).
-    if ((item.ItemFlags() & ITEM_FLAG_IDENTIFIED) == 0) {
-        return 13;  // lightyellow (unidentified set)
+    if (quality == game::ItemQuality::Magic || quality == game::ItemQuality::Rare) {
+        // Affix transformcolor (suffix then prefix). If none carries a colour, fall through to
+        // the automagic-affix fallback below — the game does the same (case 4/6 -> LABEL_39).
+        if (const int32_t c = MatchAffixColor(item); c >= 0) {
+            return c;
+        }
+    } else {
+        // Normal/other (GetItemColor default case): tint by ONLY the FIRST socketed item, and
+        // only if it's a gem — the game doesn't scan past it (so a rune in socket 1 + gem in
+        // socket 2 gets no gem tint). If the first socket is a gem, that result stands.
+        // GetFirstItem mirrors INVENTORY_GetFirstItem; the gem's gemoffset is its gems.txt row.
+        if (const auto firstSocket = item.GetFirstItem(); firstSocket && ItemIsOfType(*firstSocket, ITEMTYPE_GEM)) {
+            const int64_t gemRow = GetTxtInt("items", firstSocket->ClassId(), "gemoffset", -1);
+            const int64_t shift = gemRow >= 0 ? GetTxtInt("gems", static_cast<uint32_t>(gemRow), "transform", -1) : -1;
+            return (shift < 0 || shift > MAX_PALETTE_INDEX) ? -1 : static_cast<int32_t>(shift);
+        }
     }
-    if (const auto setId = item.UniqueId()) {
-        const int64_t shift = GetTxtInt("setitems", *setId, "invtransform", -1);
-        return (shift < 0 || shift > MAX_PALETTE_INDEX) ? -1 : static_cast<int32_t>(shift);
-    }
-    return -1;
+
+    // Automagic affix transformcolor (the game's LABEL_39): reached by magic/rare items with no
+    // colour affix and by normal items with no socketed gem. An inherent affix a few items carry
+    // (wAutoAffix); usually 0, so this resolves to -1.
+    return AffixTransformColor(item.AutoAffixNum());
 }
 
 // Game emits description lines bottom-to-top; reverse them for the manager. A color
