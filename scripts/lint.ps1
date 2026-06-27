@@ -1,9 +1,13 @@
-# lint.ps1 - Parallel clang-tidy runner with per-file caching
+# lint.ps1 - Parallel clang-tidy runner with dependency-aware per-file caching
 # Usage: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\lint.ps1 [-Jobs N] [-NoCache]
 #
 # Cache is stored next to the compile databases (src/*/Release/lint_cache/, tests/framework/Release/lint_cache/).
-# A file is re-linted only when its content hash changes, or the global context changes
-# (any header modified, .clang-tidy changed, or compile DB regenerated).
+# A translation unit is re-linted only when its own content, one of its included
+# *project* headers' content, or its compile command changes (clang-scan-deps
+# discovers the headers). Toolchain / config / dependency changes invalidate
+# everything via a coarse environment token. This is direct-mode caching (ccache
+# style): the per-TU header list is cached and reused while the key still matches,
+# so clang-scan-deps only runs on a miss.
 
 param(
     [int]$Jobs = 0,       # 0 = auto-detect (cores - 1)
@@ -13,28 +17,40 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Push-Location (Split-Path $PSScriptRoot -Parent)  # repo root (this script lives in scripts/)
+$repoRoot = (Get-Location).Path
 
 if ($Jobs -eq 0) {
     $Jobs = [Math]::Max(1, [Environment]::ProcessorCount - 1)
 }
 
-# --- Find clang-tidy via vswhere ---
+# --- Find clang-tidy + clang-scan-deps via vswhere ---
 $clangTidy = $null
+$scanDeps = $null
 $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 if (-not (Test-Path $vswhere)) { $vswhere = "$env:ProgramFiles\Microsoft Visual Studio\Installer\vswhere.exe" }
+$vsPath = $null
 if (Test-Path $vswhere) {
     $vsPath = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath 2>$null
     if ($vsPath) {
         @('VC\Tools\Llvm\x64\bin\clang-tidy.exe', 'VC\Tools\Llvm\bin\clang-tidy.exe') | ForEach-Object {
-            if (-not $clangTidy) {
-                $c = Join-Path $vsPath $_
-                if (Test-Path $c) { $script:clangTidy = $c }
-            }
+            if (-not $clangTidy) { $c = Join-Path $vsPath $_; if (Test-Path $c) { $script:clangTidy = $c } }
+        }
+        @('VC\Tools\Llvm\x64\bin\clang-scan-deps.exe', 'VC\Tools\Llvm\bin\clang-scan-deps.exe') | ForEach-Object {
+            if (-not $scanDeps) { $c = Join-Path $vsPath $_; if (Test-Path $c) { $script:scanDeps = $c } }
         }
     }
 }
 if (-not $clangTidy) { $clangTidy = (Get-Command clang-tidy -ErrorAction SilentlyContinue).Source }
 if (-not $clangTidy) { Write-Host "clang-tidy not found." -ForegroundColor Red; exit 1 }
+if (-not $scanDeps) { $scanDeps = (Get-Command clang-scan-deps -ErrorAction SilentlyContinue).Source }
+
+# Without clang-scan-deps we can't track per-TU header dependencies, so fall back
+# to coarse invalidation: the environment token folds in the max header mtime, so
+# any header edit re-lints everything.
+$useDepCache = [bool]$scanDeps
+if (-not $useDepCache) {
+    Write-Host "clang-scan-deps not found - using coarse (whole-header) cache invalidation." -ForegroundColor Yellow
+}
 
 # --- Compile databases ---
 $dbD2bs = 'src\lod114d\Release\d2bs.ClangTidy'
@@ -61,7 +77,23 @@ if ($needRegen) {
         Write-Host "MSBuild not found. Run '.\build.ps1 Release' first." -ForegroundColor Red
         exit 1
     }
-    & $msbuild -p:Configuration=Release -p:Platform=Win32 -p:RunCodeAnalysis=true -m -nologo -v:quiet 2>$null
+    # RunCodeAnalysis writes compile_commands.json but also runs a full clang-tidy
+    # pass over every TU (~30 min, serial) - work this script immediately redoes in
+    # parallel with caching below. The ClangTidy MSBuild task writes the DB *before*
+    # invoking the analyzer, so pointing the analyzer at a no-op exe yields the same
+    # DB in seconds. D2bsInstallDir= skips the post-build deploy copy that would
+    # otherwise fail against a running game.
+    $tidyStub = @()
+    $noopTidy = Join-Path $env:TEMP 'd2bs_lint_noop_tidy.exe'
+    try {
+        if (-not (Test-Path $noopTidy)) {
+            Add-Type -TypeDefinition 'public class P{public static void Main(){}}' -OutputAssembly $noopTidy -OutputType ConsoleApplication -ErrorAction Stop
+        }
+        $tidyStub = @("-p:ClangTidyToolPath=$(Split-Path $noopTidy)", "-p:ClangTidyToolExe=$(Split-Path $noopTidy -Leaf)")
+    } catch {
+        Write-Host "Note: clang-tidy stub unavailable ($($_.Exception.Message)); DB generation will run the full clang-tidy analysis." -ForegroundColor Yellow
+    }
+    & $msbuild -p:Configuration=Release -p:Platform=Win32 -p:RunCodeAnalysis=true -p:D2bsInstallDir= $tidyStub -m -nologo -v:quiet 2>$null
     if (-not (Test-Path $dbD2bs)) {
         Write-Host "Failed to generate compile database." -ForegroundColor Red
         exit 1
@@ -69,79 +101,131 @@ if ($needRegen) {
     Write-Host "Compile database ready." -ForegroundColor Green
 }
 
-# --- Treat dependency includes as system headers ---
-# clang-tidy analyzes every header reachable through /I and resolves the nearest
-# .clang-tidy for each. Third-party trees under dependencies/ (D2MOO, V8) ship
-# their own .clang-tidy - D2MOO's still sets the long-removed AnalyzeTemporaryDtors
-# key, which clang-tidy reports as an error. The vcxproj already marks these
-# ExternalIncludeDirectories, but the generated compile DB flattens every include
-# to /I, losing that intent. Rewrite dependency includes to /imsvc (system) so
-# clang-tidy skips those headers entirely: no analysis, no per-directory config
-# read. Idempotent (re-runs find no /I dependency paths left to convert), so it
-# only rewrites after MSBuild regenerates a DB. Assumes dependency paths contain
-# no spaces (true for this repo), so they are unquoted single tokens in the DB.
-function Convert-DepsToSystemIncludes($dbDir) {
-    $cc = Join-Path $dbDir 'compile_commands.json'
-    if (-not (Test-Path $cc)) { return }
-    $json = Get-Content $cc -Raw | ConvertFrom-Json
-    $changed = $false
-    foreach ($entry in $json) {
-        $new = $entry.command -replace '/I([A-Za-z]:\\[^\s"]*\\dependencies\\[^\s"]*)', '/imsvc $1'
-        if ($new -ne $entry.command) { $entry.command = $new; $changed = $true }
-    }
-    if ($changed) {
-        $json | ConvertTo-Json -Depth 100 -Compress | Set-Content $cc -Encoding UTF8
-    }
+# --- Hashing / path helpers ---
+$sha256 = [System.Security.Cryptography.SHA256]::Create()
+function Get-FileContentHash($filePath) {
+    return ([BitConverter]::ToString($sha256.ComputeHash([System.IO.File]::ReadAllBytes($filePath))).Replace('-', '')).ToLower()
 }
-foreach ($db in @($dbD2bs, $dbFramework, $dbUtils, $dbTests)) { Convert-DepsToSystemIncludes $db }
+function Get-StringHash([string]$s) {
+    return ([BitConverter]::ToString($sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($s))).Replace('-', '')).ToLower()
+}
+function Norm([string]$p) { return ($p -replace '/', '\').ToLower() }
+function Get-Prop($obj, $name) {
+    if ($obj -and ($obj.PSObject.Properties.Name -contains $name)) { return $obj.$name }
+    return $null
+}
+$srcPrefix = Norm ((Join-Path $repoRoot 'src') + '\')
 
-# --- Compute global generation hash ---
-# Changes to any header or to .clang-tidy invalidate all cached results.
-function Get-GlobalGeneration {
-    $hasher = [System.Security.Cryptography.SHA256]::Create()
+# Fingerprint a vendored header tree by path+size+mtime (no content reads, ~150ms
+# for V8+D2MOO). Catches re-vendoring, submodule re-pin, and dirty working-tree edits.
+function Get-TreeFingerprint($dir) {
+    if (-not (Test-Path $dir)) { return '' }
+    $items = Get-ChildItem -Recurse -File -Filter '*.h' $dir -ErrorAction SilentlyContinue |
+        Sort-Object FullName |
+        ForEach-Object { "$($_.FullName.ToLower())|$($_.Length)|$($_.LastWriteTimeUtc.Ticks)" }
+    return Get-StringHash (($items) -join "`n")
+}
 
-    # Hash .clang-tidy content
-    $tidyPath = '.clang-tidy'
-    if (Test-Path $tidyPath) {
-        $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $tidyPath).Path)
-        $null = $hasher.TransformBlock($bytes, 0, $bytes.Length, $null, 0)
+# --- Environment token: toolchain / config / third-party deps ---
+# Covers everything that can change a TU's analysis but is NOT in its own compile
+# command or project headers: the clang-tidy version, .clang-tidy configs, the vcpkg
+# manifest, and a metadata fingerprint of the vendored V8 / D2MOO header trees.
+# Those trees are excluded from per-TU hashing, so they are tracked here instead - a
+# re-vendor, submodule re-pin, or dirty edit rolls the whole cache.
+function Get-EnvToken {
+    $parts = New-Object System.Collections.Generic.List[string]
+    try { $parts.Add(((& $clangTidy --version 2>$null) -join ' ')) } catch { $parts.Add($clangTidy) }
+    foreach ($cfg in @('.clang-tidy', 'tests\framework\.clang-tidy', 'tests\framework\pathfinding\reference\.clang-tidy', 'vcpkg.json')) {
+        if (Test-Path $cfg) { $parts.Add($cfg + '=' + (Get-FileContentHash (Resolve-Path $cfg).Path)) }
     }
+    $parts.Add('v8=' + (Get-TreeFingerprint 'dependencies\v8\include'))
+    $parts.Add('d2moo=' + (Get-TreeFingerprint 'dependencies\D2MOO\source'))
+    if (-not $useDepCache) {
+        $dirs = @('src'); if (Test-Path 'tests') { $dirs += 'tests' }
+        $ticks = Get-ChildItem -Recurse $dirs -Filter '*.h' | ForEach-Object { $_.LastWriteTimeUtc.Ticks }
+        $max = if ($ticks) { ($ticks | Measure-Object -Maximum).Maximum } else { [long]0 }
+        $parts.Add('hdrmax=' + $max)
+    }
+    return Get-StringHash ($parts -join '|')
+}
+$envToken = Get-EnvToken
 
-    # Hash compile DB mtimes (captures flag/include changes)
-    foreach ($db in @($dbD2bs, $dbFramework, $dbUtils, $dbTests)) {
-        if (Test-Path $db) {
-            $mtime = (Get-Item $db).LastWriteTimeUtc.Ticks.ToString()
-            $bytes = [System.Text.Encoding]::UTF8.GetBytes($mtime)
-            $null = $hasher.TransformBlock($bytes, 0, $bytes.Length, $null, 0)
+# --- Per-TU cache key ---
+# key = hash(envToken + cpp content + each project-header dep content + compile command)
+function Get-TuKey($cppPath, $deps, $command) {
+    $parts = New-Object System.Collections.Generic.List[string]
+    $parts.Add($envToken)
+    $parts.Add((Get-FileContentHash $cppPath))
+    foreach ($d in (@($deps) | Sort-Object)) {
+        $h = 'MISSING'
+        try { if (Test-Path -LiteralPath $d) { $h = Get-FileContentHash $d } } catch {}
+        $parts.Add((Norm $d) + '=' + $h)
+    }
+    $parts.Add('cmd=' + $command)
+    return Get-StringHash ($parts -join '|')
+}
+
+function Get-CachePath($file) {
+    # Suffix with a short hash of the full path so same-named sources in one project
+    # (lod114d has console/Console.cpp and game/Console.cpp) don't share a cache file.
+    $name = [System.IO.Path]::GetFileNameWithoutExtension($file.Path)
+    $tag = (Get-StringHash (Norm $file.Path)).Substring(0, 8)
+    return Join-Path $file.CacheDir ($name + '_' + $tag + '.json')
+}
+function Save-CacheResult($file, $key, $deps, $exitCode, $errors) {
+    $cachePath = Get-CachePath $file
+    $dir = Split-Path $cachePath
+    if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    @{
+        envToken = $envToken
+        key      = $key
+        deps     = @($deps)
+        exitCode = $exitCode
+        errors   = @($errors)
+    } | ConvertTo-Json -Compress -Depth 5 | Set-Content $cachePath -Encoding UTF8
+}
+
+# Load file -> compile-command entry from every DB (for keys + dependency scanning).
+function Load-DbCommands($dbDirs) {
+    $map = @{}
+    foreach ($dbDir in $dbDirs) {
+        $cc = Join-Path $dbDir 'compile_commands.json'
+        if (-not (Test-Path $cc)) { continue }
+        foreach ($e in (Get-Content $cc -Raw | ConvertFrom-Json)) {
+            $f = $e.file
+            if (-not [System.IO.Path]::IsPathRooted($f)) { $f = Join-Path $e.directory $f }
+            $map[(Norm $f)] = $e
         }
     }
-
-    # Hash max mtime of all header files (any header change invalidates everything)
-    # Hash max mtime of all header files (any header change invalidates
-    # everything). Use Measure-Object so the accumulator stays in this scope -
-    # the previous ForEach-Object loop wrote to $script:maxMtime but compared
-    # against the function-local $maxMtime, so the hashed value was always 0
-    # and header edits never invalidated the cache.
-    $headerDirs = @('src')
-    if (Test-Path 'tests') { $headerDirs += 'tests' }
-    $headerTicks = Get-ChildItem -Recurse $headerDirs -Filter '*.h' |
-        ForEach-Object { $_.LastWriteTimeUtc.Ticks }
-    $maxMtime = if ($headerTicks) {
-        ($headerTicks | Measure-Object -Maximum).Maximum
-    } else {
-        [long]0
-    }
-    $bytes = [System.Text.Encoding]::UTF8.GetBytes($maxMtime.ToString())
-    $null = $hasher.TransformBlock($bytes, 0, $bytes.Length, $null, 0)
-
-    $null = $hasher.TransformFinalBlock(@(), 0, 0)
-    return [BitConverter]::ToString($hasher.Hash).Replace('-', '').ToLower()
+    return $map
 }
 
-$globalGen = Get-GlobalGeneration
+# Run clang-scan-deps once over the given entries; return file(lower) -> @(project headers).
+function Get-DepsForFiles($scanEntries, $scratchDir) {
+    $map = @{}
+    if (-not $useDepCache -or @($scanEntries).Count -eq 0) { return $map }
+    if (-not (Test-Path $scratchDir)) { New-Item -ItemType Directory -Path $scratchDir -Force | Out-Null }
+    $cc = Join-Path $scratchDir 'compile_commands.json'
+    $json = '[' + ((@($scanEntries) | ForEach-Object { $_ | ConvertTo-Json -Depth 6 }) -join ',') + ']'
+    [System.IO.File]::WriteAllText($cc, $json)
+    $make = & $scanDeps --format=make --compilation-database=$cc 2>$null
+    # make output: one rule per TU ("target: src hdr hdr ..."). Join continuations,
+    # then attribute each rule's project headers to its .cpp source.
+    $text = ($make -join "`n") -replace '\\\r?\n', ' '
+    foreach ($rule in ($text -split "`r?`n")) {
+        if ($rule -notmatch '\S') { continue }
+        $tokens = $rule.Trim() -split '\s+'
+        $src = $tokens | Where-Object { $_ -match '\.cpp$' } | Select-Object -First 1
+        if (-not $src) { continue }
+        $hdrs = $tokens |
+            Where-Object { (Norm $_).StartsWith($srcPrefix) -and ($_ -match '\.(h|hpp|hxx|inc)$') } |
+            ForEach-Object { ($_ -replace '/', '\') } | Sort-Object -Unique
+        $map[(Norm $src)] = @($hdrs)
+    }
+    return $map
+}
 
 # --- Collect files ---
-# Map each source file to the correct compile database based on its location.
 $files = @()
 $dbD2bsFull = (Resolve-Path $dbD2bs).Path
 $dbFrameworkFull = (Resolve-Path $dbFramework).Path
@@ -163,79 +247,60 @@ if (Test-Path $dbTests) {
     }
 }
 
-# --- Cache helpers ---
-function Get-FileContentHash($filePath) {
-    return (Get-FileHash -Algorithm SHA256 -Path $filePath).Hash.ToLower()
-}
+$cmdMap = Load-DbCommands @($dbD2bs, $dbFramework, $dbUtils, $dbTests)
+$tmpDir = Join-Path $env:TEMP "d2bs_lint_$(Get-Random)"
+New-Item -ItemType Directory -Path $tmpDir -Force | Out-Null
 
-function Get-CachePath($file) {
-    $name = [System.IO.Path]::GetFileNameWithoutExtension($file.Path)
-    $dir = $file.CacheDir
-    return Join-Path $dir ($name + '.json')
-}
-
-function Get-CachedResult($file, $fileHash, $globalGen) {
-    $cachePath = Get-CachePath $file
-    if (-not (Test-Path $cachePath)) { return $null }
-    try {
-        $cached = Get-Content $cachePath -Raw | ConvertFrom-Json
-        if ($cached.globalGen -eq $globalGen -and $cached.fileHash -eq $fileHash) {
-            return $cached
-        }
-    } catch {}
-    return $null
-}
-
-function Save-CacheResult($file, $fileHash, $globalGen, $exitCode, $errors) {
-    $cachePath = Get-CachePath $file
-    $dir = Split-Path $cachePath
-    if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
-    @{
-        globalGen = $globalGen
-        fileHash  = $fileHash
-        exitCode  = $exitCode
-        errors    = $errors
-    } | ConvertTo-Json -Compress | Set-Content $cachePath -Encoding UTF8
-}
-
-# --- Separate cached vs needs-run ---
+# --- Separate cached (direct-mode hit) vs needs-run ---
 $total = $files.Count
 $toRun = @()
 $cachedResults = @()
 
-if ($NoCache) {
-    # Re-lint everything. Items still need a FileHash so job launch (line ~255)
-    # and Save-CacheResult can read it - $files entries don't carry one, and
-    # Set-StrictMode turns the missing-property access into a terminating error.
-    $toRun = $files | ForEach-Object {
-        [PSCustomObject]@{ Path = $_.Path; Db = $_.Db; CacheDir = $_.CacheDir; FileHash = (Get-FileContentHash $_.Path) }
-    }
-} else {
-    foreach ($f in $files) {
-        $fileHash = Get-FileContentHash $f.Path
-        $cached = Get-CachedResult $f $fileHash $globalGen
-        if ($cached) {
-            $cachedResults += [PSCustomObject]@{
-                File     = $f.Path
-                ExitCode = $cached.exitCode
-                Errors   = @($cached.errors)
-                Cached   = $true
+foreach ($f in $files) {
+    $entry = $cmdMap[(Norm $f.Path)]
+    $cmd = if ($entry) { $entry.command } else { '' }
+    $hit = $false
+    if (-not $NoCache) {
+        $cachePath = Get-CachePath $f
+        if (Test-Path $cachePath) {
+            $cached = $null
+            try { $cached = Get-Content $cachePath -Raw | ConvertFrom-Json } catch {}
+            if ((Get-Prop $cached 'envToken') -eq $envToken -and (Get-Prop $cached 'key')) {
+                # Recompute the key from the cached dep list; a match proves the .cpp,
+                # all recorded deps, and the command are unchanged (direct mode).
+                $cand = Get-TuKey $f.Path @(Get-Prop $cached 'deps') $cmd
+                if ($cand -eq (Get-Prop $cached 'key')) {
+                    $cachedResults += [PSCustomObject]@{ File = $f.Path; ExitCode = (Get-Prop $cached 'exitCode'); Errors = @(Get-Prop $cached 'errors'); Cached = $true }
+                    $hit = $true
+                }
             }
-        } else {
-            $toRun += [PSCustomObject]@{ Path = $f.Path; Db = $f.Db; CacheDir = $f.CacheDir; FileHash = $fileHash }
         }
+    }
+    if (-not $hit) {
+        $toRun += [PSCustomObject]@{ Path = $f.Path; Db = $f.Db; CacheDir = $f.CacheDir; Cmd = $cmd; Entry = $entry }
     }
 }
 
 $cachedCount = $cachedResults.Count
 $runCount = $toRun.Count
+
+# --- Refresh dependencies for the misses (single clang-scan-deps pass) ---
+$freshDeps = @{}
+if ($runCount -gt 0 -and $useDepCache) {
+    Write-Host "scanning dependencies for $runCount file(s)..." -ForegroundColor DarkGray
+    $scanEntries = @()
+    foreach ($r in $toRun) {
+        if ($r.Entry) {
+            $scanEntries += [PSCustomObject]@{ directory = $r.Entry.directory; command = $r.Entry.command; file = $r.Entry.file }
+        }
+    }
+    $freshDeps = Get-DepsForFiles $scanEntries (Join-Path $tmpDir 'scandb')
+}
+
 Write-Host "clang-tidy: $total files, $cachedCount cached, $runCount to analyze `($Jobs parallel`)"
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
 
 # --- Parallel execution (only for cache misses) ---
-$tmpDir = Join-Path $env:TEMP "d2bs_lint_$(Get-Random)"
-New-Item -ItemType Directory -Path $tmpDir -Force | Out-Null
-
 $running = [System.Collections.Generic.List[PSCustomObject]]::new()
 $freshResults = [System.Collections.ArrayList]::new()
 $done = 0
@@ -255,8 +320,16 @@ function Collect-Result($job) {
     $errors = @(($output -split "`n") |
         Where-Object { $_ -match 'error:' -and $_ -notmatch 'non-user code' -and $_ -notmatch 'MSB' })
 
-    # Update cache
-    Save-CacheResult $job.FileInfo $job.FileHash $globalGen $exitCode $errors
+    # Cache the result keyed on this TU's content + its project-header deps + command.
+    # Skip caching only when dependency scanning was expected but produced nothing for
+    # this TU (scan failure) - caching empty deps then would miss real header changes.
+    $norm = Norm $job.FileInfo.Path
+    $scanned = (-not $useDepCache) -or $script:freshDeps.ContainsKey($norm)
+    if ($scanned) {
+        $deps = if ($script:freshDeps.ContainsKey($norm)) { @($script:freshDeps[$norm]) } else { @() }
+        $key = Get-TuKey $job.FileInfo.Path $deps $job.FileInfo.Cmd
+        Save-CacheResult $job.FileInfo $key $deps $exitCode $errors
+    }
 
     $null = $script:freshResults.Add([PSCustomObject]@{
         File     = $job.FileInfo.Path
@@ -286,7 +359,6 @@ if ($runCount -gt 0) {
             $running.Add([PSCustomObject]@{
                 Process  = $proc
                 FileInfo = $f
-                FileHash = $f.FileHash
                 LogPath  = $logPath
             })
             $fileIndex++
