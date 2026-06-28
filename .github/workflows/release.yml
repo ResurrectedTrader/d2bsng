@@ -251,11 +251,41 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           v="v${{ needs.version.outputs.version }}"
+          repo_url="${{ github.server_url }}/${{ github.repository }}"
+
+          # Previous vX.Y.Z tag - computed BEFORE we create this release's tag, so
+          # `tail -1` is the prior release and not the one we are about to make.
+          # Empty on the first release. (Same vX.Y.Z-only filter as the version job,
+          # ignoring the v8-... libs tag.)
+          prev=$(git tag | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)
+
+          # We push straight to master, so there are no PRs for `--generate-notes`
+          # to summarize - it would produce empty notes. Build the notes ourselves
+          # from the commits since the previous tag, each linking to its commit.
+          # The format (a `-` list of `[`hash`](url)` links + a bare compare URL)
+          # renders on both the GitHub release page and the docs Changelog, whose
+          # minimal markdown renderer (scripts/gen_api_docs.py `md()`) supports
+          # lists, inline code, [text](url) links, and bare-URL autolinking.
+          bt='`'
+          fmt="- %s ([${bt}%h${bt}](${repo_url}/commit/%H))"
+          range="HEAD"
+          [ -n "$prev" ] && range="${prev}..HEAD"
+          {
+            echo "## Commits"
+            echo
+            git log --no-merges --pretty=format:"$fmt" "$range"
+            echo
+            if [ -n "$prev" ]; then
+              echo
+              echo "**Full Changelog**: ${repo_url}/compare/${prev}...${v}"
+            fi
+          } > notes.md
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag "$v"
           git push origin "$v"
-          gh release create "$v" --generate-notes --title "$v" \
+          gh release create "$v" --notes-file notes.md --title "$v" \
             "dist/d2bs.dll#d2bs.dll" \
             "dist/d2bs.pdb#d2bs.pdb" \
             "dist/d2bsng.d.ts#d2bsng.d.ts" \
