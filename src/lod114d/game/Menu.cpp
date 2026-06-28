@@ -25,8 +25,6 @@ namespace d2bs::game {
 
 namespace {
 
-using std::chrono::steady_clock;
-
 // One reference: a CONTROL_BUTTON dwState value for "selectable" in the
 // difficulty buttons. 0x0D matches reference Profile.cpp:174-188 (the in-game
 // "enabled" state of normal/nightmare/hell on the SP difficulty screen).
@@ -149,13 +147,40 @@ bool IsTerminalSuccess(OutOfGameLocation loc) {
     }
 }
 
+// Mirrors reference Profile::login's timeout accounting
+// (reference/d2bs/Profile.cpp:164,246): only iterations spent at the login screen
+// or waiting on the server (connecting / "please wait" / gateway / char-list load)
+// are charged against maxLoginTime. Time spent clicking through action screens
+// (main menu, char select, difficulty, ...) is not, so a login that is actively
+// progressing - just slowly - never throws "login time out"; only one genuinely
+// stuck waiting does. These are exactly the locations the Login() switch treats as
+// transient, plus the login screen itself.
+bool IsLoginWaitState(OutOfGameLocation loc) {
+    switch (loc) {
+        case OutOfGameLocation::Login:
+        case OutOfGameLocation::MainMenuConnecting:
+        case OutOfGameLocation::CharacterSelectPleaseWait:
+        case OutOfGameLocation::LobbyPleaseWait:
+        case OutOfGameLocation::Gateway:
+        case OutOfGameLocation::CharacterSelectNoChars:
+        case OutOfGameLocation::Connecting:
+        case OutOfGameLocation::PreSplash:
+            return true;
+        default:
+            return false;
+    }
+}
+
 }  // namespace
 
 LoginResult Login(const config::ProfileData& profile) {
     InputLatch latch;
     bool skippedToBnet = true;
     bool clickedOnce = false;
-    auto start = steady_clock::now();
+    // Poll cadence for the loop, and the time charged against maxLoginTime per
+    // wait iteration (see IsLoginWaitState).
+    constexpr auto LOGIN_POLL_INTERVAL = std::chrono::milliseconds{100};
+    auto loginWaitElapsed = std::chrono::milliseconds::zero();
 
     while (true) {
         if (GetGameState() == GameState::InGame) {
@@ -357,10 +382,18 @@ LoginResult Login(const config::ProfileData& profile) {
             return {.status = LoginStatus::Success, .errorMessage = ""};
         }
 
-        if (steady_clock::now() - start >= profile.maxLoginTime) {
+        // Charge only "waiting on the server / at login" time against
+        // maxLoginTime, matching reference Profile::login
+        // (reference/d2bs/Profile.cpp:282). Time spent clicking through action
+        // screens is not counted, so a slow-but-progressing login does not
+        // spuriously throw "login time out".
+        if (IsLoginWaitState(loc)) {
+            loginWaitElapsed += LOGIN_POLL_INTERVAL;
+        }
+        if (loginWaitElapsed > profile.maxLoginTime) {
             return {.status = LoginStatus::Timeout, .errorMessage = "login time out"};
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(LOGIN_POLL_INTERVAL);
     }
 }
 
