@@ -2,11 +2,13 @@
 
 #include <array>
 #include <chrono>
+#include <cstdint>
 #include <deque>
 #include <map>
 #include <string>
 
 #include "components/console/Panel.h"
+#include "components/console/RowSelection.h"
 #include "game/Console.h"
 
 namespace d2bs::framework::console {
@@ -32,15 +34,20 @@ class LogPanel : public Panel {
     struct Entry {
         game::console::Message msg;
         std::chrono::system_clock::time_point ts;
+        uint64_t seq = 0;  // stable row id for selection (see RowSelection)
     };
 
     [[nodiscard]] bool SourceVisible(game::console::MessageSource source) const;
     [[nodiscard]] bool MatchesFilter(const Entry& entry) const;
+    [[nodiscard]] std::string FormatEntry(const Entry& entry) const;
     void DrawFilterBar();
     void DrawScrollback();
     void CopyViewToClipboard() const;
+    void CopySelectionToClipboard() const;
 
     std::deque<Entry> scrollback_;
+    RowSelection selection_;
+    uint64_t nextSeq_ = 1;  // 0 is reserved as "no row"
 
     // One row per source kind LogPanel handles (Print + Log;
     // EvaluateResult/ConsolePrint go to ConsolePanel instead).

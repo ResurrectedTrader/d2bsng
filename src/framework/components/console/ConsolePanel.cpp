@@ -3,6 +3,7 @@
 #include <imgui.h>
 
 #include <algorithm>
+#include <cfloat>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -42,28 +43,24 @@ constexpr ImVec4 ERROR_COLOR{1.00F, 0.45F, 0.45F, 1.00F};
     return out;
 }
 
-void DrawColoredLines(const std::vector<std::string>& lines) {
-    // Each source line becomes a fresh ImGui row. Within a line, split by
-    // colour codes and stitch segments with SameLine(0,0). Without the
-    // per-line split, embedded '\n' inside a single TextColored call mixes
-    // badly with the subsequent SameLine of the next colour segment and the
-    // whole entry collapses onto one row.
-    for (const auto& line : lines) {
-        bool firstSeg = true;
-        for (const auto& seg : SplitByColor(line)) {
-            if (seg.text.empty()) {
-                continue;
-            }
-            if (!firstSeg) {
-                ImGui::SameLine(0.0F, 0.0F);
-            }
-            firstSeg = false;
-            ImGui::TextColored(theme::ColorForCode(seg.colorCode), "%s", seg.text.c_str());
+void DrawColoredLine(const std::string& line) {
+    // One source line per ImGui row. Within the line, split by colour codes and
+    // stitch segments with SameLine(0,0). Embedded '\n' is impossible here - the
+    // caller has already split entries into single lines.
+    bool firstSeg = true;
+    for (const auto& seg : SplitByColor(line)) {
+        if (seg.text.empty()) {
+            continue;
         }
-        if (firstSeg) {
-            // Blank line - emit a NewLine so vertical spacing is preserved.
-            ImGui::NewLine();
+        if (!firstSeg) {
+            ImGui::SameLine(0.0F, 0.0F);
         }
+        firstSeg = false;
+        ImGui::TextColored(theme::ColorForCode(seg.colorCode), "%s", seg.text.c_str());
+    }
+    if (firstSeg) {
+        // Blank line - emit a NewLine so vertical spacing is preserved.
+        ImGui::NewLine();
     }
 }
 
@@ -75,6 +72,7 @@ void ConsolePanel::Append(const Message& msg) {
     transcript_.push_back(Entry{
         .kind = kind,
         .lines = SplitLines(msg.text),
+        .seq = nextSeq_++,
     });
     while (transcript_.size() > MAX_ENTRIES) {
         transcript_.pop_front();
@@ -99,6 +97,7 @@ void ConsolePanel::SubmitInput() {
         // Input is single-line (ImGui::InputText, not InputTextMultiline)
         // so we know there's exactly one line - no need to scan for '\n'.
         .lines = {std::string{input}},
+        .seq = nextSeq_++,
     });
     while (transcript_.size() > MAX_ENTRIES) {
         transcript_.pop_front();
@@ -201,24 +200,40 @@ int ConsolePanel::InputCallback(ImGuiInputTextCallbackData* data) {
     return 0;
 }
 
+std::string ConsolePanel::FormatRow(const Entry& entry, size_t line) const {
+    // Input rows carry the "> " prompt; output/error rows are plain. Color codes
+    // are stripped so the clipboard gets readable text.
+    std::string out = (entry.kind == Kind::Input) ? "> " : "";
+    out += StripColor(entry.lines[line]);
+    return out;
+}
+
 void ConsolePanel::CopyTranscriptToClipboard() const {
     std::string buf;
     buf.reserve(transcript_.size() * 64U);
     for (const auto& entry : transcript_) {
-        if (entry.kind == Kind::Input) {
-            buf += "> ";
+        for (size_t li = 0; li < entry.lines.size(); ++li) {
+            buf += FormatRow(entry, li);
+            buf += '\n';
         }
-        bool firstLine = true;
-        for (const auto& line : entry.lines) {
-            if (!firstLine) {
-                buf += '\n';
-            }
-            firstLine = false;
-            buf += StripColor(line);
-        }
-        buf += '\n';
     }
     ImGui::SetClipboardText(buf.c_str());
+}
+
+void ConsolePanel::CopySelectionToClipboard() const {
+    std::string buf;
+    for (const auto& entry : transcript_) {
+        for (size_t li = 0; li < entry.lines.size(); ++li) {
+            if (!selection_.IsSelected(RowId(entry.seq, li))) {
+                continue;
+            }
+            buf += FormatRow(entry, li);
+            buf += '\n';
+        }
+    }
+    if (!buf.empty()) {
+        ImGui::SetClipboardText(buf.c_str());
+    }
 }
 
 void ConsolePanel::DrawTranscript() {
@@ -229,29 +244,51 @@ void ConsolePanel::DrawTranscript() {
         // re-engages on the next frame. Within one line of bottom counts
         // so mouse-wheel ticks don't accidentally drop the pin.
         const float scrollMax = ImGui::GetScrollMaxY();
-        const bool autoFollow = scrollMax <= 1.0F || ImGui::GetScrollY() >= scrollMax - ImGui::GetTextLineHeight();
+        const bool atBottom = scrollMax <= 1.0F || ImGui::GetScrollY() >= scrollMax - ImGui::GetTextLineHeight();
+        // Don't pin to the bottom while drag-selecting, so the drag's auto-scroll
+        // (incl. dragging upward from the bottom) isn't immediately undone.
+        const bool autoFollow = atBottom && !selection_.IsDragging();
 
+        // One selectable row per visual line, so multi-line output is
+        // line-selectable. Input entries are single-line by construction.
+        selection_.Begin();
         for (const auto& entry : transcript_) {
-            switch (entry.kind) {
-                case Kind::Input:
-                    ImGui::TextColored(PROMPT_COLOR, "> ");
-                    ImGui::SameLine(0.0F, 0.0F);
-                    // Input is single-line by construction (see SubmitInput).
-                    ImGui::TextColored(INPUT_COLOR, "%s", entry.lines.front().c_str());
-                    break;
-                case Kind::Output:
-                    DrawColoredLines(entry.lines);
-                    break;
-                case Kind::Error:
-                    // One row per line. ImGui::TextColored would itself
-                    // line-break on embedded '\n', but rendering line-by-
-                    // line is consistent with the Output path and avoids
-                    // re-joining the pre-split lines here.
-                    for (const auto& line : entry.lines) {
+            for (size_t li = 0; li < entry.lines.size(); ++li) {
+                if (!selection_.Row(RowId(entry.seq, li))) {
+                    continue;  // off-screen: Row() reserved the layout height, skip drawing
+                }
+                const std::string& line = entry.lines[li];
+                switch (entry.kind) {
+                    case Kind::Input:
+                        ImGui::TextColored(PROMPT_COLOR, "> ");
+                        ImGui::SameLine(0.0F, 0.0F);
+                        ImGui::TextColored(INPUT_COLOR, "%s", line.c_str());
+                        break;
+                    case Kind::Output:
+                        DrawColoredLine(line);
+                        break;
+                    case Kind::Error:
                         ImGui::TextColored(ERROR_COLOR, "%s", line.c_str());
-                    }
-                    break;
+                        break;
+                }
             }
+        }
+        selection_.End();
+        if (selection_.CopyRequested()) {
+            CopySelectionToClipboard();
+        }
+        if (ImGui::BeginPopupContextWindow("##consolectx")) {
+            if (ImGui::MenuItem("Copy selected", "Ctrl+C", false, selection_.HasSelection())) {
+                CopySelectionToClipboard();
+            }
+            if (ImGui::MenuItem("Copy all")) {
+                CopyTranscriptToClipboard();
+            }
+            ImGui::Separator();
+            if (ImGui::MenuItem("Clear console")) {
+                transcript_.clear();
+            }
+            ImGui::EndPopup();
         }
         if (autoFollow) {
             ImGui::SetScrollHereY(1.0F);
@@ -265,21 +302,12 @@ void ConsolePanel::DrawInputLine() {
         ImGui::SetKeyboardFocusHere();
         refocusInput_ = false;
     }
-    // Negative width = "from the right edge". 100px is enough room for
-    // the two trailing buttons at the default font; ImGui clips if not.
-    ImGui::SetNextItemWidth(-100.0F);
+    // Span the full width - clear now lives in the transcript's right-click menu.
+    ImGui::SetNextItemWidth(-FLT_MIN);
     constexpr ImGuiInputTextFlags FLAGS =
         ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackHistory | ImGuiInputTextFlags_CallbackAlways;
     if (ImGui::InputText("##cmd", inputBuf_.data(), inputBuf_.size(), FLAGS, &InputCallback, this)) {
         SubmitInput();
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Copy")) {
-        CopyTranscriptToClipboard();
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Clear")) {
-        transcript_.clear();
     }
 }
 

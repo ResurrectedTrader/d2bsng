@@ -135,6 +135,7 @@
     <ClCompile Include="components\console\ConsoleSink.cpp" />
     <ClCompile Include="components\console\Console.cpp" />
     <ClCompile Include="components\console\Theme.cpp" />
+    <ClCompile Include="components\console\RowSelection.cpp" />
     <ClCompile Include="components\console\LogPanel.cpp" />
     <ClCompile Include="components\console\ConsolePanel.cpp" />
     <ClCompile Include="components\console\ScriptPanel.cpp" />
@@ -178,6 +179,7 @@
     <ClInclude Include="components\console\Console.h" />
     <ClInclude Include="components\console\Panel.h" />
     <ClInclude Include="components\console\Theme.h" />
+    <ClInclude Include="components\console\RowSelection.h" />
     <ClInclude Include="components\console\LogPanel.h" />
     <ClInclude Include="components\console\ConsolePanel.h" />
     <ClInclude Include="components\console\ScriptPanel.h" />

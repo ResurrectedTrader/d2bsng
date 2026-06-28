@@ -57,6 +57,7 @@ void LogPanel::Append(Message msg) {
     scrollback_.push_back(Entry{
         .msg = std::move(msg),
         .ts = std::chrono::system_clock::now(),
+        .seq = nextSeq_++,
     });
     while (scrollback_.size() > MAX_SCROLLBACK) {
         scrollback_.pop_front();
@@ -179,16 +180,12 @@ void LogPanel::DrawFilterBar() {
     ImGui::SameLine();
     ImGui::SetNextItemWidth(180.0F);
     ImGui::InputTextWithHint("##textFilter", "substring...", textFilter_.data(), textFilter_.size());
+}
 
-    // ----- Toolbar -----
-    ImGui::SameLine();
-    if (ImGui::Button("Clear")) {
-        scrollback_.clear();
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Copy")) {
-        CopyViewToClipboard();
-    }
+std::string LogPanel::FormatEntry(const Entry& entry) const {
+    return fmt::format("[{}] [{}] [{}] {}\n", theme::FormatTimestamp(entry.ts),
+                       entry.msg.name.empty() ? std::string_view{"d2bs"} : Basename(entry.msg.name),
+                       theme::LevelTag(entry.msg.level), game::console::StripColor(entry.msg.text));
 }
 
 void LogPanel::CopyViewToClipboard() const {
@@ -198,13 +195,22 @@ void LogPanel::CopyViewToClipboard() const {
         if (!MatchesFilter(entry)) {
             continue;
         }
-        buf += fmt::format("[{}] [{}] [{}] ", theme::FormatTimestamp(entry.ts),
-                           entry.msg.name.empty() ? std::string_view{"d2bs"} : Basename(entry.msg.name),
-                           theme::LevelTag(entry.msg.level));
-        buf += game::console::StripColor(entry.msg.text);
-        buf += '\n';
+        buf += FormatEntry(entry);
     }
     ImGui::SetClipboardText(buf.c_str());
+}
+
+void LogPanel::CopySelectionToClipboard() const {
+    std::string buf;
+    for (const auto& entry : scrollback_) {
+        if (!MatchesFilter(entry) || !selection_.IsSelected(entry.seq)) {
+            continue;
+        }
+        buf += FormatEntry(entry);
+    }
+    if (!buf.empty()) {
+        ImGui::SetClipboardText(buf.c_str());
+    }
 }
 
 void LogPanel::DrawScrollback() {
@@ -214,11 +220,18 @@ void LogPanel::DrawScrollback() {
         // bottom on entry to this frame. Scrolling up disengages it
         // automatically; scrolling back down re-engages on the next frame.
         const float scrollMax = ImGui::GetScrollMaxY();
-        const bool autoFollow = scrollMax <= 1.0F || ImGui::GetScrollY() >= scrollMax - ImGui::GetTextLineHeight();
+        const bool atBottom = scrollMax <= 1.0F || ImGui::GetScrollY() >= scrollMax - ImGui::GetTextLineHeight();
+        // Don't pin to the bottom while drag-selecting, so the drag's auto-scroll
+        // (incl. dragging upward from the bottom) isn't immediately undone.
+        const bool autoFollow = atBottom && !selection_.IsDragging();
 
+        selection_.Begin();
         for (const auto& entry : scrollback_) {
             if (!MatchesFilter(entry)) {
                 continue;
+            }
+            if (!selection_.Row(entry.seq)) {
+                continue;  // off-screen: Row() reserved the layout height, skip formatting
             }
             const std::string prefix =
                 fmt::format("[{}] [{}] [{}] ", theme::FormatTimestamp(entry.ts),
@@ -233,6 +246,23 @@ void LogPanel::DrawScrollback() {
                 ImGui::SameLine(0.0F, 0.0F);
                 ImGui::TextColored(theme::ColorForCode(seg.colorCode), "%s", seg.text.c_str());
             }
+        }
+        selection_.End();
+        if (selection_.CopyRequested()) {
+            CopySelectionToClipboard();
+        }
+        if (ImGui::BeginPopupContextWindow("##logctx")) {
+            if (ImGui::MenuItem("Copy selected", "Ctrl+C", false, selection_.HasSelection())) {
+                CopySelectionToClipboard();
+            }
+            if (ImGui::MenuItem("Copy all")) {
+                CopyViewToClipboard();
+            }
+            ImGui::Separator();
+            if (ImGui::MenuItem("Clear log")) {
+                scrollback_.clear();
+            }
+            ImGui::EndPopup();
         }
         if (autoFollow) {
             ImGui::SetScrollHereY(1.0F);

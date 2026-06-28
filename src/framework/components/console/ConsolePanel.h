@@ -1,6 +1,8 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <string>
 #include <vector>
@@ -8,6 +10,7 @@
 #include <imgui.h>
 
 #include "components/console/Panel.h"
+#include "components/console/RowSelection.h"
 #include "game/Console.h"
 
 namespace d2bs::framework::console {
@@ -44,12 +47,24 @@ class ConsolePanel : public Panel {
         // text.find('\n') every render frame. Input is always a single
         // line (single-line ImGui::InputText); Output/Error may span many.
         std::vector<std::string> lines;
+        uint64_t seq = 0;  // stable per-entry id; folded with line index for rows
     };
+
+    // Stable per-row id: the entry's seq in the high bits, the line index in the
+    // low LINE_INDEX_BITS (entries never carry anywhere near 2^LINE_INDEX_BITS
+    // lines). Keyed into RowSelection so selection survives entries arriving and
+    // being evicted.
+    static constexpr uint64_t LINE_INDEX_BITS = 20;
+    [[nodiscard]] static uint64_t RowId(uint64_t seq, size_t line) {
+        return (seq << LINE_INDEX_BITS) | (static_cast<uint64_t>(line) & ((1ULL << LINE_INDEX_BITS) - 1ULL));
+    }
+    [[nodiscard]] std::string FormatRow(const Entry& entry, size_t line) const;
 
     void DrawTranscript();
     void DrawInputLine();
     void SubmitInput();
     void CopyTranscriptToClipboard() const;
+    void CopySelectionToClipboard() const;
     void PushHistory(const std::string& cmd);
     void NavigateHistory(int direction, ImGuiInputTextCallbackData* data);
     void PrefixSearchHistory(int direction, ImGuiInputTextCallbackData* data);
@@ -57,6 +72,8 @@ class ConsolePanel : public Panel {
     static int InputCallback(ImGuiInputTextCallbackData* data);
 
     std::deque<Entry> transcript_;
+    RowSelection selection_;
+    uint64_t nextSeq_ = 1;  // 0 is reserved as "no row"
     std::array<char, 1024> inputBuf_{};
     bool refocusInput_ = true;
 
