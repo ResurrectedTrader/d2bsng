@@ -155,15 +155,6 @@ void UpdateChecker::Stop() {
     }
 }
 
-std::string UpdateChecker::Message() const {
-    if (!updateAvailable_.load(std::memory_order_acquire)) {
-        return {};
-    }
-    std::lock_guard lock(mutex_);
-    // ASCII only (renders both in-game and in the dev console). No URL by design.
-    return "d2bsng " + latestVersion_ + " is available (running " D2BS_VERSION ")";
-}
-
 void UpdateChecker::Run(const std::stop_token& stopToken) {
     thread_utils::SetThreadDescription("d2bs update checker");
 
@@ -236,10 +227,6 @@ bool UpdateChecker::CheckOnce() {
 
     const bool newer = *latest > *current;
     if (newer) {
-        {
-            std::lock_guard lock(mutex_);
-            latestVersion_ = StripTagPrefix(tag);
-        }
         logger_->info("update available: {} (running {})", tag, D2BS_VERSION);
     } else {
         logger_->debug("up to date: latest {} vs running {}", tag, D2BS_VERSION);

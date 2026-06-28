@@ -279,8 +279,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
     me->SetNativeDataProperty(
           context, v8_convert::ToV8(isolate, "playertype"),
           +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-              info.GetReturnValue().Set(
-                  (game::GetCharFlags() & std::to_underlying(game::CharFlag::Hardcore)) != 0);
+              info.GetReturnValue().Set((game::GetCharFlags() & std::to_underlying(game::CharFlag::Hardcore)) != 0);
           },
           nullptr, v8::Local<v8::Value>(), v8::PropertyAttribute::ReadOnly)
         .Check();
@@ -374,7 +373,9 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
     me->SetNativeDataProperty(
           context, v8_convert::ToV8(isolate, "screensize"),
           +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-              info.GetReturnValue().Set(game::GetScreenSize());
+              // Resolution mode (0 = 640x480, 1 = 800x600), derived from the pixel
+              // viewport size - the single screen-size source of truth.
+              info.GetReturnValue().Set(game::GetViewportSize().width <= 640 ? 0U : 1U);
           },
           nullptr, v8::Local<v8::Value>(), v8::PropertyAttribute::ReadOnly)
         .Check();

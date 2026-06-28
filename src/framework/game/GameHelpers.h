@@ -26,7 +26,10 @@ bool IsInGame();
 // A zero timeout (the default) falls back to WAIT_GAME_READY_DEFAULT for a
 // transient Busy state; Menu/Null return false immediately, InGame true.
 bool WaitForGameReady(std::chrono::milliseconds timeout = std::chrono::milliseconds{0});
-uint32_t GetScreenSize();
+// Actual viewport dimensions in pixels. OOG-safe: the menu always renders at
+// 800x600 in 1.14d, where the in-game size variables are stale. The JS
+// `me.screensize` resolution mode (0/1) is derived from this.
+Size GetViewportSize();
 std::string GetWindowTitle();
 Difficulty GetDifficulty();
 uint32_t GetMapSeed();

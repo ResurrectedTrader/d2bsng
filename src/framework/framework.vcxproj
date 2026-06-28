@@ -119,6 +119,7 @@
     <ClCompile Include="api\classes\scripting\JSScript.cpp" />
     <!-- Drawing -->
     <ClCompile Include="components\drawing\Drawable.cpp" />
+    <ClCompile Include="components\drawing\VersionBanner.cpp" />
     <!-- Script Components -->
     <ClCompile Include="components\script\Commands.cpp" />
     <ClCompile Include="components\script\CompileSource.cpp" />
@@ -225,6 +226,7 @@
     <ClInclude Include="api\classes\io\SQLiteBind.h" />
     <!-- Drawing -->
     <ClInclude Include="components\drawing\Drawable.h" />
+    <ClInclude Include="components\drawing\VersionBanner.h" />
     <ClInclude Include="api\classes\drawing\JSDrawableBase.h" />
     <ClInclude Include="api\classes\drawing\JSBox.h" />
     <ClInclude Include="api\classes\drawing\JSFrame.h" />

@@ -3,9 +3,9 @@
 #include "components/characterstate/CharacterState.h"
 #include "components/config/AppConfig.h"
 #include "components/drawing/Drawable.h"
+#include "components/drawing/VersionBanner.h"
 #include "components/events/EventDispatch.h"
 #include "components/script/ScriptEngine.h"
-#include "components/update/UpdateChecker.h"
 
 namespace d2bs::test {
 
@@ -44,6 +44,10 @@ void Drawable::DrawAll(game::GameState state) {
     ++s.drawAllCount;
     s.lastDrawState = state;
 }
+
+// GameLoop::OnDraw also draws the version banner; the real implementation pulls
+// in the game text/draw layer, so the test stubs it out.
+void DrawVersionBanner() {}
 
 }  // namespace d2bs::framework::drawing
 
@@ -102,29 +106,6 @@ CharacterState& CharacterState::Instance() {
 void CharacterState::OnTick(game::GameState /*state*/, bool /*sessionEntered*/) {}
 
 }  // namespace d2bs::framework::characterstate
-
-// === UpdateChecker (shim) ===
-// The real component pulls in nlohmann-json + the HTTP engine (not in the
-// test's dependency set). GameLoop only reads Instance()/UpdateAvailable()/
-// Message(); UpdateAvailable() is inline in the header and a default-constructed
-// instance reports no update, so the hook never fires and Message() returns
-// empty. No polling thread is ever started in tests.
-namespace d2bs::framework::update {
-
-UpdateChecker::UpdateChecker() = default;
-UpdateChecker::~UpdateChecker() = default;
-
-UpdateChecker& UpdateChecker::Instance() {
-    // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables) - matches real singleton shape
-    static UpdateChecker instance;
-    return instance;
-}
-
-std::string UpdateChecker::Message() const {
-    return {};
-}
-
-}  // namespace d2bs::framework::update
 
 // GetGameState / IsTownByLevelNo / ExitGame are defined in
 // fakes/GameHelpers.cpp and route through d2bs::test::State().

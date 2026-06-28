@@ -213,7 +213,7 @@ d2bsng/
 │   │   │   ├── dde/            DDE service
 │   │   │   ├── exits/          Level-exit finder
 │   │   │   ├── profile/        Profile DTOs
-│   │   │   ├── update/         GitHub-release update checker (6h poll -> in-game notice)
+│   │   │   ├── update/         GitHub-release update checker (6h poll -> version-banner marker)
 │   │   │   └── Framework.h/.cpp DLL lifecycle orchestrator
 │   │   └── game/           Game interface headers (NO .cpp files)
 │   └── lod114d/            d2bs.dll - 1.14d game implementation

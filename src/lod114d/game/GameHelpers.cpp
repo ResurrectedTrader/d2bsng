@@ -57,10 +57,10 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-braces"
 // ReSharper disable once CppUnusedIncludeDirective
-#include <DataTbls/InvTbls.h>      // D2InventoryGridInfoStrc
-#include <DataTbls/ItemsTbls.h>    // D2ItemsTxt
-#include <Path/Path.h>             // D2DynamicPathStrc
-#include <Units/Units.h>           // D2UnitStrc
+#include <DataTbls/InvTbls.h>    // D2InventoryGridInfoStrc
+#include <DataTbls/ItemsTbls.h>  // D2ItemsTxt
+#include <Path/Path.h>           // D2DynamicPathStrc
+#include <Units/Units.h>         // D2UnitStrc
 #pragma clang diagnostic pop
 
 namespace d2bs::game {
@@ -210,17 +210,16 @@ bool WaitForGameReady(std::chrono::milliseconds timeout) {
     }
 }
 
-// Reference: D2Helpers.cpp:560-568 hard-codes 800x600 in the menu state
-// because the in-game ScreenSize variables are stale OOG. The 800x600 fallback
-// matches reference's GetScreenSize.
-uint32_t GetScreenSize() {
+// Reference: D2Helpers.cpp:560-568 hard-codes 800x600 in the menu state because
+// the in-game ScreenSize variables are stale OOG. In-game, 1.14d renders at one
+// of two fixed resolutions; map the resolution mode (0=640x480, 1=800x600) to
+// pixels.
+Size GetViewportSize() {
     if (GetGameState() == GameState::Menu) {
-        // The framework expects a single uint32 -- packed encoding mirrors
-        // d2gfx::D2GFX_GetResolutionMode, which the reference uses to drive its GetScreenSize
-        // small-vs-large decision. 0=640x480, 1=800x600 in 1.14d.
-        return 1;
+        return {.width = 800, .height = 600};
     }
-    return d2gfx::D2GFX_GetResolutionMode();
+    return d2gfx::D2GFX_GetResolutionMode() == 0 ? Size{.width = 640, .height = 480}
+                                                 : Size{.width = 800, .height = 600};
 }
 
 std::string GetWindowTitle() {
@@ -1633,7 +1632,7 @@ int32_t SendIPC(uint32_t mode, std::string_view data, uintptr_t targetHwnd, std:
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast) - COPYDATASTRUCT.lpData isn't mutated
     cds.lpData = const_cast<char*>(buffer.c_str());
     return static_cast<int32_t>(SendMessageW(target, WM_COPYDATA, reinterpret_cast<WPARAM>(d2gfx::WINDOW_GetWindow()),
-                                               reinterpret_cast<LPARAM>(&cds)));
+                                             reinterpret_cast<LPARAM>(&cds)));
 }
 
 // === Misc ===

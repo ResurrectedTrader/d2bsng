@@ -18,8 +18,8 @@ bool IsInGame() {
 bool WaitForGameReady(std::chrono::milliseconds /*timeout*/) {
     return false;
 }
-uint32_t GetScreenSize() {
-    return 0;
+Size GetViewportSize() {
+    return {.width = 800, .height = 600};
 }
 std::string GetWindowTitle() {
     return "";
