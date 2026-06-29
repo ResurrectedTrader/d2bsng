@@ -83,7 +83,7 @@ class UpdateChecker {
     mutable std::mutex mutex_;          // guards the cv wait
     std::condition_variable_any cv_;    // woken by the stop_token on Stop()
     std::atomic<bool> started_{false};  // Start() latch (idempotency)
-    std::atomic<SemVer> availableVersion_{};  // 0.0.0 = no update
+    std::atomic<SemVer> availableVersion_;  // 0.0.0 = no update
     // Declared last so it is destroyed first - ~jthread requests stop + joins
     // while mutex_/cv_ are still alive for the loop's final wakeup.
     std::jthread thread_;

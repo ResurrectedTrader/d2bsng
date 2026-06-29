@@ -69,28 +69,6 @@ class V8InstanceTracker {
         return merged;
     }
 
-    // Returns total instance count across all classes.
-    // If threadId is provided, returns the total for that thread only; otherwise sums across all threads.
-    int32_t TotalCount(std::optional<std::thread::id> threadId = std::nullopt) const {
-        std::scoped_lock lock(mutex_);
-        auto sumOver = [](const ClassCountMap& m) {
-            int32_t total = 0;
-            for (const auto& count : m | std::views::values) {
-                total += count;
-            }
-            return total;
-        };
-        if (threadId) {
-            auto it = counts_.find(*threadId);
-            return (it == counts_.end()) ? 0 : sumOver(it->second);
-        }
-        int32_t total = 0;
-        for (const auto& perClass : counts_ | std::views::values) {
-            total += sumOver(perClass);
-        }
-        return total;
-    }
-
     // Remove all entries for a thread (call during isolate teardown after logging any leaks)
     void ClearThread(std::thread::id threadId) {
         std::scoped_lock lock(mutex_);

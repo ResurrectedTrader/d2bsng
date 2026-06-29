@@ -483,6 +483,26 @@ void SendKey(uint32_t key);
 
 The same applies to the doc strings: don't mention that `Message` "was previously called X" or that `SplitByColor` "used to live in framework/components/". Current behavior only.
 
+### Comment only when it adds meaning
+
+Add a comment only when it explains something the code cannot say on its own - a non-obvious *why*, a subtle invariant, a gotcha, a pointer to an external source. A comment that restates what the code plainly does is noise.
+
+In particular, when asked to do X, do not add or rewrite comments that narrate X. That the change implements the request is obvious from the code and the diff; a comment announcing it just outlives the request and clutters the next reader's view. Comment for the next reader, not for the task you were handed.
+
+**Bad** (asked to "shift the banner left and show the available version" - the comments narrate exactly the request):
+```cpp
+// Shift the version banner left to make room for the notice.
+const game::Point bannerPos{.x = noticePos.x - spaceWidth - bannerWidth, .y = baselineY};
+// Draw the available-version notice on the right.
+game::DrawGameText(noticeText, noticePos, NOTICE_COLOR, BANNER_FONT);
+```
+
+**Good** (no comment where the code speaks for itself; a comment only where it earns its place):
+```cpp
+// D2 draws text up from the baseline, so the last row keeps glyphs on-screen.
+const int32_t baselineY = static_cast<int32_t>(screen.height) - 1;
+```
+
 ### Redundant qualifiers, casts, access specifiers, and includes
 
 Write the minimal form. Cleanups (including ReSharper) routinely strip these, so
