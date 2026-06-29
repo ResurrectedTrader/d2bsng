@@ -117,8 +117,11 @@ class Script : public std::enable_shared_from_this<Script> {
     // Heap stats cached on the script's own thread (safe to read cross-thread).
     // Updated periodically (~1s), not on every event loop tick.
     [[nodiscard]] std::shared_ptr<v8::HeapStatistics> GetCachedHeapStats() const { return cachedHeapStats_.load(); }
-    // Force a fresh snapshot - only safe from the script's own thread.
-    void UpdateHeapStats(bool force = false);
+    // Force a fresh snapshot - only safe from the script's own thread. `now` is
+    // the caller's single steady_clock reading for the pass (steady_clock::now()
+    // is QueryPerformanceCounter on MSVC, so event-loop callers pass theirs in
+    // rather than taking a second hooked reading).
+    void UpdateHeapStats(std::chrono::steady_clock::time_point now, bool force = false);
 
     // Last-known JS call stack, refreshed per StackCaptureMode (Off by default,
     // so nothing is captured unless the Stacktraces panel selected this script).
@@ -132,7 +135,7 @@ class Script : public std::enable_shared_from_this<Script> {
     // by default; the console's Stacktraces panel raises the selected script to
     // OnYield / OnEveryCall and drops it to Off on deselect or console hide.
     // Cross-thread safe.
-    void SetStackCaptureMode(StackCaptureMode mode) { stackCaptureMode_.store(mode, std::memory_order_release); }
+    void SetStackCaptureMode(StackCaptureMode mode);
     [[nodiscard]] StackCaptureMode GetStackCaptureMode() const {
         return stackCaptureMode_.load(std::memory_order_acquire);
     }

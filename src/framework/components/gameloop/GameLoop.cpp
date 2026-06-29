@@ -1,5 +1,7 @@
 #include "components/gameloop/GameLoop.h"
 
+#include <algorithm>
+#include <chrono>
 #include <thread>
 
 #include <spdlog/spdlog.h>
@@ -123,12 +125,16 @@ void GameLoop::OnSleep(std::chrono::milliseconds duration) {
             if (now >= deadline) {
                 break;
             }
-            const auto remainingVirtMs = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count();
-            if (static_cast<float>(remainingVirtMs) < speed) {
-                std::this_thread::yield();
-            } else {
+            // deadline/now are scaled "virtual" time; convert the remaining budget
+            // to real wall time and sleep (rather than busy-yielding the sub-
+            // idleSleep tail) so the core is released while the write lock is down.
+            // Cap at the idle granularity so script readers get a fresh release
+            // window at least every idleSleep.
+            const auto realRemaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::duration<double, std::milli>(deadline - now) / speed);
+            {
                 speedhack::SpeedhackDisabledScope realWaits;
-                std::this_thread::sleep_for(idleSleep);
+                std::this_thread::sleep_for(std::clamp(realRemaining, std::chrono::milliseconds(1), idleSleep));
             }
             game::GameWriteLock lock;
             game::GameThread::Drain();

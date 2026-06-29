@@ -95,7 +95,7 @@ struct AppConfig {
     // Real-wall granularity (ms) of the idle script / game-loop wait loops (INI
     // [settings]/IdleSleepIntervalMs, clamped [1, 100]). Larger = lower idle CPU,
     // coarser servicing.
-    std::chrono::milliseconds idleSleepInterval{1};
+    std::chrono::milliseconds idleSleepInterval{10};
 
     // Active profile name (set when login() is called, read by me.profile).
     // Names are normalized to lowercase on Set (matches reference's

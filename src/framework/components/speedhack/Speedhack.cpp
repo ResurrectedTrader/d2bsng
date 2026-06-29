@@ -47,6 +47,14 @@ std::mutex stateMutex;
 // hooks (ScaleTimeout) ARE stateless, so they short-circuit at speed=1.0.
 std::atomic<bool> isInstalled{false};
 
+// Latched true by ReanchorLocked the first time the multiplier actually moves,
+// and never cleared - so the virtual offset accumulated during any past non-1.0
+// phase keeps applying even after speed returns to 1.0 (see ToVirtual). While it
+// is false (the speedhack was never engaged this run - the common case) the read
+// hooks below skip the per-domain snapshot + scale and return the real OS value,
+// collapsing each hooked clock read back to ~a real read.
+std::atomic<bool> scalingActive{false};
+
 // Per-thread opt-in. Threads default to "not scaled" so V8's background
 // workers (parallel marker, compiler, sweeper, ...) and any other thread
 // we don't explicitly know about see real time. The game thread and each
@@ -145,11 +153,19 @@ bool ThreadOptedIn() {
     return thread_utils::HasThreadLocalStorage() && threadOptIn;
 }
 
+// Scaling is observable on this thread only once it has actually been engaged
+// (scalingActive) AND this thread opted in. scalingActive is loaded first so the
+// common "never engaged" path short-circuits to a single relaxed atomic read,
+// before the TLS-presence probe / thread_local read and the snapshot + scale.
+bool ScalingEngaged() {
+    return scalingActive.load(std::memory_order_relaxed) && ThreadOptedIn();
+}
+
 // Read-API hooks ------------------------------------------------------------
 
 DWORD WINAPI HookedGetTickCount() {
     const DWORD real = realGetTickCount();
-    if (!ThreadOptedIn()) {
+    if (!ScalingEngaged()) {
         return real;
     }
     const auto snap = LoadSnapshot(dwMsState);
@@ -160,7 +176,7 @@ DWORD WINAPI HookedGetTickCount() {
 
 ULONGLONG WINAPI HookedGetTickCount64() {
     const ULONGLONG real = realGetTickCount64();
-    if (!ThreadOptedIn()) {
+    if (!ScalingEngaged()) {
         return real;
     }
     const auto snap = LoadSnapshot(u64MsState);
@@ -173,7 +189,7 @@ BOOL WINAPI HookedQueryPerformanceCounter(LARGE_INTEGER* lpPerformanceCount) {
     if (!ok || lpPerformanceCount == nullptr) {
         return ok;
     }
-    if (!ThreadOptedIn()) {
+    if (!ScalingEngaged()) {
         *lpPerformanceCount = realQpc;
         return TRUE;
     }
@@ -184,7 +200,7 @@ BOOL WINAPI HookedQueryPerformanceCounter(LARGE_INTEGER* lpPerformanceCount) {
 
 DWORD WINAPI HookedTimeGetTime() {
     const DWORD real = realTimeGetTime();
-    if (!ThreadOptedIn()) {
+    if (!ScalingEngaged()) {
         return real;
     }
     // Shares dwMsState with GetTickCount - both are DWORD ms counters, close
@@ -201,7 +217,7 @@ VOID WINAPI HookedGetSystemTimeAsFileTime(LPFILETIME lpSystemTimeAsFileTime) {
     }
     FILETIME realFt;
     realGetSystemTimeAsFileTime(&realFt);
-    if (!ThreadOptedIn()) {
+    if (!ScalingEngaged()) {
         *lpSystemTimeAsFileTime = realFt;
         return;
     }
@@ -215,7 +231,7 @@ VOID WINAPI HookedGetSystemTimePreciseAsFileTime(LPFILETIME lpSystemTimeAsFileTi
     }
     FILETIME realFt;
     realGetSystemTimePreciseAsFileTime(&realFt);
-    if (!ThreadOptedIn()) {
+    if (!ScalingEngaged()) {
         *lpSystemTimeAsFileTime = realFt;
         return;
     }
@@ -227,7 +243,7 @@ VOID WINAPI HookedGetSystemTime(LPSYSTEMTIME lpSystemTime) {
     if (lpSystemTime == nullptr) {
         return;
     }
-    if (!ThreadOptedIn()) {
+    if (!ScalingEngaged()) {
         realGetSystemTime(lpSystemTime);
         return;
     }
@@ -242,7 +258,7 @@ VOID WINAPI HookedGetLocalTime(LPSYSTEMTIME lpSystemTime) {
     if (lpSystemTime == nullptr) {
         return;
     }
-    if (!ThreadOptedIn()) {
+    if (!ScalingEngaged()) {
         realGetLocalTime(lpSystemTime);
         return;
     }
@@ -341,6 +357,7 @@ void ReanchorLocked(float oldSpeed, float newSpeed) {
     reanchor(qpcState, realQpc.QuadPart);
     reanchor(fileTimeState, FileTimeToInt64(realFt));
     config::GetAppConfig().speed.store(newSpeed, std::memory_order_relaxed);
+    scalingActive.store(true, std::memory_order_relaxed);
 }
 
 }  // namespace
@@ -365,7 +382,7 @@ DWORD ScaleTimeout(DWORD ms) {
     if (ms == INFINITE) {
         return INFINITE;
     }
-    if (!ThreadOptedIn()) {
+    if (!ScalingEngaged()) {
         return ms;
     }
     const float s = config::GetAppConfig().speed.load(std::memory_order_relaxed);

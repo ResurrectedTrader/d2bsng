@@ -78,7 +78,7 @@ void JSScript::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
 
             // Force fresh stats when queried from the script's own thread.
             if (handle->threadId == std::this_thread::get_id()) {
-                script->UpdateHeapStats(true);
+                script->UpdateHeapStats(std::chrono::steady_clock::now(), true);
             }
             auto stats = script->GetCachedHeapStats();
             if (!stats) {

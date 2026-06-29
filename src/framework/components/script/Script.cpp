@@ -23,6 +23,7 @@
 #include "components/events/Events.h"
 #include "components/inspector/ScriptInspector.h"
 #include "components/script/CompileSource.h"
+#include "components/script/NativeCallHook.h"
 #include "components/script/ScriptEngine.h"
 #include "components/speedhack/Speedhack.h"
 #include "components/v8/V8Host.h"
@@ -50,6 +51,9 @@ std::shared_ptr<spdlog::logger> GetLogger(v8::Isolate* isolate) {
 // NOLINTNEXTLINE(bugprone-exception-escape) - join() can throw std::system_error; terminate is fine at teardown
 Script::~Script() {
     Stop();
+    // Release any per-call stack-capture slot this script held so the global
+    // count can't leak if it dies while still selected in the console.
+    SetStackCaptureMode(StackCaptureMode::Off);
     if (thread_.joinable() && thread_.get_id() == std::this_thread::get_id()) {
         // Being destroyed from our own thread (natural completion via RemoveSelfFromEngine
         // dropping the last shared_ptr). Detach to prevent ~jthread from self-joining.
@@ -560,7 +564,7 @@ void Script::RunScript() {
 
     // Populate cached heap stats after initial execution so they're available
     // before the first ExecuteEvents iteration.
-    UpdateHeapStats();
+    UpdateHeapStats(std::chrono::steady_clock::now());
 }
 
 void Script::ReportException(v8::TryCatch& tryCatch) {
@@ -610,8 +614,7 @@ std::filesystem::path Script::NormalizePath(const std::filesystem::path& path) {
     return {utils::ToLower(std::move(str))};
 }
 
-void Script::UpdateHeapStats(bool force) {
-    auto now = std::chrono::steady_clock::now();
+void Script::UpdateHeapStats(std::chrono::steady_clock::time_point now, bool force) {
     if (!force && now - lastHeapStatsUpdate_ < std::chrono::seconds(1)) {
         return;
     }
@@ -624,6 +627,20 @@ void Script::UpdateHeapStats(bool force) {
     iso->GetHeapStatistics(stats.get());
     cachedHeapStats_.store(std::move(stats));
     lastHeapStatsUpdate_ = now;
+}
+
+void Script::SetStackCaptureMode(StackCaptureMode mode) {
+    const auto prev = stackCaptureMode_.exchange(mode, std::memory_order_acq_rel);
+    if (prev == mode) {
+        return;
+    }
+    // Keep the process-wide OnEveryCall tally in sync so OnNativeCall's fast path
+    // (skip the per-call script lookup) engages whenever no script is capturing.
+    if (mode == StackCaptureMode::OnEveryCall) {
+        framework::script::onEveryCallCaptureCount.fetch_add(1, std::memory_order_relaxed);
+    } else if (prev == StackCaptureMode::OnEveryCall) {
+        framework::script::onEveryCallCaptureCount.fetch_sub(1, std::memory_order_relaxed);
+    }
 }
 
 namespace {
@@ -801,11 +818,9 @@ void Script::ExecuteEvents(std::chrono::milliseconds duration) {
         std::this_thread::sleep_for(idleSleep);
     }
 
-    auto deadline = std::chrono::steady_clock::now() + duration;
-    // Slice wait: real idleSleep-ms wall sleeps while >=1ms wall of budget
-    // remains, else yield. A large IdleSleepIntervalMs coarsens the deadline re-check.
+    const auto deadline = std::chrono::steady_clock::now() + duration;
     const float speed = speedhack::GetSpeed();
-    do {  // NOLINT(cppcoreguidelines-avoid-do-while) - must process events before checking deadline
+    while (true) {
         while (v8::platform::PumpMessageLoop(platform, iso)) {}
 
         // Pump any queued Chrome DevTools (inspector) messages on the isolate
@@ -814,24 +829,29 @@ void Script::ExecuteEvents(std::chrono::milliseconds duration) {
             inspector_->DrainIncoming();
         }
 
+        // steady_clock::now() is QueryPerformanceCounter on MSVC, so each read
+        // routes through the speedhack hook: take one reading per pass and reuse it
+        // for the heap-stat throttle, the deadline check, and the wait.
+        const auto now = std::chrono::steady_clock::now();
+
         // Periodically cache heap stats for cross-thread readers.
         // GetHeapStatistics iterates all heap spaces (not cheap), so throttle.
-        UpdateHeapStats();
+        UpdateHeapStats(now);
 
-        const auto remainingVirtMs =
-            std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now()).count();
-        if (remainingVirtMs <= 0) {
+        if (now >= deadline || state_.load() != ScriptState::Running || stopToken.stop_requested() ||
+            (mode_ == ScriptMode::InGame && game::GetGameState() != game::GameState::InGame)) {
             break;
         }
-        if (static_cast<float>(remainingVirtMs) < speed) {
-            std::this_thread::yield();
-        } else {
-            speedhack::SpeedhackDisabledScope realWaits;
-            std::this_thread::sleep_for(idleSleep);
-        }
-    } while (state_.load() == ScriptState::Running && !stopToken.stop_requested() &&
-             std::chrono::steady_clock::now() < deadline &&
-             (mode_ != ScriptMode::InGame || game::GetGameState() == game::GameState::InGame));
+
+        // deadline/now are scaled "virtual" time; convert the remaining budget to
+        // real wall time, then sleep (rather than busy-yielding the sub-idleSleep
+        // tail) so the core is released. Cap the nap at the idle granularity so a
+        // cross-thread event post is serviced within idleSleep.
+        const auto realRemaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::duration<double, std::milli>(deadline - now) / speed);
+        speedhack::SpeedhackDisabledScope realWaits;
+        std::this_thread::sleep_for(std::clamp(realRemaining, std::chrono::milliseconds(1), idleSleep));
+    }
 }
 
 bool Script::ExecuteEvent(const std::shared_ptr<BaseEvent>& event) {

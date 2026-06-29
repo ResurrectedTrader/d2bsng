@@ -1,5 +1,7 @@
 #pragma once
 
+#include <atomic>
+
 #include <v8.h>
 
 // Trampolines that sit between V8 and our user-supplied native callbacks
@@ -15,6 +17,13 @@
 // at template build time on purpose.
 
 namespace d2bs::framework::script {
+
+// Process-wide count of scripts currently in StackCaptureMode::OnEveryCall.
+// While zero (the universal case - the console Stacktraces panel isn't pinned to
+// a script in per-call mode), OnNativeCall short-circuits on this single relaxed
+// load, keeping the JS->native trampolines off the per-call script lookup.
+// Maintained by Script::SetStackCaptureMode (and cleared in ~Script).
+inline std::atomic<int> onEveryCallCaptureCount{0};
 
 // Called from each trampoline at the start of a V8 callback. Looks up the
 // Script owning `isolate`; if that Script has stack capture enabled,

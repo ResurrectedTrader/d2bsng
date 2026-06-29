@@ -6,6 +6,11 @@
 namespace d2bs::framework::script {
 
 void OnNativeCall(v8::Isolate* isolate) {
+    // Fast path: while no script is capturing per-call stacks, skip the script
+    // lookup entirely. This runs on every JS->native call, so it stays cheap.
+    if (onEveryCallCaptureCount.load(std::memory_order_relaxed) == 0) {
+        return;
+    }
     if (auto* script = ScriptEngine::Instance().GetScript(isolate);
         script != nullptr && script->GetStackCaptureMode() == StackCaptureMode::OnEveryCall) {
         script->RefreshLastStackTrace();
