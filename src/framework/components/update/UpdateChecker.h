@@ -2,8 +2,10 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <cstdint>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <stop_token>
 #include <thread>
 
@@ -15,14 +17,23 @@ class logger;
 
 namespace d2bs::framework::update {
 
+// A comparable major.minor.patch triple. 0.0.0 doubles as the "no update"
+// sentinel - d2bsng releases start at 2.x.
+struct SemVer {
+    uint32_t major = 0;
+    uint32_t minor = 0;
+    uint32_t patch = 0;
+    auto operator<=>(const SemVer&) const = default;
+};
+
 // Background poller that checks the project's GitHub releases on a fixed
 // interval and flags when a published release is newer than the running build
-// (D2BS_VERSION). The version banner reads UpdateAvailable() each frame to show
-// an update-available marker. Pre-release / dev builds (a D2BS_VERSION carrying
+// (D2BS_VERSION). The version banner reads AvailableUpdate() each frame to show
+// the downloadable version. Pre-release / dev builds (a D2BS_VERSION carrying
 // a -suffix) are not released versions and opt out entirely - they never start
 // the poll. The HTTP request + JSON parse run on a dedicated jthread (never the
-// game thread or a V8 isolate thread); UpdateAvailable() is a lock-free atomic
-// read safe to call from any thread.
+// game thread or a V8 isolate thread); AvailableUpdate() is safe to call from
+// any thread, including the game thread.
 class UpdateChecker {
    public:
     static UpdateChecker& Instance();
@@ -37,11 +48,16 @@ class UpdateChecker {
     // briefly (up to the in-flight request's timeout) if a check is mid-flight.
     void Stop();
 
-    // Whether the most recent successful check found a release newer than this
-    // build. Recomputed every poll (not a permanent latch), so it can clear
-    // again if a later poll sees an equal/older release. Lock-free; safe to call
-    // from the game thread.
-    bool UpdateAvailable() const { return updateAvailable_.load(std::memory_order_acquire); }
+    // The release found newer than this build, or nullopt when up to date.
+    // Recomputed every poll. Safe to call from any thread, including the game
+    // thread.
+    std::optional<SemVer> AvailableUpdate() const {
+        const SemVer v = availableVersion_.load(std::memory_order_acquire);
+        if (v == SemVer{}) {
+            return std::nullopt;
+        }
+        return v;
+    }
 
     UpdateChecker(const UpdateChecker&) = delete;
     UpdateChecker& operator=(const UpdateChecker&) = delete;
@@ -67,7 +83,7 @@ class UpdateChecker {
     mutable std::mutex mutex_;          // guards the cv wait
     std::condition_variable_any cv_;    // woken by the stop_token on Stop()
     std::atomic<bool> started_{false};  // Start() latch (idempotency)
-    std::atomic<bool> updateAvailable_{false};
+    std::atomic<SemVer> availableVersion_{};  // 0.0.0 = no update
     // Declared last so it is destroyed first - ~jthread requests stop + joins
     // while mutex_/cv_ are still alive for the loop's final wakeup.
     std::jthread thread_;

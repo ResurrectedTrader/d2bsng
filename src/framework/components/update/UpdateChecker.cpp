@@ -29,20 +29,11 @@ using json = nlohmann::json;  // NOLINT(readability-identifier-naming) - nlohman
 constexpr auto CHECK_INTERVAL = std::chrono::hours{6};
 // Short settle delay before the first check so it doesn't pile onto the heavy
 // DLL-load / framework-init work.
-constexpr auto INITIAL_DELAY = std::chrono::seconds{30};
+constexpr auto INITIAL_DELAY = std::chrono::seconds{5};
 
 // Hardcoded: the canonical d2bsng releases endpoint. `releases/latest` returns
 // the newest non-draft, non-prerelease release (404 when none exist yet).
 constexpr std::string_view RELEASES_API_URL = "https://api.github.com/repos/ResurrectedTrader/d2bsng/releases/latest";
-
-// A comparable major.minor.patch triple. The defaulted operator<=> gives the
-// natural precedence (major, then minor, then patch).
-struct SemVer {
-    uint32_t major = 0;
-    uint32_t minor = 0;
-    uint32_t patch = 0;
-    auto operator<=>(const SemVer&) const = default;
-};
 
 // Drop a single leading 'v' / 'V' version-tag prefix (GitHub tags read "v2.1.0";
 // the value we compare and display is "2.1.0"). Returns a view into `tag`.
@@ -231,7 +222,7 @@ bool UpdateChecker::CheckOnce() {
     } else {
         logger_->debug("up to date: latest {} vs running {}", tag, D2BS_VERSION);
     }
-    updateAvailable_.store(newer, std::memory_order_release);
+    availableVersion_.store(newer ? *latest : SemVer{}, std::memory_order_release);
     return true;
 }
 
