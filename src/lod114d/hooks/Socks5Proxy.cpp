@@ -17,6 +17,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include "components/proxy/ProxyBypass.h"
@@ -30,6 +31,9 @@ namespace d2bs::hooks::socks5 {
 namespace {
 
 using ConnectFn = int(WSAAPI*)(SOCKET, const sockaddr*, int);
+using GetHostByNameFn = hostent*(WSAAPI*)(const char*);
+using GetPeerNameFn = int(WSAAPI*)(SOCKET, sockaddr*, int*);
+using CloseSocketFn = int(WSAAPI*)(SOCKET);
 
 // Bound every blocking step of the handshake. The game's own BNCS socket carries a
 // 3s SO_RCVTIMEO, so this is only the outer ceiling for the proxy itself.
@@ -56,15 +60,64 @@ struct ProxyConfig {
     std::string password;
 };
 
-// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables) - hook owns module-level state by definition
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables, cert-err58-cpp) - hook owns module-level state
 ConnectFn realConnect = nullptr;  // set in Install(); Detours rewrites it to the trampoline (original connect)
+GetHostByNameFn realGetHostByName = nullptr;  // trampoline to the original gethostbyname
+GetPeerNameFn realGetPeerName = nullptr;      // trampoline to the original getpeername
+CloseSocketFn realCloseSocket = nullptr;      // trampoline to the original closesocket
 bool installed = false;
 std::shared_ptr<spdlog::logger> logger;  // dedicated "socks5" logger; created in Install() once the sinks are wired
 
 std::optional<ProxyConfig> config;         // parsed once in Install(), before the hook goes live
 std::mutex resolveMutex;                   // guards resolvedProxy
 std::optional<sockaddr_in> resolvedProxy;  // proxy endpoint, resolved lazily and cached
-// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
+
+// Remote-DNS support. The game resolves Battle.net hostnames locally, then connects
+// by IP - so the SOCKS5 proxy never gets to pick a server in *its* region, and the
+// bot can be steered onto a gateway whose version-check/download node is unreachable
+// from the proxy. We mirror Proxifier's remote DNS: detour gethostbyname to remember
+// every IP->hostname mapping, then send ATYP=DOMAIN (the hostname) in the SOCKS5
+// CONNECT so the proxy re-resolves it locally. Numeric "hostnames" are not recorded.
+std::mutex hostMapMutex;
+std::unordered_map<uint32_t, std::string> ipToHost;  // key: IPv4 in network byte order
+
+// Sockets we tunnelled, mapped to the destination the game *asked* for. Because the
+// socket is really connected to the SOCKS5 proxy, an un-hooked getpeername() would
+// report the proxy's address - and the game uses that to open follow-up connections
+// (BnFTP version download / realm) to <peer-ip>:6112, hitting the proxy's own IP and
+// stalling. Reporting the original destination keeps the game's view consistent with
+// a transparent proxifier, so those follow-ups re-tunnel correctly.
+std::mutex peerMapMutex;
+std::unordered_map<SOCKET, sockaddr_in> peerMap;
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables, cert-err58-cpp)
+
+// True if `s` is a dotted-quad / numeric literal rather than a real hostname; we must
+// not "remote-resolve" those (sending a numeric ATYP=DOMAIN defeats the purpose).
+bool IsNumericHost(const char* s) {
+    if (s == nullptr || *s == '\0') {
+        return true;
+    }
+    in_addr v4{};
+    in6_addr v6{};
+    return InetPtonA(AF_INET, s, &v4) == 1 || InetPtonA(AF_INET6, s, &v6) == 1;
+}
+
+void RememberHost(uint32_t ipNetOrder, const char* host) {
+    if (IsNumericHost(host)) {
+        return;
+    }
+    const std::scoped_lock lock(hostMapMutex);
+    ipToHost[ipNetOrder] = host;
+}
+
+// Reverse-lookup the hostname the game resolved for this IPv4 (empty if none/numeric).
+std::string HostForIp(uint32_t ipNetOrder) {
+    const std::scoped_lock lock(hostMapMutex);
+    if (const auto it = ipToHost.find(ipNetOrder); it != ipToHost.end()) {
+        return it->second;
+    }
+    return {};
+}
 
 // Parse socks5://[user[:password]@]host:port. Returns nullopt on anything that
 // is not a well-formed socks5 URL with both a host and a port.
@@ -214,9 +267,9 @@ bool ProxyConnect(SOCKET s, const sockaddr_in& proxy) {
 }
 
 // Perform the SOCKS5 greeting / optional auth / CONNECT on the already-proxy-
-// connected socket `s`, asking the proxy to reach `dest` (an already-resolved
-// IPv4 endpoint - the game does its own DNS).
-bool Handshake(SOCKET s, const ProxyConfig& cfg, const sockaddr_in& dest) {
+// connected socket `s`. Reach `dest` by IPv4, or by hostname (ATYP=DOMAIN) when
+// `host` is non-empty, so the proxy resolves it in its own region (remote DNS).
+bool Handshake(SOCKET s, const ProxyConfig& cfg, const sockaddr_in& dest, std::string_view host) {
     const bool useAuth = !cfg.username.empty();
 
     // Greeting: VER, NMETHODS, METHODS... (offer no-auth, plus user/pass when we have credentials).
@@ -263,15 +316,22 @@ bool Handshake(SOCKET s, const ProxyConfig& cfg, const sockaddr_in& dest) {
         return false;  // 0xFF (no acceptable methods) or anything unexpected
     }
 
-    // CONNECT request: VER, CMD, RSV, ATYP=IPv4, DST.ADDR(4), DST.PORT(2). Both
-    // address and port are already in network byte order inside sockaddr_in.
-    std::array<uint8_t, 10> request{};
-    request[0] = SOCKS5_VERSION;
-    request[1] = SOCKS5_CMD_CONNECT;
-    request[2] = SOCKS5_RSV;
-    request[3] = SOCKS5_ATYP_IPV4;
-    std::memcpy(&request[4], &dest.sin_addr, 4);
-    std::memcpy(&request[8], &dest.sin_port, 2);
+    // CONNECT request: VER, CMD, RSV, ATYP, DST.ADDR, DST.PORT (port already in
+    // network byte order). When we know the hostname the game resolved for this IP
+    // we send ATYP=DOMAIN so the proxy resolves it in its own region (remote DNS,
+    // like Proxifier); otherwise we fall back to the resolved IPv4.
+    std::vector<uint8_t> request{SOCKS5_VERSION, SOCKS5_CMD_CONNECT, SOCKS5_RSV};
+    if (!host.empty() && host.size() <= SOCKS5_MAX_FIELD) {
+        request.push_back(SOCKS5_ATYP_DOMAIN);
+        request.push_back(static_cast<uint8_t>(host.size()));
+        request.insert(request.end(), host.begin(), host.end());
+    } else {
+        request.push_back(SOCKS5_ATYP_IPV4);
+        const auto* addr = reinterpret_cast<const uint8_t*>(&dest.sin_addr);
+        request.insert(request.end(), addr, addr + 4);
+    }
+    const auto* portBytes = reinterpret_cast<const uint8_t*>(&dest.sin_port);
+    request.insert(request.end(), portBytes, portBytes + 2);
     if (!SendAll(s, request)) {
         return false;
     }
@@ -319,6 +379,28 @@ int WSAAPI HookedConnect(SOCKET s, const sockaddr* name, int namelen) {
         namelen < static_cast<int>(sizeof(sockaddr_in)) || name->sa_family != AF_INET) {
         return realConnect(s, name, namelen);
     }
+
+    // Loopback / private / link-local destinations are never tunnelled: they
+    // belong to this machine or the local network, not the remote SOCKS5 peer.
+    // During Battle.net login the game makes a 127.0.0.1 self-connection; routing
+    // that to the proxy (whose own localhost has nothing listening) fails closed
+    // and hangs the client on "Checking versions". System proxifiers bypass these
+    // ranges for the same reason.
+    {
+        const auto* dst = reinterpret_cast<const sockaddr_in*>(name);
+        const uint32_t hostOrder = ntohl(dst->sin_addr.s_addr);
+        const auto b1 = static_cast<uint8_t>(hostOrder >> 24);
+        const auto b2 = static_cast<uint8_t>((hostOrder >> 16) & 0xFF);
+        const bool loopback = b1 == 127;                             // 127.0.0.0/8
+        const bool linkLocal = b1 == 169 && b2 == 254;               // 169.254.0.0/16
+        const bool privateNet = b1 == 10 ||                          // 10.0.0.0/8
+                                (b1 == 172 && (b2 & 0xF0) == 16) ||  // 172.16.0.0/12
+                                (b1 == 192 && b2 == 168);            // 192.168.0.0/16
+        if (loopback || linkLocal || privateNet) {
+            return realConnect(s, name, namelen);
+        }
+    }
+
     int sockType = 0;
     int optLen = sizeof(sockType);
     if (getsockopt(s, SOL_SOCKET, SO_TYPE, reinterpret_cast<char*>(&sockType), &optLen) != 0 ||
@@ -338,12 +420,73 @@ int WSAAPI HookedConnect(SOCKET s, const sockaddr* name, int namelen) {
     sockaddr_in dest{};
     std::memcpy(&dest, name, sizeof(dest));
 
-    if (!ProxyConnect(s, *proxy) || !Handshake(s, *config, dest)) {
-        logger->warn("tunnel via {}:{} failed", config->host, config->port);
+    std::array<char, INET_ADDRSTRLEN> ipbuf{};
+    inet_ntop(AF_INET, &dest.sin_addr, ipbuf.data(), ipbuf.size());
+    const uint16_t dport = ntohs(dest.sin_port);
+
+    // Prefer remote DNS: if the game resolved a hostname for this IP, hand the
+    // hostname to the proxy (ATYP=DOMAIN) so it picks a server in its own region.
+    const std::string host = HostForIp(dest.sin_addr.s_addr);
+    logger->debug("connect -> {}:{}{}", host.empty() ? ipbuf.data() : host.c_str(), dport,
+                  host.empty() ? "" : " (remote DNS)");
+
+    if (!ProxyConnect(s, *proxy) || !Handshake(s, *config, dest, host)) {
+        logger->warn("tunnel to {} ({}:{}) via {}:{} failed", host.empty() ? ipbuf.data() : host.c_str(), ipbuf.data(),
+                     dport, config->host, config->port);
         WSASetLastError(WSAECONNREFUSED);
         return SOCKET_ERROR;
     }
+    {
+        const std::scoped_lock lock(peerMapMutex);
+        peerMap[s] = dest;  // so getpeername() reports the real server, not the proxy
+    }
     return 0;  // tunnel established; the socket is now wired through to dest
+}
+
+// getpeername on a tunnelled socket would return the proxy's address (the socket's
+// true peer). Report the destination the game requested instead, so follow-up
+// connections the game derives from the peer address target the real server.
+int WSAAPI HookedGetPeerName(SOCKET s, sockaddr* name, int* namelen) {
+    {
+        const std::scoped_lock lock(peerMapMutex);
+        if (const auto it = peerMap.find(s); it != peerMap.end()) {
+            if (name != nullptr && namelen != nullptr && *namelen >= static_cast<int>(sizeof(sockaddr_in))) {
+                std::memcpy(name, &it->second, sizeof(sockaddr_in));
+                *namelen = static_cast<int>(sizeof(sockaddr_in));
+                return 0;
+            }
+        }
+    }
+    return realGetPeerName(s, name, namelen);
+}
+
+// Drop the peer mapping when the socket closes so a reused descriptor can't inherit
+// a stale tunnelled peer.
+int WSAAPI HookedCloseSocket(SOCKET s) {
+    {
+        const std::scoped_lock lock(peerMapMutex);
+        peerMap.erase(s);
+    }
+    return realCloseSocket(s);
+}
+
+// Detoured resolver: run the real lookup, then record every IPv4 -> hostname so
+// HookedConnect can later send the hostname to the proxy (ATYP=DOMAIN). Pure
+// observation; the game still sees exactly the addresses the OS returned. The game
+// resolves Battle.net hosts through classic-Winsock gethostbyname, so that is the
+// only resolver we need to watch.
+hostent* WSAAPI HookedGetHostByName(const char* name) {
+    hostent* he = realGetHostByName(name);
+    if (he == nullptr || name == nullptr || he->h_addrtype != AF_INET || he->h_length != 4 ||
+        he->h_addr_list == nullptr || IsNumericHost(name)) {
+        return he;
+    }
+    for (int i = 0; he->h_addr_list[i] != nullptr; ++i) {
+        uint32_t ip = 0;
+        std::memcpy(&ip, he->h_addr_list[i], sizeof(ip));
+        RememberHost(ip, name);
+    }
+    return he;
 }
 
 }  // namespace
@@ -371,16 +514,25 @@ void Install() {
     WSADATA wsa{};
     WSAStartup(MAKEWORD(2, 2), &wsa);
 
-    // Detour the WS2_32 `connect` export. It is the same export the game imports, so
-    // hooking it catches the game's connects without depending on any build-specific
-    // address. realConnect becomes the trampoline (the original connect).
+    // Detour the WS2_32 `connect` export plus the sockets the remote-DNS / peer
+    // rewrite needs: `gethostbyname` feeds the IP->hostname map (so we can send
+    // ATYP=DOMAIN), and `getpeername` / `closesocket` back the per-socket peer
+    // rewrite. They are the same exports the game imports, so no build-specific
+    // addresses are needed. The real* pointers become the trampolines (the originals).
     realConnect = connect;
+    // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations) - classic-Winsock API the game uses
+    realGetHostByName = gethostbyname;
+    realGetPeerName = getpeername;
+    realCloseSocket = closesocket;
     DetourTransactionBegin();
     DetourUpdateThread(GetCurrentThread());
     DetourAttach(reinterpret_cast<PVOID*>(&realConnect), reinterpret_cast<PVOID>(&HookedConnect));
+    DetourAttach(reinterpret_cast<PVOID*>(&realGetHostByName), reinterpret_cast<PVOID>(&HookedGetHostByName));
+    DetourAttach(reinterpret_cast<PVOID*>(&realGetPeerName), reinterpret_cast<PVOID>(&HookedGetPeerName));
+    DetourAttach(reinterpret_cast<PVOID*>(&realCloseSocket), reinterpret_cast<PVOID>(&HookedCloseSocket));
     const LONG err = DetourTransactionCommit();
     if (err != NO_ERROR) {
-        logger->error("Detours attach on connect failed ({}); proxy disabled", err);
+        logger->error("Detours attach failed ({}); proxy disabled", err);
         config.reset();
         WSACleanup();
         return;
@@ -397,15 +549,26 @@ void Remove() {
     DetourTransactionBegin();
     DetourUpdateThread(GetCurrentThread());
     DetourDetach(reinterpret_cast<PVOID*>(&realConnect), reinterpret_cast<PVOID>(&HookedConnect));
+    DetourDetach(reinterpret_cast<PVOID*>(&realGetHostByName), reinterpret_cast<PVOID>(&HookedGetHostByName));
+    DetourDetach(reinterpret_cast<PVOID*>(&realGetPeerName), reinterpret_cast<PVOID>(&HookedGetPeerName));
+    DetourDetach(reinterpret_cast<PVOID*>(&realCloseSocket), reinterpret_cast<PVOID>(&HookedCloseSocket));
     const LONG err = DetourTransactionCommit();
     if (err != NO_ERROR) {
-        logger->error("Detours detach on connect failed ({})", err);
+        logger->error("Detours detach failed ({})", err);
     }
 
     installed = false;
     {
         const std::scoped_lock lock(resolveMutex);
         resolvedProxy.reset();
+    }
+    {
+        const std::scoped_lock lock(hostMapMutex);
+        ipToHost.clear();
+    }
+    {
+        const std::scoped_lock lock(peerMapMutex);
+        peerMap.clear();
     }
     config.reset();
     WSACleanup();

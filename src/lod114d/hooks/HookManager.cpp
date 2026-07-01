@@ -314,9 +314,10 @@ void InstallDetoursHooks() {
     // installed - bot still works, just no time scaling.
     speedhack::Install();
 
-    // SOCKS5 proxy for the game's outbound Battle.net connections. Self-contained
-    // (IAT patch on WS2_32 connect, not a Detours trampoline); no-op unless the
-    // process was launched with -proxy. Independent of the transactions above.
+    // SOCKS5 proxy for the game's outbound Battle.net connections. Self-contained:
+    // it Detours the WS2_32 connect (plus gethostbyname / getpeername / closesocket)
+    // in its own transaction, independent of the ones above. No-op unless launched
+    // with -proxy.
     socks5::Install();
 }
 
