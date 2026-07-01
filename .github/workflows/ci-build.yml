@@ -80,9 +80,9 @@ jobs:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           # run_id (+ job) keeps every save key unique so a fresh build always
           # saves; the prefix restore-keys then pick up the most recent cache.
-          key: vcpkg-${{ runner.os }}-${{ env.VCPKG_REF }}-${{ hashFiles('vcpkg.json', 'tests/framework/vcpkg.json') }}-${{ github.run_id }}-${{ github.job }}
+          key: vcpkg-${{ runner.os }}-${{ env.VCPKG_REF }}-${{ hashFiles('vcpkg.json', 'tests/frontends/js/vcpkg.json') }}-${{ github.run_id }}-${{ github.job }}
           restore-keys: |
-            vcpkg-${{ runner.os }}-${{ env.VCPKG_REF }}-${{ hashFiles('vcpkg.json', 'tests/framework/vcpkg.json') }}-
+            vcpkg-${{ runner.os }}-${{ env.VCPKG_REF }}-${{ hashFiles('vcpkg.json', 'tests/frontends/js/vcpkg.json') }}-
             vcpkg-${{ runner.os }}-${{ env.VCPKG_REF }}-
       - name: Set up pinned vcpkg (binary cache + MSBuild manifest restore)
         shell: pwsh
@@ -150,9 +150,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
-          key: vcpkg-${{ runner.os }}-${{ env.VCPKG_REF }}-${{ hashFiles('vcpkg.json', 'tests/framework/vcpkg.json') }}-${{ github.run_id }}-${{ github.job }}
+          key: vcpkg-${{ runner.os }}-${{ env.VCPKG_REF }}-${{ hashFiles('vcpkg.json', 'tests/frontends/js/vcpkg.json') }}-${{ github.run_id }}-${{ github.job }}
           restore-keys: |
-            vcpkg-${{ runner.os }}-${{ env.VCPKG_REF }}-${{ hashFiles('vcpkg.json', 'tests/framework/vcpkg.json') }}-
+            vcpkg-${{ runner.os }}-${{ env.VCPKG_REF }}-${{ hashFiles('vcpkg.json', 'tests/frontends/js/vcpkg.json') }}-
             vcpkg-${{ runner.os }}-${{ env.VCPKG_REF }}-
       - name: Set up pinned vcpkg (binary cache + MSBuild manifest restore)
         shell: pwsh

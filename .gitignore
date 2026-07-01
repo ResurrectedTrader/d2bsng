@@ -18,7 +18,7 @@
 /TODO.md
 
 # Local-only MSBuild overrides (e.g. a personal post-build install step)
-src/lod114d/d2bs.local.targets
+src/glue/js-lod114d/d2bs.local.targets
 
 # ===========================================
 # C# / .NET / Visual Studio

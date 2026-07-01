@@ -74,7 +74,7 @@ std::string HashFile(const wchar_t *algorithmId, const std::filesystem::path &fi
         return {};
     }
 
-    std::string contents((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    std::string contents((std::istreambuf_iterator(file)), std::istreambuf_iterator<char>());
 
     return ComputeHash(algorithmId, reinterpret_cast<const uint8_t *>(contents.data()), contents.size());
 }

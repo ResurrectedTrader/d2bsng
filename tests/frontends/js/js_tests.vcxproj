@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>15.0</VCProjectVersion>
+    <ProjectGuid>{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>js_tests</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>ClangCL</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>ClangCL</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>true</LinkIncremental>
+    <OutDir>$(SolutionDir)Debug\</OutDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)Release\</OutDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;_DEBUG;NOMINMAX;SPDLOG_WCHAR_TO_UTF8_SUPPORT;SPDLOG_FMT_EXTERNAL;D2BS_TEST_HOOKS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <LanguageStandard_C>stdclatest</LanguageStandard_C>
+      <AdditionalIncludeDirectories>$(ProjectDir)fakes\shims;$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\frontends\js;$(SolutionDir)src;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>fmtd.lib;spdlogd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;NDEBUG;NOMINMAX;SPDLOG_WCHAR_TO_UTF8_SUPPORT;SPDLOG_FMT_EXTERNAL;D2BS_TEST_HOOKS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <LanguageStandard_C>stdclatest</LanguageStandard_C>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <AdditionalIncludeDirectories>$(ProjectDir)fakes\shims;$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\frontends\js;$(SolutionDir)src;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>fmt.lib;spdlog.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <!-- Test runner -->
+    <ClCompile Include="test_main.cpp" />
+    <!-- Fakes -->
+    <ClCompile Include="fakes\Level.cpp" />
+    <ClCompile Include="fakes\Room.cpp" />
+    <ClCompile Include="fakes\GameHelpers.cpp" />
+    <ClCompile Include="fakes\Sprite.cpp" />
+    <ClCompile Include="fakes\Menu.cpp" />
+    <ClCompile Include="fakes\GameLoopCollaborators.cpp" />
+    <ClCompile Include="fakes\Unit.cpp" />
+    <ClCompile Include="fakes\Speedhack.cpp" />
+    <ClCompile Include="fakes\threadutils.cpp" />
+    <!-- Real pathfinder under test -->
+    <ClCompile Include="..\..\..\src\frontends\js\components\pathfinding\Pathfinder.cpp" />
+    <!-- Real gameloop component under test -->
+    <ClCompile Include="..\..\..\src\frontends\js\components\gameloop\GameLoop.cpp" />
+    <!-- Real profile code under test -->
+    <ClCompile Include="..\..\..\src\core\config\AppConfig.cpp" />
+    <ClCompile Include="..\..\..\src\core\config\IniConfigStore.cpp" />
+    <ClCompile Include="..\..\..\src\contract\config\ProfileData.cpp" />
+    <ClCompile Include="..\..\..\src\frontends\js\components\profile\ProfileService.cpp" />
+    <ClCompile Include="..\..\..\src\frontends\js\components\script\Commands.cpp" />
+    <!-- utils dependency (IniConfigStore uses ToLower/ToStr/ToWStr) -->
+    <ClCompile Include="..\..\..\src\utils\utils.cpp" />
+    <!-- Test cases -->
+    <ClCompile Include="pathfinding\tests\CollisionLookupTest.cpp" />
+    <ClCompile Include="pathfinding\tests\WalkAStarTest.cpp" />
+    <ClCompile Include="pathfinding\tests\TeleportAStarTest.cpp" />
+    <ClCompile Include="pathfinding\tests\WalkReductionTest.cpp" />
+    <ClCompile Include="pathfinding\tests\MutationTest.cpp" />
+    <ClCompile Include="pathfinding\tests\EdgeCaseTest.cpp" />
+    <ClCompile Include="pathfinding\tests\PenaltyTest.cpp" />
+    <!-- Fixture loader -->
+    <ClCompile Include="fixtures\MapFixture.cpp" />
+    <!-- Fixture tests -->
+    <ClCompile Include="pathfinding\tests\FixtureTest.cpp" />
+    <!-- Reference comparison tests -->
+    <ClCompile Include="pathfinding\tests\comparisons\ReferenceComparisonTest.cpp" />
+    <ClCompile Include="pathfinding\tests\comparisons\BenchmarkTest.cpp" />
+    <ClCompile Include="pathfinding\tests\comparisons\RealWorldBenchmarkTest.cpp" />
+    <ClCompile Include="pathfinding\tests\comparisons\KurastBenchmarkTest.cpp" />
+    <!-- Profile tests -->
+    <ClCompile Include="profile\ProfileTest.cpp" />
+    <!-- Game lock tests -->
+    <ClCompile Include="game\GameLockTest.cpp" />
+    <!-- GameLoop tests -->
+    <ClCompile Include="gameloop\GameLoopTest.cpp" />
+  </ItemGroup>
+  <PropertyGroup Label="Vcpkg">
+    <VcpkgEnabled>true</VcpkgEnabled>
+    <VcpkgEnableManifest>true</VcpkgEnableManifest>
+    <VcpkgUseStatic>true</VcpkgUseStatic>
+    <VcpkgUseMD>false</VcpkgUseMD>
+    <VcpkgManifestRoot>$(ProjectDir)</VcpkgManifestRoot>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

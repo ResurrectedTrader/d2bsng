@@ -31,58 +31,58 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File build.ps1 Release
 #   check-format   - Check formatting (fails if files need formatting)
 #   lint           - clang-tidy analysis (delegates to scripts/lint.ps1)
 #   fix            - Auto-fix clang-tidy violations
-#   test           - Build and run the test suite (framework_tests.exe)
+#   test           - Build and run the test suite (js_tests.exe)
 ```
 
 The build script auto-detects the Visual Studio installation via vswhere and works from any directory. You can also build directly with MSBuild or in Visual Studio.
 
 ## Tests
 
-The test project (`tests/framework/framework_tests.vcxproj`) is a standalone console exe using [doctest](https://github.com/doctest/doctest). It compiles the real `Pathfinder.cpp` with fake game layer implementations (no DLL, no V8, no game). Tests do not link any static libs - they compile sources directly alongside test fakes.
+The test project (`tests/frontends/js/js_tests.vcxproj`) is a standalone console exe using [doctest](https://github.com/doctest/doctest). It compiles the real `Pathfinder.cpp` with fake game layer implementations (no DLL, no V8, no game). Tests do not link any static libs - they compile sources directly alongside test fakes.
 
 ```bash
 # Build and run all tests:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File build.ps1 test
 
 # Run specific tests by name filter:
-Release/framework_tests.exe -tc="Walk A*"
+Release/js_tests.exe -tc="Walk A*"
 
 # List all test cases:
-Release/framework_tests.exe -ltc
+Release/js_tests.exe -ltc
 
 # Verbose output (show all assertions + benchmark messages):
-Release/framework_tests.exe -s
+Release/js_tests.exe -s
 
 # Run only benchmarks:
-Release/framework_tests.exe -tc="Benchmark*,Kurast*,Real*" -s
+Release/js_tests.exe -tc="Benchmark*,Kurast*,Real*" -s
 ```
 
 ### What the tests cover
 
-Currently tests only cover the **pathfinding engine** (`src/framework/components/pathfinding/`):
+Currently tests only cover the **pathfinding engine** (`src/frontends/js/components/pathfinding/`):
 
-- **Unit tests** (`tests/framework/pathfinding/tests/`): CollisionLookup queries, walk A*, teleport A*, walk reduction, point mutation, edge cases, penalty avoidance
-- **Reference comparison** (`tests/framework/pathfinding/tests/comparisons/`): exact-match and cost-equivalence tests comparing our A* output against an adapted reference A* implementation on identical collision grids
-- **Benchmarks**: synthetic 2000x2000 grids and real game collision data (`.d2col` fixtures in `tests/framework/fixtures/maps/`) comparing walk and teleport modes against the reference
-- **Fixture system** (`tests/framework/fixtures/`): binary `.d2col` loader for collision grids dumped from the game via `tools/dump_collision.js`
+- **Unit tests** (`tests/frontends/js/pathfinding/tests/`): CollisionLookup queries, walk A*, teleport A*, walk reduction, point mutation, edge cases, penalty avoidance
+- **Reference comparison** (`tests/frontends/js/pathfinding/tests/comparisons/`): exact-match and cost-equivalence tests comparing our A* output against an adapted reference A* implementation on identical collision grids
+- **Benchmarks**: synthetic 2000x2000 grids and real game collision data (`.d2col` fixtures in `tests/frontends/js/fixtures/maps/`) comparing walk and teleport modes against the reference
+- **Fixture system** (`tests/frontends/js/fixtures/`): binary `.d2col` loader for collision grids dumped from the game via `tools/dump_collision.js`
 
 ### Adding real game data for benchmarks
 
 1. Load `tools/dump_collision.js` in d2bs while in-game - dumps `.d2col` files per level
-2. Copy `.d2col` files to `tests/framework/fixtures/maps/`
+2. Copy `.d2col` files to `tests/frontends/js/fixtures/maps/`
 3. Run `.\build.ps1 test` - real-world benchmarks auto-discover and use them
 
 **Requirements**: Visual Studio 2022 with ClangCL toolchain, Windows SDK 10.0.26100.0
 
 ## API Documentation
 
-The script-visible JS API is documented by a generator pipeline under `scripts/`. The bindings in `src/framework/api/` carry structured `///` doc comments (`@description`, `@signature`, `@param`, `@returns`, `@throws`, `@callback`, `@event`, `@type`, `@mode`); their exact vocabulary lives at the top of `extract_api.py`. The `{type}` fields may be object literals / unions / generics (`{x:number,y:number}`, `Unit|null`, `Array<{x:number}>`) - the parser is brace-balanced.
+The script-visible JS API is documented by a generator pipeline under `scripts/`. The bindings in `src/frontends/js/api/` carry structured `///` doc comments (`@description`, `@signature`, `@param`, `@returns`, `@throws`, `@callback`, `@event`, `@type`, `@mode`); their exact vocabulary lives at the top of `extract_api.py`. The `{type}` fields may be object literals / unions / generics (`{x:number,y:number}`, `Unit|null`, `Array<{x:number}>`) - the parser is brace-balanced.
 
 **Enumerations as option sets**: a `{type}` that names a C++ `enum class` (libclang-parsed from `game/Types.h` / `game/Constants.h`) or a constant namespace (e.g. `ProfileType`) is rendered as a value table, not prose. `extract_api.py` reads the enumerators with libclang - plus the compatibility flags from `CompatibilityFlags::RegisterDefaults()`'s documented `Register("name")` calls - into an `enums` map (only sets referenced by some `{type}` are emitted); `gen_api_docs.py` renders an Enums section and auto-links the type; `gen_dts.py` emits a literal-union alias (`type Difficulty = 0 | 1 | 2 | 3`; bitfields and constant namespaces map to `number`). A bitfield enum is typed `number` (a value is an OR-combination) by marking it `/// @flags`. So document an enum-valued member as `@type {Difficulty}` and keep the values in the C++ enum, not in the description.
 
 | Script | Flow | Notes |
 |--------|------|-------|
-| `extract_api.py` | `src/framework/api/**` -> `api.json` | Walks the V8 bindings with **libclang**, emitting the full surface (classes, globals, constants, the `me` object, events, enums). Needs the same vcpkg + V8 + MSVC/SDK include set the build uses. The only script that needs libclang. |
+| `extract_api.py` | `src/frontends/js/api/**` -> `api.json` | Walks the V8 bindings with **libclang**, emitting the full surface (classes, globals, constants, the `me` object, events, enums). Needs the same vcpkg + V8 + MSVC/SDK include set the build uses. The only script that needs libclang. |
 | `gen_dts.py` | `api.json` -> `d2bsng.d.ts` | Ambient TypeScript declarations (JSDoc on every member, typed `addEventListener` overloads) for editor completion. Pure-stdlib. |
 | `gen_api_docs.py` | (`api.json`) -> `index.html` | Emits the static docs **shell**: an embedded JS renderer + CSS, no CDN. An optional baked-in `api.json` is the offline / instant-paint dataset. Pure-stdlib. |
 | `build_docs_site.py` | releases -> `site/` | Deploy-time assembler: pulls every release's `api.json` server-side (via `gh`) into `data/<tag>.json` + a `versions.json` manifest, then wraps the shell. Pure-stdlib + `gh`. |
@@ -182,7 +182,7 @@ git commit --no-gpg-sign -m "message"
 
 ### Project Structure
 
-The codebase is split into three build targets (two static libs + one DLL) under `src/`, plus a test project:
+The codebase is split into six build targets (five static libs + one DLL) under `src/`, plus a test project. A frontend (JS) and a backend (1.14d) both compile against a shared `contract`, and a thin glue project links one of each into the final DLL:
 
 ```
 d2bsng/
@@ -195,36 +195,45 @@ d2bsng/
 ├── scripts/                Maintainer tooling (lint.ps1, API extraction + docs/d.ts/site generators, table generators)
 ├── src/
 │   ├── utils/              utils.lib - standalone utilities (crypto, threading, stackwalker)
-│   ├── framework/          framework.lib - scripting engine + JS API
-│   │   ├── api/            V8 bindings: classes/ (game, io, scripting, drawing), globals/, core/
-│   │   ├── components/     Framework internals:
-│   │   │   ├── config/         AppConfig, IniConfigStore, Version
-│   │   │   ├── script/         Script engine (V8 isolate mgmt) + compat shims
-│   │   │   ├── v8/             V8 host initialization
-│   │   │   ├── events/         Event system
-│   │   │   ├── gameloop/       Per-frame game-thread loop + lock release
-│   │   │   ├── pathfinding/    A* pathfinder
-│   │   │   ├── console/        ImGui dev console (log/REPL/scripts/stacktraces/threads/settings)
-│   │   │   ├── inspector/      V8 inspector (Chrome DevTools) debug server
-│   │   │   ├── drawing/        Screen-hook drawables (Box/Frame/Line/Text/Image)
-│   │   │   ├── characterstate/ Character-state snapshot -> D2BotNG manager (WM_COPYDATA)
-│   │   │   ├── speedhack/      Global game-time scaling
-│   │   │   ├── proxy/          SOCKS5 bypass scope for script sockets
-│   │   │   ├── dde/            DDE service
-│   │   │   ├── exits/          Level-exit finder
-│   │   │   ├── profile/        Profile DTOs
-│   │   │   ├── update/         GitHub-release update checker (6h poll -> version-banner marker)
-│   │   │   └── Framework.h/.cpp DLL lifecycle orchestrator
-│   │   └── game/           Game interface headers (NO .cpp files)
-│   └── lod114d/            d2bs.dll - 1.14d game implementation
-│       ├── dllmain.cpp     DLL entry point
-│       ├── game/           1.14d implementation (.cpp + internal .h)
-│       ├── imports/        Typed game func/var registry + 1.14d offsets + extras/ structs
-│       ├── hooks/          Inline / IAT hooks (incl. WS2_32 connect SOCKS5 hook)
-│       ├── asm_thunks/     Hand-written ABI thunks
-│       └── console/        Port console host (window + GL + ImGui glue)
+│   ├── contract/           contract.lib - the boundary both frontends and backends compile against
+│   │   ├── game/               Game interface headers (NO .cpp) + framework-owned utilities
+│   │   └── config/             Shared DTOs: ProfileData, ScriptPaths
+│   ├── core/               core.lib - shared infrastructure (depends on contract)
+│   │   ├── config/             AppConfig, IniConfigStore, CompatibilityFlags, Version
+│   │   ├── speedhack/          Global game-time scaling
+│   │   └── proxy/              SOCKS5 bypass scope for script sockets
+│   ├── frontends/          One directory per scripting frontend
+│   │   └── js/             js.lib - JavaScript scripting frontend (V8); depends on contract + core
+│   │       ├── api/            V8 bindings: classes/ (game, io, scripting, drawing), globals/, core/
+│   │       ├── components/     Frontend internals:
+│   │       │   ├── script/         Script engine (V8 isolate mgmt) + compat shims
+│   │       │   ├── v8/             V8 host initialization
+│   │       │   ├── events/         Event system
+│   │       │   ├── gameloop/       Per-frame game-thread loop + lock release
+│   │       │   ├── pathfinding/    A* pathfinder
+│   │       │   ├── console/        ImGui dev console (log/REPL/scripts/stacktraces/threads/settings)
+│   │       │   ├── inspector/      V8 inspector (Chrome DevTools) debug server
+│   │       │   ├── drawing/        Screen-hook drawables (Box/Frame/Line/Text/Image)
+│   │       │   ├── characterstate/ Character-state snapshot -> D2BotNG manager (WM_COPYDATA)
+│   │       │   ├── dde/            DDE service
+│   │       │   ├── exits/          Level-exit finder
+│   │       │   ├── profile/        ProfileService (profile lookup/switch logic)
+│   │       │   ├── update/         GitHub-release update checker (6h poll -> version-banner marker)
+│   │       │   └── Host.h/.cpp     Frontend lifecycle (d2bs::js::Host) + GameCallbacks wiring
+│   ├── backends/           One directory per game-version backend
+│   │   └── lod114d/        lod114d.lib - 1.14d game backend (implements contract); depends on contract + core
+│   │       ├── game/           1.14d implementation (.cpp + internal .h)
+│   │       ├── imports/        Typed game func/var registry + 1.14d offsets + extras/ structs
+│   │       ├── hooks/          Inline / IAT hooks (incl. WS2_32 connect SOCKS5 hook)
+│   │       ├── asm_thunks/     Hand-written ABI thunks
+│   │       └── console/        Port console host (window + GL + ImGui glue)
+│   └── glue/               One directory per frontend+backend combo (the shippable target)
+│       └── js-lod114d/     d2bs.dll - glue: DllMain + wiring; links js + lod114d + contract + core + utils
+│           ├── dllmain.cpp     DLL entry point (Bridge::Init -> InstallAll -> js::Host::Initialize)
+│           └── version.rc      DLL version resource
 └── tests/
-    └── framework/          framework_tests.exe - doctest suite (pathfinding) + fakes
+    └── frontends/
+        └── js/             js_tests.exe - doctest suite (pathfinding) + fakes
 ```
 
 ### Build Targets
@@ -232,32 +241,46 @@ d2bsng/
 | Target | Type | Output | Contents |
 |--------|------|--------|----------|
 | **utils** | Static lib | `Release/utils.lib` | `src/utils/` - crypto, threading, stackwalker |
-| **framework** | Static lib | `Release/framework.lib` | `src/framework/` - api/, components/, game/ interface headers. Has unresolved game:: symbols. |
-| **d2bs** | DLL | `Release/d2bs.dll` | `src/lod114d/` - 1.14d game implementation + dllmain. Links framework.lib + utils.lib, resolves all symbols. |
-| **framework_tests** | Console EXE | `Release/framework_tests.exe` | `tests/framework/` - doctest tests with fake game layer |
+| **contract** | Static lib | `Release/contract.lib` | `src/contract/` - game interface headers (`game/*.h`) + framework-owned utilities + shared DTOs (`config/ProfileData.h`, `config/ScriptPaths.h`). The boundary both frontends and backends compile against. Depends on utils. |
+| **core** | Static lib | `Release/core.lib` | `src/core/` - shared infra: config (AppConfig/Ini/CompatibilityFlags/Version), speedhack, proxy. Depends on contract + utils. |
+| **js** | Static lib | `Release/js.lib` | `src/frontends/js/` - JavaScript scripting frontend (api/, components/). Depends on contract + core + utils + V8. Has unresolved game:: symbols. |
+| **lod114d** | Static lib | `Release/lod114d.lib` | `src/backends/lod114d/` - 1.14d game backend implementing the contract. Depends on contract + core + utils. No frontend dependency. |
+| **d2bs** | DLL | `Release/d2bs.dll` | `src/glue/js-lod114d/` - glue: DllMain + version.rc. Links js + lod114d + contract + core + utils, resolves all symbols. |
+| **js_tests** | Console EXE | `Release/js_tests.exe` | `tests/frontends/js/` - doctest tests with fake game layer |
 
 ### How Linking Works
 
 ```
 utils.lib       <- fully resolved, standalone
      v
-framework.lib   <- has UNRESOLVED symbols: game::Unit::Pos(), game::Bridge::Init(), etc.
-     v            (declared in src/framework/game/*.h, no .cpp here)
+contract.lib    <- game interface headers (game/*.h) + shared DTOs. Depends on utils.
+     v              (declares game::Unit::Pos() etc.; impl lives in a backend)
+core.lib        <- config / speedhack / proxy. Depends on contract + utils.
      v
-d2bs.dll        <- src/lod114d/game/*.cpp resolves all game:: symbols
-                  Links: framework.lib + utils.lib + v8_monolith.lib
-                  LTO inlines thin wrappers across all three
+     +----------------------------+----------------------------+
+     v                            v
+js.lib                        lod114d.lib    <- frontend and backend are mutually blind:
+(JS/V8 frontend)              (1.14d backend)   js has UNRESOLVED game:: symbols;
+has UNRESOLVED game::         implements them    lod114d implements them and calls UP only
+symbols; depends on          ; depends on        through the GameCallbacks function table
+contract + core              contract + core
+     v                            v
+     +-------------+--------------+
+                   v
+               d2bs.dll   <- glue: DllMain + wiring. Links js + lod114d +
+                             contract + core + utils + v8_monolith.lib.
+                             LTO inlines the thin game:: wrappers across all libs.
 ```
 
 ### Game Interface vs Implementation
 
 The game abstraction is split across two directories:
 
-- **`src/framework/game/`** - Interface headers only (17 `.h` files). Defines the wrapper classes (`Unit`, `Room`, `Level`, etc.) with method declarations using opaque `void*` pointers. Part of `framework.lib`. No game-version-specific code.
+- **`src/contract/game/`** - Interface headers only (18 `.h` files). Defines the wrapper classes (`Unit`, `Room`, `Level`, etc.) with method declarations using opaque `void*` pointers. Part of `contract.lib`. No game-version-specific code. Both the frontend and the backend compile against it.
 
-- **`src/lod114d/game/`** - 1.14d implementation (12 `.cpp` files + internal headers like `RoomData.h` / `DrlgHelpers.h`). Part of `d2bs.dll`. The version-specific game-function/variable bindings, structs, and hooks live alongside it under `src/lod114d/imports/` (typed import registry + per-DLL declarations), `src/lod114d/imports/extras/` (structs not in D2MOO), `src/lod114d/asm_thunks/`, and `src/lod114d/hooks/`.
+- **`src/backends/lod114d/game/`** - 1.14d implementation (12 `.cpp` files + internal headers like `RoomData.h` / `DrlgHelpers.h`). Part of `lod114d.lib`. The version-specific game-function/variable bindings, structs, and hooks live alongside it under `src/backends/lod114d/imports/` (typed import registry + per-DLL declarations), `src/backends/lod114d/imports/extras/` (structs not in D2MOO), `src/backends/lod114d/asm_thunks/`, and `src/backends/lod114d/hooks/`.
 
-To add support for a different game version: create a new sibling directory under `src/` with its own `game/` implementation and vcxproj, linking the same `framework.lib` and `utils.lib`.
+To add support for a different game version: create a new backend lib (a sibling of `backends/lod114d/`) with its own `game/` implementation and vcxproj, depending on `contract` + `core` + `utils`, then a glue project under `glue/` that links it with a chosen frontend. To add a different frontend (a non-JS scripting host, or a C-ABI bridge that re-exports the contract for other languages): create a sibling of `frontends/js/` over the same `contract` + `core`. Frontend and backend never reference each other - only the glue does.
 
 ### Include Path Strategy
 
@@ -266,17 +289,21 @@ Each project has specific include directories that make cross-project includes w
 | Project | Include Directories |
 |---------|-------------------|
 | **utils** | `$(ProjectDir)` |
-| **framework** | `$(ProjectDir)` ; `$(SolutionDir)src` ; V8 include |
-| **d2bs DLL** | `$(ProjectDir)` ; `$(SolutionDir)src\framework` ; `$(SolutionDir)src` ; `$(ProjectDir)game` ; D2MOO include roots ; V8 include |
-| **framework_tests** | `$(SolutionDir)src\framework` ; `$(SolutionDir)src` ; `$(ProjectDir)` |
+| **contract** | `$(ProjectDir)` ; `$(SolutionDir)src` |
+| **core** | `$(ProjectDir)` ; `$(SolutionDir)src\contract` ; `$(SolutionDir)src` |
+| **js** | `$(ProjectDir)` ; `$(SolutionDir)src\contract` ; `$(SolutionDir)src\core` ; `$(SolutionDir)src` ; V8 include |
+| **lod114d** (backend) | `$(SolutionDir)src\contract` ; `$(SolutionDir)src\core` ; `$(SolutionDir)src` ; `$(ProjectDir)` ; `$(ProjectDir)game` ; D2MOO include roots ; V8 include |
+| **d2bs** (glue DLL) | `$(SolutionDir)src\frontends\js` ; `$(SolutionDir)src\contract` ; `$(SolutionDir)src\core` ; `$(SolutionDir)src\backends\lod114d` ; `$(SolutionDir)src` |
+| **js_tests** | `$(ProjectDir)fakes\shims` ; `$(SolutionDir)src\contract` ; `$(SolutionDir)src\core` ; `$(SolutionDir)src\frontends\js` ; `$(SolutionDir)src` ; `$(ProjectDir)` |
 
 All includes use project-root-relative paths - never use relative paths like `../`:
 ```cpp
-#include "game/Unit.h"                    // Interface header (from framework)
-#include "api/core/V8Class.h"             // Framework internal
-#include "components/config/AppConfig.h"  // Config (under components)
+#include "game/Unit.h"                    // Interface header (from contract)
+#include "api/core/V8Class.h"             // Frontend internal (js)
+#include "config/AppConfig.h"             // Config (from core)
+#include "config/ProfileData.h"           // Shared DTO (from contract)
 #include "utils/utils.h"                  // Cross-project utils include
-#include "RoomData.h"                     // Same-dir include (in lod114d/game/)
+#include "RoomData.h"                     // Same-dir include (in backends/lod114d/game/)
 ```
 
 Same-directory includes use quotes without path: `#include "ClassRegistry.h"`
@@ -303,7 +330,7 @@ The recurring categories in this codebase:
   `imports/*.h` that transitively pulls in a D2MOO header includes it first
   (above `ImportTypes.h`); without it you get `unknown type name 'STORM_DLL_DECL'`.
   It names no symbol used by the including header, so it always looks unused.
-- **Macro-driven implementation.** `tests/framework/test_main.cpp` is the one TU
+- **Macro-driven implementation.** `tests/frontends/js/test_main.cpp` is the one TU
   that defines `DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN` and then includes
   `<doctest/doctest.h>`; that include is what emits doctest's runner, registry,
   and `main()`. Drop it and every test file's static registrar fails to link
@@ -343,10 +370,13 @@ that a stripped include was actually unused.
 These are the intended dependencies. A few deliberate exceptions are noted inline - each one lets a layer reuse an existing type or helper instead of duplicating it, which is the cheaper trade-off than the indirection that removing the edge would require.
 
 - **utils/** depends on: standard library, Windows headers, third-party libs (spdlog, stackwalker).
-- **framework/game/** (interface) depends on: standard library only. NEVER on V8 or api/. NEVER on components/, with one exception: `game/Menu.h` includes `components/profile/ProfileData.h` so `Login()` can take the profile struct by const-ref rather than duplicating that DTO into the game layer.
-- **framework/api/** depends on: game/ interface, components/, utils/, V8.
-- **framework/components/** depends on: game/ interface, components/config/, utils/, V8. Exception: `components/script/` includes `api/` - the script engine is the JS-API composition root (it owns V8 isolate setup and registers the `api/` ClassRegistry + globals), and a few components reuse `api::v8_convert` instead of duplicating the V8 conversion helpers. `components/update/` similarly reuses the V8-free `api::classes::PerformHttpRequest` (`api/classes/io/HttpEngine.h`) rather than re-implementing the WinHTTP plumbing.
-- **lod114d/game/** (implementation) depends on: game/ interface, utils/, and sibling port headers (imports/, hooks/, asm_thunks/). NEVER on api/ or V8. NEVER on components/, except config reads (`components/config/AppConfig.h`) and forwarding to the port-chosen console sink (`components/console/`, see "Port-chosen message sink" below).
+- **contract/** (the boundary) depends on: utils + standard library only. NEVER on core, the frontend, V8, or any backend. Holds the game interface (`game/*.h`), the framework-owned utilities (Finders/GameLock/GameThread/HandleCache/Types), and the shared DTOs (`config/ProfileData.h`, `config/ScriptPaths.h`). `game/Menu.h` includes `config/ProfileData.h` (same project) so `Login()` takes the profile struct by const-ref.
+- **core/** (shared infra) depends on: contract + utils. Holds config (AppConfig/Ini/CompatibilityFlags/Version), speedhack, proxy. NEVER on the frontend or a backend.
+- **frontends/js/** (JavaScript frontend) depends on: contract + core + utils + V8. Reaches the game only through `game::` contract symbols (resolved at the glue link) and pushes its hooks down through the `GameCallbacks` table; it NEVER references a concrete backend.
+  - **frontends/js/api/** depends on: contract (game/ interface + DTOs), core, components/, utils/, V8.
+  - **frontends/js/components/** depends on: contract, core, utils/, V8. Exception: `components/script/` includes `api/` - the script engine is the JS-API composition root (it owns V8 isolate setup and registers the `api/` ClassRegistry + globals), and a few components reuse `api::v8_convert`. `components/update/` reuses the V8-free `api::classes::PerformHttpRequest` (`api/classes/io/HttpEngine.h`).
+- **backends/lod114d/** (1.14d backend) depends on: contract + core + utils, plus sibling port headers (imports/, hooks/, asm_thunks/). Implements the `game::` contract symbols and calls UP into the frontend ONLY through the `GameCallbacks` pointers it is handed at init (`hooks::GetActiveCallbacks()`). NEVER on the frontend, api/, or V8. Config reads go through `core`; console output and rendering go through the `onConsoleMessage` / `onConsoleDrawFrame` callbacks.
+- **glue/js-lod114d/** (glue) depends on: js + lod114d + contract + core + utils. The only project that sees both a frontend and a backend; owns `DllMain` and the bring-up wiring.
 
 ### Key Design Decisions
 
@@ -367,7 +397,7 @@ Single `vcpkg.json` at solution root, shared by all main projects:
 
 V8 (JavaScript engine) is not a vcpkg dependency - it is a custom monolithic build in `dependencies/v8/`.
 
-The test project (`tests/framework/`) has its own `vcpkg.json` with just `doctest` (header-only test framework).
+The test project (`tests/frontends/js/`) has its own `vcpkg.json` with just `doctest` (header-only test framework).
 
 ## Game Abstraction Layer
 
@@ -378,19 +408,19 @@ The game layer decouples the JS API from direct game memory access, enabling mul
 1. **No V8 dependency**: The game interface uses only standard C++ types. No V8 headers, no API layer headers.
 2. **Thin wrappers**: Each wrapper class is `sizeof(void*)` - one pointer, no vtable. Zero overhead with LTO.
 3. **Gaps marked with TODO**: Methods read live game state; the few unimplemented spots are marked `TODO(implement)` with comments describing what is needed.
-4. **Opaque pointers**: Wrappers hold a single `void*`. The framework interface stays game-version-agnostic; typed D2MOO structs are used only inside the implementation layer (`src/lod114d/`), never at the framework boundary.
+4. **Opaque pointers**: Wrappers hold a single `void*`. The framework interface stays game-version-agnostic; typed D2MOO structs are used only inside the implementation layer (`src/backends/lod114d/`), never at the framework boundary.
 
 ### File Organization
 
-`src/framework/game/` hosts **two kinds** of headers:
+`src/contract/game/` hosts **two kinds** of headers (plus the shared DTOs in `src/contract/config/` - `ProfileData.h`, `ScriptPaths.h`):
 
-1. **Abstraction interfaces** - declarations implemented per-game under `src/lod114d/game/` (or future ports like 1.13c, D2R). Port authors must provide `.cpp` files for these: `Unit.h`, `Room.h`, `Level.h`, `Party.h`, `Control.h`, `Sprite.h`, `Menu.h`, `Console.h`, `Bridge.h`, `GameCallbacks.h`, and the game-specific declarations in `GameHelpers.h`.
+1. **Abstraction interfaces** - declarations implemented per-game under `src/backends/lod114d/game/` (or future ports like 1.13c, D2R). Port authors must provide `.cpp` files for these: `Unit.h`, `Room.h`, `Level.h`, `Party.h`, `Control.h`, `Sprite.h`, `Menu.h`, `Console.h`, `Bridge.h`, `GameCallbacks.h`, and the game-specific declarations in `GameHelpers.h`.
 
-2. **Framework-owned utilities** - fully implemented in framework, operate on the interfaces above, have no game-specific counterpart. Port authors implement nothing here; they get these for free: `Finders.h`, `Types.h`, `HandleCache.h`, `GameLock.h`, `GameThread.h`, `Constants.h`.
+2. **Shared utilities** - fully implemented in `contract` (header-only / inline), operate on the interfaces above, have no game-specific counterpart. Port authors implement nothing here; they get these for free: `Finders.h`, `Types.h`, `HandleCache.h`, `GameLock.h`, `GameThread.h`, `Constants.h`.
 
 Within each handle header (`Unit.h`, `Room.h`, etc.), a comment separator marks the bucket-1 (game-impl required) and bucket-2 (framework-impl, inline in `Finders.h`) sections of the class.
 
-**Interface** (`src/framework/game/`):
+**Interface** (`src/contract/game/`):
 
 | File | Purpose |
 |------|---------|
@@ -412,7 +442,7 @@ Within each handle header (`Unit.h`, `Room.h`, etc.), a comment separator marks 
 | `GameThread.h` | `GameThread::Execute()` - post work to game thread |
 | `Constants.h` | Game-layer shared constants / enums |
 
-**Implementation** (`src/lod114d/game/` - 1.14d specific):
+**Implementation** (`src/backends/lod114d/game/` - 1.14d specific):
 
 | File | Purpose |
 |------|---------|
@@ -425,7 +455,7 @@ Within each handle header (`Unit.h`, `Room.h`, etc.), a comment separator marks 
 
 ### Framework vs Game Separation
 
-| Belongs in lod114d/game/ (impl) | Belongs in components/config/ | Belongs in framework |
+| Belongs in backends/lod114d/game/ (impl) | Belongs in core/config/ | Belongs in js frontend |
 |---|---|---|
 | Game memory reads (ping, fps, unit stats) | Bot settings (chickenHp, blockKeys) | Console UI (ShowConsole, HideConsole) |
 | Game function calls (draw, click, trade) | Profile name | Skill name tables (Game_Skills[]) |
@@ -469,8 +499,8 @@ The codebase has not been released. Do not leave comments describing what was re
 **Bad:**
 ```cpp
 // === Console ===
-// Port contract moved to a dedicated header (src/framework/game/Console.h)
-// and implementation file (src/lod114d/game/Console.cpp). Not redeclared here.
+// Port contract moved to a dedicated header (src/contract/game/Console.h)
+// and implementation file (src/backends/lod114d/game/Console.cpp). Not redeclared here.
 ```
 
 **Bad:**
@@ -561,7 +591,7 @@ Use sized integer types from `<cstdint>` instead of unsized types:
 
 ### Arrays
 
-Use `std::array` instead of C-style arrays. This applies everywhere including game structs in `src/lod114d/imports/extras/` - `std::array` has identical memory layout to C arrays (`sizeof(std::array<T,N>) == sizeof(T[N])`) so binary compatibility is preserved. All struct sizes are verified by `static_assert`.
+Use `std::array` instead of C-style arrays. This applies everywhere including game structs in `src/backends/lod114d/imports/extras/` - `std::array` has identical memory layout to C arrays (`sizeof(std::array<T,N>) == sizeof(T[N])`) so binary compatibility is preserved. All struct sizes are verified by `static_assert`.
 
 ### Globals and Static Members
 
@@ -583,7 +613,7 @@ Prefer `api::v8_convert::ToV8(isolate, value)` over direct V8 factory calls (`v8
 
 ### Geometric Primitives
 
-The shared 2D types live in `src/framework/game/Types.h`:
+The shared 2D types live in `src/contract/game/Types.h`:
 - `Point { int32_t x, y; }` - signed; map / pathfinder / drawing coords
 - `Position { uint32_t x, y; }` - unsigned; game grid / world coords
 - `Size { uint32_t width, height; }` - unsigned dimensions
@@ -708,7 +738,7 @@ if (unitId == 0 && type == 0) return d2bs::game::Unit::Player();
 
 **Where search/filter logic lives:**
 
-The game layer owns only **identity lookups** (`Find(id)`, `Level::Get(no)`, etc.), **iteration primitives** (`GetFirstInGame(type)` / `GetNextInGame()`, `GetFirstItem()` / `GetNextItem()`, `GetFirst()` / `GetNext()` on Room/Party/Control, etc.), **per-handle game-memory reads** (`Pos()`, `Name()`, etc.), and the small number of game-specific dispatchers that can't be expressed as primitive composition (e.g. `Unit::GetOwner()` which branches on `Type()` between `GetMonsterOwner` and the dwOwnerId field). Any operation that composes primitives + match logic (filtered searches, cross-entity walks, bulk collects) lives in `src/framework/game/Finders.h` as inline method definitions on the relevant handle class. Port authors reimplement primitives, accessors, and dispatchers only; filter logic is shared across all game versions.
+The game layer owns only **identity lookups** (`Find(id)`, `Level::Get(no)`, etc.), **iteration primitives** (`GetFirstInGame(type)` / `GetNextInGame()`, `GetFirstItem()` / `GetNextItem()`, `GetFirst()` / `GetNext()` on Room/Party/Control, etc.), **per-handle game-memory reads** (`Pos()`, `Name()`, etc.), and the small number of game-specific dispatchers that can't be expressed as primitive composition (e.g. `Unit::GetOwner()` which branches on `Type()` between `GetMonsterOwner` and the dwOwnerId field). Any operation that composes primitives + match logic (filtered searches, cross-entity walks, bulk collects) lives in `src/contract/game/Finders.h` as inline method definitions on the relevant handle class. Port authors reimplement primitives, accessors, and dispatchers only; filter logic is shared across all game versions.
 
 **Import type alignment (cast elimination):**
 
@@ -722,11 +752,11 @@ Prefer narrow fixes (just the import + d2bs callers) over wide ones (touching th
 
 **Port-chosen message sink:**
 
-`d2bs::game::console::OnMessage` is the port-chosen sink. The d2bs port routes to the framework console window (`d2bs::framework::console::OnMessage`). The framework->game->framework call shape isn't a layering bug - it's the abstraction working as designed. See `src/lod114d/game/Console.cpp`.
+`d2bs::game::console::OnMessage` is the port-chosen sink. The backend routes to the frontend console window through the `onConsoleMessage` callback in the `GameCallbacks` table (the frontend registers it to `d2bs::js::console::OnMessage`); the symmetric `onConsoleDrawFrame` callback lets the port console host render the frontend panels. Routing through callbacks keeps the backend free of any frontend dependency - the port still chooses the sink, it just resolves it via `hooks::GetActiveCallbacks()` instead of including the frontend directly. See `src/backends/lod114d/game/Console.cpp`.
 
 **JS API stability:**
 
-The JS-visible surface lives in `src/framework/api/` (`globals/*.cpp` for free functions, `classes/*.cpp` for V8-exposed classes). When refactoring C++ helpers consumed by these adapters (e.g. changing `GetTradeInfo` from a struct return to `std::optional<std::string>`), audit the adapter for any output-shape change. Internal C++ evolution (struct -> optional, int -> bool, helper inlining) is fine; observable JS behavior changes are not, unless explicitly approved. When in doubt, `git diff -- src/framework/api/` after a refactor and read every JS-visible Set/SetNull/SetReturnValue path.
+The JS-visible surface lives in `src/frontends/js/api/` (`globals/*.cpp` for free functions, `classes/*.cpp` for V8-exposed classes). When refactoring C++ helpers consumed by these adapters (e.g. changing `GetTradeInfo` from a struct return to `std::optional<std::string>`), audit the adapter for any output-shape change. Internal C++ evolution (struct -> optional, int -> bool, helper inlining) is fine; observable JS behavior changes are not, unless explicitly approved. When in doubt, `git diff -- src/frontends/js/api/` after a refactor and read every JS-visible Set/SetNull/SetReturnValue path.
 
 ### Native Data Structs
 
@@ -744,7 +774,7 @@ struct SQLiteData {
 
 ### Global Functions
 
-Organized by category in `src/framework/api/globals/`:
+Organized by category in `src/frontends/js/api/globals/`:
 - `CoreFunctions.cpp` - print, delay, getTickCount, include, load, sendPacket, sendClick, setSpeed/getSpeed, etc.
 - `GameFunctions.cpp` - getUnit, getPath, getRoom, clickMap, acceptTrade, etc.
 - `MenuFunctions.cpp` - login, createGame, joinGame, getLocation, timers, events

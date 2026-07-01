@@ -11,7 +11,7 @@
 #   check-format      verify formatting without modifying (non-zero exit on diffs)
 #   lint              clang-tidy analysis (delegates to scripts\lint.ps1)
 #   fix               clang-tidy --fix
-#   test              build and run the test suite (framework_tests.exe)
+#   test              build and run the test suite (js_tests.exe)
 #
 # The actual build is MSBuild over d2bsng.slnx; this script just locates the
 # toolchain and dispatches. You can also build directly with MSBuild or in
@@ -166,11 +166,14 @@ switch ($mode) {
             exit 1
         }
         $dbByDir = [ordered]@{
-            'src\lod114d'   = 'src\lod114d\Release\d2bs.ClangTidy'
-            'src\framework' = 'src\framework\Release\framework.ClangTidy'
-            'src\utils'     = 'src\utils\Release\utils.ClangTidy'
+            'src\frontends\js'     = 'src\frontends\js\Release\js.ClangTidy'
+            'src\backends\lod114d' = 'src\backends\lod114d\Release\lod114d.ClangTidy'
+            'src\glue\js-lod114d'  = 'src\glue\js-lod114d\Release\d2bs.ClangTidy'
+            'src\contract'         = 'src\contract\Release\contract.ClangTidy'
+            'src\core'             = 'src\core\Release\core.ClangTidy'
+            'src\utils'            = 'src\utils\Release\utils.ClangTidy'
         }
-        if (-not (Test-Path $dbByDir['src\lod114d'])) {
+        if (-not (Test-Path $dbByDir['src\backends\lod114d'])) {
             Write-Host 'Compilation database not found. Run ".\build.ps1 lint" first to generate it.' -ForegroundColor Red
             exit 1
         }
@@ -186,9 +189,9 @@ switch ($mode) {
         exit 0
     }
     'test' {
-        & $msbuild -p:Configuration=Release -p:Platform=Win32 -t:framework_tests
+        & $msbuild -p:Configuration=Release -p:Platform=Win32 -t:js_tests
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        & (Join-Path $PSScriptRoot 'Release\framework_tests.exe')
+        & (Join-Path $PSScriptRoot 'Release\js_tests.exe')
         exit $LASTEXITCODE
     }
     default {

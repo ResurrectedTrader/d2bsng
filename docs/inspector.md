@@ -28,8 +28,8 @@ Every script isolate always registers a debuggable target; the port only governs
 whether the server that exposes them is listening. Attaching costs nothing
 measurable until a DevTools client actually connects.
 
-All inspector code lives in `src/framework/components/inspector/`. It is wired
-into the script lifecycle from `src/framework/components/script/Script.cpp` and
+All inspector code lives in `src/frontends/js/components/inspector/`. It is wired
+into the script lifecycle from `src/frontends/js/components/script/Script.cpp` and
 started/stopped from `ScriptEngine`.
 
 ## Why WebSocket

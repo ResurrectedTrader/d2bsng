@@ -7,8 +7,8 @@ windows are involved:
 - **Console window** - the d2bs dev console, owned by the console render thread
   (spawned by `console::Init`).
 
-All of the game-window machinery lives in `src/lod114d/hooks/HookManager.cpp`;
-the console window lives in `src/lod114d/console/Console.cpp`.
+All of the game-window machinery lives in `src/backends/lod114d/hooks/HookManager.cpp`;
+the console window lives in `src/backends/lod114d/console/Console.cpp`.
 
 ## Game-window input: the WH_GETMESSAGE hook
 

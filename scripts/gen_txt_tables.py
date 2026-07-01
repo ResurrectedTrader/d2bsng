@@ -6,7 +6,7 @@ Runs with stdlib only. Idempotent: re-running produces byte-identical output.
 
 Usage:
     python scripts/gen_txt_tables.py [--reference-dir reference/d2bs]
-                                     [--output src/framework/api/globals/TxtTables.h]
+                                     [--output src/frontends/js/api/globals/TxtTables.h]
 """
 
 from __future__ import annotations
@@ -162,7 +162,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--output",
-        default=str(repo_root / "src" / "framework" / "api" / "globals" / "TxtTables.h"),
+        default=str(repo_root / "src" / "frontends" / "js" / "api" / "globals" / "TxtTables.h"),
         help="Output header path",
     )
     args = parser.parse_args()

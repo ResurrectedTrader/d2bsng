@@ -8,7 +8,7 @@ can contribute its own flags to the same set.
 
 ## The registry
 
-`d2bs::config::CompatibilityFlags` (`src/framework/components/config/CompatibilityFlags.{h,cpp}`)
+`d2bs::config::CompatibilityFlags` (`src/core/config/CompatibilityFlags.{h,cpp}`)
 is the single, process-wide, thread-shared store. It holds an insertion-ordered
 list of `{name, defaultEnabled, enabled}` entries behind a mutex (descriptions
 are documentation-only - see below).
@@ -18,12 +18,12 @@ are documentation-only - see below).
 - `Register(name)` / `Register(game::CompatibilityFlag)` add one flag; idempotent by name.
 - `IsEnabled(name)` / `Has(name)` / `SetEnabled(name, on)` / `Reset()` / `All()`.
 
-It lives under `components/config/` because it is configuration-shaped and
+It lives under `core/config/` because it is configuration-shaped and
 `config/` is the one component the game implementation (`lod114d`) is allowed to
 depend on - so a future port can both contribute flags and query their state
 without a new dependency edge.
 
-Registration happens once during framework startup, in `Framework::DoInitialize`
+Registration happens once during framework startup, in `Host::DoInitialize`
 right after `game::Bridge::Init()` succeeds and before any script runs: the
 framework calls `RegisterDefaults()`, then registers every entry returned by
 `game::GetCompatibilityFlags()`.
@@ -51,9 +51,9 @@ those comments; they are not stored in the runtime registry.
 ## Game-version flags
 
 A port exposes version-specific flags by implementing
-`game::GetCompatibilityFlags()` (declared in `src/framework/game/Compatibility.h`,
+`game::GetCompatibilityFlags()` (declared in `src/contract/game/Compatibility.h`,
 the framework interface). 1.14d returns an empty vector
-(`src/lod114d/game/GameHelpers.cpp`). Returned flags are merged into the same
+(`src/backends/lod114d/game/GameHelpers.cpp`). Returned flags are merged into the same
 registry, so they are enabled/disabled through the same `Compatibility` object;
 the port queries `CompatibilityFlags::Instance().IsEnabled(...)` to act on them.
 Game-version flags are registered at runtime; the statically-generated API docs
@@ -61,7 +61,7 @@ cover the framework catalog only.
 
 ## The `Compatibility` JS object
 
-A non-constructable namespace object (`src/framework/api/classes/scripting/JSCompatibility.h`),
+A non-constructable namespace object (`src/frontends/js/api/classes/scripting/JSCompatibility.h`),
 modeled on `TxtTables`. The set of available flag names is documented in the API
 docs (the `CompatibilityFlag` option set), so there is no runtime enumeration
 method:

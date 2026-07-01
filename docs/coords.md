@@ -1,7 +1,7 @@
 # Coordinate Spaces
 
 Coordinate-space handling in the framework. The subtile -> game-coord conversion
-lives entirely inside the game-layer stubs (`src/lod114d/game/*.cpp`); framework code
+lives entirely inside the game-layer stubs (`src/backends/lod114d/game/*.cpp`); framework code
 never multiplies by 5.
 
 ## Background: two coordinate spaces
@@ -23,7 +23,7 @@ wrappers, and nowhere else.
 ## Agreed convention
 
 All position/size getters on `game::Room`, `game::Level`, and `game::Unit` return
-**game coordinates**. The game-layer implementation (`src/lod114d/game/*.cpp`) is the
+**game coordinates**. The game-layer implementation (`src/backends/lod114d/game/*.cpp`) is the
 only place that knows about the `* 5` factor.
 
 Rectangle-shaped types (`Room`, `Level`, `Control`) expose a single `Bounds()`
@@ -41,7 +41,7 @@ of truth, no `Pos()`/`Size()` pair.
 | `ExitInfo::pos` | game-coords | derived from room/level offsets already scaled |
 
 Consequences:
-- `src/framework/` contains zero `* 5` coordinate scaling.
+- `src/frontends/js/` contains zero `* 5` coordinate scaling.
 - `Room::Bounds()` and `Level::Bounds()` each produce a valid game-coord bounding
   box in a single resolve.
 - `LevelGrid` input/output is game-coords throughout.
@@ -71,7 +71,7 @@ does **not** scale. Scripts rely on these raw values. We preserve that contract:
 | 16 | `pRoom1->Coll->dwSizeRoomY` | subtiles | |
 
 `GetStat` is the only sanctioned raw-subtile surface on `Room`. Document this on the
-declaration in `src/framework/game/Room.h`.
+declaration in `src/contract/game/Room.h`.
 
 ## JS API surface
 
@@ -81,8 +81,8 @@ Reference d2bs script contract (current behavior - Option A applied):
 - `room.xsize`, `room.ysize` -> **game-coords** (already `* 5`)
 - `level.x/y/xsize/ysize` -> **subtiles** for all four
 
-At the JS-API boundary (`src/framework/api/classes/game/JSRoom.h`,
-`src/framework/api/classes/game/JSArea.h`), the game-coord values from `Bounds()`
+At the JS-API boundary (`src/frontends/js/api/classes/game/JSRoom.h`,
+`src/frontends/js/api/classes/game/JSArea.h`), the game-coord values from `Bounds()`
 are divided by `5U` where reference exposed raw-subtile. `JSRoom` divides `x/y` only;
 `JSArea` divides all four. This preserves reference-d2bs script compatibility.
 

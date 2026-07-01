@@ -1,7 +1,7 @@
 # lint.ps1 - Parallel clang-tidy runner with dependency-aware per-file caching
 # Usage: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\lint.ps1 [-Jobs N] [-NoCache]
 #
-# Cache is stored next to the compile databases (src/*/Release/lint_cache/, tests/framework/Release/lint_cache/).
+# Cache is stored next to the compile databases (src/*/Release/lint_cache/, tests/frontends/js/Release/lint_cache/).
 # A translation unit is re-linted only when its own content, one of its included
 # *project* headers' content, or its compile command changes (clang-scan-deps
 # discovers the headers). Toolchain / config / dependency changes invalidate
@@ -53,10 +53,13 @@ if (-not $useDepCache) {
 }
 
 # --- Compile databases ---
-$dbD2bs = 'src\lod114d\Release\d2bs.ClangTidy'
-$dbFramework = 'src\framework\Release\framework.ClangTidy'
 $dbUtils = 'src\utils\Release\utils.ClangTidy'
-$dbTests = 'tests\framework\Release\framework_tests.ClangTidy'
+$dbContract = 'src\contract\Release\contract.ClangTidy'
+$dbCore = 'src\core\Release\core.ClangTidy'
+$dbJs = 'src\frontends\js\Release\js.ClangTidy'
+$dbLod114d = 'src\backends\lod114d\Release\lod114d.ClangTidy'
+$dbGlue = 'src\glue\js-lod114d\Release\d2bs.ClangTidy'
+$dbTests = 'tests\frontends\js\Release\js_tests.ClangTidy'
 
 # Auto-regenerate if .vcxproj is newer than the compile DB
 function Maybe-RegenDb($dbPath, $vcxproj) {
@@ -65,7 +68,7 @@ function Maybe-RegenDb($dbPath, $vcxproj) {
     return (Get-Item $vcxproj).LastWriteTime -gt (Get-Item $dbPath).LastWriteTime
 }
 
-$needRegen = (Maybe-RegenDb $dbD2bs 'src\lod114d\d2bs.vcxproj') -or (Maybe-RegenDb $dbFramework 'src\framework\framework.vcxproj') -or (Maybe-RegenDb $dbUtils 'src\utils\utils.vcxproj') -or (Maybe-RegenDb $dbTests 'tests\framework\framework_tests.vcxproj')
+$needRegen = (Maybe-RegenDb $dbUtils 'src\utils\utils.vcxproj') -or (Maybe-RegenDb $dbContract 'src\contract\contract.vcxproj') -or (Maybe-RegenDb $dbCore 'src\core\core.vcxproj') -or (Maybe-RegenDb $dbJs 'src\frontends\js\js.vcxproj') -or (Maybe-RegenDb $dbLod114d 'src\backends\lod114d\lod114d.vcxproj') -or (Maybe-RegenDb $dbGlue 'src\glue\js-lod114d\d2bs.vcxproj') -or (Maybe-RegenDb $dbTests 'tests\frontends\js\js_tests.vcxproj')
 if ($needRegen) {
     Write-Host 'Compile database missing or stale - regenerating...' -ForegroundColor Yellow
     $msbuild = $null
@@ -94,7 +97,7 @@ if ($needRegen) {
         Write-Host "Note: clang-tidy stub unavailable ($($_.Exception.Message)); DB generation will run the full clang-tidy analysis." -ForegroundColor Yellow
     }
     & $msbuild -p:Configuration=Release -p:Platform=Win32 -p:RunCodeAnalysis=true -p:D2bsInstallDir= $tidyStub -m -nologo -v:quiet 2>$null
-    if (-not (Test-Path $dbD2bs)) {
+    if (-not (Test-Path $dbJs)) {
         Write-Host "Failed to generate compile database." -ForegroundColor Red
         exit 1
     }
@@ -135,7 +138,7 @@ function Get-TreeFingerprint($dir) {
 function Get-EnvToken {
     $parts = New-Object System.Collections.Generic.List[string]
     try { $parts.Add(((& $clangTidy --version 2>$null) -join ' ')) } catch { $parts.Add($clangTidy) }
-    foreach ($cfg in @('.clang-tidy', 'tests\framework\.clang-tidy', 'tests\framework\pathfinding\reference\.clang-tidy', 'vcpkg.json')) {
+    foreach ($cfg in @('.clang-tidy', 'tests\frontends\js\.clang-tidy', 'tests\frontends\js\pathfinding\reference\.clang-tidy', 'vcpkg.json')) {
         if (Test-Path $cfg) { $parts.Add($cfg + '=' + (Get-FileContentHash (Resolve-Path $cfg).Path)) }
     }
     $parts.Add('v8=' + (Get-TreeFingerprint 'dependencies\v8\include'))
@@ -227,27 +230,39 @@ function Get-DepsForFiles($scanEntries, $scratchDir) {
 
 # --- Collect files ---
 $files = @()
-$dbD2bsFull = (Resolve-Path $dbD2bs).Path
-$dbFrameworkFull = (Resolve-Path $dbFramework).Path
 $dbUtilsFull = (Resolve-Path $dbUtils).Path
+$dbContractFull = (Resolve-Path $dbContract).Path
+$dbCoreFull = (Resolve-Path $dbCore).Path
+$dbJsFull = (Resolve-Path $dbJs).Path
+$dbLod114dFull = (Resolve-Path $dbLod114d).Path
+$dbGlueFull = (Resolve-Path $dbGlue).Path
 
-Get-ChildItem -Recurse 'src\lod114d' -Filter '*.cpp' | ForEach-Object {
-    $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbD2bsFull; CacheDir = 'src\lod114d\Release\lint_cache' }
-}
-Get-ChildItem -Recurse 'src\framework' -Filter '*.cpp' | ForEach-Object {
-    $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbFrameworkFull; CacheDir = 'src\framework\Release\lint_cache' }
-}
 Get-ChildItem -Recurse 'src\utils' -Filter '*.cpp' | ForEach-Object {
     $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbUtilsFull; CacheDir = 'src\utils\Release\lint_cache' }
+}
+Get-ChildItem -Recurse 'src\contract' -Filter '*.cpp' | ForEach-Object {
+    $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbContractFull; CacheDir = 'src\contract\Release\lint_cache' }
+}
+Get-ChildItem -Recurse 'src\core' -Filter '*.cpp' | ForEach-Object {
+    $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbCoreFull; CacheDir = 'src\core\Release\lint_cache' }
+}
+Get-ChildItem -Recurse 'src\frontends\js' -Filter '*.cpp' | ForEach-Object {
+    $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbJsFull; CacheDir = 'src\frontends\js\Release\lint_cache' }
+}
+Get-ChildItem -Recurse 'src\backends\lod114d' -Filter '*.cpp' | ForEach-Object {
+    $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbLod114dFull; CacheDir = 'src\backends\lod114d\Release\lint_cache' }
+}
+Get-ChildItem -Recurse 'src\glue\js-lod114d' -Filter '*.cpp' | ForEach-Object {
+    $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbGlueFull; CacheDir = 'src\glue\js-lod114d\Release\lint_cache' }
 }
 if (Test-Path $dbTests) {
     $dbTestsFull = (Resolve-Path $dbTests).Path
     Get-ChildItem -Recurse 'tests' -Filter '*.cpp' | ForEach-Object {
-        $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbTestsFull; CacheDir = 'tests\framework\Release\lint_cache' }
+        $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbTestsFull; CacheDir = 'tests\frontends\js\Release\lint_cache' }
     }
 }
 
-$cmdMap = Load-DbCommands @($dbD2bs, $dbFramework, $dbUtils, $dbTests)
+$cmdMap = Load-DbCommands @($dbUtils, $dbContract, $dbCore, $dbJs, $dbLod114d, $dbGlue, $dbTests)
 $tmpDir = Join-Path $env:TEMP "d2bs_lint_$(Get-Random)"
 New-Item -ItemType Directory -Path $tmpDir -Force | Out-Null
 

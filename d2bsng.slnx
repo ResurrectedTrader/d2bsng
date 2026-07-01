@@ -3,9 +3,12 @@
     <Platform Name="Win32" />
   </Configurations>
   <Project Path="src/utils/utils.vcxproj" />
-  <Project Path="src/framework/framework.vcxproj" />
-  <Project Path="src/lod114d/d2bs.vcxproj" />
-  <Project Path="tests/framework/framework_tests.vcxproj" />
+  <Project Path="src/contract/contract.vcxproj" />
+  <Project Path="src/core/core.vcxproj" />
+  <Project Path="src/frontends/js/js.vcxproj" />
+  <Project Path="src/backends/lod114d/lod114d.vcxproj" />
+  <Project Path="src/glue/js-lod114d/d2bs.vcxproj" />
+  <Project Path="tests/frontends/js/js_tests.vcxproj" />
   <Folder Name="/Solution Items/">
     <File Path="CLAUDE.md" />
   </Folder>

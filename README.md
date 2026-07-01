@@ -131,22 +131,26 @@ command-line scrollback with separate, ImGui-rendered panels:
 
 ## Architecture
 
-The codebase builds three targets plus a test executable:
+The codebase builds six targets plus a test executable. A frontend (JS) and a backend (1.14d) both compile against a shared `contract`; a thin glue project links one of each into the injectable DLL:
 
 | Target | Source | Output | Role |
 | --- | --- | --- | --- |
 | `utils` | `src/utils/` | `utils.lib` | Standalone utilities (crypto, threading, stack walking) |
-| `framework` | `src/framework/` | `framework.lib` | Scripting engine, V8 JavaScript API, and the version-agnostic game-abstraction *interface* |
-| `d2bs` | `src/lod114d/` | `d2bs.dll` | The 1.14d game *implementation* (the directory is named `lod114d` for the patch it targets); links framework + utils + V8 and resolves all game symbols. This is the injectable DLL. |
-| `framework_tests` | `tests/framework/` | `framework_tests.exe` | A [doctest](https://github.com/doctest/doctest) suite (pathfinding) compiled against a fake game layer |
+| `contract` | `src/contract/` | `contract.lib` | The version-agnostic game-abstraction *interface* (`game/` handle types) plus shared DTOs. The boundary both frontends and backends compile against. |
+| `core` | `src/core/` | `core.lib` | Shared infrastructure: config, speedhack, proxy. Depends on `contract`. |
+| `js` | `src/frontends/js/` | `js.lib` | JavaScript scripting frontend: engine + V8 JavaScript API. Depends on `contract` + `core`. |
+| `lod114d` | `src/backends/lod114d/` | `lod114d.lib` | The 1.14d game *backend* (directory named for the patch it targets) - game-memory reads, function calls, hooks, offsets. Implements `contract`; depends on `contract` + `core`. No frontend dependency. |
+| `d2bs` | `src/glue/js-lod114d/` | `d2bs.dll` | Glue: `DllMain` + wiring. Links js + lod114d + contract + core + utils. This is the injectable DLL. |
+| `js_tests` | `tests/frontends/js/` | `js_tests.exe` | A [doctest](https://github.com/doctest/doctest) suite (pathfinding) compiled against a fake game layer |
 
 The key structural decision is the split between a **version-agnostic game interface**
-(`src/framework/game/` - thin handle types like `Unit`, `Room`, `Level`, `Party`, `Control`
-declared in terms of plain C++ only) and a **1.14d implementation** (`src/lod114d/`) that
-provides the actual game-memory reads, function calls, hooks, and offsets. The framework and
+(`src/contract/game/` - thin handle types like `Unit`, `Room`, `Level`, `Party`, `Control`
+declared in terms of plain C++ only) and a **1.14d implementation** (`src/backends/lod114d/`) that
+provides the actual game-memory reads, function calls, hooks, and offsets. The frontend and
 JavaScript API never touch game memory directly or depend on any particular game build;
-supporting another version means adding a new sibling implementation that links the same
-`framework.lib` and `utils.lib`.
+supporting another game version means adding a new backend lib (sibling of `src/backends/lod114d/`)
+over the same `contract` + `core`, and a new frontend (e.g. a non-JS host) is a sibling of
+`src/frontends/js/`. Frontend and backend never reference each other - only the `d2bs` glue does.
 
 The project is **32-bit (Win32) only** (required for 1.14d), compiled with C++23 using the
 LLVM/Clang (ClangCL) toolchain with link-time optimization, so the thin wrapper types inline
@@ -224,16 +228,16 @@ Build output is written to `Release/` (or `Debug/`); the injectable DLL is `d2bs
 
 ```
 .\build.ps1 test
-Release\framework_tests.exe -ltc             # list all test cases
-Release\framework_tests.exe -tc="Walk A*"    # run a subset by name
-Release\framework_tests.exe -s               # verbose (assertions + benchmarks)
+Release\js_tests.exe -ltc             # list all test cases
+Release\js_tests.exe -tc="Walk A*"    # run a subset by name
+Release\js_tests.exe -s               # verbose (assertions + benchmarks)
 ```
 
 The suite compiles the real pathfinder against fake game-layer implementations - no DLL, no
 V8, and no running game required. It currently covers the pathfinding engine.
 
 Real-game collision benchmarks run against the `.d2col` fixtures under
-`tests/framework/fixtures/maps/` (collision dumps included in the repo). The benchmarks
+`tests/frontends/js/fixtures/maps/` (collision dumps included in the repo). The benchmarks
 auto-discover whatever is present and skip gracefully if the folder is empty.
 
 ## Compatibility with legacy d2bs scripts

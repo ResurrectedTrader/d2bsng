@@ -135,14 +135,14 @@ namespace {
 // Recursion guard for ExceptionHandler (UEF): if the handler itself crashes
 // (e.g., the stacktrace walker hits the same broken state), the second-chance
 // attempt skips the dump and just exits rather than recursing forever.
-std::atomic<bool> handlerEntered{false};
+std::atomic handlerEntered{false};
 
 // Separate recursion guard for CrashAndExit. Distinct from `handlerEntered`
 // because the normal happy path is ExceptionHandler -> CrashAndExit (which
 // must proceed even though handlerEntered is set). This catches the case
 // where CrashAndExit's own dump path (e.g. spdlog) AVs, fires VEH, and VEH
 // calls CrashAndExit a second time.
-std::atomic<bool> crashAndExitEntered{false};
+std::atomic crashAndExitEntered{false};
 
 // Compute <d2bs-dll-dir>/d2bs_crash_YYYYMMDD_HHMMSS_<pid>_<tid>.log.
 // Preferred over Game.exe's directory because Diablo II often lives under

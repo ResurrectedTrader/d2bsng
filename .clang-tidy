@@ -1,8 +1,10 @@
 # clang-tidy configuration for d2bsng
 # Enforces naming conventions from CLAUDE.md
 
-# Only check headers in src/ directory (excludes V8, vcpkg, and test/reference headers)
-HeaderFilterRegex: '.*d2bsng[\\/]src[\\/].*'
+# Only check headers under a d2bsng src/ tree (excludes V8, vcpkg, and test/reference
+# headers). The `.*` after d2bsng also matches worktree checkouts, whose path is
+# d2bsng/.claude/worktrees/<name>/src/ rather than d2bsng/src/.
+HeaderFilterRegex: '.*d2bsng.*[\\/]src[\\/].*'
 
 # Don't analyze system/external headers
 SystemHeaders: false

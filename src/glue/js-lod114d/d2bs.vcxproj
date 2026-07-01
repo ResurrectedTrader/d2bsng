@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>15.0</VCProjectVersion>
+    <ProjectGuid>{B1A2C3D4-E5F6-7890-ABCD-100000000005}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>d2bs</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>ClangCL</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>ClangCL</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;_DEBUG;NOMINMAX;_WINDOWS;_USRDLL;SPDLOG_WCHAR_TO_UTF8_SUPPORT;SPDLOG_FMT_EXTERNAL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <LanguageStandard_C>stdclatest</LanguageStandard_C>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\frontends\js;$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\backends\lod114d;$(SolutionDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(SolutionDir)dependencies\v8\libs\x86-debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>v8_monolith.lib;fmtd.lib;spdlogd.lib;sqlite3.lib;StackWalker.lib;detours.lib;imguid.lib;ixwebsocket.lib;zlibd.lib;winmm.lib;dbghelp.lib;opengl32.lib;psapi.lib;shell32.lib;ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;NDEBUG;NOMINMAX;_WINDOWS;_USRDLL;SPDLOG_WCHAR_TO_UTF8_SUPPORT;SPDLOG_FMT_EXTERNAL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <LanguageStandard_C>stdclatest</LanguageStandard_C>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\frontends\js;$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\backends\lod114d;$(SolutionDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(SolutionDir)dependencies\v8\libs\x86-release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>v8_monolith.lib;fmt.lib;spdlog.lib;sqlite3.lib;StackWalker.lib;detours.lib;imgui.lib;ixwebsocket.lib;zlib.lib;winmm.lib;dbghelp.lib;opengl32.lib;psapi.lib;shell32.lib;ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <!-- Build-time version for the DLL VERSIONINFO (version.rc). Set via build.ps1
+       / MSBuild -p:D2bsVersion + -p:D2bsVersion{Major,Minor,Patch}; the .rc
+       #ifndef-guards dev fallbacks for un-parameterized IDE builds. -->
+  <ItemDefinitionGroup Condition="'$(D2bsVersion)'!=''">
+    <ResourceCompile>
+      <PreprocessorDefinitions>D2BS_VER_MAJOR=$(D2bsVersionMajor);D2BS_VER_MINOR=$(D2bsVersionMinor);D2BS_VER_PATCH=$(D2bsVersionPatch);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ResourceCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="dllmain.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="version.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\frontends\js\js.vcxproj">
+      <Project>{B1A2C3D4-E5F6-7890-ABCD-100000000002}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\backends\lod114d\lod114d.vcxproj">
+      <Project>{6A6B2FBD-5182-4287-9390-CDCBC681BAB1}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\contract\contract.vcxproj">
+      <Project>{B1A2C3D4-E5F6-7890-ABCD-100000000003}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\core\core.vcxproj">
+      <Project>{B1A2C3D4-E5F6-7890-ABCD-100000000004}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\utils\utils.vcxproj">
+      <Project>{B1A2C3D4-E5F6-7890-ABCD-100000000001}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <PropertyGroup Label="Vcpkg">
+    <VcpkgEnableManifest>true</VcpkgEnableManifest>
+    <VcpkgUseStatic>true</VcpkgUseStatic>
+    <VcpkgUseMD>false</VcpkgUseMD>
+    <VcpkgManifestRoot>$(SolutionDir)</VcpkgManifestRoot>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+    <!-- Optional local-only overrides (gitignored), e.g. a personal post-build copy of
+         the DLL into your own bot folder. Copy d2bs.local.targets.example to
+         d2bs.local.targets to use it. -->
+    <Import Project="$(MSBuildThisFileDirectory)d2bs.local.targets" Condition="Exists('$(MSBuildThisFileDirectory)d2bs.local.targets')" />
+  </ImportGroup>
+</Project>
