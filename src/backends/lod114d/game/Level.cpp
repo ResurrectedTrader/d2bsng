@@ -61,7 +61,6 @@ Rect Level::Bounds() const {
     }
     // nPosX/nPosY are signed in D2MOO and stored as -1 for "uninitialised";
     // treat negatives as 0 game-coords per the level Bounds contract.
-    constexpr int32_t SUBTILE_SCALE = 5;
     const auto posX = std::max<int32_t>(level->nPosX, 0) * SUBTILE_SCALE;
     const auto posY = std::max<int32_t>(level->nPosY, 0) * SUBTILE_SCALE;
     const auto width = std::max<int32_t>(level->nWidth, 0) * SUBTILE_SCALE;

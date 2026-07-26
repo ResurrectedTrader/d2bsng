@@ -600,8 +600,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             uint32_t waypointId = v8_convert::ToUint32(isolate, args[0]);
             // Clamp waypointId > MAX_WAYPOINT_ID to 0 (matching reference behavior)
-            constexpr uint32_t MAX_WAYPOINT_ID = 40;
-            if (waypointId > MAX_WAYPOINT_ID) {
+            if (waypointId > game::MAX_WAYPOINT_ID) {
                 waypointId = 0;
             }
             args.GetReturnValue().Set(game::HasWaypoint(waypointId) != 0);
@@ -1483,17 +1482,15 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     playerPartyId = playerRoster->PartyId();
                 }
             }
-            constexpr uint16_t NO_PARTY = 0xFFFF;
-
             // Reference JSGame.cpp:1108 - Invite no-ops if both are already in the same party.
-            if (mode == game::PartyMode::Invite && partyData->PartyId() != NO_PARTY && playerPartyId &&
+            if (mode == game::PartyMode::Invite && partyData->PartyId() != game::NO_PARTY_ID && playerPartyId &&
                 *playerPartyId == partyData->PartyId()) {
                 args.GetReturnValue().SetFalse();
                 return;
             }
 
             // Reference JSGame.cpp:1112 - Leave no-ops if the target unit isn't in a party.
-            if (mode == game::PartyMode::Leave && partyData->PartyId() == NO_PARTY) {
+            if (mode == game::PartyMode::Leave && partyData->PartyId() == game::NO_PARTY_ID) {
                 args.GetReturnValue().SetFalse();
                 return;
             }

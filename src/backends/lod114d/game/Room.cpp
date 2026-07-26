@@ -23,6 +23,7 @@
 #pragma clang diagnostic pop
 
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 namespace d2bs::game {
@@ -35,9 +36,6 @@ namespace {
 inline D2DrlgRoomStrc* AsDrlgRoom(void* p) noexcept {
     return static_cast<D2DrlgRoomStrc*>(p);
 }
-
-// 1 subtile == 5 game-coords. The conversion lives only here per docs/coords.md.
-constexpr int32_t SUBTILE_TO_GAME_COORD = 5;
 
 }  // namespace
 
@@ -97,10 +95,10 @@ Rect Room::Bounds() const {
     if (drlgRoom == nullptr)
         return Rect::Zero;
     return {
-        .origin = {.x = static_cast<uint32_t>(drlgRoom->nTileXPos * SUBTILE_TO_GAME_COORD),
-                   .y = static_cast<uint32_t>(drlgRoom->nTileYPos * SUBTILE_TO_GAME_COORD)},
-        .size = {.width = static_cast<uint32_t>(drlgRoom->nTileWidth * SUBTILE_TO_GAME_COORD),
-                 .height = static_cast<uint32_t>(drlgRoom->nTileHeight * SUBTILE_TO_GAME_COORD)},
+        .origin = {.x = static_cast<uint32_t>(drlgRoom->nTileXPos * SUBTILE_SCALE),
+                   .y = static_cast<uint32_t>(drlgRoom->nTileYPos * SUBTILE_SCALE)},
+        .size = {.width = static_cast<uint32_t>(drlgRoom->nTileWidth * SUBTILE_SCALE),
+                 .height = static_cast<uint32_t>(drlgRoom->nTileHeight * SUBTILE_SCALE)},
     };
 }
 
@@ -223,7 +221,6 @@ std::vector<PresetUnitInfo> Room::GetPresetUnits(std::optional<uint32_t> type, s
     // level). Walked here so framework callers see the destination as a
     // populated field on PresetUnitInfo without needing a second boundary
     // call. Reference: D2Helpers.cpp::GetTileLevelNo.
-    constexpr uint32_t UNIT_TILE = 5;
     auto resolveTileTarget = [drlgRoom](uint32_t presetTileId) -> uint32_t {
         for (auto* warp = drlgRoom->pRoomTiles; warp != nullptr; warp = warp->pNext) {
             if (warp->pPresetTileId == nullptr || warp->pDrlgRoom == nullptr || warp->pDrlgRoom->pLevel == nullptr) {
@@ -250,7 +247,8 @@ std::vector<PresetUnitInfo> Room::GetPresetUnits(std::optional<uint32_t> type, s
             .posInRoom = {.x = static_cast<uint32_t>(preset->nXpos), .y = static_cast<uint32_t>(preset->nYpos)},
             .id = presetIndex,
             .level = 0,
-            .tileTargetLevelId = (presetType == UNIT_TILE) ? resolveTileTarget(presetIndex) : 0,
+            .tileTargetLevelId =
+                (presetType == std::to_underlying(UnitType::Tile)) ? resolveTileTarget(presetIndex) : 0,
         });
     }
     return out;

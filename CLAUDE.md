@@ -563,6 +563,34 @@ writing them minimal up front makes a cleanup a no-op rather than a diff.
   `// ReSharper disable once CppUnusedIncludeDirective`. See "Load-bearing includes"
   under Include Path Strategy.
 
+### Constants: look for the existing one before declaring a new one
+
+Most game magic numbers are already named somewhere. Search before you type a
+literal, in this order:
+
+1. **The header that owns the value.** In a backend, D2MOO is the source of truth:
+   `D2Constants.h` (`D2C_UIvars` - `UI_CUBE`, `UI_NPCSHOP`, ...), `D2StatList.h`
+   (`D2C_ItemStats` - `STAT_HITPOINTS`, `STAT_STATPTS`, ...), `Units/Units.h`
+   (`D2C_UnitTypes`), `D2Monsters.h` (`D2C_MonTypeFlags`). Most are already in scope
+   through `imports/D2Common.h`. Platform values likewise: `WM_LBUTTONDOWN`, not `0x201`.
+2. **`src/contract/game/`** - `Constants.h` and the enums in `Types.h` (`UnitType`,
+   `MonsterSpecType`, `ItemLocation`, ...). The frontend and the contract cannot see
+   D2MOO, so these mirror the handful of values the JS API needs; use them there
+   instead of re-typing the literal.
+3. **The backend's shared headers** - e.g. `SUBTILE_SCALE` in
+   `backends/lod114d/game/DrlgHelpers.h`.
+
+When a value genuinely has to be restated, derive it from the canonical definition
+rather than repeating the literal:
+
+```cpp
+constexpr uint32_t STAT_FIXED_POINT_FIRST = STAT_HITPOINTS;
+```
+
+**Scope it to its use.** A constant used by one file stays in that file's anonymous
+namespace - no shared header, no namespace qualification at the call site. Promote it
+only when a second file needs the same value, and then delete every copy.
+
 ### Naming
 
 - **Methods/Functions**: PascalCase (e.g., `Start()`, `GetState()`, `RemoveAllForIsolate()`)

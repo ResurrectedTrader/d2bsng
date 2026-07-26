@@ -19,6 +19,7 @@
 #pragma clang diagnostic ignored "-Wmissing-braces"
 #include <D2Inventory.h>           // D2InventoryStrc, D2ItemExtraDataStrc
 #include <D2Items.h>               // D2C_ItemModes (IMODE_ONGROUND, IMODE_DROPPING)
+#include <D2Monsters.h>            // D2C_MonTypeFlags
 #include <D2PacketDef.h>           // D2GSPacketClt3C
 #include <D2Skills.h>              // D2SkillStrc, D2SkillListStrc
 #include <D2StatList.h>            // D2StatStrc, D2StatListExStrc, STAT_*
@@ -41,6 +42,7 @@
 #include <limits>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace d2bs::game {
@@ -56,23 +58,10 @@ inline D2UnitStrc* AsUnit(void* p) noexcept {
 using imports::extras::UNIT_HASH_BUCKETS;
 using imports::extras::UNIT_HASH_TYPE_COUNT;
 
-// Reference parity: D2 stores hp/mana/stamina (stat ids 6..11) in 8.8 fixed point.
-constexpr uint32_t STAT_FIXED_POINT_FIRST = 6;
-constexpr uint32_t STAT_FIXED_POINT_LAST = 11;
-constexpr uint32_t STAT_FIXED_POINT_SHIFT_BITS = 8;
-
-// Reference's `MonsterData::nTypeFlag` packs the four monster-class flags into a
-// single byte: bit 1 fNormal, bit 2 fChamp, bit 3 fBoss, bit 4 fMinion. SpecType
-// repacks them into the legacy 0x01/0x02/0x04/0x08 layout the JS API expects.
-constexpr uint8_t MON_FLAG_NORMAL = 0x02;
-constexpr uint8_t MON_FLAG_CHAMP = 0x04;
-constexpr uint8_t MON_FLAG_BOSS = 0x08;
-constexpr uint8_t MON_FLAG_MINION = 0x10;
-
-constexpr uint32_t SPECTYPE_SUPERUNIQUE = 0x01;
-constexpr uint32_t SPECTYPE_CHAMP = 0x02;
-constexpr uint32_t SPECTYPE_BOSS = 0x04;
-constexpr uint32_t SPECTYPE_MINION = 0x08;
+// Reference parity: D2 stores hp/mana/stamina (the contiguous STAT_HITPOINTS
+// .. STAT_MAXSTAMINA run) in 8.8 fixed point.
+constexpr uint32_t STAT_FIXED_POINT_FIRST = STAT_HITPOINTS;
+constexpr uint32_t STAT_FIXED_POINT_LAST = STAT_MAXSTAMINA;
 
 // Reference parity: GetItemPrice's mode argument 0/1 = buy/sell, 3 = repair
 // (mode 2 in our enum maps to 3 internally).
@@ -80,10 +69,6 @@ constexpr int32_t ITEM_PRICE_MODE_REPAIR = 3;
 
 // Reference: dwOwnerGUID == 0xFFFFFFFF means "no owner" for monster summons.
 constexpr uint32_t NO_OWNER_GUID = std::numeric_limits<uint32_t>::max();
-
-// Reference Constants.h:15,28 - UI variable indices passed to GetUIVar.
-constexpr uint32_t UI_GAME = 0x00;
-constexpr uint32_t UI_NPCSHOP = 0x0C;
 
 // Walk the per-type unit hash table looking for the first non-null bucket.
 D2UnitStrc* FirstUnitInTable(const D2UnitHashTable* table) {
@@ -281,13 +266,13 @@ uint32_t Unit::Hp() const {
                 const auto percent = imports::d2common::UNITS_GetCurrentLifePercentage(u->dwUnitId);
                 const auto maxHp =
                     static_cast<uint32_t>(imports::d2common::STATLIST_UnitGetStatValue(u, STAT_MAXHP, 0)) >>
-                    STAT_FIXED_POINT_SHIFT_BITS;
+                    STAT_FIXED_POINT_SHIFT;
                 return (percent * maxHp) / 100U;
             }
         }
     }
     return static_cast<uint32_t>(imports::d2common::STATLIST_UnitGetStatValue(u, STAT_HITPOINTS, 0)) >>
-           STAT_FIXED_POINT_SHIFT_BITS;
+           STAT_FIXED_POINT_SHIFT;
 }
 
 uint32_t Unit::HpMax() const {
@@ -296,7 +281,7 @@ uint32_t Unit::HpMax() const {
         return 0U;
     }
     return static_cast<uint32_t>(imports::d2common::STATLIST_UnitGetStatValue(u, STAT_MAXHP, 0)) >>
-           STAT_FIXED_POINT_SHIFT_BITS;
+           STAT_FIXED_POINT_SHIFT;
 }
 
 uint32_t Unit::Mp() const {
@@ -305,7 +290,7 @@ uint32_t Unit::Mp() const {
         return 0U;
     }
     return static_cast<uint32_t>(imports::d2common::STATLIST_UnitGetStatValue(u, STAT_MANA, 0)) >>
-           STAT_FIXED_POINT_SHIFT_BITS;
+           STAT_FIXED_POINT_SHIFT;
 }
 
 uint32_t Unit::MpMax() const {
@@ -314,7 +299,7 @@ uint32_t Unit::MpMax() const {
         return 0U;
     }
     return static_cast<uint32_t>(imports::d2common::STATLIST_UnitGetStatValue(u, STAT_MAXMANA, 0)) >>
-           STAT_FIXED_POINT_SHIFT_BITS;
+           STAT_FIXED_POINT_SHIFT;
 }
 
 uint32_t Unit::Stamina() const {
@@ -323,7 +308,7 @@ uint32_t Unit::Stamina() const {
         return 0U;
     }
     return static_cast<uint32_t>(imports::d2common::STATLIST_UnitGetStatValue(u, STAT_STAMINA, 0)) >>
-           STAT_FIXED_POINT_SHIFT_BITS;
+           STAT_FIXED_POINT_SHIFT;
 }
 
 uint32_t Unit::StaminaMax() const {
@@ -332,7 +317,7 @@ uint32_t Unit::StaminaMax() const {
         return 0U;
     }
     return static_cast<uint32_t>(imports::d2common::STATLIST_UnitGetStatValue(u, STAT_MAXSTAMINA, 0)) >>
-           STAT_FIXED_POINT_SHIFT_BITS;
+           STAT_FIXED_POINT_SHIFT;
 }
 
 uint32_t Unit::CharLevel() const {
@@ -372,7 +357,7 @@ int32_t Unit::GetStat(uint32_t stat, uint32_t sub) const {
     }
 
     if (stat >= STAT_FIXED_POINT_FIRST && stat <= STAT_FIXED_POINT_LAST) {
-        return value >> STAT_FIXED_POINT_SHIFT_BITS;
+        return value >> STAT_FIXED_POINT_SHIFT;
     }
     return value;
 }
@@ -413,7 +398,7 @@ void AppendStatsShifted(const D2StatStrc* stats, uint32_t count, std::vector<Sta
         const auto& s = stats[i];
         int32_t value = s.nValue;
         if (s.nStat >= STAT_FIXED_POINT_FIRST && s.nStat <= STAT_FIXED_POINT_LAST) {
-            value >>= STAT_FIXED_POINT_SHIFT_BITS;
+            value >>= STAT_FIXED_POINT_SHIFT;
         }
         out.push_back(StatEntry{
             .statId = s.nStat,
@@ -574,10 +559,10 @@ std::optional<uint32_t> Unit::UniqueId() const {
             return std::nullopt;
         }
         // Reference: monsters expose the super-unique row index only when both the
-        // boss and normal flags are set. Anything else returns -1 to JS, expressed
-        // here as `nullopt` (the binding coerces it).
+        // unique and super-unique flags are set. Anything else returns -1 to JS,
+        // expressed here as `nullopt` (the binding coerces it).
         const auto flags = u->pMonsterData->nTypeFlag;
-        if ((flags & MON_FLAG_BOSS) == 0 || (flags & MON_FLAG_NORMAL) == 0) {
+        if ((flags & MONTYPEFLAG_UNIQUE) == 0 || (flags & MONTYPEFLAG_SUPERUNIQUE) == 0) {
             return std::nullopt;
         }
         return u->pMonsterData->wBossHcIdx;
@@ -597,19 +582,21 @@ uint32_t Unit::SpecType() const {
     if (u == nullptr || u->dwUnitType != UNIT_MONSTER || u->pMonsterData == nullptr) {
         return 0U;
     }
+    // `MonsterData::nTypeFlag` packs the monster-class flags one way; MonsterSpecType
+    // is the layout the JS API expects. Repack rather than pass the raw byte through.
     const auto flags = u->pMonsterData->nTypeFlag;
     uint32_t spec = 0U;
-    if ((flags & MON_FLAG_MINION) != 0) {
-        spec |= SPECTYPE_MINION;
+    if ((flags & MONTYPEFLAG_MINION) != 0) {
+        spec |= std::to_underlying(MonsterSpecType::Minion);
     }
-    if ((flags & MON_FLAG_BOSS) != 0) {
-        spec |= SPECTYPE_BOSS;
+    if ((flags & MONTYPEFLAG_UNIQUE) != 0) {
+        spec |= std::to_underlying(MonsterSpecType::Unique);
     }
-    if ((flags & MON_FLAG_CHAMP) != 0) {
-        spec |= SPECTYPE_CHAMP;
+    if ((flags & MONTYPEFLAG_CHAMPION) != 0) {
+        spec |= std::to_underlying(MonsterSpecType::Champion);
     }
-    if ((flags & MON_FLAG_BOSS) != 0 && (flags & MON_FLAG_NORMAL) != 0) {
-        spec |= SPECTYPE_SUPERUNIQUE;
+    if ((flags & MONTYPEFLAG_UNIQUE) != 0 && (flags & MONTYPEFLAG_SUPERUNIQUE) != 0) {
+        spec |= std::to_underlying(MonsterSpecType::SuperUnique);
     }
     return spec;
 }

@@ -772,7 +772,6 @@ void Transmute() {
     GameThread::Execute([]() {
         // Reference JSGame.cpp:1258-1273 toggles the cube UI on if it isn't
         // already open, runs Transmute, then restores the prior UI state.
-        constexpr uint32_t UI_CUBE = 0x1A;
         const bool wasOpen = d2client::UI_GetVar(UI_CUBE) != 0;
         if (!wasOpen) {
             d2client::UI_SetVar(UI_CUBE, 1, 0);
@@ -789,7 +788,6 @@ bool TestPvpFlag(const Unit& a, const Unit& b, uint32_t flag) {
 }
 
 bool HasWaypoint(uint32_t waypointId) {
-    constexpr uint32_t MAX_WAYPOINT_ID = 40;
     if (waypointId > MAX_WAYPOINT_ID) {
         return false;
     }
@@ -853,12 +851,11 @@ void UseStatPoint(uint32_t stat, uint32_t count) {
     if (count == 0) {
         return;
     }
-    constexpr uint32_t STAT_STATPOINTSLEFT = 4;
     auto myUnit = Unit::Player();
     if (!myUnit) {
         return;
     }
-    if (myUnit.GetStat(STAT_STATPOINTSLEFT, 0) < static_cast<int32_t>(count)) {
+    if (myUnit.GetStat(STAT_STATPTS, 0) < static_cast<int32_t>(count)) {
         return;
     }
     std::array<uint8_t, 3> packet{};
@@ -879,12 +876,11 @@ void UseSkillPoint(uint32_t skill, uint32_t count) {
     if (count == 0) {
         return;
     }
-    constexpr uint32_t STAT_SKILLPOINTSLEFT = 5;
     auto myUnit = Unit::Player();
     if (!myUnit) {
         return;
     }
-    if (myUnit.GetStat(STAT_SKILLPOINTSLEFT, 0) < static_cast<int32_t>(count)) {
+    if (myUnit.GetStat(STAT_SKILLPTS, 0) < static_cast<int32_t>(count)) {
         return;
     }
     std::array<uint8_t, 3> packet{};
@@ -1270,10 +1266,9 @@ void ClickPartyMember(const Party& party, PartyMode mode) {
     // the player's own roster entry (the head of the list) so we can compare
     // wPartyId fields. Walk under the read lock and copy the fields we need
     // before releasing it.
-    constexpr uint16_t NO_PARTY = std::numeric_limits<uint16_t>::max();
     D2RosterUnitStrc* rosterPtr = nullptr;
-    uint16_t targetPartyId = NO_PARTY;
-    uint16_t myPartyId = NO_PARTY;
+    uint16_t targetPartyId = NO_PARTY_ID;
+    uint16_t myPartyId = NO_PARTY_ID;
     uint32_t targetUnitId = 0;
     {
         auto guard = Bridge::Lock();
@@ -1320,14 +1315,14 @@ void ClickPartyMember(const Party& party, PartyMode mode) {
             return;
         case PartyMode::Invite:
             // Already partied with the target -- refuse re-invite.
-            if (targetPartyId != NO_PARTY && myPartyId == targetPartyId) {
+            if (targetPartyId != NO_PARTY_ID && myPartyId == targetPartyId) {
                 return;
             }
             d2client::ClickParty_I(rosterPtr);
             return;
         case PartyMode::Leave:
             // Only leave a party if the target actually has one.
-            if (targetPartyId == NO_PARTY) {
+            if (targetPartyId == NO_PARTY_ID) {
                 return;
             }
             d2client::PARTY_Leave();
@@ -1682,7 +1677,7 @@ void MoveNPC(uint32_t npcId, Position pos) {
     }
     std::array<uint8_t, 17> packet{};
     packet[0] = 0x59;
-    constexpr uint32_t UNIT_TYPE_NPC = 1;
+    constexpr uint32_t UNIT_TYPE_NPC = UNIT_MONSTER;
     std::memcpy(packet.data() + 1, &UNIT_TYPE_NPC, sizeof(uint32_t));
     std::memcpy(packet.data() + 5, &npcId, sizeof(uint32_t));
     std::memcpy(packet.data() + 9, &pos.x, sizeof(uint32_t));
@@ -1787,9 +1782,8 @@ bool IsScrollingText() {
         if (whl->dwMagic == MAGIC_GMSG && whl->hWnd == d2Hwnd) {
             auto* mhht = whl->pMsgHandlers;
             if (mhht != nullptr && mhht->pTable != nullptr && mhht->dwLength != 0) {
-                constexpr uint32_t WM_LBUTTONDOWN_MSG = 0x201;
                 // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic) - hash table indexing
-                auto* mhl = mhht->pTable[WM_LBUTTONDOWN_MSG % mhht->dwLength];
+                auto* mhl = mhht->pTable[WM_LBUTTONDOWN % mhht->dwLength];
                 // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
                 while (mhl != nullptr) {
                     if (mhl->dwMessage != 0 && mhl->dwUnk4 < std::numeric_limits<uint32_t>::max() &&
@@ -1962,7 +1956,6 @@ Level FindLevelAt(Position gamePos) {
     if (act == nullptr || act->pDrlg == nullptr) {
         return Level();
     }
-    constexpr uint32_t SUBTILE_SCALE = 5;
     const Position subtile{.x = gamePos.x / SUBTILE_SCALE, .y = gamePos.y / SUBTILE_SCALE};
     for (auto* level = act->pDrlg->pLevel; level != nullptr; level = level->pNextLevel) {
         // nPosX/Y/Width/Height are int32 in the struct; non-negative in practice

@@ -22,6 +22,10 @@ namespace d2bs::game {
 
 // Shared drlg-chain walkers. Inline so each TU copies after LTO; no link-time conflicts.
 
+// 1 subtile == 5 game-coords. The conversion lives only in the backend per
+// docs/coords.md; this is the single definition every site scales through.
+constexpr int32_t SUBTILE_SCALE = 5;
+
 // Walk the player's drlg level chain looking for the requested id, lazily
 // initialising any matched level whose room list hasn't been populated yet.
 // D2COMMON_GetLevel(pDrlg, levelNo) is intentionally NOT used - the entry
@@ -140,8 +144,8 @@ inline void DrawPresetsForRoom(D2DrlgRoomStrc* drlgRoom) {
             continue;
         }
         automapCell->nCellNo = static_cast<uint16_t>(cell);
-        const int32_t pX = preset->nXpos + (roomPosX * 5);
-        const int32_t pY = preset->nYpos + (roomPosY * 5);
+        const int32_t pX = preset->nXpos + (roomPosX * SUBTILE_SCALE);
+        const int32_t pY = preset->nYpos + (roomPosY * SUBTILE_SCALE);
         automapCell->xPixel = static_cast<uint16_t>((((pX - pY) * 16) / 10) + 1);
         automapCell->yPixel = static_cast<uint16_t>((((pY + pX) * 8) / 10) - 3);
         imports::d2client::AUTOMAP_AddCell(automapCell, &layer->pObjects);

@@ -33,6 +33,7 @@
 #include <array>
 #include <cstdint>
 #include <map>
+#include <utility>
 #include <vector>
 
 #include "components/pathfinding/Pathfinder.h"
@@ -46,8 +47,6 @@ namespace {
 
 using pathfinding::BuildLevelGrid;
 using pathfinding::CollisionLookup;
-
-constexpr uint32_t UNIT_TILE = 5;
 
 // Reference ActMap::EdgeIsWalkable (ActMap.cpp:438-462): probes four cells
 // on the orthogonal axis through the edge point - two in the local room
@@ -129,7 +128,7 @@ std::vector<ExitInfo> Level::GetExits() const {
     // tileTargetLevelId (resolved game-side via pRoomTiles).
     // -----------------------------------------------------------------
     for (auto room = GetFirstRoom(); room; room = room.GetNext()) {
-        for (const auto& preset : room.GetPresetUnits(UNIT_TILE)) {
+        for (const auto& preset : room.GetPresetUnits(std::to_underlying(UnitType::Tile))) {
             if (preset.tileTargetLevelId == 0) {
                 continue;
             }

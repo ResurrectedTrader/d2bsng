@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstdint>
+#include <limits>
+
 namespace d2bs::game {
 
 // Stat IDs referenced in the API layer.
@@ -13,6 +16,12 @@ constexpr uint32_t STAT_LIST_PRESET_FLAG = 0x40;
 
 // Default NPC class ID for pricing (Charsi).
 constexpr uint32_t NPC_CHARSI_CLASS_ID = 0x9A;
+
+// Highest waypoint id accepted by the waypoint table.
+constexpr uint32_t MAX_WAYPOINT_ID = 40;
+
+// RosterUnit::wPartyId sentinel for "not in a party".
+constexpr uint16_t NO_PARTY_ID = std::numeric_limits<uint16_t>::max();
 
 // Character flags (BnetData::nCharFlags). Reference Constants.h PLAYER_TYPE_*.
 // Surfaced in the API docs for me.charflags; test against the raw nCharFlags
