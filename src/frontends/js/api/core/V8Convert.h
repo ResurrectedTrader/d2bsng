@@ -97,6 +97,30 @@ inline v8::Local<v8::Object> ToV8(v8::Isolate* isolate, game::Size sz) {
     return obj;
 }
 
+// {id: uint32, layer: uint32, value: int32}
+inline v8::Local<v8::Object> ToV8(v8::Isolate* isolate, const game::StatEntry& stat) {
+    auto context = isolate->GetCurrentContext();
+    auto obj = v8::Object::New(isolate);
+    obj->Set(context, ToV8(isolate, "id"), ToV8(isolate, stat.statId)).Check();
+    obj->Set(context, ToV8(isolate, "layer"), ToV8(isolate, stat.subIndex)).Check();
+    obj->Set(context, ToV8(isolate, "value"), ToV8(isolate, stat.value)).Check();
+    return obj;
+}
+
+// {flags: uint32, stateNo: int32, stats: StatEntry[]}
+inline v8::Local<v8::Object> ToV8(v8::Isolate* isolate, const game::StatListEntry& list) {
+    auto context = isolate->GetCurrentContext();
+    auto stats = v8::Array::New(isolate, static_cast<int32_t>(list.stats.size()));
+    for (uint32_t i = 0; i < list.stats.size(); ++i) {
+        stats->Set(context, i, ToV8(isolate, list.stats[i])).Check();
+    }
+    auto obj = v8::Object::New(isolate);
+    obj->Set(context, ToV8(isolate, "flags"), ToV8(isolate, list.flags)).Check();
+    obj->Set(context, ToV8(isolate, "stateNo"), ToV8(isolate, list.stateNo)).Check();
+    obj->Set(context, ToV8(isolate, "stats"), stats).Check();
+    return obj;
+}
+
 // ============================================================================
 // From V8 conversions
 // ============================================================================

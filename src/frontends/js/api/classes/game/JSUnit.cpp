@@ -79,6 +79,17 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             info.GetReturnValue().Set(data->Act());
         });
 
+    /// @description Extended unit flag bitmask (dwFlagEx); carries UNITFLAGEX_ISEXPANSION (0x2000000) per unit.
+    /// @type {number}
+    Property(
+        isolate, inst, "flagsex", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
+            auto* data = Unwrap(info.Holder());
+            if (!*data) {
+                return;
+            }
+            info.GetReturnValue().Set(data->FlagsEx());
+        });
+
     /// @description Global unit ID.
     /// @type {number}
     Property(
@@ -292,15 +303,16 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             info.GetReturnValue().Set(data->Direction());
         });
 
-    /// @description Unique/super-unique monster ID (index into the unique monster table; -1 when none).
+    /// @description Super-unique monster ID (SuperUniques.txt index; -1 when the monster is not super-unique);
+    /// Monster units only.
     /// @type {number}
     Property(
         isolate, inst, "uniqueid", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             auto* data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!*data || data->Type() != UnitType::Monster) {
                 return;
             }
-            info.GetReturnValue().Set(static_cast<int32_t>(data->UniqueId().value_or(-1)));
+            info.GetReturnValue().Set(static_cast<int32_t>(data->SuperUniqueId().value_or(-1)));
         });
 
     /// @description Three/four-character item code (e.g. "rvl", "gcv"); Item units only, "Unknown" if unresolvable.
@@ -363,6 +375,30 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             info.GetReturnValue().Set(static_cast<uint32_t>(data->SuffixNum()));
+        });
+
+    /// @description Numeric ID of the item's rare prefix, 1-based into the concatenated
+    /// [raresuffix][rareprefix] table (Item units only; 0 if none).
+    /// @type {number}
+    Property(
+        isolate, inst, "rareprefixnum", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
+            auto* data = Unwrap(info.Holder());
+            if (!*data || data->Type() != UnitType::Item) {
+                return;
+            }
+            info.GetReturnValue().Set(data->RarePrefixNum());
+        });
+
+    /// @description Numeric ID of the item's rare suffix, 1-based into the concatenated
+    /// [raresuffix][rareprefix] table (Item units only; 0 if none).
+    /// @type {number}
+    Property(
+        isolate, inst, "raresuffixnum", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
+            auto* data = Unwrap(info.Holder());
+            if (!*data || data->Type() != UnitType::Item) {
+                return;
+            }
+            info.GetReturnValue().Set(data->RareSuffixNum());
         });
 
     // prefixes - Sparse array of prefix names indexed by slot (3 max).
@@ -601,6 +637,52 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             info.GetReturnValue().Set(data->GfxIndex());
+        });
+
+    /// @description The item's dwFileIndex (-1 when none). The table it indexes depends on quality: a
+    /// lowqualityitems, uniqueitems or setitems row, or for a normal item an elixir attribute, a monstats row for a
+    /// body part, or an ear's character class. Item units only.
+    /// @type {number}
+    Property(
+        isolate, inst, "fileindex", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
+            auto* data = Unwrap(info.Holder());
+            if (!*data || data->Type() != UnitType::Item) {
+                return;
+            }
+            info.GetReturnValue().Set(static_cast<int32_t>(data->FileIndex().value_or(-1)));
+        });
+
+    /// @description Item storage format (wItemFormat); 0 is a classic (pre-expansion) item. Item units only.
+    /// @type {number}
+    Property(
+        isolate, inst, "itemformat", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
+            auto* data = Unwrap(info.Holder());
+            if (!*data || data->Type() != UnitType::Item) {
+                return;
+            }
+            info.GetReturnValue().Set(data->ItemFormat());
+        });
+
+    /// @description Level of the character an ear came from; 0 for anything else. Item units only.
+    /// @type {number}
+    Property(
+        isolate, inst, "earlvl", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
+            auto* data = Unwrap(info.Holder());
+            if (!*data || data->Type() != UnitType::Item) {
+                return;
+            }
+            info.GetReturnValue().Set(data->EarLevel());
+        });
+
+    /// @description Name stamped into a personalised item or an ear; empty otherwise. Item units only.
+    /// @type {string}
+    Property(
+        isolate, inst, "playername", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
+            auto* data = Unwrap(info.Holder());
+            if (!*data || data->Type() != UnitType::Item) {
+                return;
+            }
+            info.GetReturnValue().Set(v8_convert::ToV8(info.GetIsolate(), data->ItemPlayerName()));
         });
 
     // =========================================================================
@@ -1312,6 +1394,36 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                     args.GetReturnValue().Set(value);
                 }
             }
+        });
+
+    /// @description Returns the unit's stat lists unmerged - one entry per leaf stat array, each tagged with the
+    /// game's own `flags` (STATLIST_* bitmask) and `stateNo`, which together say whether the array is the unit's base
+    /// stats, an item mod, a set tier or a runeword, and whether it currently contributes. Entries are sorted by
+    /// (flags, stateNo) and empty arrays are dropped. A socketed gem or an equipped item keeps its own lists - read
+    /// those off that unit. Values carry the same 8.8 fixed-point shift as getStat().
+    /// @signature getStatLists()
+    /// @returns {Array<{flags:number,stateNo:number,stats:Array<{id:number,layer:number,value:number}>}>} - The stat
+    /// lists, empty when the unit has none; false if the game was not ready.
+    Method(
+        isolate, proto, "getStatLists", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+            auto* isolate = args.GetIsolate();
+            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                return;
+            }
+            auto* data = Unwrap(args.This());
+            if (!*data) {
+                return;
+            }
+
+            auto lock = game::Bridge::Lock();
+            auto lists = data->GetStatLists();
+            auto context = isolate->GetCurrentContext();
+            auto arr = v8::Array::New(isolate, static_cast<int32_t>(lists.size()));
+            for (uint32_t i = 0; i < lists.size(); ++i) {
+                arr->Set(context, i, v8_convert::ToV8(isolate, lists[i])).Check();
+            }
+            args.GetReturnValue().Set(arr);
         });
 
     /// @description Returns the item's full flags bitmask (identified, broken, socketed, ethereal, runeword, etc.);

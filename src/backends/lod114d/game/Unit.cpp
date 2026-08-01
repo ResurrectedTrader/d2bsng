@@ -42,6 +42,8 @@
 #include <limits>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -197,6 +199,11 @@ uint32_t Unit::Act() const {
     auto* u = AsUnit(ResolvePtr());
     // Reference: pUnit->dwAct + 1 (game stores 0-based act, JS exposes 1-based).
     return u ? static_cast<uint32_t>(u->nAct) + 1U : 1U;
+}
+
+uint32_t Unit::FlagsEx() const {
+    auto* u = AsUnit(ResolvePtr());
+    return u != nullptr ? u->dwFlagEx : 0U;
 }
 
 // === Position ===
@@ -377,6 +384,7 @@ namespace {
 // raw 8.8 fixed-point values for hp/mana/stamina stats - reference parity:
 // JSUnit.cpp:933-947 copies StatVec entries verbatim with no shift.
 void AppendStatsRaw(const D2StatStrc* stats, uint32_t count, std::vector<StatEntry>& out) {
+    out.reserve(out.size() + count);
     for (uint32_t i = 0; i < count; ++i) {
         // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic) - bounded by count
         const auto& s = stats[i];
@@ -393,6 +401,7 @@ void AppendStatsRaw(const D2StatStrc* stats, uint32_t count, std::vector<StatEnt
 // getStat(-2) (`GetDetailedStats`) which mirrors reference's
 // `InsertStatsNow` (JSUnit.cpp:1071-1075).
 void AppendStatsShifted(const D2StatStrc* stats, uint32_t count, std::vector<StatEntry>& out) {
+    out.reserve(out.size() + count);
     for (uint32_t i = 0; i < count; ++i) {
         // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic) - bounded by count
         const auto& s = stats[i];
@@ -487,6 +496,47 @@ std::vector<StatEntry> Unit::GetDetailedStats() const {
     return out;
 }
 
+std::vector<StatListEntry> Unit::GetStatLists() const {
+    GameReadLock guard;
+    auto* u = AsUnit(ResolvePtr());
+    if (u == nullptr || u->pStatListEx == nullptr) {
+        return {};
+    }
+    auto* ex = STATLIST_StatListExCast(static_cast<D2StatListStrc*>(u->pStatListEx));
+    if (ex == nullptr) {
+        return {};
+    }
+
+    std::vector<StatListEntry> out;
+    auto append = [&out](const D2StatListStrc* list) {
+        if (list->Stats.pStat == nullptr || list->Stats.nStatCount == 0) {
+            return;
+        }
+        StatListEntry entry{.flags = list->dwFlags, .stateNo = list->dwStateNo, .stats = {}};
+        AppendStatsShifted(list->Stats.pStat, list->Stats.nStatCount, entry.stats);
+        out.push_back(std::move(entry));
+    };
+
+    append(ex);
+
+    // An extended node on these chains is a socketed / equipped unit's own statlist,
+    // posted here by the game; its stats belong to that unit, not this one.
+    auto appendChain = [&append](D2StatListStrc* tail) {
+        for (auto* node = tail; node != nullptr; node = node->pPrevLink) {
+            if (STATLIST_StatListExCast(node) == nullptr) {
+                append(node);
+            }
+        }
+    };
+    appendChain(ex->pMyLastList);
+    appendChain(ex->pMyStats);
+
+    std::ranges::stable_sort(out, [](const StatListEntry& a, const StatListEntry& b) {
+        return std::tie(a.flags, a.stateNo) < std::tie(b.flags, b.stateNo);
+    });
+    return out;
+}
+
 // === Name ===
 
 // Reference parity: GetUnitName(pUnit) - picks the right name source per type.
@@ -549,32 +599,16 @@ uint32_t Unit::Direction() const {
     return u->pDynamicPath->nDirection;
 }
 
-std::optional<uint32_t> Unit::UniqueId() const {
+std::optional<uint32_t> Unit::SuperUniqueId() const {
     auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr) {
+    if (u == nullptr || u->dwUnitType != UNIT_MONSTER || u->pMonsterData == nullptr) {
         return std::nullopt;
     }
-    if (u->dwUnitType == UNIT_MONSTER) {
-        if (u->pMonsterData == nullptr) {
-            return std::nullopt;
-        }
-        // Reference: monsters expose the super-unique row index only when both the
-        // unique and super-unique flags are set. Anything else returns -1 to JS,
-        // expressed here as `nullopt` (the binding coerces it).
-        const auto flags = u->pMonsterData->nTypeFlag;
-        if ((flags & MONTYPEFLAG_UNIQUE) == 0 || (flags & MONTYPEFLAG_SUPERUNIQUE) == 0) {
-            return std::nullopt;
-        }
-        return u->pMonsterData->wBossHcIdx;
+    const auto flags = u->pMonsterData->nTypeFlag;
+    if ((flags & MONTYPEFLAG_UNIQUE) == 0 || (flags & MONTYPEFLAG_SUPERUNIQUE) == 0) {
+        return std::nullopt;
     }
-    if (u->dwUnitType == UNIT_ITEM) {
-        if (u->pItemData == nullptr ||
-            (u->pItemData->dwQualityNo != ITEMQUAL_UNIQUE && u->pItemData->dwQualityNo != ITEMQUAL_SET)) {
-            return std::nullopt;
-        }
-        return u->pItemData->dwFileIndex;
-    }
-    return std::nullopt;
+    return u->pMonsterData->wBossHcIdx;
 }
 
 uint32_t Unit::SpecType() const {
@@ -690,6 +724,22 @@ uint16_t Unit::SuffixNum() const {
         return 0U;
     }
     return u->pItemData->wMagicSuffix[0];
+}
+
+uint16_t Unit::RarePrefixNum() const {
+    auto* u = AsUnit(ResolvePtr());
+    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+        return 0U;
+    }
+    return u->pItemData->wRarePrefix;
+}
+
+uint16_t Unit::RareSuffixNum() const {
+    auto* u = AsUnit(ResolvePtr());
+    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+        return 0U;
+    }
+    return u->pItemData->wRareSuffix;
 }
 
 uint16_t Unit::AutoAffixNum() const {
@@ -895,6 +945,40 @@ uint32_t Unit::ItemFlags() const {
         return 0U;
     }
     return u->pItemData->dwItemFlags;
+}
+
+uint16_t Unit::ItemFormat() const {
+    auto* u = AsUnit(ResolvePtr());
+    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+        return 0U;
+    }
+    return u->pItemData->wItemFormat;
+}
+
+std::optional<uint32_t> Unit::FileIndex() const {
+    auto* u = AsUnit(ResolvePtr());
+    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr || u->pItemData->dwFileIndex < 0) {
+        return std::nullopt;
+    }
+    return static_cast<uint32_t>(u->pItemData->dwFileIndex);
+}
+
+uint32_t Unit::EarLevel() const {
+    auto* u = AsUnit(ResolvePtr());
+    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+        return 0U;
+    }
+    return u->pItemData->nEarLvl;
+}
+
+std::string Unit::ItemPlayerName() const {
+    auto* u = AsUnit(ResolvePtr());
+    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+        return {};
+    }
+    const std::string_view name{static_cast<const char*>(u->pItemData->szPlayerName),
+                                sizeof(u->pItemData->szPlayerName)};
+    return std::string{name.substr(0, name.find('\0'))};
 }
 
 uint32_t Unit::ItemCost(ItemCostMode mode, uint32_t npcClassId, Difficulty difficulty) const {

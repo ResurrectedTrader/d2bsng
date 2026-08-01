@@ -43,6 +43,7 @@ class Unit {
     uint32_t Mode() const;
     uint32_t Id() const;
     uint32_t Act() const;
+    uint32_t FlagsEx() const;
 
     // === Position ===
     // Pos()/TargetPos() are in game coordinates (same convention as Room/Level
@@ -66,6 +67,7 @@ class Unit {
     // Returns detailed stat list for getStat(-2): includes both base stats and stat-list stats.
     // Reference: InsertStatsToGenericObject iterates pUnit->pStats and D2COMMON_GetStatList(pUnit, NULL, 0x40).
     std::vector<StatEntry> GetDetailedStats() const;
+    std::vector<StatListEntry> GetStatLists() const;
 
     // === Name ===
     std::string Name() const;
@@ -73,7 +75,7 @@ class Unit {
 
     // === Unit info ===
     uint32_t Direction() const;
-    std::optional<uint32_t> UniqueId() const;
+    std::optional<uint32_t> SuperUniqueId() const;
     uint32_t SpecType() const;
     uint32_t ItemCount() const;
 
@@ -94,6 +96,8 @@ class Unit {
     // Automagic affix id (D2ItemData wAutoAffix) - an inherent affix some items carry;
     // used for the game's normal-item transformcolor fallback in ItemColor.
     uint16_t AutoAffixNum() const;
+    uint16_t RarePrefixNum() const;
+    uint16_t RareSuffixNum() const;
     // Item prefix/suffix arrays - fixed-size 3 slots matching D2's
     // `wMagicPrefix[3]` / `wMagicSuffix[3]` (D2MOO `ITEMS_MAX_MODS == 3`).
     // Empty/zero entries are preserved as nullopt / 0 so JS scripts can
@@ -116,6 +120,10 @@ class Unit {
     uint32_t LevelRequirement() const;
     uint32_t GfxIndex() const;
     uint32_t ItemFlags() const;
+    uint16_t ItemFormat() const;
+    std::optional<uint32_t> FileIndex() const;
+    uint32_t EarLevel() const;
+    std::string ItemPlayerName() const;
     uint32_t ItemCost(ItemCostMode mode, uint32_t npcClassId, Difficulty difficulty) const;
 
     // === Object-specific ===

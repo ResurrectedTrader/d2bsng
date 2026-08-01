@@ -145,19 +145,19 @@ std::string ResolveImageCode(const game::Unit& item) {
     const auto quality = item.Quality();
     // Set/unique inventory graphics, mirroring the game's GFXUTIL_SetItemGfxFile: only when
     // identified, prefer the per-item graphic (setitems/uniqueitems invfile, keyed by
-    // dwFileIndex == UniqueId), then fall back to the base item's setinvfile/uniqueinvfile.
+    // dwFileIndex), then fall back to the base item's setinvfile/uniqueinvfile.
     // The uniqueinvfile fallback is how the Amulet of the Viper gets its own "invvip" and
     // unique weapons/armour get their inv*u art; without it they'd collapse to the base sprite.
     const bool identified = (item.ItemFlags() & ITEM_FLAG_IDENTIFIED) != 0;
     if (identified && quality == game::ItemQuality::Set) {
-        if (const auto setId = item.UniqueId()) {
+        if (const auto setId = item.FileIndex()) {
             image = GetTxtString("setitems", *setId, "invfile");
         }
         if (image.empty()) {
             image = GetTxtString("items", classId, "setinvfile");
         }
     } else if (identified && quality == game::ItemQuality::Unique) {
-        if (const auto uniqueId = item.UniqueId()) {
+        if (const auto uniqueId = item.FileIndex()) {
             image = GetTxtString("uniqueitems", *uniqueId, "invfile");
         }
         if (image.empty()) {
@@ -269,7 +269,7 @@ int32_t ItemColor(const game::Unit& item) {
             return -1;
         }
         const auto* table = quality == game::ItemQuality::Unique ? "uniqueitems" : "setitems";
-        if (const auto id = item.UniqueId()) {
+        if (const auto id = item.FileIndex()) {
             const int64_t shift = GetTxtInt(table, *id, "invtransform", -1);
             return (shift < 0 || shift > MAX_PALETTE_INDEX) ? -1 : static_cast<int32_t>(shift);
         }
@@ -809,7 +809,7 @@ void CharacterState::RecordKill(uint32_t unitId) {
     // SuperUniques.txt index; everything else (trash, champions, random uniques,
     // act bosses) by {class id, SpecType} so its rarity is preserved. The maps hold
     // the unsent delta - OnTick emits and clears them.
-    if (const auto superUnique = monster->UniqueId()) {
+    if (const auto superUnique = monster->SuperUniqueId()) {
         ++killsBySuperUnique_[*superUnique];
     } else {
         ++killsByClass_[{monster->ClassId(), monster->SpecType()}];

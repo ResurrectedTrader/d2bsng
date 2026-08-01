@@ -495,14 +495,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             auto size = game::GetTextSize(text, font);
 
             if (asObject) {
-                auto obj = v8::Object::New(isolate);
-                obj->Set(context, v8_convert::ToV8(isolate, "width"),
-                         v8_convert::ToV8(isolate, static_cast<int32_t>(size.width)))
-                    .Check();
-                obj->Set(context, v8_convert::ToV8(isolate, "height"),
-                         v8_convert::ToV8(isolate, static_cast<int32_t>(size.height)))
-                    .Check();
-                args.GetReturnValue().Set(obj);
+                args.GetReturnValue().Set(v8_convert::ToV8(isolate, size));
             } else {
                 auto arr = v8::Array::New(isolate, 2);
                 arr->Set(context, 0, v8_convert::ToV8(isolate, static_cast<int32_t>(size.width))).Check();

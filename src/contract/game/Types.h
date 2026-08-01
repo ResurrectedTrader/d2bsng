@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <type_traits>
+#include <vector>
 
 namespace d2bs::game {
 
@@ -401,6 +402,17 @@ struct StatEntry {
     uint32_t statId;
     uint32_t subIndex;
     int32_t value;
+};
+
+// One leaf stat array off a unit's statlist chains (Unit::GetStatLists).
+// `flags` (STATLIST_* bitmask) and `stateNo` are the game's own provenance fields,
+// copied verbatim: they say whether the array is the unit's base stats, an item mod,
+// a set tier or a runeword, and whether it currently contributes. GetAllStats /
+// GetDetailedStats merge that away.
+struct StatListEntry {
+    uint32_t flags = 0;
+    uint32_t stateNo = 0;
+    std::vector<StatEntry> stats;
 };
 
 // Result row for Level::GetExits (level transitions).
