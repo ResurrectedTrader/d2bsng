@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <memory>
 
+#include "components/analytics/Analytics.h"
 #include "components/characterstate/CharacterState.h"
 #include "components/console/Console.h"
 #include "components/console/ConsoleSink.h"
@@ -125,6 +126,11 @@ void Host::DoInitialize(HMODULE hModule) {
         // readiness, so it can start as soon as the framework is up.
         js::update::UpdateChecker::Instance().Start();
 
+        // Best-effort anonymous usage analytics: a single startup event to
+        // Aptabase, off unless an app key is configured. Independent of game
+        // readiness. See docs/analytics.md.
+        js::analytics::Analytics::Instance().Start();
+
         logger_->info("d2bsng initialized");
     } catch (const std::exception& ex) {
         logger_->error("Host::Initialize failed: {}", ex.what());
@@ -161,6 +167,7 @@ void Host::Shutdown() {
         // Halt the background update poller (joins its thread) before the rest
         // of teardown so no network work outlives the framework.
         js::update::UpdateChecker::Instance().Stop();
+        js::analytics::Analytics::Instance().Stop();
 
         ScriptEngine::Instance().Shutdown();
         game::RemoveHooks();

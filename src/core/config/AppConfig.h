@@ -98,9 +98,12 @@ struct AppConfig {
     std::chrono::milliseconds idleSleepInterval{10};
 
     // Active profile name (set when login() is called, read by me.profile).
-    // Names are normalized to lowercase on Set (matches reference's
-    // GetPrivateProfileStringW case-insensitive section lookup) so internal
-    // comparisons (snapshot diff, equality checks) are well-defined.
+    // Stored verbatim, in the casing the caller supplied. d2bs.ini section
+    // lookup is case-insensitive (GetPrivateProfileStringW), so two spellings
+    // are the same profile - consumers that compare or key on the name
+    // normalize at the point of use (utils::EqualsCaseInsensitive in the
+    // game-loop snapshot diff, utils::ToLower before the analytics profile
+    // hash) rather than relying on the stored form.
     std::string GetProfileName() const;
     void SetProfileName(std::string name);
 

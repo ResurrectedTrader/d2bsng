@@ -93,6 +93,17 @@
       <PreprocessorDefinitions>D2BS_VERSION=&quot;$(D2bsVersion)&quot;;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
+  <!-- Bake the CI-provided Aptabase app key into the D2BS_ANALYTICS_KEY macro
+       (see components/analytics/Analytics.cpp, which #ifndef-defaults it to an
+       empty string). Set via `build.ps1 -AnalyticsKey` / MSBuild
+       `-p:D2bsAnalyticsKey=A-XX-...`; without it the source's empty default
+       disables analytics. The &quot; make the quotes part of the value so it
+       expands to a string literal. -->
+  <ItemDefinitionGroup Condition="'$(D2bsAnalyticsKey)'!=''">
+    <ClCompile>
+      <PreprocessorDefinitions>D2BS_ANALYTICS_KEY=&quot;$(D2bsAnalyticsKey)&quot;;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <!-- API Globals -->
     <ClCompile Include="api\globals\Constants.cpp" />
@@ -159,6 +170,8 @@
     <ClCompile Include="components\characterstate\CharacterState.cpp" />
     <!-- Update checker -->
     <ClCompile Include="components\update\UpdateChecker.cpp" />
+    <!-- Analytics -->
+    <ClCompile Include="components\analytics\Analytics.cpp" />
   </ItemGroup>
   <ItemGroup>
     <!-- V8 Host -->
@@ -257,6 +270,8 @@
     <ClInclude Include="components\characterstate\CharacterState.h" />
     <!-- Update checker -->
     <ClInclude Include="components\update\UpdateChecker.h" />
+    <!-- Analytics -->
+    <ClInclude Include="components\analytics\Analytics.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\contract\contract.vcxproj">

@@ -1995,6 +1995,47 @@ std::optional<std::string> GetLaunchProfile() {
     return GetLaunchOptions().profile;
 }
 
+std::string GetBackendVersion() {
+    return "1.14d";
+}
+
+AnalyticsLaunchOptions GetAnalyticsLaunchOptions() {
+    const auto& opts = GetLaunchOptions();
+    return {.disabled = opts.disableAnalytics, .userId = opts.analyticsUser};
+}
+
+std::vector<std::string> GetActiveFeatures() {
+    // One tag per launch switch that is in use. Tags name the switch only - never
+    // the value behind it (no proxy address, realm host, CD key, or window title).
+    const auto& opts = GetLaunchOptions();
+    std::vector<std::string> features;
+    if (opts.multiInstance) {
+        features.emplace_back("multiInstance");
+    }
+    if (opts.proxy.has_value()) {
+        features.emplace_back("proxy");
+    }
+    if (!opts.realms.empty()) {
+        features.emplace_back("realm");
+    }
+    if (opts.profile.has_value()) {
+        features.emplace_back("profileArg");
+    }
+    if (!opts.windowTitle.empty()) {
+        features.emplace_back("windowTitle");
+    }
+    if (!opts.classicCdKey.empty() || !opts.lodCdKey.empty()) {
+        features.emplace_back("cdkey");
+    }
+    if (opts.reduceFailToJoin) {
+        features.emplace_back("failToJoin");
+    }
+    if (opts.randomizeBnetCache) {
+        features.emplace_back("bnetCacheFix");
+    }
+    return features;
+}
+
 // === Compatibility ===
 
 std::vector<CompatibilityFlag> GetCompatibilityFlags() {

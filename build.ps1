@@ -21,7 +21,12 @@ param(
     [string]$Target = 'Release',
     # Version baked into the DLL (D2BS_VERSION). CI passes the computed release
     # version; local builds fall back to `git describe` (or 0.0.0-dev).
-    [string]$Version = ''
+    [string]$Version = '',
+    # Aptabase analytics app key baked into the DLL at build time
+    # (D2BS_ANALYTICS_KEY). CI sets it from a release secret; without it the
+    # source's empty default leaves analytics disabled. Defaults to the
+    # same-named environment variable so CI can simply export the secret.
+    [string]$AnalyticsKey = $env:D2BS_ANALYTICS_KEY
 )
 
 # Native tools (msbuild, clang-format, clang-tidy) write to stderr in normal
@@ -196,7 +201,8 @@ switch ($mode) {
     }
     default {
         & $msbuild -p:Configuration=$config -p:Platform=Win32 -p:D2bsVersion=$Version `
-            -p:D2bsVersionMajor=$($verParts[0]) -p:D2bsVersionMinor=$($verParts[1]) -p:D2bsVersionPatch=$($verParts[2])
+            -p:D2bsVersionMajor=$($verParts[0]) -p:D2bsVersionMinor=$($verParts[1]) -p:D2bsVersionPatch=$($verParts[2]) `
+            -p:D2bsAnalyticsKey=$AnalyticsKey
         exit $LASTEXITCODE
     }
 }

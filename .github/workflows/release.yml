@@ -118,6 +118,11 @@ jobs:
           Expand-Archive -Force v8-libs.zip dependencies/v8/libs
       - name: Build (Release)
         shell: pwsh
+        env:
+          # Aptabase app key baked into the DLL (build.ps1 -AnalyticsKey defaults to
+          # this variable). Unset secret -> empty -> analytics compiled out; only
+          # released builds ever carry a key. See docs/analytics.md.
+          D2BS_ANALYTICS_KEY: ${{ secrets.APTABASE_APP_KEY }}
         run: .\build.ps1 Release -Version ${{ needs.version.outputs.version }}
       # Save vcpkg's binary cache right after the build populates it. Always
       # save: the run_id-unique key never collides, and we want the cache kept

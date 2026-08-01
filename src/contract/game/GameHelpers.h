@@ -221,6 +221,31 @@ void LoadMpq(const std::string& path);
 // registry, or IPC. Returns nullopt when no launch profile is requested.
 std::optional<std::string> GetLaunchProfile();
 
+// Version string of the game backend this build is compiled against, e.g.
+// "1.14d" for the lod114d backend. Fixed at compile time - the injected glue
+// DLL links exactly one backend - so it identifies "which build" for
+// diagnostics and analytics.
+std::string GetBackendVersion();
+
+// === Analytics ===
+// Analytics-related launch switches, surfaced to the frontend analytics
+// component (which lives in the js frontend and can't see the backend's
+// LaunchOptions). These carry only the command-line values; the frontend
+// applies environment-variable fallbacks and derives the ingest endpoint. See
+// docs/analytics.md.
+struct AnalyticsLaunchOptions {
+    bool disabled = false;  // -noanalytics
+    std::string userId;     // -analyticsuser <id>
+};
+AnalyticsLaunchOptions GetAnalyticsLaunchOptions();
+
+// Backend-agnostic feature tags active this session (e.g. "multiInstance",
+// "proxy", "realm"), which the framework folds into the analytics feature list.
+// Each backend reports whatever applies to it; the framework neither enumerates
+// nor interprets the tags. A tag only ever names a feature - never the value
+// behind it (no proxy address, realm host, window title, or CD key).
+std::vector<std::string> GetActiveFeatures();
+
 // === Realms ===
 // A Battle.net realm/gateway the client can connect to: a display name and a
 // server host (hostname or IP). D2 dials gateways on the fixed BNCS port 6112.
