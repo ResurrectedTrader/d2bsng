@@ -303,13 +303,13 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             info.GetReturnValue().Set(data->Direction());
         });
 
-    /// @description Super-unique monster ID (SuperUniques.txt index; -1 when the monster is not super-unique);
-    /// Monster units only.
+    /// @description Super-unique monster ID (SuperUniques.txt index). -1 for any other unit, including monsters that
+    /// are not super-unique. Items carry their dwFileIndex on `fileindex` instead.
     /// @type {number}
     Property(
         isolate, inst, "uniqueid", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             auto* data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Monster) {
+            if (!*data) {
                 return;
             }
             info.GetReturnValue().Set(static_cast<int32_t>(data->SuperUniqueId().value_or(-1)));

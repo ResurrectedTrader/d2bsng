@@ -60,10 +60,7 @@ inline D2UnitStrc* AsUnit(void* p) noexcept {
 using imports::extras::UNIT_HASH_BUCKETS;
 using imports::extras::UNIT_HASH_TYPE_COUNT;
 
-// Reference parity: D2 stores hp/mana/stamina (the contiguous STAT_HITPOINTS
-// .. STAT_MAXSTAMINA run) in 8.8 fixed point.
-constexpr uint32_t STAT_FIXED_POINT_FIRST = STAT_HITPOINTS;
-constexpr uint32_t STAT_FIXED_POINT_LAST = STAT_MAXSTAMINA;
+static_assert(STAT_FIXED_POINT_FIRST == STAT_HITPOINTS && STAT_FIXED_POINT_LAST == STAT_MAXSTAMINA);
 
 // Reference parity: GetItemPrice's mode argument 0/1 = buy/sell, 3 = repair
 // (mode 2 in our enum maps to 3 internally).

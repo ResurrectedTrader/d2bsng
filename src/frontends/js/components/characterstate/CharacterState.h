@@ -34,8 +34,9 @@ class CharacterState {
     // Records a monster death observed by the client, fed from the game-layer
     // death hook on the game thread (same thread as OnTick, so no locking). The
     // unit is resolved to bucket the kill by (class id, rarity/SpecType) and, for
-    // super-uniques, by SuperUniques.txt index; the running totals ride along in
-    // the next snapshot. No-op if the unit can't be resolved. Counts reset per game.
+    // super-uniques, by SuperUniques.txt index. The counts are an unsent delta, not a
+    // running total - OnTick emits and clears them - so a kill observed just before the
+    // game ends rides the next game's first send. No-op if the unit can't be resolved.
     void RecordKill(uint32_t unitId);
 
     CharacterState(const CharacterState&) = delete;
@@ -61,8 +62,14 @@ class CharacterState {
 
     // Last-sent section fingerprints; nullopt means "not yet sent this game".
     std::optional<size_t> identityFingerprint_;
-    std::optional<size_t> statsFingerprint_;
     std::optional<size_t> progressionFingerprint_;
+    // A wearer is fingerprinted in two parts: the unit document (identity, skills) which
+    // moves only on a real change, and the merged `stats` block, which tracks
+    // experience/gold and so moves nearly every sample.
+    std::optional<size_t> playerFingerprint_;
+    std::optional<size_t> playerStatsFingerprint_;
+    std::optional<size_t> mercFingerprint_;
+    std::optional<size_t> mercStatsFingerprint_;
     std::array<std::optional<size_t>, CONTAINER_COUNT> containerFingerprints_;
 
     // Combined fingerprint of the most recently sampled state. The debounce holds

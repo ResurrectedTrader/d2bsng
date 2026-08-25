@@ -107,7 +107,7 @@ inline v8::Local<v8::Object> ToV8(v8::Isolate* isolate, const game::StatEntry& s
     return obj;
 }
 
-// {flags: uint32, stateNo: int32, stats: StatEntry[]}
+// {flags: uint32, stateNo: uint32, stats: StatEntry[]}
 inline v8::Local<v8::Object> ToV8(v8::Isolate* isolate, const game::StatListEntry& list) {
     auto context = isolate->GetCurrentContext();
     auto stats = v8::Array::New(isolate, static_cast<int32_t>(list.stats.size()));

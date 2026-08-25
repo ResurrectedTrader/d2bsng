@@ -161,9 +161,8 @@ class Unit {
     std::optional<Unit> FindFirstInventoryItem(const UnitCursorState& state = {}) const;
     // Find next inventory item matching stored cursor + owner. Returns new handle.
     std::optional<Unit> FindNextInventoryItem() const;
-    // Walk current act's Room1 chain searching for this unit's merc (summoned
-    // monster whose owner id == this unit's id). Currently stubbed: real
-    // implementation deferred until Act/Room1 traversal primitives land.
+    // Search the monster table for this unit's merc (a summoned monster of a merc class
+    // whose owner resolves to this unit).
     std::optional<Unit> FindMerc() const;
     // Bulk collect of this unit's inventory items via GetFirstItem/GetNextItem.
     // Empty vector on no inventory (binding emits JS `undefined` in that case).

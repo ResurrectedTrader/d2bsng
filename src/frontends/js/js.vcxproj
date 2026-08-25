@@ -168,6 +168,7 @@
     <ClCompile Include="components\gameloop\GameLoop.cpp" />
     <!-- Character state -->
     <ClCompile Include="components\characterstate\CharacterState.cpp" />
+    <ClCompile Include="components\characterstate\UnitJson.cpp" />
     <!-- Update checker -->
     <ClCompile Include="components\update\UpdateChecker.cpp" />
     <!-- Analytics -->
@@ -268,6 +269,7 @@
     <ClInclude Include="components\gameloop\GameLoop.h" />
     <!-- Character state -->
     <ClInclude Include="components\characterstate\CharacterState.h" />
+    <ClInclude Include="components\characterstate\UnitJson.h" />
     <!-- Update checker -->
     <ClInclude Include="components\update\UpdateChecker.h" />
     <!-- Analytics -->
