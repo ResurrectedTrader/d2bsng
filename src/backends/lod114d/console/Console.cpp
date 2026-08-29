@@ -31,6 +31,7 @@ namespace {
 constexpr int32_t INITIAL_WIDTH = 1000;
 constexpr int32_t INITIAL_HEIGHT = 700;
 constexpr int32_t TARGET_FRAME_MS = 16;
+constexpr uint32_t HIDDEN_WAIT_MS = 100;
 constexpr const wchar_t* WND_CLASS = L"d2bsng_console";
 constexpr const wchar_t* WND_TITLE = L"d2bsng console";
 constexpr const wchar_t* TITLE_SUFFIX = L" Console";
@@ -342,6 +343,25 @@ void RenderLoop(const std::stop_token& stop) {
         }
 
         ImGui::Render();
+
+        // The draw callback still runs while hidden - it drains the message queue and sees the
+        // visible -> hidden edge - but nothing it produced reaches the screen, so skip the GPU
+        // work and park on the message queue rather than pacing at 60 FPS.
+        //
+        // Dropping the draw data on the floor is safe because this imgui builds its font texture
+        // in ImGui_ImplOpenGL2_NewFrame. From 1.92 texture upload moves into RenderDrawData, so a
+        // version bump has to revisit this branch.
+        // Minimized counts as not showing: it keeps WS_VISIBLE, but nothing it draws reaches the
+        // user either.
+        if (IsWindowVisible(hwnd) == FALSE || IsIconic(hwnd) != FALSE) {
+            MsgWaitForMultipleObjectsEx(0, nullptr, HIDDEN_WAIT_MS, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+            // Same frame floor as the visible path. Raw input is registered RIDEV_INPUTSINK, so
+            // every keystroke system-wide wakes this wait - without the floor a fast enough
+            // message source would make a hidden console cost more than a shown one.
+            std::this_thread::sleep_until(nextFrame);
+            nextFrame = steady_clock::now() + milliseconds(TARGET_FRAME_MS);
+            continue;
+        }
 
         RECT clientRect{};
         GetClientRect(hwnd, &clientRect);

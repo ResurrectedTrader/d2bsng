@@ -730,7 +730,7 @@ Game types are identity-based handles with per-frame pointer caching (`HandleCac
 
 - **GameReadLock** (in `ResolvePtr()`) - automatic, per-resolve. Scripts never block each other.
 - **Bridge::Lock()** - explicit, for V8 callbacks that iterate game data or do multi-step traversals. Place as the first line of the callback.
-- **GameWriteLock** - game thread only. Held continuously across the frame body; released during `GameLoop::OnSleep`'s drain loop in 1ms slices so script readers can acquire `GameReadLock`, then reacquired before returning to the game's frame work. Bootstrap via `firstSleep_` first-tick handling.
+- **GameWriteLock** - game thread only. Held continuously across the frame body; released during `GameLoop::OnSleep`'s drain loop in `idleSleepInterval` slices so script readers can acquire `GameReadLock`, then reacquired before returning to the game's frame work. Bootstrap via `firstSleep_` first-tick handling.
 - **GameThread::Execute()** - post work to game thread from scripts. For menu operations requiring game thread (login, createGame, etc.).
 
 When implementing stubs: simple property reads just work (ResolvePtr handles locking). Iterating game linked lists or mutating game state needs `Bridge::Lock()`. Menu UI operations need `GameThread::Execute()`.

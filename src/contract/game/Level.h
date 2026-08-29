@@ -52,6 +52,11 @@ class Level {
     // type/classId filters (matches each room's GetPresetUnits contract).
     std::vector<PresetUnitInfo> GetPresetUnits(std::optional<uint32_t> type = std::nullopt,
                                                std::optional<uint32_t> classId = std::nullopt) const;
+
+    // First match in room-chain order - same unit GetPresetUnits(...).front() yields, without
+    // building (and room-data-loading) the whole level to discard all but one.
+    std::optional<PresetUnitInfo> FindFirstPresetUnit(std::optional<uint32_t> type = std::nullopt,
+                                                      std::optional<uint32_t> classId = std::nullopt) const;
 };
 
 }  // namespace d2bs::game

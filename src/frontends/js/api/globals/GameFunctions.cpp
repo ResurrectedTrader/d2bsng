@@ -337,14 +337,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
 
             if (auto room = level->FindRoomAt(pos)) {
-                auto rb = room->Bounds();
-                auto local = pos - rb.origin;
-                auto collision = room->GetCollisionFlat();
-                size_t idx = (local.y * rb.size.width) + local.x;
-                if (idx < collision.size()) {
-                    args.GetReturnValue().Set(collision[idx]);
-                    return;
-                }
+                args.GetReturnValue().Set(room->CollisionAt(pos));
+                return;
             }
 
             args.GetReturnValue().Set(0);
@@ -813,13 +807,13 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto matches = level->GetPresetUnits(nType, nClassId);
-            if (matches.empty()) {
+            auto match = level->FindFirstPresetUnit(nType, nClassId);
+            if (!match) {
                 args.GetReturnValue().SetFalse();
                 return;
             }
 
-            auto data = std::make_unique<game::PresetUnitInfo>(matches.front());
+            auto data = std::make_unique<game::PresetUnitInfo>(*match);
             auto obj = JSPresetUnit::CreateInstance(isolate, context, std::move(data));
             if (obj.IsEmpty()) {
                 v8_error::ThrowError(isolate, "Failed to create PresetUnit object");

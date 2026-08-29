@@ -47,6 +47,9 @@ class Room {
     // RemoveRoomData if needed).
     std::vector<std::vector<uint16_t>> GetCollision() const;
     std::vector<uint16_t> GetCollisionFlat() const;
+    // Single collision cell, in absolute game coordinates (same space as Bounds()).
+    // Returns 0 when the room has no collision data or the position lies outside it.
+    uint16_t CollisionAt(Position pos) const;
 
     // Traversal
     Room GetNext() const;

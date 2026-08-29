@@ -1,12 +1,34 @@
 #pragma once
 
 #include <v8.h>
+#include <atomic>
+#include <cstdint>
 #include <span>
 #include <string>
+#include <string_view>
 
 #include "game/Types.h"
 
 namespace d2bs {
+
+namespace events {
+
+// Handlers registered for one event name, across all scripts. Dispatchers check this before
+// building an event, which is the expensive half - a packet event copies the packet and every
+// blockable event allocates dispatch bookkeeping. Counts handlers regardless of script state,
+// so it can only over-report; FireIfRunning still filters per script.
+class ListenerCount {
+   public:
+    static ListenerCount& For(std::string_view eventName);
+
+    void Add(int32_t delta) { count_.fetch_add(delta, std::memory_order_release); }
+    bool Any() const { return count_.load(std::memory_order_acquire) > 0; }
+
+   private:
+    std::atomic<int32_t> count_{0};
+};
+
+}  // namespace events
 
 // Non-blockable event dispatchers
 void LifeEventDispatch(uint32_t life);

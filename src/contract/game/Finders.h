@@ -89,6 +89,9 @@ inline std::optional<UnitType> NextTypeAfter(UnitType t) {
 // === Unit finders ===
 
 inline std::optional<Unit> Unit::FindFirst(const UnitCursorState& s) {
+    // One read lock for the whole walk: the per-candidate ResolvePtr() calls in Matches()
+    // and the iteration primitives collapse to free recursive re-entries.
+    auto guard = Bridge::Lock();
     if (s.unitId) {
         auto u = Find(*s.unitId, s.type);
         if (u && Matches(*u, s))
@@ -114,6 +117,7 @@ inline std::optional<Unit> Unit::FindFirst(const UnitCursorState& s) {
 }
 
 inline std::optional<Unit> Unit::FindNext() const {
+    auto guard = Bridge::Lock();
     const auto& s = Cursor();
 
     // Advance within the current hash table.
@@ -135,6 +139,7 @@ inline std::optional<Unit> Unit::FindNext() const {
 }
 
 inline std::optional<Unit> Unit::FindFirstInventoryItem(const UnitCursorState& state) const {
+    auto guard = Bridge::Lock();
     // Walk this unit's inventory; stamp cursor with this unit as anchor.
     for (auto item = GetFirstItem(); item; item = item->GetNextItem()) {
         if (Matches(*item, state)) {
@@ -149,6 +154,7 @@ inline std::optional<Unit> Unit::FindFirstInventoryItem(const UnitCursorState& s
 }
 
 inline std::optional<Unit> Unit::FindNextInventoryItem() const {
+    auto guard = Bridge::Lock();
     const auto& s = Cursor();
     if (!s.ownerId || !s.ownerType)
         return std::nullopt;  // Not an InventoryItem cursor.
@@ -173,6 +179,7 @@ inline std::optional<Unit> Unit::FindNextInventoryItem() const {
 }
 
 inline std::optional<Unit> Unit::FindMerc() const {
+    auto guard = Bridge::Lock();
     // Reference D2Helpers.cpp:482-498 walks pUnit->pAct->pRoom1 then each
     // Room1's pUnitFirst/pRoomNext chain. We walk the monster hash table
     // directly via existing iteration primitives - the set of loaded monsters
@@ -196,6 +203,7 @@ inline std::optional<Unit> Unit::FindMerc() const {
 // when the unit has no inventory or an empty one - binding emits JS
 // `undefined` on .empty() (matches reference behaviour).
 inline std::vector<Unit> Unit::GetItems() const {
+    auto guard = Bridge::Lock();
     std::vector<Unit> out;
     for (auto item = GetFirstItem(); item; item = item->GetNextItem()) {
         out.push_back(*item);
@@ -209,6 +217,7 @@ inline std::vector<Unit> Unit::GetItems() const {
 //   x >= pos.x && y >= pos.y && x < pos.x+sizeX && y < pos.y+sizeY
 // Rect::Contains uses the same half-open convention.
 inline std::optional<Room> Level::FindRoomAt(Position pos) const {
+    auto guard = Bridge::Lock();
     for (auto r = GetFirstRoom(); r; r = r.GetNext()) {
         if (r.Bounds().Contains(pos))
             return r;
@@ -230,10 +239,25 @@ inline std::vector<PresetUnitInfo> Level::GetPresetUnits(std::optional<uint32_t>
     return out;
 }
 
+inline std::optional<PresetUnitInfo> Level::FindFirstPresetUnit(std::optional<uint32_t> type,
+                                                                std::optional<uint32_t> classId) const {
+    const uint32_t levelId = Id();
+    for (auto r = GetFirstRoom(); r; r = r.GetNext()) {
+        auto roomPresets = r.GetPresetUnits(type, classId);
+        if (!roomPresets.empty()) {
+            auto pu = roomPresets.front();
+            pu.level = levelId;
+            return pu;
+        }
+    }
+    return std::nullopt;
+}
+
 // === Party finders (static factories) ===
 
 // Reference: JSParty.cpp:127 - exact GID match on the roster chain.
 inline std::optional<Party> Party::FindById(uint32_t id) {
+    auto guard = Bridge::Lock();
     for (auto p = GetFirst(); p; p = std::optional{p->GetNext()}) {
         if (!*p)
             break;
@@ -245,6 +269,7 @@ inline std::optional<Party> Party::FindById(uint32_t id) {
 
 // Reference: JSParty.cpp:132 - case-insensitive ASCII compare (`_stricmp`).
 inline std::optional<Party> Party::FindByName(const std::string& name) {
+    auto guard = Bridge::Lock();
     for (auto p = GetFirst(); p; p = std::optional{p->GetNext()}) {
         if (!*p)
             break;

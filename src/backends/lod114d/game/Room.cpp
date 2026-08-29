@@ -164,6 +164,33 @@ std::vector<uint16_t> Room::GetCollisionFlat() const {
     return {grid->pCollisionMask, grid->pCollisionMask + count};
 }
 
+uint16_t Room::CollisionAt(Position pos) const {
+    auto* drlgRoom = AsDrlgRoom(ResolvePtr());
+    if (drlgRoom == nullptr) {
+        return 0;
+    }
+    RoomDataGuard guard(drlgRoom);
+    auto* activeRoom = drlgRoom->pRoom;
+    if (activeRoom == nullptr || activeRoom->pCollisionGrid == nullptr) {
+        return 0;
+    }
+    auto* grid = activeRoom->pCollisionGrid;
+    if (grid->pCollisionMask == nullptr) {
+        return 0;
+    }
+    // Offsets against the grid's own origin, which bounds the position before the unsigned
+    // subtraction. Matches D2's own indexing (D2Collision.cpp) and the reference's.
+    const auto originX = static_cast<uint32_t>(grid->pRoomCoords.nSubtileX);
+    const auto originY = static_cast<uint32_t>(grid->pRoomCoords.nSubtileY);
+    const auto width = static_cast<uint32_t>(grid->pRoomCoords.nSubtileWidth);
+    const auto height = static_cast<uint32_t>(grid->pRoomCoords.nSubtileHeight);
+    if (pos.x < originX || pos.y < originY || pos.x >= originX + width || pos.y >= originY + height) {
+        return 0;
+    }
+    const uint32_t index = ((pos.y - originY) * width) + (pos.x - originX);
+    return grid->pCollisionMask[index];
+}
+
 Room Room::GetNext() const {
     auto* drlgRoom = AsDrlgRoom(ResolvePtr());
     if (drlgRoom == nullptr)

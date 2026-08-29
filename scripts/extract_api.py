@@ -742,8 +742,12 @@ class ApiExtractor:
                         self.constants[s] = entry
 
         elif tag == "me":
-            if name == "SetNativeDataProperty":
-                s = nth_arg_string(call, 1, depth=6)
+            # InstanceProperty(isolate, context, me, "name", getter[, setter]) - the `me`
+            # extras go through the class trampoline, so the name is the 4th argument.
+            # A raw SetNativeDataProperty(context, "name", ...) puts it 2nd.
+            if name in ("InstanceProperty", "SetNativeDataProperty"):
+                idx = 3 if name == "InstanceProperty" else 1
+                s = nth_arg_string(call, idx, depth=6)
                 if s:
                     ro = readonly_from(doc, call)
                     doc.setdefault("mode", "readonly" if ro else "readwrite")
@@ -1180,16 +1184,29 @@ def extract_launch_options(flags, path=LAUNCH_OPTIONS_SOURCE):
     return rows
 
 
-def _find_string_literal(cur, depth=8):
+def _find_string_literal(cur, depth=8, hops=2):
     """First string literal anywhere under *cur*.  Unlike first_string_in this
     descends into function bodies, so it can read a ``Name() { return "x"; }``
-    return value."""
+    return value - and follows a reference to a constant, so the equivalent
+    ``return EVENT_NAME;`` resolves to that constant's initializer.
+
+    A referenced declaration is a separate subtree, so the hop restarts *depth*
+    rather than spending the caller's remaining budget on it; *hops* is what
+    bounds the walk (and stops a cycle between two constants)."""
     if cur.kind == CursorKind.STRING_LITERAL:
         return strip_quotes(cur.spelling)
     if depth <= 0:
         return None
+    if cur.kind == CursorKind.DECL_REF_EXPR and hops > 0:
+        target = cur.referenced
+        if target is not None:
+            found = _find_string_literal(target, hops=hops - 1)
+            if found is not None:
+                return found
+        # Fall through rather than give up: a reference that resolves to no literal must not
+        # stop the scan of this node's siblings, or `return cond ? OTHER : "x";` finds nothing.
     for ch in cur.get_children():
-        found = _find_string_literal(ch, depth - 1)
+        found = _find_string_literal(ch, depth - 1, hops)
         if found is not None:
             return found
     return None
@@ -1197,8 +1214,9 @@ def _find_string_literal(cur, depth=8):
 
 def _event_class_info(cur):
     """If *cur* is an event class (derives from BaseEvent/BlockableEvent),
-    return ``(name, blockable)``; else None.  ``name`` is the ``Name()``
-    override's string literal - the event analog of a class's ClassName."""
+    return ``(name, blockable)``; else None.  ``name`` is the ``Name()`` override's
+    string, whether written inline or as a reference to the class's ``EVENT_NAME``
+    constant."""
     bases = [
         ch.type.spelling
         for ch in cur.get_children()

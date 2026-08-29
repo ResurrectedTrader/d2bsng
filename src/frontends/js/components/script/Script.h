@@ -203,6 +203,9 @@ class Script : public std::enable_shared_from_this<Script> {
     [[nodiscard]] std::vector<std::shared_ptr<js::drawing::Drawable>> GetDrawables();
 
    private:
+    // Drops every handler and its listener counts. Caller holds eventFunctionsMutex_.
+    void ClearEventFunctionsLocked();
+
     void ThreadMain(const std::stop_token& stopToken);
     void SetupIsolate();
     void TeardownIsolate();

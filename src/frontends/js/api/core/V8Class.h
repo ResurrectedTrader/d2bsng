@@ -1,8 +1,10 @@
 #pragma once
 
 #include <v8.h>
+#include <cstdint>
 #include <memory>
 #include <mutex>
+#include <string_view>
 #include <unordered_map>
 #include "V8Convert.h"
 #include "V8Error.h"
@@ -10,6 +12,21 @@
 #include "components/script/NativeCallHook.h"
 
 namespace d2bs::api {
+
+namespace detail {
+
+// Seeds each class's type tag (see V8ClassBase::typeTag_). ClassRegistry uses it to assert at
+// compile time that no two classes hash alike.
+constexpr uint32_t Fnv1a(std::string_view text) {
+    uint32_t hash = 2166136261U;
+    for (const char ch : text) {
+        hash ^= static_cast<uint8_t>(ch);
+        hash *= 16777619U;
+    }
+    return hash;
+}
+
+}  // namespace detail
 
 // CRTP base template for V8 class bindings
 // Derived classes must provide:
@@ -28,6 +45,17 @@ class V8ClassBase {
         static TemplateCache cache;
         return cache;
     }
+
+    // Address-only marker, one per Derived. Stored in internal field 1 so Unwrap identifies its
+    // own instances with a pointer compare rather than a template-chain check.
+    //
+    // Its value is seeded from the class name, which is what keeps the tags at distinct
+    // addresses: the DLL links with /OPT:ICF (EnableCOMDATFolding in d2bs.vcxproj), which folds
+    // COMDATs holding identical bytes. Uniform contents would let every class share one address
+    // and Unwrap would then accept any wrapper of any class. ClassName is therefore required to
+    // be unique across classes.
+    // NOLINTNEXTLINE(cert-err58-cpp) - constinit makes this compile-time; the check misses that
+    inline static constinit uint32_t typeTag_ = detail::Fnv1a(Derived::ClassName);
 
     // V8 weak callbacks require a two-pass mechanism:
     // - First pass: Reset handle and schedule second pass (no other V8 API calls allowed)
@@ -56,20 +84,22 @@ class V8ClassBase {
             v8::WeakCallbackType::kParameter);
     }
 
+    static constexpr int32_t NATIVE_PTR_FIELD = 0;
+    static constexpr int32_t TYPE_TAG_FIELD = 1;
+    static constexpr int32_t INTERNAL_FIELD_COUNT = 2;
+
    public:
     // Returns (or creates) the cached FunctionTemplate for this isolate.
     static v8::Local<v8::FunctionTemplate> GetTemplate(v8::Isolate* isolate) {
         auto& cache = GetCache();
         std::scoped_lock lock(cache.mutex);
-
         auto it = cache.templates.find(isolate);
         if (it == cache.templates.end()) {
             auto tpl = v8::FunctionTemplate::New(isolate, Derived::New);
             tpl->SetClassName(v8_convert::ToV8(isolate, Derived::ClassName));
-            tpl->InstanceTemplate()->SetInternalFieldCount(1);
+            tpl->InstanceTemplate()->SetInternalFieldCount(INTERNAL_FIELD_COUNT);
             Derived::ConfigureTemplate(isolate, tpl);
-            cache.templates.emplace(isolate, v8::Global<v8::FunctionTemplate>(isolate, tpl));
-            return tpl;
+            it = cache.templates.emplace(isolate, v8::Global<v8::FunctionTemplate>(isolate, tpl)).first;
         }
         return it->second.Get(isolate);
     }
@@ -90,16 +120,33 @@ class V8ClassBase {
         return GetTemplate(isolate)->HasInstance(value);
     }
 
-    // Unwrap native pointer from V8 object
+    // Unwrap native pointer from V8 object.
+    //
+    // Runs on every property read and method call, so it identifies the receiver by the
+    // type tag in field 1 rather than by IsInstance's template-chain walk. The count check
+    // has to come first - V8's inline field accessor does no bounds check, so probing field
+    // 1 on a plain object would read out of bounds.
+    //
+    // This is a type check, not a hardening boundary. Most accessors go straight to
+    // `if (!*data)`, which dereferences the result, so a nullptr return still faults - and
+    // V8 14 removed AccessorSignature, so a script that lifts a getter onto a foreign
+    // receiver can reach that. Deliberate, and not defended against: scripts are trusted
+    // here (they already have sockets, files and raw packet access).
     static NativeType* Unwrap(v8::Local<v8::Object> obj) {
-        if (!IsInstance(obj) || obj->InternalFieldCount() < 1) {
+        if (obj.IsEmpty() || obj->InternalFieldCount() < INTERNAL_FIELD_COUNT ||
+            obj->GetAlignedPointerFromInternalField(TYPE_TAG_FIELD) != &typeTag_) {
             return nullptr;
         }
-        return static_cast<NativeType*>(obj->GetAlignedPointerFromInternalField(0));
+        return static_cast<NativeType*>(obj->GetAlignedPointerFromInternalField(NATIVE_PTR_FIELD));
     }
 
-    // Wrap native pointer into V8 object's internal field
-    static void Wrap(v8::Local<v8::Object> obj, NativeType* ptr) { obj->SetAlignedPointerInInternalField(0, ptr); }
+    // Wrap native pointer into V8 object's internal fields. Stamping the tag here (rather
+    // than in InitInstance) covers the direct Wrap() callers too, so no instance of this
+    // class can exist without one.
+    static void Wrap(v8::Local<v8::Object> obj, NativeType* ptr) {
+        obj->SetAlignedPointerInInternalField(NATIVE_PTR_FIELD, ptr);
+        obj->SetAlignedPointerInInternalField(TYPE_TAG_FIELD, &typeTag_);
+    }
 
     // Initialize a V8 object with native data and weak GC callback (constructor path).
     static void InitInstance(v8::Isolate* isolate, v8::Local<v8::Object> obj, std::unique_ptr<NativeType> data) {
@@ -122,6 +169,31 @@ class V8ClassBase {
         return scope.Escape(obj);
     }
 
+    // Property on one already-built instance rather than on the class template. The `me`
+    // global is a JSUnit instance carrying extra own accessors; registering them here rather
+    // than with a raw SetNativeDataProperty puts them on the same trampoline as Property(),
+    // so per-call stack capture reaches them.
+    template <typename Getter>
+    static void InstanceProperty(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Local<v8::Object> obj,
+                                 const char* name, Getter getter) {
+        const v8::AccessorNameGetterCallback getterFn = +getter;
+        auto* accessors = js::script::InternAccessors(getterFn, nullptr);
+        obj->SetNativeDataProperty(context, v8_convert::ToV8(isolate, name), &js::script::PropertyGetterTrampoline,
+                                   nullptr, v8::External::New(isolate, accessors), v8::PropertyAttribute::ReadOnly)
+            .Check();
+    }
+
+    template <typename Getter, typename Setter>
+    static void InstanceProperty(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Local<v8::Object> obj,
+                                 const char* name, Getter getter, Setter setter) {
+        const v8::AccessorNameGetterCallback getterFn = +getter;
+        const v8::AccessorNameSetterCallback setterFn = +setter;
+        auto* accessors = js::script::InternAccessors(getterFn, setterFn);
+        obj->SetNativeDataProperty(context, v8_convert::ToV8(isolate, name), &js::script::PropertyGetterTrampoline,
+                                   &js::script::PropertySetterTrampoline, v8::External::New(isolate, accessors))
+            .Check();
+    }
+
    protected:
     // ========================================================================
     // Property registration with lambda getters/setters
@@ -134,9 +206,7 @@ class V8ClassBase {
     template <typename Getter>
     static void Property(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> inst, const char* name, Getter getter) {
         const v8::AccessorNameGetterCallback getterFn = +getter;
-        // Leaked on purpose - per-isolate template setup is bounded.
-        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - lifetime is isolate-bound, never freed
-        auto* accessors = new js::script::PropertyAccessors{.getter = getterFn, .setter = nullptr};
+        auto* accessors = js::script::InternAccessors(getterFn, nullptr);
         inst->SetNativeDataProperty(v8_convert::ToV8(isolate, name), &js::script::PropertyGetterTrampoline, nullptr,
                                     v8::External::New(isolate, accessors));
     }
@@ -147,8 +217,7 @@ class V8ClassBase {
                          Setter setter) {
         const v8::AccessorNameGetterCallback getterFn = +getter;
         const v8::AccessorNameSetterCallback setterFn = +setter;
-        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - lifetime is isolate-bound, never freed
-        auto* accessors = new js::script::PropertyAccessors{.getter = getterFn, .setter = setterFn};
+        auto* accessors = js::script::InternAccessors(getterFn, setterFn);
         inst->SetNativeDataProperty(v8_convert::ToV8(isolate, name), &js::script::PropertyGetterTrampoline,
                                     &js::script::PropertySetterTrampoline, v8::External::New(isolate, accessors));
     }

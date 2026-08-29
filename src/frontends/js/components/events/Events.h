@@ -16,6 +16,9 @@
 
 namespace d2bs {
 
+// EVENT_NAME is the one place each event's script-visible name is written: Name() returns it, the
+// dispatcher probes it via the type, and scripts/extract_api.py reads it for the API docs.
+
 // ============================================================================
 // Game State Events
 // ============================================================================
@@ -31,7 +34,8 @@ class LifeEvent : public BaseEvent {
    public:
     explicit LifeEvent(uint32_t life) : life(life) {}
     const uint32_t life;
-    [[nodiscard]] std::string_view Name() const override { return "melife"; }
+    static constexpr std::string_view EVENT_NAME = "melife";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 };
 
 /// @event Player mana changed or first observed.
@@ -45,7 +49,8 @@ class ManaEvent : public BaseEvent {
    public:
     explicit ManaEvent(uint32_t mana) : mana(mana) {}
     const uint32_t mana;
-    [[nodiscard]] std::string_view Name() const override { return "memana"; }
+    static constexpr std::string_view EVENT_NAME = "memana";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 };
 
 /// @event A player unit id became current or changed.
@@ -59,7 +64,8 @@ class PlayerAssignEvent : public BaseEvent {
    public:
     explicit PlayerAssignEvent(uint32_t unitId) : unitId(unitId) {}
     const uint32_t unitId;
-    [[nodiscard]] std::string_view Name() const override { return "playerassign"; }
+    static constexpr std::string_view EVENT_NAME = "playerassign";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 };
 
 // ============================================================================
@@ -77,7 +83,8 @@ class KeyDownEvent : public BaseEvent {
    public:
     explicit KeyDownEvent(uint32_t key) : key(key) {}
     const uint32_t key;
-    [[nodiscard]] std::string_view Name() const override { return "keydown"; }
+    static constexpr std::string_view EVENT_NAME = "keydown";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 };
 
 /// @event A key was released (non-blocking notification).
@@ -91,7 +98,8 @@ class KeyUpEvent : public BaseEvent {
    public:
     explicit KeyUpEvent(uint32_t key) : key(key) {}
     const uint32_t key;
-    [[nodiscard]] std::string_view Name() const override { return "keyup"; }
+    static constexpr std::string_view EVENT_NAME = "keyup";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 };
 
 /// @event A key was pressed.
@@ -106,7 +114,8 @@ class KeyDownBlockerEvent : public BlockableEvent {
    public:
     explicit KeyDownBlockerEvent(uint32_t key) : key(key) {}
     const uint32_t key;
-    [[nodiscard]] std::string_view Name() const override { return "keydownblocker"; }
+    static constexpr std::string_view EVENT_NAME = "keydownblocker";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 };
 
 /// @event A key was released.
@@ -121,7 +130,8 @@ class KeyUpBlockerEvent : public BlockableEvent {
    public:
     explicit KeyUpBlockerEvent(uint32_t key) : key(key) {}
     const uint32_t key;
-    [[nodiscard]] std::string_view Name() const override { return "keyupblocker"; }
+    static constexpr std::string_view EVENT_NAME = "keyupblocker";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 };
 
 /// @event Mouse button changed.
@@ -147,7 +157,8 @@ class MouseClickEvent : public BaseEvent {
     const game::ClickButton button;
     const game::Position pos;
     const game::KeyState state;
-    [[nodiscard]] std::string_view Name() const override { return "mouseclick"; }
+    static constexpr std::string_view EVENT_NAME = "mouseclick";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 };
 
 /// @event Mouse moved.
@@ -163,7 +174,8 @@ class MouseMoveEvent : public BaseEvent {
    public:
     explicit MouseMoveEvent(game::Position pos) : pos(pos) {}
     const game::Position pos;
-    [[nodiscard]] std::string_view Name() const override { return "mousemove"; }
+    static constexpr std::string_view EVENT_NAME = "mousemove";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 };
 
 // ============================================================================
@@ -186,7 +198,8 @@ class ChatEvent : public BaseEvent {
     ChatEvent(std::string sender, std::string message) : sender(std::move(sender)), message(std::move(message)) {}
     const std::string sender;
     const std::string message;
-    [[nodiscard]] std::string_view Name() const override { return "chatmsg"; }
+    static constexpr std::string_view EVENT_NAME = "chatmsg";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 };
 
 /// @event A chat message was received.
@@ -207,7 +220,8 @@ class ChatBlockerEvent : public BlockableEvent {
         : sender(std::move(sender)), message(std::move(message)) {}
     const std::string sender;
     const std::string message;
-    [[nodiscard]] std::string_view Name() const override { return "chatmsgblocker"; }
+    static constexpr std::string_view EVENT_NAME = "chatmsgblocker";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 };
 
 /// @event The local player submitted a chat line.
@@ -225,7 +239,8 @@ class ChatInputEvent : public BaseEvent {
    public:
     explicit ChatInputEvent(std::string message) : message(std::move(message)) {}
     const std::string message;
-    [[nodiscard]] std::string_view Name() const override { return "chatinput"; }
+    static constexpr std::string_view EVENT_NAME = "chatinput";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 };
 
 /// @event The local player submitted a chat line.
@@ -244,7 +259,8 @@ class ChatInputBlockerEvent : public BlockableEvent {
    public:
     explicit ChatInputBlockerEvent(std::string message) : message(std::move(message)) {}
     const std::string message;
-    [[nodiscard]] std::string_view Name() const override { return "chatinputblocker"; }
+    static constexpr std::string_view EVENT_NAME = "chatinputblocker";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 };
 
 /// @event A whisper was received (non-blocking).
@@ -263,7 +279,8 @@ class WhisperEvent : public BaseEvent {
     WhisperEvent(std::string sender, std::string message) : sender(std::move(sender)), message(std::move(message)) {}
     const std::string sender;
     const std::string message;
-    [[nodiscard]] std::string_view Name() const override { return "whispermsg"; }
+    static constexpr std::string_view EVENT_NAME = "whispermsg";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 };
 
 /// @event A whisper was received.
@@ -284,7 +301,8 @@ class WhisperBlockerEvent : public BlockableEvent {
         : sender(std::move(sender)), message(std::move(message)) {}
     const std::string sender;
     const std::string message;
-    [[nodiscard]] std::string_view Name() const override { return "whispermsgblocker"; }
+    static constexpr std::string_view EVENT_NAME = "whispermsgblocker";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 };
 
 // ============================================================================
@@ -305,7 +323,8 @@ class GamePacketEvent : public BlockableEvent {
    public:
     explicit GamePacketEvent(std::span<const uint8_t> data) : data(data.begin(), data.end()) {}
     const std::vector<uint8_t> data;
-    [[nodiscard]] std::string_view Name() const override { return "gamepacket"; }
+    static constexpr std::string_view EVENT_NAME = "gamepacket";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 };
 
 /// @event A game packet is about to be sent to the server.
@@ -322,7 +341,8 @@ class GamePacketSentEvent : public BlockableEvent {
    public:
     explicit GamePacketSentEvent(std::span<const uint8_t> data) : data(data.begin(), data.end()) {}
     const std::vector<uint8_t> data;
-    [[nodiscard]] std::string_view Name() const override { return "gamepacketsent"; }
+    static constexpr std::string_view EVENT_NAME = "gamepacketsent";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 };
 
 /// @event A realm (BNCS) packet was received.
@@ -339,7 +359,8 @@ class RealmPacketEvent : public BlockableEvent {
    public:
     explicit RealmPacketEvent(std::span<const uint8_t> data) : data(data.begin(), data.end()) {}
     const std::vector<uint8_t> data;
-    [[nodiscard]] std::string_view Name() const override { return "realmpacket"; }
+    static constexpr std::string_view EVENT_NAME = "realmpacket";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 };
 
 // ============================================================================
@@ -370,7 +391,8 @@ class GameActionEvent : public BaseEvent {
     const uint32_t param2;
     const std::string name1;
     const std::string name2;
-    [[nodiscard]] std::string_view Name() const override { return "gameevent"; }
+    static constexpr std::string_view EVENT_NAME = "gameevent";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 };
 
 /// @event An item add/remove/move action.
@@ -396,7 +418,8 @@ class ItemActionEvent : public BaseEvent {
     const uint32_t action;
     const std::string code;
     const bool isGlobal;
-    [[nodiscard]] std::string_view Name() const override { return "itemaction"; }
+    static constexpr std::string_view EVENT_NAME = "itemaction";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 };
 
 /// @event A WM_COPYDATA IPC message from another instance (reserved internal modes are not delivered).
@@ -416,7 +439,8 @@ class CopyDataEvent : public BaseEvent {
     CopyDataEvent(game::IpcMode mode, std::string payload) : mode(mode), payload(std::move(payload)) {}
     const game::IpcMode mode;
     const std::string payload;
-    [[nodiscard]] std::string_view Name() const override { return "copydata"; }
+    static constexpr std::string_view EVENT_NAME = "copydata";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 };
 
 // ============================================================================
@@ -471,7 +495,8 @@ class BroadcastEvent : public BaseEvent {
         }
     }
 
-    [[nodiscard]] std::string_view Name() const override { return "scriptmsg"; }
+    static constexpr std::string_view EVENT_NAME = "scriptmsg";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 
    private:
     std::vector<std::vector<uint8_t>> values_;
@@ -524,7 +549,8 @@ class EvaluateEvent : public BaseEvent {
         }
     }
 
-    [[nodiscard]] std::string_view Name() const override { return "Evaluate"; }
+    static constexpr std::string_view EVENT_NAME = "Evaluate";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 };
 
 // ============================================================================
@@ -547,7 +573,8 @@ class ScreenHookClickEvent : public BlockableEvent {
         BlockableEvent::Execute(isolate, {fn_.Get(isolate)});
     }
 
-    [[nodiscard]] std::string_view Name() const override { return "ScreenHookClick"; }
+    static constexpr std::string_view EVENT_NAME = "ScreenHookClick";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 
    private:
     game::ClickButton button_;
@@ -573,7 +600,8 @@ class ScreenHookHoverEvent : public BaseEvent {
         BaseEvent::Execute(isolate, {fn_.Get(isolate)});
     }
 
-    [[nodiscard]] std::string_view Name() const override { return "ScreenHookHover"; }
+    static constexpr std::string_view EVENT_NAME = "ScreenHookHover";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 
    private:
     game::Point pos_;

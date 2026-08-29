@@ -11,10 +11,10 @@
 // native callback. The user's original callback pointer is stashed in V8's
 // `data` slot (a v8::External around the function pointer).
 //
-// Property registrations stash both the getter and setter in a heap-
-// allocated PropertyAccessors struct (since SetNativeDataProperty exposes
-// only one `data` slot). The struct's lifetime is the isolate's - leaked
-// at template build time on purpose.
+// Property registrations stash both the getter and setter in a
+// PropertyAccessors struct (since SetNativeDataProperty exposes only one
+// `data` slot), interned by InternAccessors so the struct is shared by
+// every isolate that registers the same pair.
 
 namespace d2bs::js::script {
 
@@ -33,13 +33,20 @@ void OnNativeCall(v8::Isolate* isolate);
 
 void MethodTrampoline(const v8::FunctionCallbackInfo<v8::Value>& args);
 
-// Paired getter/setter for one property. Heap-allocated by V8Class
-// helpers and stashed in v8::External; we never free it (per-isolate
-// template setup, bounded in count).
+// Paired getter/setter for one property. Obtained from InternAccessors by the
+// V8Class helpers and stashed in a v8::External.
 struct PropertyAccessors {
     v8::AccessorNameGetterCallback getter = nullptr;
     v8::AccessorNameSetterCallback setter = nullptr;
 };
+
+// Shared PropertyAccessors for one (getter, setter) pair. The template setup that registers
+// these re-runs for every isolate, and scripts get a fresh isolate each restart, so
+// allocating per registration would grow for the life of the process. The set of distinct
+// pairs is fixed by the binding surface, so interning bounds it for real. Entries are never
+// destroyed - v8::Externals point into them and can outlive static destruction - and the
+// returned pointer is stable.
+PropertyAccessors* InternAccessors(v8::AccessorNameGetterCallback getter, v8::AccessorNameSetterCallback setter);
 
 void PropertyGetterTrampoline(v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info);
 void PropertySetterTrampoline(v8::Local<v8::Name> property, v8::Local<v8::Value> value,

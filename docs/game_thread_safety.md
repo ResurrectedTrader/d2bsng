@@ -30,7 +30,7 @@ auto* ptr = /* walk game data structure */;
 
 ### GameWriteLock - game thread (exclusive)
 
-The game thread holds `GameWriteLock` continuously across the frame body. `GameLoop::OnSleep` (dispatched from the per-version Sleep hook) runs per-frame framework work - `InvalidateHandles`, snapshot, chicken, state-event synthesis, drawable flush, script lifecycle - under the held lock. It then enters a deadline-based drain loop that releases and reacquires the lock per 1ms slice, draining `GameThread::Execute` tasks while script readers can acquire `GameReadLock`. When the deadline elapses, the lock is reacquired before returning to the game's frame work.
+The game thread holds `GameWriteLock` continuously across the frame body. `GameLoop::OnSleep` (dispatched from the per-version Sleep hook) runs per-frame framework work - `InvalidateHandles`, snapshot, chicken, state-event synthesis, drawable flush, script lifecycle - under the held lock. It then enters a deadline-based drain loop that releases and reacquires the lock per `idleSleepInterval` slice (default 10ms), draining `GameThread::Execute` tasks while script readers can acquire `GameReadLock`. When the deadline elapses, the lock is reacquired before returning to the game's frame work.
 
 **LOCK-1**: `GameReadLock` is a no-op when the current thread already holds `GameWriteLock` - game-thread code inside the frame body can call `ResolvePtr()` freely without deadlocking on itself.
 
@@ -42,10 +42,10 @@ void GameLoop::OnSleep(std::chrono::milliseconds duration) {
     TakeSnapshot(cur);
     // ... chicken, events, drawables, script lifecycle ...
 
-    // Drain loop: release/reacquire per 1ms slice until deadline
+    // Drain loop: release/reacquire per idleSleepInterval slice until deadline
     while (now < deadline) {
         GameWriteLock::Release();
-        ::Sleep(1);
+        ::Sleep(idleSleepInterval);
         GameWriteLock::Acquire();
         GameThread::Drain();
     }
@@ -65,8 +65,11 @@ Method(isolate, proto, "getItem", +[](const v8::FunctionCallbackInfo<v8::Value>&
 ```
 
 **When to use Bridge::Lock():**
-- Iterating game linked lists (inventory, rooms, presets, party roster)
 - Multi-step game traversals (Player -> GetRoom -> GetLevel -> FirstRoom)
+- Building a result from several reads that must agree with each other
+
+The composed walks in `Finders.h` take it themselves - see "Which Callbacks Need
+Bridge::Lock()" below - so a binding that only calls one of those needs nothing of its own.
 
 **When NOT needed:**
 - Simple property getters (single ResolvePtr per access)
@@ -112,13 +115,30 @@ Used inside `GameThread::Execute()`. Fully unwinds the recursive read lock depth
 
 ## Which Callbacks Need Bridge::Lock()
 
-| Callback | File | Why |
-|---|---|---|
-| `getItem()` | JSUnit.cpp | Iterates inventory linked list |
-| `getItems()` | JSUnit.cpp | GetItems() internally iterates inventory |
-| `getRoom()` | GameFunctions.cpp | Multi-step traversal (all paths) |
-| `getParty()` | GameFunctions.cpp | Iterates roster linked list |
-| `getPresetUnit()` | GameFunctions.cpp | Iterates rooms |
-| `getPresetUnits()` | GameFunctions.cpp | Iterates rooms x presets |
+The composed walks in `Finders.h` take the lock themselves, for the whole walk - `Matches()`
+re-resolves the candidate for each field it tests, so without it a sweep pays a real
+acquire/release per field per candidate. Bindings that call only these need nothing of
+their own; an outer `Bridge::Lock()` is still free (recursive re-entry) and several keep one
+because they do more than the walk.
 
-Simple property getters, `getNext()`, single-method calls returning copies - do NOT need `Bridge::Lock()`.
+| Walk | Reached from |
+|---|---|
+| `Unit::FindFirst` / `FindNext` | `getUnit()`, `unit.getNext()` |
+| `Unit::FindFirstInventoryItem` / `FindNextInventoryItem` | `getItem()`, `item.getNext()` |
+| `Unit::FindMerc` | `getMerc()`, `getMercHP()` |
+| `Unit::GetItems` | `getItems()` |
+| `Level::FindRoomAt` | `getRoom()`, `getCollision()` |
+| `Party::FindById` / `FindByName` | `getParty()` |
+| `Control::Find` | `getControl()` |
+
+`Level::GetPresetUnits` / `FindFirstPresetUnit` do not take it themselves - their bindings
+(`getPresetUnit()`, `getPresetUnits()`) already hold one across the whole callback.
+
+Simple property getters and single-method calls returning copies do NOT need
+`Bridge::Lock()` - `ResolvePtr()` locks per resolve.
+
+Note that several bindings hold the lock across V8 allocation (`getItem`, `getItems`,
+`getPresetUnit`, `getPresetUnits` all construct wrappers under it). That is a latent stall:
+an allocation can trigger a GC whose weak callbacks run native destructors
+(`closesocket`, `sqlite3_close_v2`, `fclose`), and the game thread waits on the write lock
+for the duration. Worth avoiding in new code; the existing sites are not yet fixed.

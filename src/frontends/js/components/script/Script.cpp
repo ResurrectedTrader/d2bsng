@@ -6,6 +6,7 @@
 #include <fstream>
 #include <ranges>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "api/classes/ClassRegistry.h"
@@ -19,6 +20,7 @@
 #include "components/drawing/Drawable.h"
 #include "components/events/BaseEvent.h"
 #include "components/events/DelayedEvent.h"
+#include "components/events/EventDispatch.h"
 #include "components/events/Events.h"
 #include "components/inspector/ScriptInspector.h"
 #include "components/script/CompileSource.h"
@@ -438,7 +440,7 @@ void Script::TeardownIsolate() {
         // Clear all events before disposing isolate (releases v8::Global handles)
         {
             std::scoped_lock lock(eventFunctionsMutex_);
-            eventFunctions_.clear();
+            ClearEventFunctionsLocked();
         }
         {
             std::scoped_lock lock(delayedEventMutex_);
@@ -750,6 +752,9 @@ void Script::RegisterEvent(const std::string& eventName, v8::Local<v8::Function>
     if (!iso)
         return;
     std::scoped_lock lock(eventFunctionsMutex_);
+    // Published before the insert: dispatchers read the count without this mutex, so bumping it
+    // after would leave a window where the handler exists but the probe still reads zero.
+    events::ListenerCount::For(eventName).Add(1);
     eventFunctions_[eventName].emplace_back(iso, func);
 }
 
@@ -761,9 +766,10 @@ void Script::UnregisterEvent(const std::string& eventName, v8::Local<v8::Functio
     if (it == eventFunctions_.end())
         return;
 
-    std::erase_if(it->second, [&func](const v8::Global<v8::Function>& function) {
+    const auto removed = std::erase_if(it->second, [&func](const v8::Global<v8::Function>& function) {
         return function.Get(func->GetIsolate()) == func;
     });
+    events::ListenerCount::For(eventName).Add(-static_cast<int32_t>(removed));
     if (it->second.empty()) {
         eventFunctions_.erase(it);
     }
@@ -779,12 +785,23 @@ void Script::ClearEvent(const std::string& eventName) {
     if (eventName.empty())
         return;
     std::scoped_lock lock(eventFunctionsMutex_);
-    eventFunctions_.erase(eventName);
+    if (auto node = eventFunctions_.extract(eventName); !node.empty()) {
+        events::ListenerCount::For(eventName).Add(-static_cast<int32_t>(node.mapped().size()));
+    }
 }
 
 void Script::ClearAllEvents() {
     std::scoped_lock lock(eventFunctionsMutex_);
-    eventFunctions_.clear();
+    ClearEventFunctionsLocked();
+}
+
+void Script::ClearEventFunctionsLocked() {
+    // Remove first, then decrement - the reverse order would publish a zero count while the
+    // handlers are still installed, and a dispatch in that window would skip the event outright.
+    auto removed = std::exchange(eventFunctions_, {});
+    for (const auto& [name, fns] : removed) {
+        events::ListenerCount::For(name).Add(-static_cast<int32_t>(fns.size()));
+    }
 }
 
 void Script::AddDelayedEvent(const std::shared_ptr<DelayedEvent>& event) {

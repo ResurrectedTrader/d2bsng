@@ -49,6 +49,10 @@ std::vector<uint16_t> Room::GetCollisionFlat() const {
     return {};
 }
 
+uint16_t Room::CollisionAt(Position /*pos*/) const {
+    return 0;
+}
+
 Room Room::GetNext() const {
     return Room();
 }
