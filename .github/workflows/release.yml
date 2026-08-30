@@ -295,3 +295,31 @@ jobs:
             "dist/d2bs.pdb#d2bs.pdb" \
             "dist/d2bsng.d.ts#d2bsng.d.ts" \
             "dist/api.json#api.json"
+
+      - name: Announce on Discord
+        # The release is already published by the time this runs, so a Discord
+        # outage must not fail the workflow - the message is not worth a retry.
+        # A missing secret (forks, or before the secret is set) skips silently.
+        continue-on-error: true
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
+        run: |
+          [ -n "$DISCORD_WEBHOOK" ] || { echo "No DISCORD_RELEASE_WEBHOOK secret; skipping."; exit 0; }
+          v="v${{ needs.version.outputs.version }}"
+          repo_url="${{ github.server_url }}/${{ github.repository }}"
+          dl="${repo_url}/releases/download/${v}"
+          # Discord caps an embed description at 4096 chars. Truncate the notes
+          # well short of that to leave room for the download line, then run the
+          # cut through iconv so a byte-wise chop cannot leave a half-written
+          # UTF-8 sequence that jq would reject.
+          {
+            head -c 3500 notes.md | iconv -c -f UTF-8 -t UTF-8
+            printf '\n\n**Download:** [d2bs.dll](%s/d2bs.dll) | [d2bsng.d.ts](%s/d2bsng.d.ts) (TypeScript definitions)\n' "$dl" "$dl"
+            printf '**API reference:** https://resurrectedtrader.github.io/d2bsng/\n'
+          } > body.md
+          # -Rs slurps the file as one JSON string, so no escaping by hand.
+          jq -Rs --arg t "d2bsng $v" --arg u "${repo_url}/releases/tag/${v}" '{
+            username: "d2bsng",
+            embeds: [{ title: $t, url: $u, description: ., color: 15844367 }]
+          }' body.md > payload.json
+          curl -sSf -H "Content-Type: application/json" -d @payload.json "$DISCORD_WEBHOOK"
