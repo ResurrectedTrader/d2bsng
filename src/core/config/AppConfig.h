@@ -92,6 +92,18 @@ struct AppConfig {
     // flag that platform requires.
     bool v8SingleThreadedPlatform = false;
 
+    // Compiled-script code cache (frontends/js/components/script/CodeCache.h).
+    // The in-memory tier is always on, bounded by codeCacheMemoryLimit. The
+    // on-disk tier is opt-in: codeCachePath (INI [settings]/CodeCachePath,
+    // joined to the install dir when relative, empty = memory only) names a
+    // directory that survives restarts and is shared by every instance pointed
+    // at it. Both limits are bytes; the INI values are MB.
+    std::filesystem::path codeCachePath;
+    size_t codeCacheMemoryLimit = 64 * 1024 * 1024;
+    // 64-bit: unlike the memory budget, a disk budget isn't bounded by this
+    // 32-bit process's address space.
+    uint64_t codeCacheDiskLimit = 256ULL * 1024 * 1024;
+
     // Real-wall granularity (ms) of the idle script / game-loop wait loops (INI
     // [settings]/IdleSleepIntervalMs, clamped [1, 100]). Larger = lower idle CPU,
     // coarser servicing.

@@ -13,8 +13,8 @@ namespace d2bs::js::script {
 //
 // Transforms applied:
 //   1. UTF-8 BOM strip (always; source hygiene, not a compatibility flag).
-//   2. `js_strict(true);` detection - prepends `"use strict";\n` and offsets
-//      the script origin's line by 1 so error messages line up
+//   2. `js_strict(true);` detection - prepends `"use strict";` onto the first
+//      line (no newline, so reported line numbers still match the file on disk)
 //      (Compatibility flag: jsStrictShim).
 //   3. `const X = new Runnable` -> `var X = new Runnable` regex rewrite. const
 //      declarations don't bind to the global object in V8; kolbot relies on the

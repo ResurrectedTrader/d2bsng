@@ -1,5 +1,6 @@
 #include "CompileSource.h"
 
+#include "CodeCache.h"
 #include "api/core/V8Convert.h"
 #include "config/CompatibilityFlags.h"
 
@@ -18,13 +19,14 @@ v8::MaybeLocal<v8::Script> CompileSource(v8::Isolate* isolate, v8::Local<v8::Con
         source.erase(0, 3);
     }
 
-    // kolbot-era `js_strict(true);` shim (flag: jsStrictShim) - prepend
-    // "use strict";\n and offset the origin line by 1 so error messages
-    // reference the script's original line numbers.
-    int32_t lineOffset = 0;
+    // kolbot-era `js_strict(true);` shim (flag: jsStrictShim). Prepended without
+    // a newline, on purpose: an extra line would shift every line V8 reports off
+    // the file the user is editing, and ScriptOrigin's line offset only ever
+    // adds, so cancelling it would take a negative offset. Sharing line 1 keeps
+    // every line number exact and costs only that line's columns. Still a valid
+    // directive prologue - it remains the first statement.
     if (compat.IsEnabled("jsStrictShim") && source.find("js_strict(true);") != std::string::npos) {
-        source.insert(0, "\"use strict\";\n");
-        lineOffset = 1;
+        source.insert(0, "\"use strict\";");
     }
 
     // kolbot-era `const X = new Runnable` -> `var X` rewrite (flag:
@@ -42,9 +44,49 @@ v8::MaybeLocal<v8::Script> CompileSource(v8::Isolate* isolate, v8::Local<v8::Con
     }
 
     auto originNameStr = api::v8_convert::ToV8(isolate, originName);
-    v8::ScriptOrigin origin(originNameStr, lineOffset);
-    v8::ScriptCompiler::Source compilerSource(sourceStr.ToLocalChecked(), origin);
-    return v8::ScriptCompiler::Compile(context, &compilerSource, v8::ScriptCompiler::kEagerCompile);
+    v8::ScriptOrigin origin(originNameStr);
+
+    auto& cache = CodeCache::Instance();
+    const bool isCacheable = CodeCache::IsCacheable(source.size());
+    const uint64_t key = isCacheable ? cache.MakeKey(originName, source) : 0;
+    // Declared before compilerSource, and it must stay that way: the CachedData
+    // below is BufferNotOwned, so the Source reads these bytes until it is
+    // destroyed. Reverse-order destruction is what keeps them alive, and holding
+    // the shared_ptr is what stops another script thread's eviction from freeing
+    // them mid-compile.
+    auto blob = isCacheable ? cache.Lookup(key) : nullptr;
+
+    auto* cachedData = blob ? new v8::ScriptCompiler::CachedData(blob->data(), static_cast<int32_t>(blob->size()),
+                                                                 v8::ScriptCompiler::CachedData::BufferNotOwned)
+                            : nullptr;
+    v8::ScriptCompiler::Source compilerSource(sourceStr.ToLocalChecked(), origin, cachedData);
+
+    // kConsumeCodeCache and kEagerCompile are mutually exclusive. Eager on a
+    // miss is what makes the blob we store complete: a lazily compiled script
+    // serializes only the functions that happened to run.
+    const auto options =
+        cachedData != nullptr ? v8::ScriptCompiler::kConsumeCodeCache : v8::ScriptCompiler::kEagerCompile;
+    v8::Local<v8::Script> script;
+    const bool isCompiled = v8::ScriptCompiler::Compile(context, &compilerSource, options).ToLocal(&script);
+
+    if (isCacheable) {
+        if (cachedData == nullptr) {
+            if (isCompiled) {
+                cache.Store(key, script->GetUnboundScript());
+            }
+        } else if (compilerSource.GetCachedData()->rejected) {
+            // V8 fell back to compiling this lazily, so re-serializing now would
+            // persist a partial blob. Drop the entry instead and let the next
+            // compile - a clean miss - produce a complete one. Checked before
+            // the failure return below so a rejected entry is dropped even when
+            // the fallback compile then fails on its own.
+            cache.Drop(key);
+        }
+    }
+    if (!isCompiled) {
+        return {};
+    }
+    return script;
 }
 
 // The kolbot-era prelude, split into per-feature snippets. Each is gated by a

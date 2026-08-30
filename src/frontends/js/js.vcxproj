@@ -132,6 +132,7 @@
     <ClCompile Include="components\drawing\Drawable.cpp" />
     <ClCompile Include="components\drawing\VersionBanner.cpp" />
     <!-- Script Components -->
+    <ClCompile Include="components\script\CodeCache.cpp" />
     <ClCompile Include="components\script\Commands.cpp" />
     <ClCompile Include="components\script\CompileSource.cpp" />
     <ClCompile Include="components\script\NativeCallHook.cpp" />
@@ -247,6 +248,7 @@
     <ClInclude Include="api\classes\scripting\JSSandbox.h" />
     <ClInclude Include="api\classes\scripting\JSScript.h" />
     <!-- Script Components -->
+    <ClInclude Include="components\script\CodeCache.h" />
     <ClInclude Include="components\script\Commands.h" />
     <ClInclude Include="components\script\CompileSource.h" />
     <ClInclude Include="components\script\NativeCallHook.h" />

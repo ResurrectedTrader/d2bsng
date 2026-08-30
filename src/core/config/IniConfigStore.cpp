@@ -68,6 +68,20 @@ void IniConfigStore::LoadSettings(AppConfig& config) {
     // V8 default-platform worker pool size; 0 = auto, clamped to [0, 64].
     config.v8ThreadPoolSize = std::clamp(ReadInt("settings", "V8ThreadPoolSize", 0), 0, 64);
     config.v8SingleThreadedPlatform = ReadBool("settings", "V8SingleThreadedPlatform", false);
+    // Compiled-script code cache. CodeCachePath is joined to the install dir
+    // when relative (like ScriptPath) and replaces it when absolute; empty
+    // leaves the disk tier off.
+    const auto codeCachePath = ReadString("settings", "CodeCachePath", "");
+    config.codeCachePath = codeCachePath.empty() ? std::filesystem::path{} : path_.parent_path() / codeCachePath;
+    // Limits are MB. size_t is 32-bit on this target, so the MB value must be
+    // bounded (or widened) before the multiply: 4096 MB is exactly 2^32 and
+    // would otherwise wrap to 0, silently disabling the tier. The memory cap is
+    // clamped to 1 GB - past that a byte cache is competing with the script
+    // isolates for a 32-bit address space. 0 disables either tier.
+    config.codeCacheMemoryLimit =
+        static_cast<size_t>(std::clamp(ReadInt("settings", "CodeCacheMemoryLimit", 64), 0, 1024)) * 1024 * 1024;
+    config.codeCacheDiskLimit =
+        static_cast<uint64_t>(std::max(ReadInt("settings", "CodeCacheDiskLimit", 256), 0)) * 1024 * 1024;
     // Idle-sleep granularity (ms), clamped to [1, 100] (0 would busy-spin).
     config.idleSleepInterval =
         std::chrono::milliseconds{std::clamp(ReadInt("settings", "IdleSleepIntervalMs", 10), 1, 100)};
