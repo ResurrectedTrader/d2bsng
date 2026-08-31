@@ -29,7 +29,6 @@ struct LaunchOptions {
     std::vector<std::string> realms;  // -realm name:host (repeatable); raw specs, parsed into RealmRegistry
 
     bool disableAnalytics = false;  // -noanalytics
-    std::string analyticsUser;      // -analyticsuser <id>  (empty = unset; frontend falls back to an env var)
 };
 
 // Parse GetCommandLineW() once and return a stable reference. Safe to call

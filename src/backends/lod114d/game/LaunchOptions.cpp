@@ -104,13 +104,6 @@ std::vector<OptionSpec> BuildSpecs() {
     /// @category Analytics
     builder.Add("-noanalytics", "", +[](LaunchOptions& o, std::wstring_view) { o.disableAnalytics = true; });
 
-    /// @description Bot-manager user identifier attached to analytics events so framework sessions can be correlated
-    /// with a manager account. Overrides the D2BS_ANALYTICS_USER environment variable.
-    /// @category Analytics
-    builder.Add(
-        "-analyticsuser", "<id>",
-        +[](LaunchOptions& o, std::wstring_view v) { o.analyticsUser = utils::ToStr(std::wstring{v}, CP_UTF8); });
-
     return std::move(builder.specs);
 }
 

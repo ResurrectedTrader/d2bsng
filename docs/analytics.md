@@ -5,14 +5,15 @@ d2bsng can report **anonymous usage analytics** to [Aptabase](https://aptabase.c
 maintainer-visible count of active installs and the version / OS / game-version
 distribution, so support and release decisions rest on data instead of guesses.
 
-Analytics is **off by default**. It only runs when an Aptabase app key is
-configured, and even then a launch produces one startup event plus one event per
-distinct profile it runs. There is no per-action tracking, no keystroke/screen
-capture, and no game data of any kind.
+It is **on by default and opt-out** (`-noanalytics` / `D2BS_ANALYTICS_DISABLE`),
+and stays entirely anonymous - the only identity an event carries is a derived
+`installId`. A launch produces one startup event plus one event per distinct
+profile it runs. There is no per-action tracking, no keystroke/screen capture,
+and no game data of any kind.
 
 - Component: `src/frontends/js/components/analytics/Analytics.h` / `.cpp`
 - Launch switches: `src/backends/lod114d/game/LaunchOptions.cpp`
-  (`-noanalytics`, `-analyticsuser`)
+  (`-noanalytics`)
 - Contract surface: `game::GetAnalyticsLaunchOptions()`,
   `game::GetActiveFeatures()` and `game::GetBackendVersion()` in
   `src/contract/game/GameHelpers.h`
@@ -23,9 +24,8 @@ capture, and no game data of any kind.
 
 Two event types. `session_start` is emitted once per launch (after a short settle
 delay); `profile_active` follows for each distinct profile the launch runs (see
-[The `profileHash`](#the-profilehash)). Both carry the `installId` (and `userId`
-when supplied) so they join up per install; all events from one launch share a
-`sessionId`.
+[The `profileHash`](#the-profilehash)). Both carry the `installId` so they join up
+per install; all events from one launch share a `sessionId`.
 
 `session_start` carries:
 
@@ -48,7 +48,6 @@ when supplied) so they join up per install; all events from one launch share a
 | `backendVersion` | `1.14d` | which game backend / DLL variant is loaded |
 | `arch` | `x86` | future-proofing (x64 D2R backends) |
 | `managerVersion` | `1.4.2` | *only when the manager sets `D2BOTNG_VERSION`* - which manager versions are in the field, and whether a d2bsng change can rely on a newer one |
-| `userId` | bot-manager id | *only when supplied* - correlate framework sessions with a manager account |
 
 **Runtime capabilities** (environment, hardware, and which features are in use):
 
@@ -228,11 +227,42 @@ absent**.
 ### The app key
 
 The key is **baked into the DLL at build time only** - there is no runtime key
-switch or environment variable. It works exactly like `D2BS_VERSION`: the source
-defaults the `D2BS_ANALYTICS_KEY` macro to an empty string (an `#ifndef`
-fallback), and CI overrides it via `build.ps1 -AnalyticsKey <key>` / MSBuild
-`-p:D2bsAnalyticsKey=...`. An **empty key disables analytics**, so any build
-compiled without the define - every local / dev build - is a no-op.
+switch or environment variable. An **empty key disables analytics** outright: the
+component returns before starting its reporter thread, so a build without the
+define is a no-op. (The source still `#ifndef`-defaults the `D2BS_ANALYTICS_KEY`
+macro to an empty string, which is what makes that the safe fallback.)
+
+The project's own key is committed as the default in `Directory.Build.props`, so
+every build reports - IDE builds included - not just released ones. That is
+deliberate: an Aptabase app key is a client-side, write-only ingest key, and this
+one already ships verbatim inside every published DLL, so it is not a credential.
+The consequence is that a fork or a dev build reports into this project unless it
+overrides the key.
+
+"Build time only" means the *compiler command line*, not `build.ps1`. The key is
+resolved by `Directory.Build.props` at the repo root, which MSBuild imports into
+every project - so an IDE build (Visual Studio, Rider), which never runs
+`build.ps1`, resolves it the same way. Precedence, highest first:
+
+1. `-p:D2bsAnalyticsKey=...` on the MSBuild command line - a global property,
+   which nothing in a project file can override. This is what `build.ps1` and CI
+   use.
+2. `d2bs.local.props` at the repo root - gitignored, per-developer. Copy
+   `d2bs.local.props.example` to it and fill in a key. This is the way to get a
+   key into IDE builds.
+3. The `D2BS_ANALYTICS_KEY` environment variable (MSBuild surfaces environment
+   variables as properties). Note IDEs snapshot the environment at launch, so a
+   newly-set user variable needs an IDE restart - which is why (2) is usually
+   less trouble.
+4. The committed default in `Directory.Build.props`.
+
+`build.ps1` passes `-p:D2bsAnalyticsKey` **only when it has a key**: an empty
+`-p:` would set the global property to empty and silently shadow (2) and (3),
+since a global property wins over `Directory.Build.props`.
+
+To build with analytics compiled out, override the default with an empty value
+(`-p:D2bsAnalyticsKey=`, or an empty `D2bsAnalyticsKey` in `d2bs.local.props`).
+To keep it compiled in but silent, opt out at runtime instead.
 
 `build.ps1` defaults `-AnalyticsKey` to the `D2BS_ANALYTICS_KEY` environment
 variable (read on the build machine), so a CI job need only export the secret.
@@ -261,17 +291,14 @@ casually, not because leaking it compromises anything.
 
 ### Per-launch settings
 
-The user id and opt-out are per-launch. Each can come from an environment
-variable or a command-line switch. For the user id **the command-line switch
-wins** when both are set; the opt-out is an OR - either source forces analytics
-off, and there is no switch that re-enables it against
-`D2BS_ANALYTICS_DISABLE`. Environment variables keep values off the visible
-command line (Task Manager), and a manager that spawns the game (e.g. D2BotNG)
-can set either.
+The opt-out is per-launch and can come from an environment variable or a
+command-line switch. It is an OR - either source forces analytics off, and there
+is no switch that re-enables it against `D2BS_ANALYTICS_DISABLE`. Environment
+variables keep values off the visible command line (Task Manager), and a manager
+that spawns the game (e.g. D2BotNG) can set either.
 
 | Purpose | Environment variable | Command-line switch |
 |---------|----------------------|---------------------|
-| Bot-manager user id | `D2BS_ANALYTICS_USER` | `-analyticsuser <id>` |
 | Force off | `D2BS_ANALYTICS_DISABLE` (any truthy value) | `-noanalytics` |
 | Ingest host override | `D2BS_ANALYTICS_HOST` | *(none)* |
 | Bot-manager version | `D2BOTNG_VERSION` | *(none)* |
@@ -296,13 +323,10 @@ component logs a warning and stays off.
 `D2BS_ANALYTICS_HOST` is checked **first and unconditionally** - it overrides the
 `A-US-` / `A-EU-` region routing as well, not just the key types that need it.
 
-### User correlation
+### No user correlation
 
-Supplying `userId` (via `-analyticsuser` or `D2BS_ANALYTICS_USER`) attaches a
-bot-manager account identifier to every event, so a manager's users can be
-joined to framework sessions in the Aptabase dashboard. This is the one field
-that makes the telemetry non-anonymous, and it is entirely opt-in per launch -
-omit it and only the anonymous `installId` is sent.
+There is no way to attach a bot-manager account identifier to an event. Every
+event is anonymous: the only identity it carries is the derived `installId`.
 
 ## Opting out
 

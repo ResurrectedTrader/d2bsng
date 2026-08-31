@@ -85,8 +85,7 @@ class Analytics {
 
     // Resolved in Start() (the framework-init thread), then read-only on the
     // reporter thread - the thread spawn provides the happens-before edge.
-    std::string userId_;  // optional bot-manager user id (empty = omit)
-    std::string host_;    // ingest base URL derived from the key's region
+    std::string host_;  // ingest base URL derived from the key's region
 
     // Derived once on the reporter thread after the settle delay (both are
     // needed by every event), then only read there.

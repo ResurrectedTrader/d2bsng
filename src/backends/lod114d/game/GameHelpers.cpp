@@ -2001,7 +2001,7 @@ std::string GetBackendVersion() {
 
 AnalyticsLaunchOptions GetAnalyticsLaunchOptions() {
     const auto& opts = GetLaunchOptions();
-    return {.disabled = opts.disableAnalytics, .userId = opts.analyticsUser};
+    return {.disabled = opts.disableAnalytics};
 }
 
 std::vector<std::string> GetActiveFeatures() {

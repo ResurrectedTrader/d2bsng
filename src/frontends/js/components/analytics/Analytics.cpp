@@ -353,7 +353,6 @@ struct EventContext {
     std::string_view host;
     std::string_view sessionId;
     std::string_view installId;
-    std::string_view userId;  // empty => omitted
 };
 
 // Wrap event-specific props in the envelope Aptabase expects and POST it.
@@ -376,9 +375,6 @@ bool PostEvent(const EventContext& ctx, const std::shared_ptr<spdlog::logger>& l
     event["systemProps"] = std::move(systemProps);
 
     props["installId"] = ctx.installId;
-    if (!ctx.userId.empty()) {
-        props["userId"] = ctx.userId;
-    }
     event["props"] = std::move(props);
 
     api::classes::HttpRequest request;
@@ -444,17 +440,14 @@ void Analytics::Start() {
         return;
     }
 
-    std::string userId = !launch.userId.empty() ? launch.userId : GetEnv(L"D2BS_ANALYTICS_USER");
-
     bool expected = false;
     if (!started_.compare_exchange_strong(expected, true)) {
         return;  // already running
     }
 
     // Published only once the CAS is won, so a losing caller can't race the
-    // running reporter thread's reads of them.
+    // running reporter thread's read of it.
     host_ = std::move(host);
-    userId_ = std::move(userId);
     thread_ = std::jthread([this](const std::stop_token& stopToken) { Run(stopToken); });
 }
 
@@ -602,15 +595,15 @@ bool Analytics::SendStartupEvent() {
 
     props["compatOverrides"] = Join(CompatibilityOverrides(), ',');
 
-    return PostEvent({.host = host_, .sessionId = sessionId_, .installId = installId_, .userId = userId_}, logger_,
-                     "session_start", std::move(props));
+    return PostEvent({.host = host_, .sessionId = sessionId_, .installId = installId_}, logger_, "session_start",
+                     std::move(props));
 }
 
 bool Analytics::SendProfileEvent(const std::string& profileHash) {
     json props;
     props["profileHash"] = profileHash;
-    return PostEvent({.host = host_, .sessionId = sessionId_, .installId = installId_, .userId = userId_}, logger_,
-                     "profile_active", std::move(props));
+    return PostEvent({.host = host_, .sessionId = sessionId_, .installId = installId_}, logger_, "profile_active",
+                     std::move(props));
 }
 
 }  // namespace d2bs::js::analytics
