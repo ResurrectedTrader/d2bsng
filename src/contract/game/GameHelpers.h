@@ -235,7 +235,6 @@ std::string GetBackendVersion();
 // docs/analytics.md.
 struct AnalyticsLaunchOptions {
     bool disabled = false;  // -noanalytics
-    std::string userId;     // -analyticsuser <id>
 };
 AnalyticsLaunchOptions GetAnalyticsLaunchOptions();
 

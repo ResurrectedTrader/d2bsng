@@ -20,6 +20,9 @@
 # Local-only MSBuild overrides (e.g. a personal post-build install step)
 src/glue/js-lod114d/d2bs.local.targets
 
+# Local-only build settings (e.g. a personal Aptabase app key)
+/d2bs.local.props
+
 # ===========================================
 # C# / .NET / Visual Studio
 # ===========================================

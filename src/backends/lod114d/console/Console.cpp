@@ -105,6 +105,18 @@ struct GLState {
     HGLRC hrc = nullptr;
 };
 
+// Vsync off. Windows drivers commonly BUSY-wait for the retrace, so SwapBuffers spins a whole core
+// for up to a frame at a time. This loop paces itself with sleep_until, and tearing on a dev
+// console costs nothing. The extension may be absent, in which case vsync cannot be disabled here.
+void DisableVSync() {
+    using SwapIntervalFn = BOOL(APIENTRY*)(int);
+    // NOLINTNEXTLINE(clang-diagnostic-cast-function-type-strict) - wglGetProcAddress returns PROC.
+    const auto swapInterval = reinterpret_cast<SwapIntervalFn>(wglGetProcAddress("wglSwapIntervalEXT"));
+    if (swapInterval != nullptr) {
+        swapInterval(0);
+    }
+}
+
 bool InitGL(HWND hwnd, GLState& gl) {
     gl.hdc = GetDC(hwnd);
     if (gl.hdc == nullptr) {
@@ -135,6 +147,8 @@ bool InitGL(HWND hwnd, GLState& gl) {
         gl.hdc = nullptr;
         return false;
     }
+
+    DisableVSync();
     return true;
 }
 
@@ -372,7 +386,14 @@ void RenderLoop(const std::stop_token& stop) {
         ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
         SwapBuffers(gl.hdc);
 
+        // Resync when the deadline has fallen behind wall time. A fixed step per pass never catches
+        // up after one overrun - sleep_until then returns instantly forever and the thread
+        // free-runs. Nothing here is simulated, so missed frames are dropped rather than rendered.
         nextFrame += milliseconds(TARGET_FRAME_MS);
+        const auto afterFrame = steady_clock::now();
+        if (nextFrame < afterFrame) {
+            nextFrame = afterFrame + milliseconds(TARGET_FRAME_MS);
+        }
         std::this_thread::sleep_until(nextFrame);
     }
 

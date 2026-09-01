@@ -200,9 +200,19 @@ switch ($mode) {
         exit $LASTEXITCODE
     }
     default {
-        & $msbuild -p:Configuration=$config -p:Platform=Win32 -p:D2bsVersion=$Version `
-            -p:D2bsVersionMajor=$($verParts[0]) -p:D2bsVersionMinor=$($verParts[1]) -p:D2bsVersionPatch=$($verParts[2]) `
-            -p:D2bsAnalyticsKey=$AnalyticsKey
+        $msbuildArgs = @(
+            "-p:Configuration=$config"
+            '-p:Platform=Win32'
+            "-p:D2bsVersion=$Version"
+            "-p:D2bsVersionMajor=$($verParts[0])"
+            "-p:D2bsVersionMinor=$($verParts[1])"
+            "-p:D2bsVersionPatch=$($verParts[2])"
+        )
+        # Only pass the key when there is one. `-p:D2bsAnalyticsKey=` would set an
+        # empty *global* property, which Directory.Build.props cannot override -
+        # silently shadowing d2bs.local.props and the environment variable.
+        if ($AnalyticsKey) { $msbuildArgs += "-p:D2bsAnalyticsKey=$AnalyticsKey" }
+        & $msbuild @msbuildArgs
         exit $LASTEXITCODE
     }
 }
