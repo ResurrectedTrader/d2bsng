@@ -12,37 +12,31 @@
 
 namespace d2bs::js::console {
 
-namespace {
-
-struct ThreadEntry {
-    uint32_t tid = 0;
-    std::string description;
-};
-
-[[nodiscard]] std::vector<ThreadEntry> EnumerateThreads() {
-    auto tids = thread_utils::EnumerateProcessThreads();
-    std::ranges::sort(tids);
-    std::vector<ThreadEntry> result;
-    result.reserve(tids.size());
-    for (uint32_t tid : tids) {
-        result.push_back({.tid = tid, .description = thread_utils::GetThreadDescription(tid)});
-    }
-    return result;
-}
-
-[[nodiscard]] std::string FormatLabel(const ThreadEntry& entry) {
+std::string ThreadsPanel::FormatLabel(const Entry& entry) {
     if (entry.description.empty()) {
         return fmt::format("tid {} ({:#x})", entry.tid, entry.tid);
     }
     return fmt::format("tid {} ({:#x}) - {}", entry.tid, entry.tid, entry.description);
 }
 
-}  // namespace
+void ThreadsPanel::Refresh() {
+    auto tids = thread_utils::EnumerateProcessThreads();
+    std::ranges::sort(tids);
+    std::vector<Entry> entries;
+    entries.reserve(tids.size());
+    for (uint32_t tid : tids) {
+        entries.push_back({.tid = tid, .description = thread_utils::GetThreadDescription(tid)});
+    }
+    threads_ = std::move(entries);
+}
 
 void ThreadsPanel::Draw() {
-    const auto threads = EnumerateThreads();
+    if (!threads_.has_value()) {
+        Refresh();
+    }
+    const auto& threads = *threads_;
 
-    const auto it = std::ranges::find_if(threads, [tid = selectedTid_](const ThreadEntry& e) { return e.tid == tid; });
+    const auto it = std::ranges::find_if(threads, [tid = selectedTid_](const Entry& e) { return e.tid == tid; });
     const auto* selected = (it != threads.end()) ? &*it : nullptr;
 
     const std::string previewLabel = (selected != nullptr) ? FormatLabel(*selected) : std::string{"(none)"};
@@ -76,6 +70,12 @@ void ThreadsPanel::Draw() {
         capturedStack_ = thread_utils::GetThreadStacktrace(selected->tid, 0);
     }
     ImGui::EndDisabled();
+
+    ImGui::SameLine();
+    if (ImGui::Button("Refresh")) {
+        Refresh();
+        return;  // `selected` points into threads_.
+    }
 
     ImGui::Spacing();
 

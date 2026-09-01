@@ -191,6 +191,12 @@ bool IsInGame() {
 }
 
 bool WaitForGameReady(std::chrono::milliseconds timeout) {
+    // Return before touching the clock: steady_clock::now() is QueryPerformanceCounter, which the
+    // speedhack detours, and nearly every binding calls this with the game already ready.
+    if (IsGameReady()) {
+        return true;
+    }
+
     const auto effective = (timeout.count() > 0) ? timeout : WAIT_GAME_READY_DEFAULT;
     const auto deadline = std::chrono::steady_clock::now() + effective;
     while (true) {

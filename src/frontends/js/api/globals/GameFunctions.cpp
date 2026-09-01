@@ -25,6 +25,7 @@
 #include "game/Bridge.h"
 #include "game/Constants.h"
 #include "game/Control.h"
+#include "game/GameLock.h"
 // ReSharper disable once CppUnusedIncludeDirective - inline Find*/Get* defs (declared in the handle headers)
 #include "game/Finders.h"
 #include "game/GameHelpers.h"
@@ -1960,6 +1961,12 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 args.GetReturnValue().Set(Distance(p1, p2));
                 return;
             }
+
+            // One read lock for every form below. Each resolves at least one unit, and both
+            // ResolvePtr and the Pos() after it take their own - the lock is depth-counted, so
+            // holding one here turns those into increments. Must stay below WaitForGameReady,
+            // which sleeps while the game loads.
+            const game::GameReadLock guard;
 
             // (obj) -- distance from player to object (JSUnit or {x,y})
             if (args.Length() == 1 && args[0]->IsObject()) {
