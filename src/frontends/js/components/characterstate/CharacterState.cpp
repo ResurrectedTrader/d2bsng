@@ -2,7 +2,6 @@
 
 #include <nlohmann/json.hpp>
 
-#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdint>
@@ -57,21 +56,18 @@ constexpr uint32_t QFLAG_REWARDGRANTED = 0;
 constexpr uint32_t QFLAG_REWARDPENDING = 1;
 constexpr uint32_t WAYPOINT_COUNT = 39;
 
-// Cells of a grid container, at least large enough to hold everything in it. The size
-// the game itself draws the panel from is authoritative rather than a vanilla constant,
-// because a mod resizes a panel by rewriting the inventory.txt row that layout is built
-// from - PlugY's ActiveBigStash makes the stash 10x10 - and items then land outside the
-// vanilla bounds. `vanilla` covers the window before the game populates the layout;
-// growing to the items keeps every item inside the reported grid even then.
-game::Size GridSize(game::ItemLocation container, game::Size vanilla, const std::vector<game::Unit>& items) {
-    game::Size dims = game::GetContainerGridSize(container).value_or(vanilla);
-    for (const auto& item : items) {
-        const auto pos = item.Pos();
-        const auto size = item.Size();
-        dims.width = std::max(dims.width, pos.x + size.width);
-        dims.height = std::max(dims.height, pos.y + size.height);
-    }
-    return dims;
+// Cells of a grid container, straight from the layout the game draws the panel from - never
+// a constant, because a mod resizes a panel by rewriting the inventory.txt row that layout is
+// built from (PlugY's ActiveBigStash makes the stash 10x10) and items then land outside the
+// vanilla bounds.
+//
+// Zero when the game has not populated the record yet, which reads the same as the non-grid
+// containers: unknown, so draw no grid. Deliberately not a vanilla fallback, which would assert
+// a size we know can be wrong, and deliberately not grown to fit the items - that would make a
+// container's dimensions a function of its contents, resizing as items move, and would hide
+// exactly the bug this reports.
+game::Size GridSize(game::ItemLocation container) {
+    return game::GetContainerGridSize(container).value_or(game::Size::Zero);
 }
 
 // Fingerprint of a container, built from the same traversal that produces the payload so
@@ -340,13 +336,12 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
     const size_t mercStatsHash = HashOf(mercStats);
     // Belt is not a grid panel - its items carry the belt slot in x, so neither the
     // inventory.txt layout nor the item extents describe it.
-    const std::array<game::Size, BUCKET_COUNT> containerDims = {
-        game::Size::Zero,
-        game::Size::Zero,
-        GridSize(game::ItemLocation::Inventory, {.width = 10, .height = 4}, inventory),
-        GridSize(game::ItemLocation::Cube, {.width = 3, .height = 4}, cube),
-        {.width = 4, .height = 4},
-        GridSize(game::ItemLocation::Stash, {.width = 6, .height = 8}, stash)};
+    const std::array<game::Size, BUCKET_COUNT> containerDims = {game::Size::Zero,
+                                                                game::Size::Zero,
+                                                                GridSize(game::ItemLocation::Inventory),
+                                                                GridSize(game::ItemLocation::Cube),
+                                                                {.width = 4, .height = 4},
+                                                                GridSize(game::ItemLocation::Stash)};
     const std::array containerHashes = {
         ContainerHash(containerDims[BUCKET_EQUIPPED], equipped),   ContainerHash(containerDims[BUCKET_MERC], merc),
         ContainerHash(containerDims[BUCKET_INVENTORY], inventory), ContainerHash(containerDims[BUCKET_CUBE], cube),
