@@ -907,6 +907,14 @@ void TakeScreenshot() {
 
 // === Item Actions ===
 
+std::optional<Size> GetContainerGridSize(ItemLocation location) {
+    const auto entry = ResolveContainerLayout(location);
+    if (!entry) {
+        return std::nullopt;
+    }
+    return Size{.width = entry->layout->nGridX, .height = entry->layout->nGridY};
+}
+
 // --- ClickItem family --------------------------------------------------------
 //
 // All three Click* functions share this prelude, handled internally:

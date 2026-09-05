@@ -2,6 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdint>
@@ -56,11 +57,30 @@ constexpr uint32_t QFLAG_REWARDGRANTED = 0;
 constexpr uint32_t QFLAG_REWARDPENDING = 1;
 constexpr uint32_t WAYPOINT_COUNT = 39;
 
-// Fingerprint of a container's contents, built from the same traversal that produces the
-// payload so it can't miss a field. Detail::Structural keeps it Description()-free and
-// leaves out the stats that tick in place (durability, quantity).
-size_t ContainerHash(const std::vector<game::Unit>& items) {
+// Cells of a grid container, at least large enough to hold everything in it. The size
+// the game itself draws the panel from is authoritative rather than a vanilla constant,
+// because a mod resizes a panel by rewriting the inventory.txt row that layout is built
+// from - PlugY's ActiveBigStash makes the stash 10x10 - and items then land outside the
+// vanilla bounds. `vanilla` covers the window before the game populates the layout;
+// growing to the items keeps every item inside the reported grid even then.
+game::Size GridSize(game::ItemLocation container, game::Size vanilla, const std::vector<game::Unit>& items) {
+    game::Size dims = game::GetContainerGridSize(container).value_or(vanilla);
+    for (const auto& item : items) {
+        const auto pos = item.Pos();
+        const auto size = item.Size();
+        dims.width = std::max(dims.width, pos.x + size.width);
+        dims.height = std::max(dims.height, pos.y + size.height);
+    }
+    return dims;
+}
+
+// Fingerprint of a container, built from the same traversal that produces the payload so
+// it can't miss a field. Detail::Structural keeps it Description()-free and leaves out
+// the stats that tick in place (durability, quantity). The dimensions are part of it so a
+// grid that only resolves once the game has populated its layout still re-sends.
+size_t ContainerHash(game::Size dims, const std::vector<game::Unit>& items) {
     json structural = json::array();
+    structural.push_back({dims.width, dims.height});
     for (const auto& item : items) {
         structural.push_back(UnitToJson(item, Detail::Structural));
     }
@@ -318,8 +338,19 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
     const size_t mercHash = HashOf(mercUnitJson);
     json mercStats = mercUnit ? WearerStats(*mercUnit) : json();
     const size_t mercStatsHash = HashOf(mercStats);
-    const std::array containerHashes = {ContainerHash(equipped), ContainerHash(merc), ContainerHash(inventory),
-                                        ContainerHash(cube),     ContainerHash(belt), ContainerHash(stash)};
+    // Belt is not a grid panel - its items carry the belt slot in x, so neither the
+    // inventory.txt layout nor the item extents describe it.
+    const std::array<game::Size, BUCKET_COUNT> containerDims = {
+        game::Size::Zero,
+        game::Size::Zero,
+        GridSize(game::ItemLocation::Inventory, {.width = 10, .height = 4}, inventory),
+        GridSize(game::ItemLocation::Cube, {.width = 3, .height = 4}, cube),
+        {.width = 4, .height = 4},
+        GridSize(game::ItemLocation::Stash, {.width = 6, .height = 8}, stash)};
+    const std::array containerHashes = {
+        ContainerHash(containerDims[BUCKET_EQUIPPED], equipped),   ContainerHash(containerDims[BUCKET_MERC], merc),
+        ContainerHash(containerDims[BUCKET_INVENTORY], inventory), ContainerHash(containerDims[BUCKET_CUBE], cube),
+        ContainerHash(containerDims[BUCKET_BELT], belt),           ContainerHash(containerDims[BUCKET_STASH], stash)};
 
     // Debounce: combine the slow-moving section fingerprints into one signature.
     // While it differs from the previous sample the state is still settling, so
@@ -352,15 +383,15 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
 
     const bool playerChanged = TakeIfChanged(keyframe, playerHash, playerFingerprint_);
     json playerContainers = json::object();
-    EmitContainer(playerContainers, "equipped", BUCKET_EQUIPPED, equipped, game::Size::Zero, keyframe,
+    EmitContainer(playerContainers, "equipped", BUCKET_EQUIPPED, equipped, containerDims[BUCKET_EQUIPPED], keyframe,
                   containerHashes[BUCKET_EQUIPPED], containerFingerprints_[BUCKET_EQUIPPED]);
-    EmitContainer(playerContainers, "inventory", BUCKET_INVENTORY, inventory, {.width = 10, .height = 4}, keyframe,
+    EmitContainer(playerContainers, "inventory", BUCKET_INVENTORY, inventory, containerDims[BUCKET_INVENTORY], keyframe,
                   containerHashes[BUCKET_INVENTORY], containerFingerprints_[BUCKET_INVENTORY]);
-    EmitContainer(playerContainers, "cube", BUCKET_CUBE, cube, {.width = 3, .height = 4}, keyframe,
+    EmitContainer(playerContainers, "cube", BUCKET_CUBE, cube, containerDims[BUCKET_CUBE], keyframe,
                   containerHashes[BUCKET_CUBE], containerFingerprints_[BUCKET_CUBE]);
-    EmitContainer(playerContainers, "belt", BUCKET_BELT, belt, {.width = 4, .height = 4}, keyframe,
+    EmitContainer(playerContainers, "belt", BUCKET_BELT, belt, containerDims[BUCKET_BELT], keyframe,
                   containerHashes[BUCKET_BELT], containerFingerprints_[BUCKET_BELT]);
-    EmitContainer(playerContainers, "stash", BUCKET_STASH, stash, {.width = 6, .height = 8}, keyframe,
+    EmitContainer(playerContainers, "stash", BUCKET_STASH, stash, containerDims[BUCKET_STASH], keyframe,
                   containerHashes[BUCKET_STASH], containerFingerprints_[BUCKET_STASH]);
     json playerJson = BuildWearerSection(std::move(playerUnit), playerChanged, std::move(playerStats),
                                          TakeIfChanged(keyframe, playerStatsHash, playerStatsFingerprint_),
@@ -372,7 +403,7 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
     // Run the merc container through the fingerprint even with no merc, so it settles
     // to "empty" and a later merc with identical gear still re-sends.
     json mercContainers = json::object();
-    EmitContainer(mercContainers, "equipped", BUCKET_MERC, merc, game::Size::Zero, keyframe,
+    EmitContainer(mercContainers, "equipped", BUCKET_MERC, merc, containerDims[BUCKET_MERC], keyframe,
                   containerHashes[BUCKET_MERC], containerFingerprints_[BUCKET_MERC]);
     const bool mercChanged = TakeIfChanged(keyframe, mercHash, mercFingerprint_);
     const bool mercStatsChanged = TakeIfChanged(keyframe, mercStatsHash, mercStatsFingerprint_);

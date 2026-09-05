@@ -131,6 +131,14 @@ void TakeScreenshot();
 
 // === Item Actions ===
 
+// Cell dimensions of a grid container (Inventory/Trade/Cube/Stash), read from the
+// layout the game itself draws the panel from. That layout is built from the
+// compiled inventory.txt, which a mod may rewrite - PlugY's ActiveBigStash turns the
+// 6x8 stash into 10x10 - so a hardcoded vanilla size puts items outside the grid.
+// nullopt for slot containers, and while the layout is still unpopulated (the game
+// fills it on first panel open; this force-runs that init).
+std::optional<Size> GetContainerGridSize(ItemLocation location);
+
 // Toggle a body slot.
 //   owner=Player    -> BodyClickTable[slot] invoked with (player, inv, slot); slot must be in [1..10].
 //   owner=Mercenary -> MercItemAction(0x61, slot); slot must be in {Head(1), Body(3), RightPrimary(4)}.
