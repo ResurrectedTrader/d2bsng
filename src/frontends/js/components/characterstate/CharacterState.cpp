@@ -70,13 +70,15 @@ game::Size GridSize(game::ItemLocation container) {
     return game::GetContainerGridSize(container).value_or(game::Size::Zero);
 }
 
-// Fingerprint of a container, built from the same traversal that produces the payload so
-// it can't miss a field. Detail::Structural keeps it Description()-free and leaves out
-// the stats that tick in place (durability, quantity). The dimensions are part of it so a
-// grid that only resolves once the game has populated its layout still re-sends.
-size_t ContainerHash(game::Size dims, const std::vector<game::Unit>& items) {
+// Fingerprint of a container's contents, built from the same traversal that produces the
+// payload so it can't miss a field. Detail::Structural keeps it Description()-free and
+// leaves out the stats that tick in place (durability, quantity).
+//
+// Dimensions are deliberately not part of it: they come from inventory.txt, so they are
+// fixed for the life of the process, and every new game sends a keyframe carrying them
+// regardless.
+size_t ContainerHash(const std::vector<game::Unit>& items) {
     json structural = json::array();
-    structural.push_back({dims.width, dims.height});
     for (const auto& item : items) {
         structural.push_back(UnitToJson(item, Detail::Structural));
     }
@@ -334,18 +336,16 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
     const size_t mercHash = HashOf(mercUnitJson);
     json mercStats = mercUnit ? WearerStats(*mercUnit) : json();
     const size_t mercStatsHash = HashOf(mercStats);
-    // Belt is not a grid panel - its items carry the belt slot in x, so neither the
-    // inventory.txt layout nor the item extents describe it.
+    // Belt is not a grid panel - its items carry the belt slot in x, so the inventory.txt
+    // layout does not describe it.
     const std::array<game::Size, BUCKET_COUNT> containerDims = {game::Size::Zero,
                                                                 game::Size::Zero,
                                                                 GridSize(game::ItemLocation::Inventory),
                                                                 GridSize(game::ItemLocation::Cube),
                                                                 {.width = 4, .height = 4},
                                                                 GridSize(game::ItemLocation::Stash)};
-    const std::array containerHashes = {
-        ContainerHash(containerDims[BUCKET_EQUIPPED], equipped),   ContainerHash(containerDims[BUCKET_MERC], merc),
-        ContainerHash(containerDims[BUCKET_INVENTORY], inventory), ContainerHash(containerDims[BUCKET_CUBE], cube),
-        ContainerHash(containerDims[BUCKET_BELT], belt),           ContainerHash(containerDims[BUCKET_STASH], stash)};
+    const std::array containerHashes = {ContainerHash(equipped), ContainerHash(merc), ContainerHash(inventory),
+                                        ContainerHash(cube),     ContainerHash(belt), ContainerHash(stash)};
 
     // Debounce: combine the slow-moving section fingerprints into one signature.
     // While it differs from the previous sample the state is still settling, so
