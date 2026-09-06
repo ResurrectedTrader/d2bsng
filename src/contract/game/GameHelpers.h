@@ -137,7 +137,7 @@ void TakeScreenshot();
 // 6x8 stash into 10x10 - so a hardcoded vanilla size puts items outside the grid.
 // nullopt for slot containers, and while the layout is still unpopulated (the game
 // fills it on first panel open; this force-runs that init).
-std::optional<Size> GetContainerGridSize(ItemLocation location);
+std::optional<Size> GetGridSize(ItemLocation location);
 
 // Toggle a body slot.
 //   owner=Player    -> BodyClickTable[slot] invoked with (player, inv, slot); slot must be in [1..10].

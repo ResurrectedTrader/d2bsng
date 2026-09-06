@@ -907,7 +907,7 @@ void TakeScreenshot() {
 
 // === Item Actions ===
 
-std::optional<Size> GetContainerGridSize(ItemLocation location) {
+std::optional<Size> GetGridSize(ItemLocation location) {
     const auto entry = ResolveContainerLayout(location);
     if (!entry) {
         return std::nullopt;

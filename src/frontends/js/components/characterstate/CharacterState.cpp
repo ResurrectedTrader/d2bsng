@@ -56,19 +56,13 @@ constexpr uint32_t QFLAG_REWARDGRANTED = 0;
 constexpr uint32_t QFLAG_REWARDPENDING = 1;
 constexpr uint32_t WAYPOINT_COUNT = 39;
 
-// Cells of a grid container, straight from the layout the game draws the panel from - never
-// a constant, because a mod resizes a panel by rewriting the inventory.txt row that layout is
-// built from (PlugY's ActiveBigStash makes the stash 10x10) and items then land outside the
-// vanilla bounds.
-//
-// Zero when the game has not populated the record yet, which reads the same as the non-grid
-// containers: unknown, so draw no grid. Deliberately not a vanilla fallback, which would assert
-// a size we know can be wrong, and deliberately not grown to fit the items - that would make a
-// container's dimensions a function of its contents, resizing as items move, and would hide
-// exactly the bug this reports.
-game::Size GridSize(game::ItemLocation container) {
-    return game::GetContainerGridSize(container).value_or(game::Size::Zero);
-}
+// The belt is a fixed 4x4 of potion slots rather than an inventory.txt grid - its items carry
+// the belt slot in x, not a cell - so it is the one grid container with a constant size.
+constexpr game::Size BELT_SIZE{.width = 4, .height = 4};
+
+// Equipped and merc are slot containers: BuildContainer emits no dimensions for them at all, so
+// what is stored here is never read.
+constexpr game::Size SLOT_CONTAINER_SIZE = game::Size::Zero;
 
 // Fingerprint of a container's contents, built from the same traversal that produces the
 // payload so it can't miss a field. Detail::Structural keeps it Description()-free and
@@ -336,14 +330,15 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
     const size_t mercHash = HashOf(mercUnitJson);
     json mercStats = mercUnit ? WearerStats(*mercUnit) : json();
     const size_t mercStatsHash = HashOf(mercStats);
-    // Belt is not a grid panel - its items carry the belt slot in x, so the inventory.txt
-    // layout does not describe it.
-    const std::array<game::Size, BUCKET_COUNT> containerDims = {game::Size::Zero,
-                                                                game::Size::Zero,
-                                                                GridSize(game::ItemLocation::Inventory),
-                                                                GridSize(game::ItemLocation::Cube),
-                                                                {.width = 4, .height = 4},
-                                                                GridSize(game::ItemLocation::Stash)};
+    // Zero for a grid the game has not populated its layout for yet: unknown, so draw no grid.
+    // Deliberately not a vanilla constant, which would assert a size a mod can have changed.
+    const std::array<game::Size, BUCKET_COUNT> containerDims = {
+        SLOT_CONTAINER_SIZE,
+        SLOT_CONTAINER_SIZE,
+        game::GetGridSize(game::ItemLocation::Inventory).value_or(game::Size::Zero),
+        game::GetGridSize(game::ItemLocation::Cube).value_or(game::Size::Zero),
+        BELT_SIZE,
+        game::GetGridSize(game::ItemLocation::Stash).value_or(game::Size::Zero)};
     const std::array containerHashes = {ContainerHash(equipped), ContainerHash(merc), ContainerHash(inventory),
                                         ContainerHash(cube),     ContainerHash(belt), ContainerHash(stash)};
 
