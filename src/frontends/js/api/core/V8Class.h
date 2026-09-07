@@ -78,7 +78,7 @@ class V8ClassBase {
                     auto* d = callbackInfo.GetParameter();
                     delete d->native;
                     delete d;
-                    V8InstanceTracker::Instance().Decrement(Derived::ClassName);
+                    V8InstanceTracker::Instance().Decrement(InstanceClassId());
                 });
             },
             v8::WeakCallbackType::kParameter);
@@ -89,6 +89,13 @@ class V8ClassBase {
     static constexpr int32_t INTERNAL_FIELD_COUNT = 2;
 
    public:
+    // Instance-tracker row for this class, resolved once. ClassId takes a lock and scans the name
+    // table, which must not happen per object - this is on the construction path of every wrapper.
+    static int32_t InstanceClassId() {
+        static const int32_t ID = V8InstanceTracker::ClassId(Derived::ClassName);
+        return ID;
+    }
+
     // Returns (or creates) the cached FunctionTemplate for this isolate.
     static v8::Local<v8::FunctionTemplate> GetTemplate(v8::Isolate* isolate) {
         auto& cache = GetCache();
@@ -150,7 +157,7 @@ class V8ClassBase {
 
     // Initialize a V8 object with native data and weak GC callback (constructor path).
     static void InitInstance(v8::Isolate* isolate, v8::Local<v8::Object> obj, std::unique_ptr<NativeType> data) {
-        V8InstanceTracker::Instance().Increment(Derived::ClassName);
+        V8InstanceTracker::Instance().Increment(InstanceClassId());
         auto* raw = data.release();
         Wrap(obj, raw);
         MakeWeak(isolate, obj, raw);

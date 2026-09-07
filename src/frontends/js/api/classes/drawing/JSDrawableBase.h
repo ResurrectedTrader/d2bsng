@@ -33,9 +33,10 @@ class JSDrawableBase : public V8ClassBase<Derived, DrawableType> {
     // Increments the per-thread count now and installs an onDestroy hook that
     // decrements when the owning Script destroys the drawable.
     static void SetupInstanceTracking(DrawableType* drawable) {
-        V8InstanceTracker::Instance().Increment(Derived::ClassName);
-        drawable->onDestroy = [] {
-            V8InstanceTracker::Instance().Decrement(Derived::ClassName);
+        const int32_t classId = Base::InstanceClassId();
+        V8InstanceTracker::Instance().Increment(classId);
+        drawable->onDestroy = [classId] {
+            V8InstanceTracker::Instance().Decrement(classId);
         };
     }
 
