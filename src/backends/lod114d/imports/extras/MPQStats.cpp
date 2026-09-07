@@ -1,4 +1,4 @@
-﻿// Generated dispatch for D2 1.14d .txt table cell lookups.
+// Generated dispatch for D2 1.14d .txt table cell lookups.
 // Schema sourced from reference/d2bs/MPQStats.h (1.14d facts: column offsets
 // within typed records). Dispatch + field readers are a fresh rewrite.
 
@@ -2348,7 +2348,7 @@ constexpr std::array<ColumnSchema, 20> COLS_SUPERUNIQUES = {{
 // magicprefix.txt / magicsuffix.txt share one in-memory D2MagicAffixTxt array,
 // indexed by the global affix id (wMagicPrefix[i] / wMagicSuffix[i]). The "transform"
 // column (24) has no record field, so it is intentionally absent here.
-constexpr std::array<ColumnSchema, 40> COLS_AFFIXES = {{
+constexpr std::array<ColumnSchema, 41> COLS_AFFIXES = {{
     {.name = "Name", .type = FieldKind::Ascii, .bitOrLen = 0x1fU, .offset = 0x0U},
     {.name = "version", .type = FieldKind::Word, .bitOrLen = 0x0U, .offset = 0x22U},
     {.name = "spawnable", .type = FieldKind::Byte, .bitOrLen = 0x0U, .offset = 0x54U},
@@ -2373,6 +2373,10 @@ constexpr std::array<ColumnSchema, 40> COLS_AFFIXES = {{
     {.name = "mod3param", .type = FieldKind::DwordSigned, .bitOrLen = 0x0U, .offset = 0x48U},
     {.name = "mod3min", .type = FieldKind::DwordSigned, .bitOrLen = 0x0U, .offset = 0x4cU},
     {.name = "mod3max", .type = FieldKind::DwordSigned, .bitOrLen = 0x0U, .offset = 0x50U},
+    // D2MOO calls 0x55 `padding0x54`, but nTransformColor is a char and needs no alignment, so
+    // filler there would have put the char at 0x55 and padded 0x56-0x57 up to dwLevel - which is
+    // what 0x57 is. magicprefix.txt's one unaccounted column, a 0/1 flag, is what fits.
+    {.name = "transform", .type = FieldKind::Byte, .bitOrLen = 0x0U, .offset = 0x55U},
     {.name = "transformcolor", .type = FieldKind::ByteSigned, .bitOrLen = 0x0U, .offset = 0x56U},
     {.name = "itype1", .type = FieldKind::Word, .bitOrLen = 0x0U, .offset = 0x6aU},
     {.name = "itype2", .type = FieldKind::Word, .bitOrLen = 0x0U, .offset = 0x6cU},
