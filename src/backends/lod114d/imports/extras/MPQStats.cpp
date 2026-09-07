@@ -1,4 +1,4 @@
-// Generated dispatch for D2 1.14d .txt table cell lookups.
+﻿// Generated dispatch for D2 1.14d .txt table cell lookups.
 // Schema sourced from reference/d2bs/MPQStats.h (1.14d facts: column offsets
 // within typed records). Dispatch + field readers are a fresh rewrite.
 
@@ -16,6 +16,8 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <unordered_map>
+#include <vector>
 
 namespace d2bs::imports::extras {
 namespace {
@@ -2575,24 +2577,83 @@ void ResolveTableBase(const TableInfo& info, const uint8_t** outBase, uint32_t* 
         *outCount = 0xFFU;
     }
 }
-
-const TableSchema* FindTable(std::string_view name) {
-    // Table / column matching is case-insensitive in the reference (`_strcmpi`).
-    for (const auto& t : TABLES) {
-        if (utils::EqualsCaseInsensitive(name, t.name)) {
-            return &t;
+// Matching is case-insensitive. This fold must stay byte-identical to
+// utils::EqualsCaseInsensitive's, or the hash disagrees with the equality and lookups miss.
+struct CiHash {
+    size_t operator()(std::string_view text) const noexcept {
+        size_t hash = 2166136261U;  // 32-bit FNV-1a over the lowercased bytes; this is an x86 build
+        for (const char c : text) {
+            const char lowered = (c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c;
+            hash ^= static_cast<uint8_t>(lowered);
+            hash *= 16777619U;
         }
+        return hash;
     }
-    return nullptr;
+};
+
+struct CiEqualTo {
+    bool operator()(std::string_view lhs, std::string_view rhs) const noexcept {
+        return utils::EqualsCaseInsensitive(lhs, rhs);
+    }
+};
+
+template <typename Value>
+using CiMap = std::unordered_map<std::string_view, Value, CiHash, CiEqualTo>;
+
+// Paired so one lookup answers both, and nothing has to work back from a schema to its table.
+struct TableRef {
+    const TableSchema* schema = nullptr;
+    const CiMap<const ColumnSchema*>* columns = nullptr;
+};
+
+// Built once from the constexpr schemas, keyed by string_views into their static storage.
+//
+// Deliberately leaked: a cell read can happen during teardown - a script thread still running at
+// DLL detach - and a destructible static would hand back a dangling ColumnSchema*.
+// NOLINTBEGIN(cppcoreguidelines-owning-memory) - intentionally immortal, never freed
+//
+// Reserved up front so the maps keep their addresses: TableIndex points into this vector.
+const std::vector<CiMap<const ColumnSchema*>>& ColumnIndexes() {
+    static const auto* indexes = [] {
+        auto* built = new std::vector<CiMap<const ColumnSchema*>>;
+        built->reserve(TABLES.size());
+        for (const auto& table : TABLES) {
+            auto& columns = built->emplace_back();
+            columns.reserve(table.columns.size());
+            for (const auto& column : table.columns) {
+                columns.emplace(column.name, &column);
+            }
+        }
+        return built;
+    }();
+    return *indexes;
 }
 
-const ColumnSchema* FindColumn(const TableSchema& table, std::string_view name) {
-    for (const auto& c : table.columns) {
-        if (utils::EqualsCaseInsensitive(name, c.name)) {
-            return &c;
+const CiMap<TableRef>& TableIndex() {
+    static const auto* index = [] {
+        const auto& columns = ColumnIndexes();
+        auto* built = new CiMap<TableRef>;
+        built->reserve(TABLES.size());
+        size_t position = 0;
+        for (const auto& table : TABLES) {
+            built->emplace(table.name, TableRef{.schema = &table, .columns = &columns[position]});
+            ++position;
         }
-    }
-    return nullptr;
+        return built;
+    }();
+    return *index;
+}
+// NOLINTEND(cppcoreguidelines-owning-memory)
+
+std::optional<TableRef> FindTable(std::string_view name) {
+    const auto& tables = TableIndex();
+    const auto it = tables.find(name);
+    return it != tables.end() ? std::optional{it->second} : std::nullopt;
+}
+
+const ColumnSchema* FindColumn(const TableRef& table, std::string_view name) {
+    const auto it = table.columns->find(name);
+    return it != table.columns->end() ? it->second : nullptr;
 }
 
 // === Field readers ==========================================================
@@ -2691,8 +2752,8 @@ bool IsOneBasedTable(std::string_view name) {
 }  // namespace
 
 TxtValue GetTxtValue(std::string_view tableName, uint32_t recordId, std::string_view columnName) {
-    const TableSchema* table = FindTable(tableName);
-    if (table == nullptr) {
+    const auto table = FindTable(tableName);
+    if (!table) {
         return std::monostate{};
     }
     const ColumnSchema* col = FindColumn(*table, columnName);
@@ -2702,7 +2763,7 @@ TxtValue GetTxtValue(std::string_view tableName, uint32_t recordId, std::string_
 
     const uint8_t* base = nullptr;
     uint32_t count = 0;
-    ResolveTableBase(table->info, &base, &count);
+    ResolveTableBase(table->schema->info, &base, &count);
     if (base == nullptr) {
         return std::monostate{};
     }
@@ -2718,22 +2779,22 @@ TxtValue GetTxtValue(std::string_view tableName, uint32_t recordId, std::string_
     if (rowIndex >= count) {
         return std::monostate{};
     }
-    if (table->info.recordSize == 0) {
+    if (table->schema->info.recordSize == 0) {
         return std::monostate{};
     }
 
-    const uint8_t* record = base + (rowIndex * table->info.recordSize);
+    const uint8_t* record = base + (rowIndex * table->schema->info.recordSize);
     return ReadField(record, *col);
 }
 
 std::optional<uint32_t> GetTxtTableRowCount(std::string_view tableName) {
-    const TableSchema* table = FindTable(tableName);
-    if (table == nullptr) {
+    const auto table = FindTable(tableName);
+    if (!table) {
         return std::nullopt;
     }
     const uint8_t* base = nullptr;
     uint32_t count = 0;
-    ResolveTableBase(table->info, &base, &count);
+    ResolveTableBase(table->schema->info, &base, &count);
     if (base == nullptr) {
         // Data table not loaded yet (out of game, or queried too early).
         return std::nullopt;
