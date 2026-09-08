@@ -100,6 +100,12 @@ GameVar<D2InventoryGridInfoStrc> storeLayout{0x3BCB58};
 GameVar<D2InventoryGridInfoStrc> cubeLayout{0x3BCB70};
 GameVar<D2InventoryGridInfoStrc> inventoryLayout{0x3BCB88};
 GameVar<D2InventoryGridInfoStrc> mercLayout{0x3BCD4C};
+// Unlike the layouts above this one is static, initialised data: 13 slots by 1,
+// covering BodyLocation::None plus the twelve slots including weapon swap. Its
+// box dimensions are permanently zero -- equip is a slot list, not a pixel grid,
+// so there is nothing to click and nothing for the game to populate. bodylocs.txt
+// is not the source: it lists only eleven rows, stopping before the swap slots.
+GameVar<D2InventoryGridInfoStrc> bodyLocLayout{0x34479C};
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 struct LayoutEntry {
@@ -110,9 +116,17 @@ struct LayoutEntry {
     uint32_t locationCode;
 };
 
+// For a container the click thunks cannot be asked to target, so no code exists
+// to carry. The store is the reason this is not simply 0-means-inventory: its
+// argument is not a constant at all but the live shop tab index (0..3, at
+// 0x3BCC04), which collides with Inventory/Trade/Cube. Safe because ClickItem
+// whitelists Inventory/Stash/Cube before ResolveContainerLayout is reached, so
+// nothing here is ever handed to a thunk.
+constexpr uint32_t NO_CLICK_LOCATION = 0;
+
 // Maps an ItemLocation to the matching layout pointer + the location code
 // the click thunks expect. Returns {nullptr, 0} for locations that don't
-// have a grid layout (Equipped, Belt, Body slots, etc).
+// have a grid layout (Belt, Ground, etc).
 LayoutEntry LookupContainerLayout(ItemLocation location) {
     switch (location) {
         case ItemLocation::Inventory:
@@ -123,6 +137,8 @@ LayoutEntry LookupContainerLayout(ItemLocation location) {
             return {.layout = cubeLayout.Ptr(), .locationCode = 3};
         case ItemLocation::Stash:
             return {.layout = stashLayout.Ptr(), .locationCode = 4};
+        case ItemLocation::Store:
+            return {.layout = storeLayout.Ptr(), .locationCode = NO_CLICK_LOCATION};
         default:
             return {.layout = nullptr, .locationCode = 0};
     }
@@ -944,8 +960,20 @@ std::optional<Size> ResolveBeltSize() {
 }  // namespace
 
 std::optional<Size> GetGridSize(ItemLocation location) {
+    // Both of these sit outside ResolveContainerLayout, which gates on the box
+    // dimensions the click thunks divide by. Neither has any: the belt reports a
+    // display grid derived from belts.txt rather than a layout at all, and the
+    // body-loc grid info is static data whose box bytes are permanently zero, so
+    // the init-on-first-touch dance would warn and fail on every call.
     if (location == ItemLocation::Belt) {
         return ResolveBeltSize();
+    }
+    if (location == ItemLocation::Equip) {
+        const auto* layout = bodyLocLayout.Ptr();
+        if (layout == nullptr) {
+            return std::nullopt;
+        }
+        return Size{.width = layout->nGridX, .height = layout->nGridY};
     }
     const auto entry = ResolveContainerLayout(location);
     if (!entry) {
