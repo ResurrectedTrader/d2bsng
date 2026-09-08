@@ -56,22 +56,22 @@ constexpr uint32_t QFLAG_REWARDGRANTED = 0;
 constexpr uint32_t QFLAG_REWARDPENDING = 1;
 constexpr uint32_t WAYPOINT_COUNT = 39;
 
-// Equipped and merc are equip-slot containers: BuildContainer emits no dimensions for them at
-// all, so what is stored here is never read.
-constexpr game::Size EQUIP_CONTAINER_SIZE = game::Size::Zero;
-
-// Fingerprint of a container's contents, built from the same traversal that produces the
-// payload so it can't miss a field. Detail::Structural keeps it Description()-free and
-// leaves out the stats that tick in place (durability, quantity).
+// Fingerprint of a container, built from the same traversal that produces the payload so
+// it can't miss a field. Detail::Structural keeps it Description()-free and leaves out the
+// stats that tick in place (durability, quantity).
 //
-// Dimensions are deliberately not part of it: they come from inventory.txt, so they are
-// fixed for the life of the process, and every new game sends a keyframe carrying them
-// regardless.
-size_t ContainerHash(const std::vector<game::Unit>& items) {
-    json structural = json::array();
+// Dimensions are part of it because the belt's are not fixed: swapping a sash for a girdle
+// grows it from 4x2 to 4x4 while every potion in it stays put, so a contents-only
+// fingerprint would leave the manager decomposing slots against a stale grid.
+size_t ContainerHash(const std::vector<game::Unit>& items, game::Size dims) {
+    json structural = json::object();
+    structural["w"] = dims.width;
+    structural["h"] = dims.height;
+    json itemsArr = json::array();
     for (const auto& item : items) {
-        structural.push_back(UnitToJson(item, Detail::Structural));
+        itemsArr.push_back(UnitToJson(item, Detail::Structural));
     }
+    structural["items"] = std::move(itemsArr);
     return std::hash<std::string>{}(structural.dump());
 }
 
@@ -82,10 +82,7 @@ json BuildContainer(size_t bucket, const std::vector<game::Unit>& items, game::S
     }
 
     json container = json::object();
-    if (bucket == BUCKET_EQUIPPED || bucket == BUCKET_MERC) {
-        // Slot container: no grid dimensions.
-        container["items"] = std::move(itemsArr);
-    } else if (bucket == BUCKET_STASH) {
+    if (bucket == BUCKET_STASH) {
         json page = json::object();
         page["index"] = 0;
         page["name"] = "Personal";
@@ -328,15 +325,18 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
     const size_t mercStatsHash = HashOf(mercStats);
     // Zero for a grid the game has not populated its layout for yet: unknown, so draw no grid.
     // Deliberately not a vanilla constant, which would assert a size a mod can have changed.
+    const auto equipSize = game::GetGridSize(game::ItemLocation::Equip).value_or(game::Size::Zero);
     const std::array<game::Size, BUCKET_COUNT> containerDims = {
-        EQUIP_CONTAINER_SIZE,
-        EQUIP_CONTAINER_SIZE,
+        equipSize,
+        equipSize,
         game::GetGridSize(game::ItemLocation::Inventory).value_or(game::Size::Zero),
         game::GetGridSize(game::ItemLocation::Cube).value_or(game::Size::Zero),
         game::GetGridSize(game::ItemLocation::Belt).value_or(game::Size::Zero),
         game::GetGridSize(game::ItemLocation::Stash).value_or(game::Size::Zero)};
-    const std::array containerHashes = {ContainerHash(equipped), ContainerHash(merc), ContainerHash(inventory),
-                                        ContainerHash(cube),     ContainerHash(belt), ContainerHash(stash)};
+    const std::array containerHashes = {
+        ContainerHash(equipped, containerDims[BUCKET_EQUIPPED]), ContainerHash(merc, containerDims[BUCKET_MERC]),
+        ContainerHash(inventory, containerDims[BUCKET_INVENTORY]), ContainerHash(cube, containerDims[BUCKET_CUBE]),
+        ContainerHash(belt, containerDims[BUCKET_BELT]), ContainerHash(stash, containerDims[BUCKET_STASH])};
 
     // Debounce: combine the slow-moving section fingerprints into one signature.
     // While it differs from the previous sample the state is still settling, so

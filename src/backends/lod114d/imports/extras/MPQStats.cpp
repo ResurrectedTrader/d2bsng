@@ -2430,8 +2430,7 @@ constexpr std::array<ColumnSchema, 29> COLS_PROPERTIES = {{
     {.name = "stat7", .type = FieldKind::Word, .bitOrLen = 0x0U, .offset = 0x2cU},
 }};
 
-// The 64 box rect columns (box1left .. box16bottom, Dword at 0x8 .. 0x104) are
-// screen coordinates for drawing the belt panel, and are omitted.
+// The 64 box rect columns at 0x8..0x104 are panel screen coordinates, omitted.
 constexpr std::array<ColumnSchema, 1> COLS_BELTS = {{
     {.name = "numboxes", .type = FieldKind::Byte, .bitOrLen = 0x0U, .offset = 0x4U},
 }};
@@ -2526,10 +2525,7 @@ constexpr std::array<TableSchema, 29> TABLES = {{
     {.name = "properties",
      .info = {.tableOffset = 0xa4U, .countOffset = 0xacU, .isAbsolute = false, .recordSize = 0x2eU},
      .columns = COLS_PROPERTIES},
-    // belts.txt: 14 records, 7 per resolution (640x480 then 800x600), indexed as
-    // beltType + 7 * highRes; numboxes is identical across both blocks. The count
-    // has no global -- the loader asserts 7 per resolution and drops the txt's
-    // "Expansion" separator row.
+    // 14 records, 7 per resolution: beltType + 7 * highRes, same numboxes in both.
     {.name = "belts",
      .info = {.tableOffset = 0x56d4f8U, .countOffset = 0x0U, .isAbsolute = true, .recordSize = 0x108U},
      .columns = COLS_BELTS},
