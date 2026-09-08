@@ -334,9 +334,9 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
         game::GetGridSize(game::ItemLocation::Belt).value_or(game::Size::Zero),
         game::GetGridSize(game::ItemLocation::Stash).value_or(game::Size::Zero)};
     const std::array containerHashes = {
-        ContainerHash(equipped, containerDims[BUCKET_EQUIPPED]), ContainerHash(merc, containerDims[BUCKET_MERC]),
+        ContainerHash(equipped, containerDims[BUCKET_EQUIPPED]),   ContainerHash(merc, containerDims[BUCKET_MERC]),
         ContainerHash(inventory, containerDims[BUCKET_INVENTORY]), ContainerHash(cube, containerDims[BUCKET_CUBE]),
-        ContainerHash(belt, containerDims[BUCKET_BELT]), ContainerHash(stash, containerDims[BUCKET_STASH])};
+        ContainerHash(belt, containerDims[BUCKET_BELT]),           ContainerHash(stash, containerDims[BUCKET_STASH])};
 
     // Debounce: combine the slow-moving section fingerprints into one signature.
     // While it differs from the previous sample the state is still settling, so

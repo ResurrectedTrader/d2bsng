@@ -931,8 +931,7 @@ std::optional<Size> ResolveBeltSize() {
     if (player != nullptr && player->pInventory != nullptr) {
         for (auto* item = d2common::INVENTORY_GetFirstItem(player->pInventory); item != nullptr;
              item = d2common::INVENTORY_GetNextItem(item)) {
-            if (item->pItemData == nullptr ||
-                item->pItemData->nBodyLoc != static_cast<uint8_t>(BodyLocation::Belt)) {
+            if (item->pItemData == nullptr || item->pItemData->nBodyLoc != static_cast<uint8_t>(BodyLocation::Belt)) {
                 continue;
             }
             if (const auto* txt = d2common::DATATBLS_GetItemsTxtRecord(item->dwClassId)) {
