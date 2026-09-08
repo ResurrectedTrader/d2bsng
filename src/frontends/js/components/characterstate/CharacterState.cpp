@@ -56,11 +56,6 @@ constexpr uint32_t QFLAG_REWARDGRANTED = 0;
 constexpr uint32_t QFLAG_REWARDPENDING = 1;
 constexpr uint32_t WAYPOINT_COUNT = 39;
 
-// The belt has no inventory.txt row to read, so it is the one grid container with a constant
-// size. Four columns is fixed; four rows is the maximum - the real count is the equipped belt's
-// belts.txt numboxes / 4, which we do not decode. Over-declaring keeps every item in bounds.
-constexpr game::Size BELT_SIZE{.width = 4, .height = 4};
-
 // Equipped and merc are equip-slot containers: BuildContainer emits no dimensions for them at
 // all, so what is stored here is never read.
 constexpr game::Size EQUIP_CONTAINER_SIZE = game::Size::Zero;
@@ -338,7 +333,7 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
         EQUIP_CONTAINER_SIZE,
         game::GetGridSize(game::ItemLocation::Inventory).value_or(game::Size::Zero),
         game::GetGridSize(game::ItemLocation::Cube).value_or(game::Size::Zero),
-        BELT_SIZE,
+        game::GetGridSize(game::ItemLocation::Belt).value_or(game::Size::Zero),
         game::GetGridSize(game::ItemLocation::Stash).value_or(game::Size::Zero)};
     const std::array containerHashes = {ContainerHash(equipped), ContainerHash(merc), ContainerHash(inventory),
                                         ContainerHash(cube),     ContainerHash(belt), ContainerHash(stash)};

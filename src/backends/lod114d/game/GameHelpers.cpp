@@ -907,7 +907,46 @@ void TakeScreenshot() {
 
 // === Item Actions ===
 
+namespace {
+
+// The belt has no inventory.txt row: it is always four columns wide and its row
+// count is the equipped belt's belts.txt numboxes / 4, keyed on that item's
+// items.txt "belt" value -- which is all UNITS_GetBeltType returns. Record 2 is
+// the beltless case, matching D2Common's own literal fallback.
+std::optional<Size> ResolveBeltSize() {
+    constexpr uint32_t BELT_COLUMNS = 4;
+    constexpr uint32_t BELT_TYPE_NONE = 2;
+
+    uint32_t beltType = BELT_TYPE_NONE;
+    auto* player = d2client::UNITS_GetPlayerUnit();
+    if (player != nullptr && player->pInventory != nullptr) {
+        for (auto* item = d2common::INVENTORY_GetFirstItem(player->pInventory); item != nullptr;
+             item = d2common::INVENTORY_GetNextItem(item)) {
+            if (item->pItemData == nullptr ||
+                item->pItemData->nBodyLoc != static_cast<uint8_t>(BodyLocation::Belt)) {
+                continue;
+            }
+            if (const auto* txt = d2common::DATATBLS_GetItemsTxtRecord(item->dwClassId)) {
+                beltType = txt->nBelt;
+            }
+            break;
+        }
+    }
+
+    const auto boxes = GetTxtValue("belts", beltType, "numboxes");
+    const auto* count = std::get_if<int64_t>(&boxes);
+    if (count == nullptr || *count <= 0 || *count % BELT_COLUMNS != 0) {
+        return std::nullopt;
+    }
+    return Size{.width = BELT_COLUMNS, .height = static_cast<uint32_t>(*count) / BELT_COLUMNS};
+}
+
+}  // namespace
+
 std::optional<Size> GetGridSize(ItemLocation location) {
+    if (location == ItemLocation::Belt) {
+        return ResolveBeltSize();
+    }
     const auto entry = ResolveContainerLayout(location);
     if (!entry) {
         return std::nullopt;
