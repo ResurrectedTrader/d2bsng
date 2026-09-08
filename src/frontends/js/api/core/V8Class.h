@@ -62,13 +62,21 @@ class V8ClassBase {
     // - Second pass: Actual cleanup - delete native struct and callback data
     // TeardownIsolate calls LowMemoryNotification() before disposal to ensure
     // all weak callbacks fire and native data is properly freed.
-    static void MakeWeak(v8::Isolate* isolate, v8::Local<v8::Object> obj, NativeType* ptr) {
+    //
+    // The tracker row rides along because these callbacks are not guaranteed to run on the thread
+    // that built the object: anything still queued when the isolate is disposed is drained by
+    // whichever thread dropped the last reference to it, which need not be the script's.
+    // Decrementing that thread's row instead would strand the increment, and the leak check reads
+    // the script thread's row - so a correctly freed object would be reported as a leak.
+    static void MakeWeak(v8::Isolate* isolate, v8::Local<v8::Object> obj, NativeType* ptr,
+                         V8InstanceTracker::Row& row) {
         struct WeakCallbackData {
             v8::Global<v8::Object> handle;
             NativeType* native;
+            V8InstanceTracker::Row* row;
         };
 
-        auto* data = new WeakCallbackData{v8::Global<v8::Object>(isolate, obj), ptr};
+        auto* data = new WeakCallbackData{v8::Global<v8::Object>(isolate, obj), ptr, &row};
 
         data->handle.SetWeak(
             data,
@@ -76,9 +84,10 @@ class V8ClassBase {
                 info.GetParameter()->handle.Reset();
                 info.SetSecondPassCallback([](const v8::WeakCallbackInfo<WeakCallbackData>& callbackInfo) {
                     auto* d = callbackInfo.GetParameter();
+                    auto& owningRow = *d->row;
                     delete d->native;
                     delete d;
-                    V8InstanceTracker::Instance().Decrement(Derived::ClassName);
+                    V8InstanceTracker::Instance().Decrement(owningRow, InstanceClassId());
                 });
             },
             v8::WeakCallbackType::kParameter);
@@ -89,6 +98,13 @@ class V8ClassBase {
     static constexpr int32_t INTERNAL_FIELD_COUNT = 2;
 
    public:
+    // Instance-tracker row for this class, resolved once. ClassId takes a lock and scans the name
+    // table, which must not happen per object - this is on the construction path of every wrapper.
+    static int32_t InstanceClassId() {
+        static const int32_t ID = V8InstanceTracker::ClassId(Derived::ClassName);
+        return ID;
+    }
+
     // Returns (or creates) the cached FunctionTemplate for this isolate.
     static v8::Local<v8::FunctionTemplate> GetTemplate(v8::Isolate* isolate) {
         auto& cache = GetCache();
@@ -150,10 +166,10 @@ class V8ClassBase {
 
     // Initialize a V8 object with native data and weak GC callback (constructor path).
     static void InitInstance(v8::Isolate* isolate, v8::Local<v8::Object> obj, std::unique_ptr<NativeType> data) {
-        V8InstanceTracker::Instance().Increment(Derived::ClassName);
+        auto& row = V8InstanceTracker::Instance().Increment(InstanceClassId());
         auto* raw = data.release();
         Wrap(obj, raw);
-        MakeWeak(isolate, obj, raw);
+        MakeWeak(isolate, obj, raw, row);
     }
 
     // Create a new instance from heap-allocated data; on failure, data is freed automatically.
