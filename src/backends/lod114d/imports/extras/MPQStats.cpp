@@ -2604,60 +2604,53 @@ struct CiEqualTo {
 template <typename Value>
 using CiMap = std::unordered_map<std::string_view, Value, CiHash, CiEqualTo>;
 
-// Paired so one lookup answers both, and nothing has to work back from a schema to its table.
-struct TableRef {
+// A table's schema plus its columns by name, so one lookup answers both and nothing has to work
+// back from a schema to which table it is.
+//
+// Non-movable, and built in place: holding the column map by value would otherwise give this an
+// implicitly throwing move constructor, since MSVC's unordered_map move is not noexcept. Nothing
+// ever moves one - unordered_map relocates nodes rather than mapped values - so deleting it costs
+// nothing.
+struct TableEntry {
     const TableSchema* schema = nullptr;
-    const CiMap<const ColumnSchema*>* columns = nullptr;
+    CiMap<const ColumnSchema*> columns;
+
+    TableEntry() = default;
+    TableEntry(TableEntry&&) = delete;
+    TableEntry& operator=(TableEntry&&) = delete;
 };
 
 // Built once from the constexpr schemas, keyed by string_views into their static storage.
 //
 // Deliberately leaked: a cell read can happen during teardown - a script thread still running at
 // DLL detach - and a destructible static would hand back a dangling ColumnSchema*.
-// NOLINTBEGIN(cppcoreguidelines-owning-memory) - intentionally immortal, never freed
-//
-// Reserved up front so the maps keep their addresses: TableIndex points into this vector.
-const std::vector<CiMap<const ColumnSchema*>>& ColumnIndexes() {
-    static const auto* indexes = [] {
-        auto* built = new std::vector<CiMap<const ColumnSchema*>>;
+const CiMap<TableEntry>& Schema() {
+    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - intentionally immortal, never freed
+    static const auto* schema = [] {
+        auto* built = new CiMap<TableEntry>;
         built->reserve(TABLES.size());
         for (const auto& table : TABLES) {
-            auto& columns = built->emplace_back();
-            columns.reserve(table.columns.size());
+            auto& entry = built->try_emplace(table.name).first->second;
+            entry.schema = &table;
+            entry.columns.reserve(table.columns.size());
             for (const auto& column : table.columns) {
-                columns.emplace(column.name, &column);
+                entry.columns.emplace(column.name, &column);
             }
         }
         return built;
     }();
-    return *indexes;
+    return *schema;
 }
 
-const CiMap<TableRef>& TableIndex() {
-    static const auto* index = [] {
-        const auto& columns = ColumnIndexes();
-        auto* built = new CiMap<TableRef>;
-        built->reserve(TABLES.size());
-        size_t position = 0;
-        for (const auto& table : TABLES) {
-            built->emplace(table.name, TableRef{.schema = &table, .columns = &columns[position]});
-            ++position;
-        }
-        return built;
-    }();
-    return *index;
-}
-// NOLINTEND(cppcoreguidelines-owning-memory)
-
-std::optional<TableRef> FindTable(std::string_view name) {
-    const auto& tables = TableIndex();
-    const auto it = tables.find(name);
-    return it != tables.end() ? std::optional{it->second} : std::nullopt;
+const TableEntry* FindTable(std::string_view name) {
+    const auto& schema = Schema();
+    const auto it = schema.find(name);
+    return it != schema.end() ? &it->second : nullptr;
 }
 
-const ColumnSchema* FindColumn(const TableRef& table, std::string_view name) {
-    const auto it = table.columns->find(name);
-    return it != table.columns->end() ? it->second : nullptr;
+const ColumnSchema* FindColumn(const TableEntry& table, std::string_view name) {
+    const auto it = table.columns.find(name);
+    return it != table.columns.end() ? it->second : nullptr;
 }
 
 // === Field readers ==========================================================
