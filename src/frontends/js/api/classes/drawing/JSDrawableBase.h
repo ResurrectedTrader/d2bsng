@@ -34,8 +34,9 @@ class JSDrawableBase : public V8ClassBase<Derived, DrawableType> {
     // decrements when the owning Script destroys the drawable.
     static void SetupInstanceTracking(DrawableType* drawable) {
         const int32_t classId = Base::InstanceClassId();
-        // Carries the row rather than re-resolving one in the hook: RemoveDrawable also runs from
-        // the game thread, so onDestroy is not always the constructing thread.
+        // Carries the row rather than re-resolving one in the hook: ~Drawable runs the hook and
+        // can itself run on the game thread, which only RemoveDrawable clearing onDestroy first
+        // keeps it from reaching.
         auto* row = &V8InstanceTracker::Instance().Increment(classId);
         drawable->onDestroy = [classId, row] {
             V8InstanceTracker::Instance().Decrement(*row, classId);
