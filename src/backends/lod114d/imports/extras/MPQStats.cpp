@@ -5,6 +5,7 @@
 #include "imports/extras/MPQStats.h"
 
 #include "imports/D2Common.h"
+#include "utils/CaseInsensitiveMap.h"
 #include "utils/utils.h"
 
 #include <Windows.h>  // GetModuleHandle
@@ -2581,28 +2582,6 @@ void ResolveTableBase(const TableInfo& info, const uint8_t** outBase, uint32_t* 
         *outCount = 0xFFU;
     }
 }
-// Matching is case-insensitive. This fold must stay byte-identical to
-// utils::EqualsCaseInsensitive's, or the hash disagrees with the equality and lookups miss.
-struct CiHash {
-    size_t operator()(std::string_view text) const noexcept {
-        size_t hash = 2166136261U;  // 32-bit FNV-1a over the lowercased bytes; this is an x86 build
-        for (const char c : text) {
-            const char lowered = (c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c;
-            hash ^= static_cast<uint8_t>(lowered);
-            hash *= 16777619U;
-        }
-        return hash;
-    }
-};
-
-struct CiEqualTo {
-    bool operator()(std::string_view lhs, std::string_view rhs) const noexcept {
-        return utils::EqualsCaseInsensitive(lhs, rhs);
-    }
-};
-
-template <typename Value>
-using CiMap = std::unordered_map<std::string_view, Value, CiHash, CiEqualTo>;
 
 // A table's schema plus its columns by name, so one lookup answers both and nothing has to work
 // back from a schema to which table it is.
@@ -2613,7 +2592,7 @@ using CiMap = std::unordered_map<std::string_view, Value, CiHash, CiEqualTo>;
 // nothing.
 struct TableEntry {
     const TableSchema* schema = nullptr;
-    CiMap<const ColumnSchema*> columns;
+    utils::CaseInsensitiveMap<const ColumnSchema*> columns;
 
     TableEntry() = default;
     TableEntry(TableEntry&&) = delete;
@@ -2624,10 +2603,10 @@ struct TableEntry {
 //
 // Deliberately leaked: a cell read can happen during teardown - a script thread still running at
 // DLL detach - and a destructible static would hand back a dangling ColumnSchema*.
-const CiMap<TableEntry>& Schema() {
+const utils::CaseInsensitiveMap<TableEntry>& Schema() {
     // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - intentionally immortal, never freed
     static const auto* schema = [] {
-        auto* built = new CiMap<TableEntry>;
+        auto* built = new utils::CaseInsensitiveMap<TableEntry>;
         built->reserve(TABLES.size());
         for (const auto& table : TABLES) {
             auto& entry = built->try_emplace(table.name).first->second;
