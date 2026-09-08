@@ -86,6 +86,7 @@
     <ClCompile Include="utils.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CaseInsensitiveMap.h" />
     <ClInclude Include="crypto.h" />
     <ClInclude Include="DeferGuard.h" />
     <ClInclude Include="threadutils.h" />

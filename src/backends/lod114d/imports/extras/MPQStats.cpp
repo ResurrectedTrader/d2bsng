@@ -5,6 +5,7 @@
 #include "imports/extras/MPQStats.h"
 
 #include "imports/D2Common.h"
+#include "utils/CaseInsensitiveMap.h"
 #include "utils/utils.h"
 
 #include <Windows.h>  // GetModuleHandle
@@ -16,6 +17,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 
 namespace d2bs::imports::extras {
 namespace {
@@ -2346,7 +2348,7 @@ constexpr std::array<ColumnSchema, 20> COLS_SUPERUNIQUES = {{
 // magicprefix.txt / magicsuffix.txt share one in-memory D2MagicAffixTxt array,
 // indexed by the global affix id (wMagicPrefix[i] / wMagicSuffix[i]). The "transform"
 // column (24) has no record field, so it is intentionally absent here.
-constexpr std::array<ColumnSchema, 40> COLS_AFFIXES = {{
+constexpr std::array<ColumnSchema, 41> COLS_AFFIXES = {{
     {.name = "Name", .type = FieldKind::Ascii, .bitOrLen = 0x1fU, .offset = 0x0U},
     {.name = "version", .type = FieldKind::Word, .bitOrLen = 0x0U, .offset = 0x22U},
     {.name = "spawnable", .type = FieldKind::Byte, .bitOrLen = 0x0U, .offset = 0x54U},
@@ -2371,6 +2373,10 @@ constexpr std::array<ColumnSchema, 40> COLS_AFFIXES = {{
     {.name = "mod3param", .type = FieldKind::DwordSigned, .bitOrLen = 0x0U, .offset = 0x48U},
     {.name = "mod3min", .type = FieldKind::DwordSigned, .bitOrLen = 0x0U, .offset = 0x4cU},
     {.name = "mod3max", .type = FieldKind::DwordSigned, .bitOrLen = 0x0U, .offset = 0x50U},
+    // D2MOO calls 0x55 `padding0x54`, but nTransformColor is a char and needs no alignment, so
+    // filler there would have put the char at 0x55 and padded 0x56-0x57 up to dwLevel - which is
+    // what 0x57 is. magicprefix.txt's one unaccounted column, a 0/1 flag, is what fits.
+    {.name = "transform", .type = FieldKind::Byte, .bitOrLen = 0x0U, .offset = 0x55U},
     {.name = "transformcolor", .type = FieldKind::ByteSigned, .bitOrLen = 0x0U, .offset = 0x56U},
     {.name = "itype1", .type = FieldKind::Word, .bitOrLen = 0x0U, .offset = 0x6aU},
     {.name = "itype2", .type = FieldKind::Word, .bitOrLen = 0x0U, .offset = 0x6cU},
@@ -2576,23 +2582,54 @@ void ResolveTableBase(const TableInfo& info, const uint8_t** outBase, uint32_t* 
     }
 }
 
-const TableSchema* FindTable(std::string_view name) {
-    // Table / column matching is case-insensitive in the reference (`_strcmpi`).
-    for (const auto& t : TABLES) {
-        if (utils::EqualsCaseInsensitive(name, t.name)) {
-            return &t;
+// A table's schema plus its columns by name, so one lookup answers both and nothing has to work
+// back from a schema to which table it is.
+//
+// Non-movable, and built in place: holding the column map by value would otherwise give this an
+// implicitly throwing move constructor, since MSVC's unordered_map move is not noexcept. Nothing
+// ever moves one - unordered_map relocates nodes rather than mapped values - so deleting it costs
+// nothing.
+struct TableEntry {
+    const TableSchema* schema;
+    utils::CaseInsensitiveMap<const ColumnSchema*> columns;
+
+    TableEntry(const TableSchema* table, utils::CaseInsensitiveMap<const ColumnSchema*>&& tableColumns)
+        : schema(table), columns(std::move(tableColumns)) {}
+
+    TableEntry(TableEntry&&) = delete;
+    TableEntry& operator=(TableEntry&&) = delete;
+};
+
+// Built once from the constexpr schemas, keyed by string_views into their static storage.
+//
+// Never destroyed: a cell read can happen during teardown - a script thread still running at DLL
+// detach - and running this static's destructor would hand back a dangling ColumnSchema*.
+const utils::CaseInsensitiveMap<TableEntry>& Schema() {
+    [[clang::no_destroy]] static const auto SCHEMA = [] {
+        utils::CaseInsensitiveMap<TableEntry> built;
+        built.reserve(TABLES.size());
+        for (const auto& table : TABLES) {
+            utils::CaseInsensitiveMap<const ColumnSchema*> columns;
+            columns.reserve(table.columns.size());
+            for (const auto& column : table.columns) {
+                columns.try_emplace(column.name, &column);
+            }
+            built.try_emplace(table.name, &table, std::move(columns));
         }
-    }
-    return nullptr;
+        return built;
+    }();
+    return SCHEMA;
 }
 
-const ColumnSchema* FindColumn(const TableSchema& table, std::string_view name) {
-    for (const auto& c : table.columns) {
-        if (utils::EqualsCaseInsensitive(name, c.name)) {
-            return &c;
-        }
-    }
-    return nullptr;
+const TableEntry* FindTable(std::string_view name) {
+    const auto& schema = Schema();
+    const auto it = schema.find(name);
+    return it != schema.end() ? &it->second : nullptr;
+}
+
+const ColumnSchema* FindColumn(const TableEntry& table, std::string_view name) {
+    const auto it = table.columns.find(name);
+    return it != table.columns.end() ? it->second : nullptr;
 }
 
 // === Field readers ==========================================================
@@ -2691,8 +2728,8 @@ bool IsOneBasedTable(std::string_view name) {
 }  // namespace
 
 TxtValue GetTxtValue(std::string_view tableName, uint32_t recordId, std::string_view columnName) {
-    const TableSchema* table = FindTable(tableName);
-    if (table == nullptr) {
+    const auto table = FindTable(tableName);
+    if (!table) {
         return std::monostate{};
     }
     const ColumnSchema* col = FindColumn(*table, columnName);
@@ -2702,7 +2739,7 @@ TxtValue GetTxtValue(std::string_view tableName, uint32_t recordId, std::string_
 
     const uint8_t* base = nullptr;
     uint32_t count = 0;
-    ResolveTableBase(table->info, &base, &count);
+    ResolveTableBase(table->schema->info, &base, &count);
     if (base == nullptr) {
         return std::monostate{};
     }
@@ -2718,22 +2755,22 @@ TxtValue GetTxtValue(std::string_view tableName, uint32_t recordId, std::string_
     if (rowIndex >= count) {
         return std::monostate{};
     }
-    if (table->info.recordSize == 0) {
+    if (table->schema->info.recordSize == 0) {
         return std::monostate{};
     }
 
-    const uint8_t* record = base + (rowIndex * table->info.recordSize);
+    const uint8_t* record = base + (rowIndex * table->schema->info.recordSize);
     return ReadField(record, *col);
 }
 
 std::optional<uint32_t> GetTxtTableRowCount(std::string_view tableName) {
-    const TableSchema* table = FindTable(tableName);
-    if (table == nullptr) {
+    const auto table = FindTable(tableName);
+    if (!table) {
         return std::nullopt;
     }
     const uint8_t* base = nullptr;
     uint32_t count = 0;
-    ResolveTableBase(table->info, &base, &count);
+    ResolveTableBase(table->schema->info, &base, &count);
     if (base == nullptr) {
         // Data table not loaded yet (out of game, or queried too early).
         return std::nullopt;
