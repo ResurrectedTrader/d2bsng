@@ -1,6 +1,5 @@
 #pragma once
 
-#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cstdint>
@@ -28,15 +27,23 @@ using ClassCountMap = std::map<std::string, int32_t, std::less<>>;
 // Counting sits on every wrapper object's construction and destruction, so the hot path is a
 // relaxed increment on a per-thread row with no lock and no lookup.
 class V8InstanceTracker {
+   public:
     // A fixed-size array of atomics is never restructured, which is what lets a reader and the
     // owning thread touch the same row concurrently.
     static constexpr size_t MAX_CLASSES = 64;
 
+    // Per-thread counts. Opaque to callers, which only hold the Row that Increment handed them
+    // and pass it back to Decrement - so a count is always returned to the row that took it, even
+    // when the destructor runs on another thread (a V8 weak callback drained by whichever thread
+    // disposes the isolate). Rows are immortal, so the pointer stays valid for the lifetime of
+    // whatever it counts: Registration never unregisters and ClearThread zeroes instead of
+    // erasing, both for reasons of their own.
     struct Row {
         std::thread::id owner;
         std::array<std::atomic<int32_t>, MAX_CLASSES> counts{};
     };
 
+   private:
     struct Registry {
         std::mutex mutex;
         std::vector<std::shared_ptr<Row>> rows;
@@ -106,17 +113,22 @@ class V8InstanceTracker {
         return static_cast<int32_t>(registry.classNames.size() - 1);
     }
 
-    void Increment(int32_t classId) {
+    // Counts one instance against the calling thread and returns the row it landed in. The caller
+    // must keep that row and hand it to Decrement - which is why the row is returned rather than
+    // looked up again on the way out.
+    [[nodiscard]] Row& Increment(int32_t classId) {
+        Row& row = RowForCurrentThread();
         if (classId >= 0) {
             // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by ClassId
-            RowForCurrentThread().counts[static_cast<size_t>(classId)].fetch_add(1, std::memory_order_relaxed);
+            row.counts[static_cast<size_t>(classId)].fetch_add(1, std::memory_order_relaxed);
         }
+        return row;
     }
 
-    void Decrement(int32_t classId) {
+    void Decrement(Row& row, int32_t classId) {
         if (classId >= 0) {
             // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by ClassId
-            RowForCurrentThread().counts[static_cast<size_t>(classId)].fetch_sub(1, std::memory_order_relaxed);
+            row.counts[static_cast<size_t>(classId)].fetch_sub(1, std::memory_order_relaxed);
         }
     }
 
@@ -138,8 +150,6 @@ class V8InstanceTracker {
         }
 
         // Read outside the lock; owners keep incrementing, which is fine for a diagnostic.
-        // Summing all threads can go negative - a weak callback on a foreign thread decrements a
-        // row that never incremented - but every current caller passes a thread id.
         ClassCountMap merged;
         for (const auto& row : rows) {
             for (size_t i = 0; i < names.size(); ++i) {
@@ -150,7 +160,6 @@ class V8InstanceTracker {
                 }
             }
         }
-        std::erase_if(merged, [](const auto& entry) { return entry.second == 0; });
         return merged;
     }
 
