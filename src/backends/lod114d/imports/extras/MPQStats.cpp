@@ -18,7 +18,6 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
-#include <vector>
 
 namespace d2bs::imports::extras {
 namespace {
@@ -2591,34 +2590,35 @@ void ResolveTableBase(const TableInfo& info, const uint8_t** outBase, uint32_t* 
 // ever moves one - unordered_map relocates nodes rather than mapped values - so deleting it costs
 // nothing.
 struct TableEntry {
-    const TableSchema* schema = nullptr;
+    const TableSchema* schema;
     utils::CaseInsensitiveMap<const ColumnSchema*> columns;
 
-    TableEntry() = default;
+    TableEntry(const TableSchema* table, utils::CaseInsensitiveMap<const ColumnSchema*>&& tableColumns)
+        : schema(table), columns(std::move(tableColumns)) {}
+
     TableEntry(TableEntry&&) = delete;
     TableEntry& operator=(TableEntry&&) = delete;
 };
 
 // Built once from the constexpr schemas, keyed by string_views into their static storage.
 //
-// Deliberately leaked: a cell read can happen during teardown - a script thread still running at
-// DLL detach - and a destructible static would hand back a dangling ColumnSchema*.
+// Never destroyed: a cell read can happen during teardown - a script thread still running at DLL
+// detach - and running this static's destructor would hand back a dangling ColumnSchema*.
 const utils::CaseInsensitiveMap<TableEntry>& Schema() {
-    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - intentionally immortal, never freed
-    static const auto* schema = [] {
-        auto* built = new utils::CaseInsensitiveMap<TableEntry>;
-        built->reserve(TABLES.size());
+    [[clang::no_destroy]] static const auto SCHEMA = [] {
+        utils::CaseInsensitiveMap<TableEntry> built;
+        built.reserve(TABLES.size());
         for (const auto& table : TABLES) {
-            auto& entry = built->try_emplace(table.name).first->second;
-            entry.schema = &table;
-            entry.columns.reserve(table.columns.size());
+            utils::CaseInsensitiveMap<const ColumnSchema*> columns;
+            columns.reserve(table.columns.size());
             for (const auto& column : table.columns) {
-                entry.columns.emplace(column.name, &column);
+                columns.try_emplace(column.name, &column);
             }
+            built.try_emplace(table.name, &table, std::move(columns));
         }
         return built;
     }();
-    return *schema;
+    return SCHEMA;
 }
 
 const TableEntry* FindTable(std::string_view name) {
