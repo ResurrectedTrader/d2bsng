@@ -56,13 +56,14 @@ constexpr uint32_t QFLAG_REWARDGRANTED = 0;
 constexpr uint32_t QFLAG_REWARDPENDING = 1;
 constexpr uint32_t WAYPOINT_COUNT = 39;
 
-// The belt is a fixed 4x4 of potion slots rather than an inventory.txt grid - its items carry
-// the belt slot in x, not a cell - so it is the one grid container with a constant size.
+// The belt has no inventory.txt row to read, so it is the one grid container with a constant
+// size. Four columns is fixed; four rows is the maximum - the real count is the equipped belt's
+// belts.txt numboxes / 4, which we do not decode. Over-declaring keeps every item in bounds.
 constexpr game::Size BELT_SIZE{.width = 4, .height = 4};
 
-// Equipped and merc are slot containers: BuildContainer emits no dimensions for them at all, so
-// what is stored here is never read.
-constexpr game::Size SLOT_CONTAINER_SIZE = game::Size::Zero;
+// Equipped and merc are equip-slot containers: BuildContainer emits no dimensions for them at
+// all, so what is stored here is never read.
+constexpr game::Size EQUIP_CONTAINER_SIZE = game::Size::Zero;
 
 // Fingerprint of a container's contents, built from the same traversal that produces the
 // payload so it can't miss a field. Detail::Structural keeps it Description()-free and
@@ -333,8 +334,8 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
     // Zero for a grid the game has not populated its layout for yet: unknown, so draw no grid.
     // Deliberately not a vanilla constant, which would assert a size a mod can have changed.
     const std::array<game::Size, BUCKET_COUNT> containerDims = {
-        SLOT_CONTAINER_SIZE,
-        SLOT_CONTAINER_SIZE,
+        EQUIP_CONTAINER_SIZE,
+        EQUIP_CONTAINER_SIZE,
         game::GetGridSize(game::ItemLocation::Inventory).value_or(game::Size::Zero),
         game::GetGridSize(game::ItemLocation::Cube).value_or(game::Size::Zero),
         BELT_SIZE,
