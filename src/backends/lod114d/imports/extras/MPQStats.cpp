@@ -2436,7 +2436,12 @@ constexpr std::array<ColumnSchema, 29> COLS_PROPERTIES = {{
     {.name = "stat7", .type = FieldKind::Word, .bitOrLen = 0x0U, .offset = 0x2cU},
 }};
 
-constexpr std::array<TableSchema, 28> TABLES = {{
+// The 64 box rect columns at 0x8..0x104 are panel screen coordinates, omitted.
+constexpr std::array<ColumnSchema, 1> COLS_BELTS = {{
+    {.name = "numboxes", .type = FieldKind::Byte, .bitOrLen = 0x0U, .offset = 0x4U},
+}};
+
+constexpr std::array<TableSchema, 29> TABLES = {{
     {.name = "items",
      .info = {.tableOffset = 0x4426f0U, .countOffset = 0x4426ecU, .isAbsolute = true, .recordSize = 0x1a8U},
      .columns = COLS_ITEMS},
@@ -2526,6 +2531,10 @@ constexpr std::array<TableSchema, 28> TABLES = {{
     {.name = "properties",
      .info = {.tableOffset = 0xa4U, .countOffset = 0xacU, .isAbsolute = false, .recordSize = 0x2eU},
      .columns = COLS_PROPERTIES},
+    // 14 records, 7 per resolution: beltType + 7 * highRes, same numboxes in both.
+    {.name = "belts",
+     .info = {.tableOffset = 0x56d4f8U, .countOffset = 0x0U, .isAbsolute = true, .recordSize = 0x108U},
+     .columns = COLS_BELTS},
 }};
 
 // === Lookup helpers =========================================================

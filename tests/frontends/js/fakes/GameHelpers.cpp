@@ -198,6 +198,9 @@ void UseSkillPoint(uint32_t /*skill*/, uint32_t /*count*/) {}
 void TakeScreenshot() {}
 
 // === Item Actions ===
+std::optional<Size> GetGridSize(ItemLocation /*location*/) {
+    return std::nullopt;
+}
 ClickResult ClickBodyLocation(BodyLocation /*slot*/, InventoryOwner /*owner*/) {
     return ClickResult::InvalidTarget;
 }

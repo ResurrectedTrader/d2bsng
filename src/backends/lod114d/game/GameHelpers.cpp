@@ -100,6 +100,9 @@ GameVar<D2InventoryGridInfoStrc> storeLayout{0x3BCB58};
 GameVar<D2InventoryGridInfoStrc> cubeLayout{0x3BCB70};
 GameVar<D2InventoryGridInfoStrc> inventoryLayout{0x3BCB88};
 GameVar<D2InventoryGridInfoStrc> mercLayout{0x3BCD4C};
+// Static data unlike the layouts above: 13 slots by 1, with box dimensions that stay
+// zero because equip is a slot list with nothing to click.
+GameVar<D2InventoryGridInfoStrc> bodyLocLayout{0x34479C};
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 struct LayoutEntry {
@@ -112,8 +115,13 @@ struct LayoutEntry {
 
 // Maps an ItemLocation to the matching layout pointer + the location code
 // the click thunks expect. Returns {nullptr, 0} for locations that don't
-// have a grid layout (Equipped, Belt, Body slots, etc).
+// have a grid layout (Belt, Ground, etc).
 LayoutEntry LookupContainerLayout(ItemLocation location) {
+    // Nothing the click thunks can target. The store has no constant to record:
+    // it passes the live shop tab index (0..3, at 0x3BCC04). Moot either way,
+    // since ClickItem whitelists Inventory/Stash/Cube before reaching here.
+    constexpr uint32_t NO_CLICK_LOCATION = 0;
+
     switch (location) {
         case ItemLocation::Inventory:
             return {.layout = inventoryLayout.Ptr(), .locationCode = 0};
@@ -123,8 +131,10 @@ LayoutEntry LookupContainerLayout(ItemLocation location) {
             return {.layout = cubeLayout.Ptr(), .locationCode = 3};
         case ItemLocation::Stash:
             return {.layout = stashLayout.Ptr(), .locationCode = 4};
+        case ItemLocation::Store:
+            return {.layout = storeLayout.Ptr(), .locationCode = NO_CLICK_LOCATION};
         default:
-            return {.layout = nullptr, .locationCode = 0};
+            return {.layout = nullptr, .locationCode = NO_CLICK_LOCATION};
     }
 }
 
@@ -906,6 +916,60 @@ void TakeScreenshot() {
 }
 
 // === Item Actions ===
+
+namespace {
+
+// Four columns by the equipped belt's belts.txt numboxes / 4, keyed on that item's
+// items.txt "belt" value - all UNITS_GetBeltType returns. Record 2 is beltless,
+// matching D2Common's own fallback.
+std::optional<Size> ResolveBeltSize() {
+    constexpr uint32_t BELT_COLUMNS = 4;
+    constexpr uint32_t BELT_TYPE_NONE = 2;
+
+    uint32_t beltType = BELT_TYPE_NONE;
+    auto* player = d2client::UNITS_GetPlayerUnit();
+    if (player != nullptr && player->pInventory != nullptr) {
+        for (auto* item = d2common::INVENTORY_GetFirstItem(player->pInventory); item != nullptr;
+             item = d2common::INVENTORY_GetNextItem(item)) {
+            if (item->pItemData == nullptr || item->pItemData->nBodyLoc != static_cast<uint8_t>(BodyLocation::Belt)) {
+                continue;
+            }
+            if (const auto* txt = d2common::DATATBLS_GetItemsTxtRecord(item->dwClassId)) {
+                beltType = txt->nBelt;
+            }
+            break;
+        }
+    }
+
+    const auto boxes = GetTxtValue("belts", beltType, "numboxes");
+    const auto* count = std::get_if<int64_t>(&boxes);
+    if (count == nullptr || *count <= 0 || *count % BELT_COLUMNS != 0) {
+        return std::nullopt;
+    }
+    return Size{.width = BELT_COLUMNS, .height = static_cast<uint32_t>(*count) / BELT_COLUMNS};
+}
+
+}  // namespace
+
+std::optional<Size> GetGridSize(ItemLocation location) {
+    // Both bypass ResolveContainerLayout: it gates on box dimensions neither has,
+    // so the init-on-first-touch dance would warn and fail on every call.
+    if (location == ItemLocation::Belt) {
+        return ResolveBeltSize();
+    }
+    if (location == ItemLocation::Equip) {
+        const auto* layout = bodyLocLayout.Ptr();
+        if (layout == nullptr) {
+            return std::nullopt;
+        }
+        return Size{.width = layout->nGridX, .height = layout->nGridY};
+    }
+    const auto entry = ResolveContainerLayout(location);
+    if (!entry) {
+        return std::nullopt;
+    }
+    return Size{.width = entry->layout->nGridX, .height = entry->layout->nGridY};
+}
 
 // --- ClickItem family --------------------------------------------------------
 //
