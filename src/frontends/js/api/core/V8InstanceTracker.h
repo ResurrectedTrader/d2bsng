@@ -34,10 +34,9 @@ class V8InstanceTracker {
 
     // Per-thread counts. Opaque to callers, which only hold the Row that Increment handed them
     // and pass it back to Decrement - so a count is always returned to the row that took it, even
-    // when the destructor runs on another thread (a V8 weak callback drained by whichever thread
-    // disposes the isolate). Rows are immortal, so the pointer stays valid for the lifetime of
-    // whatever it counts: Registration never unregisters and ClearThread zeroes instead of
-    // erasing, both for reasons of their own.
+    // if the destructor runs on another thread. Rows are immortal, so the pointer stays valid for
+    // the lifetime of whatever it counts: Registration never unregisters and ClearThread zeroes
+    // instead of erasing, both for reasons of their own.
     struct Row {
         std::thread::id owner;
         std::array<std::atomic<int32_t>, MAX_CLASSES> counts{};

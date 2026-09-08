@@ -63,11 +63,11 @@ class V8ClassBase {
     // TeardownIsolate calls LowMemoryNotification() before disposal to ensure
     // all weak callbacks fire and native data is properly freed.
     //
-    // The tracker row rides along because these callbacks are not guaranteed to run on the thread
-    // that built the object: anything still queued when the isolate is disposed is drained by
-    // whichever thread dropped the last reference to it, which need not be the script's.
-    // Decrementing that thread's row instead would strand the increment, and the leak check reads
-    // the script thread's row - so a correctly freed object would be reported as a leak.
+    // The tracker row rides along so the count returns to the row that took it whichever thread
+    // runs the callback. Today that is always the script thread, but only because V8 posts second
+    // pass callbacks to the foreground task runner and TeardownIsolate forces a synchronous drain
+    // before disposal - Isolate::Dispose itself drains nothing, so a callback still queued there
+    // is dropped rather than run late. Recording the row keeps none of that load-bearing.
     static void MakeWeak(v8::Isolate* isolate, v8::Local<v8::Object> obj, NativeType* ptr,
                          V8InstanceTracker::Row& row) {
         struct WeakCallbackData {
