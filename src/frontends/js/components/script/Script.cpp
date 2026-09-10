@@ -1,6 +1,7 @@
 #include "Script.h"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <chrono>
 #include <fstream>
@@ -32,13 +33,43 @@
 #include "game/GameLock.h"
 #include "speedhack/Speedhack.h"
 #include "utils/DeferGuard.h"
+#include "utils/Profiling.h"
 #include "utils/utils.h"
 
 namespace d2bs {
 
+namespace {
+
+// Where a script thread's time goes while it is inside delay(). Indexed by IdlePhase. The JS run
+// between delay() calls is outside this loop and does not appear; the thread row's CPU covers it.
+enum class IdlePhase : size_t { Pump, Handlers, Wait, Paused };
+
+constexpr std::array IDLE_PHASES = {
+    profiling::PhaseInfo{.name = "event pump",
+                         .what = "V8 tasks, inspector messages, heap stats - everything but the handlers",
+                         .warn = 5.0,
+                         .bad = 15.0},
+    profiling::PhaseInfo{.name = "handlers (JS)", .what = "event and timer callbacks run from delay()"},
+    profiling::PhaseInfo{.name = "asleep", .what = "the wait the script asked for", .blocking = true},
+    profiling::PhaseInfo{.name = "paused", .what = "paused from the console", .blocking = true},
+};
+
+// One timeline per script thread; the panel sums the ones sharing this title into one table.
+constexpr profiling::TimelineInfo IDLE_TIMELINE{
+    .title = "Script threads, inside delay()",
+    .phases = IDLE_PHASES,
+    .framePhase = static_cast<size_t>(IdlePhase::Pump),
+    .frameLabel = "passes",
+    .idle = "No script called delay() in this window.",
+    .order = 300,
+};
+
+}  // namespace
+
 Script::Script(std::filesystem::path path, ScriptMode mode, std::vector<std::vector<uint8_t>> args)
     : path_(std::move(path)),
       normalizedPath_(NormalizePath(path_)),
+      idle_(IDLE_TIMELINE),
       mode_(mode),
       args_(std::move(args)),
       logger_(utils::GetLogger(path_.filename().string())) {}
@@ -829,8 +860,12 @@ void Script::ExecuteEvents(std::chrono::milliseconds duration) {
     // Idle-wait granularity (INI IdleSleepIntervalMs): wall-ms slept per idle pass.
     const auto idleSleep = config::GetAppConfig().idleSleepInterval;
 
+    // Reached from a handler (delay() inside a callback): hand the handler phase back on exit.
+    const bool nested = idle_.InPhase();
+
     // When paused, sleep without processing events.
     while (state_.load() == ScriptState::Paused && !stopToken.stop_requested()) {
+        idle_.Enter(IdlePhase::Paused);
         speedhack::SpeedhackDisabledScope realWaits;
         std::this_thread::sleep_for(idleSleep);
     }
@@ -838,6 +873,8 @@ void Script::ExecuteEvents(std::chrono::milliseconds duration) {
     const auto deadline = std::chrono::steady_clock::now() + duration;
     const float speed = speedhack::GetSpeed();
     while (true) {
+        idle_.Enter(IdlePhase::Pump);
+
         while (v8::platform::PumpMessageLoop(platform, iso)) {}
 
         // Pump any queued Chrome DevTools (inspector) messages on the isolate
@@ -866,8 +903,14 @@ void Script::ExecuteEvents(std::chrono::milliseconds duration) {
         // cross-thread event post is serviced within idleSleep.
         const auto realRemaining = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::duration<double, std::milli>(deadline - now) / speed);
+        idle_.Enter(IdlePhase::Wait);
         speedhack::SpeedhackDisabledScope realWaits;
         std::this_thread::sleep_for(std::clamp(realRemaining, std::chrono::milliseconds(1), idleSleep));
+    }
+    if (nested) {
+        idle_.Resume(IdlePhase::Handlers);
+    } else {
+        idle_.Leave();
     }
 }
 
@@ -894,7 +937,12 @@ bool Script::ExecuteEvent(const std::shared_ptr<BaseEvent>& event) {
 
         // Always call Execute - even with empty fns, BlockableEvent needs to
         // decrement its remaining_ counter to avoid stalling the game thread.
-        event->Execute(iso, fns);
+        {
+            // Pumped from inside delay(): the handler is the script's work, not delay's.
+            const auto phase = idle_.Nest(IdlePhase::Handlers);
+            const profiling::ScopedNativeExclusion handlerIsJs;
+            event->Execute(iso, fns);
+        }
 
         // Re-post interval timers AFTER execution to prevent unbounded accumulation.
         // If the callback takes longer than repeatMs, the next firing is deferred

@@ -82,6 +82,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="crypto.cpp" />
+    <ClCompile Include="Profiling.cpp" />
     <ClCompile Include="threadutils.cpp" />
     <ClCompile Include="utils.cpp" />
   </ItemGroup>
@@ -89,6 +90,7 @@
     <ClInclude Include="CaseInsensitiveMap.h" />
     <ClInclude Include="crypto.h" />
     <ClInclude Include="DeferGuard.h" />
+    <ClInclude Include="Profiling.h" />
     <ClInclude Include="threadutils.h" />
     <ClInclude Include="utils.h" />
     <ClInclude Include="VirtualArray.h" />

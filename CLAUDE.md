@@ -35,6 +35,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File build.ps1 Release
 #   lint           - clang-tidy analysis (delegates to scripts/lint.ps1)
 #   fix            - Auto-fix clang-tidy violations
 #   test           - Build and run the test suite (js_tests.exe)
+#
+# Switches:
+#   -NoProfiling   - Compile the profiling counters (utils/Profiling.h) and the console's
+#                    Profiling panel out (MSBuild -p:D2bsProfiling=false; see Directory.Build.props)
 ```
 
 The build script auto-detects the Visual Studio installation via vswhere and works from any directory. You can also build directly with MSBuild or in Visual Studio.
@@ -197,7 +201,7 @@ d2bsng/
 ├── docs/                   Design docs (coords, thread-safety, window messages, inspector)
 ├── scripts/                Maintainer tooling (lint.ps1, API extraction + docs/d.ts/site generators, table generators)
 ├── src/
-│   ├── utils/              utils.lib - standalone utilities (crypto, threading, stackwalker)
+│   ├── utils/              utils.lib - standalone utilities (crypto, threading, stackwalker, profiling counters)
 │   ├── contract/           contract.lib - the boundary both frontends and backends compile against
 │   │   ├── game/               Game interface headers (NO .cpp) + framework-owned utilities
 │   │   └── config/             Shared DTOs: ProfileData, ScriptPaths
@@ -214,7 +218,7 @@ d2bsng/
 │   │       │   ├── events/         Event system
 │   │       │   ├── gameloop/       Per-frame game-thread loop + lock release
 │   │       │   ├── pathfinding/    A* pathfinder
-│   │       │   ├── console/        ImGui dev console (log/REPL/scripts/stacktraces/threads/settings)
+│   │       │   ├── console/        ImGui dev console (log/REPL/scripts/stacktraces/threads/profiling/settings)
 │   │       │   ├── inspector/      V8 inspector (Chrome DevTools) debug server
 │   │       │   ├── drawing/        Screen-hook drawables (Box/Frame/Line/Text/Image)
 │   │       │   ├── characterstate/ Character-state snapshot -> D2BotNG manager (WM_COPYDATA)

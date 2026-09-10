@@ -5,6 +5,8 @@
 #include <memory>
 #include <shared_mutex>
 
+#include "utils/Profiling.h"
+
 namespace d2bs::game {
 
 // Recursive shared (read) lock for script threads.
@@ -110,7 +112,15 @@ inline GameReadLock::GameReadLock() {
         return;
     }
     if (depth_ == 0) {
-        lock_ = std::shared_lock(mutex_);
+        // This runs twice per property read, so the uncontended path pays nothing extra. A script
+        // reading mid-frame parks here until the game thread drops the write lock; that is a wait,
+        // not the calling binding's cost, and only then is the clock read.
+        if (mutex_.try_lock_shared()) {
+            lock_ = std::shared_lock(mutex_, std::adopt_lock);
+        } else {
+            const profiling::ScopedSleep waiting;
+            lock_ = std::shared_lock(mutex_);
+        }
     }
     depth_++;
 }

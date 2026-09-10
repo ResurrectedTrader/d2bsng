@@ -11,6 +11,7 @@
 #include "components/console/ConsolePanel.h"
 #include "components/console/LogPanel.h"
 #include "components/console/Panel.h"
+#include "components/console/ProfilingPanel.h"
 #include "components/console/ScriptPanel.h"
 #include "components/console/SettingsPanel.h"
 #include "components/console/StacktracesPanel.h"
@@ -57,6 +58,9 @@ void Initialize(State& state) {
     state.panels.push_back(std::make_unique<ScriptPanel>());
     state.panels.push_back(std::make_unique<StacktracesPanel>());
     state.panels.push_back(std::make_unique<ThreadsPanel>());
+#ifdef D2BS_PROFILING
+    state.panels.push_back(std::make_unique<ProfilingPanel>());
+#endif
     state.panels.push_back(std::make_unique<SettingsPanel>());
     state.initialized = true;
 }

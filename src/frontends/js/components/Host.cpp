@@ -222,27 +222,43 @@ void Host::LoadConfig() {
     appConfig.store->LoadSettings(appConfig);
 }
 
+namespace {
+
+// Runs a game-thread hook inside the game loop's "event hooks" phase for the Profiling panel.
+template <auto Fn, typename... Args>
+auto EventHook(Args... args) {
+    const auto phase = gameloop::GameLoop::Instance().InPhase(gameloop::FramePhase::Events);
+    return Fn(args...);
+}
+
+}  // namespace
+
 game::GameCallbacks Host::BuildCallbacks() {
+    using gameloop::FramePhase;
+    using gameloop::GameLoop;
+
     game::GameCallbacks callbacks;
 
     // --- Input (blockable) ---
-    callbacks.onKeyEvent = &KeyDownUpEventDispatch;
+    callbacks.onKeyEvent = &EventHook<&KeyDownUpEventDispatch>;
 
     callbacks.onMouseClick = +[](game::ClickButton button, game::Position pos, game::KeyState state) -> bool {
+        const auto phase = GameLoop::Instance().InPhase(FramePhase::Events);
         bool blocked = js::drawing::Drawable::OnClick(button, pos.ToPoint(), game::GetGameState());
         MouseClickEventDispatch(button, pos, state);
         return blocked;
     };
 
     callbacks.onMouseMove = +[](game::Position pos) {
+        const auto phase = GameLoop::Instance().InPhase(FramePhase::Events);
         js::drawing::Drawable::OnMouseMove(pos.ToPoint(), game::GetGameState());
         MouseMoveEventDispatch(pos);
     };
 
     // --- Chat (blockable) ---
-    callbacks.onChatMessage = &ChatEventDispatch;
-    callbacks.onChatInput = &ChatInputEventDispatch;
-    callbacks.onWhisper = &WhisperEventDispatch;
+    callbacks.onChatMessage = &EventHook<&ChatEventDispatch>;
+    callbacks.onChatInput = &EventHook<&ChatInputEventDispatch>;
+    callbacks.onWhisper = &EventHook<&WhisperEventDispatch>;
 
     // Overlay/terminal Enter -> RunCommand dispatch. Fire-and-forget.
     callbacks.onConsoleInput = &js::script::RunCommand;
@@ -253,18 +269,19 @@ game::GameCallbacks Host::BuildCallbacks() {
     callbacks.onConsoleDrawFrame = &js::console::DrawFrame;
 
     // --- Packets (blockable) ---
-    callbacks.onGamePacketReceived = &GamePacketEventDispatch;
-    callbacks.onGamePacketSent = &GamePacketSentEventDispatch;
-    callbacks.onRealmPacket = &RealmPacketEventDispatch;
+    callbacks.onGamePacketReceived = &EventHook<&GamePacketEventDispatch>;
+    callbacks.onGamePacketSent = &EventHook<&GamePacketSentEventDispatch>;
+    callbacks.onRealmPacket = &EventHook<&RealmPacketEventDispatch>;
 
     // --- Game lifecycle ---
-    callbacks.onGameEvent = &GameActionEventDispatch;
-    callbacks.onItemAction = &ItemActionEventDispatch;
+    callbacks.onGameEvent = &EventHook<&GameActionEventDispatch>;
+    callbacks.onItemAction = &EventHook<&ItemActionEventDispatch>;
 
     // Observed monster deaths feed the character-state kill counter. Runs on the
     // game thread (death packet hook) where the frame write lock is held, so the
     // Unit::Find inside RecordKill resolves lock-free (see game/GameLock.h).
     callbacks.onMonsterDeath = +[](uint32_t unitId) {
+        const auto phase = GameLoop::Instance().InPhase(FramePhase::Events);
         js::characterstate::CharacterState::Instance().RecordKill(unitId);
     };
 
@@ -274,6 +291,7 @@ game::GameCallbacks Host::BuildCallbacks() {
     //   IpcMode::Evaluate      (0x1337)  - run payload as JS via ScriptEngine.
     //   IpcMode::SwitchProfile (0x31337) - set active profile via profile::Switch.
     callbacks.onIPC = +[](game::IpcMode mode, const std::string& payload) {
+        const auto phase = GameLoop::Instance().InPhase(FramePhase::Events);
         switch (mode) {
             case game::IpcMode::Evaluate:
                 ScriptEngine::Instance().Evaluate(payload);
@@ -299,10 +317,11 @@ game::GameCallbacks Host::BuildCallbacks() {
 
     // --- Rendering ---
     callbacks.onSleep = +[](std::chrono::milliseconds duration) {
-        js::gameloop::GameLoop::Instance().OnSleep(duration);
+        GameLoop::Instance().OnSleep(duration);
     };
     callbacks.onDraw = +[]() {
-        js::gameloop::GameLoop::Instance().OnDraw();
+        const auto phase = GameLoop::Instance().InPhase(FramePhase::Draw);
+        GameLoop::Instance().OnDraw();
     };
 
     return callbacks;

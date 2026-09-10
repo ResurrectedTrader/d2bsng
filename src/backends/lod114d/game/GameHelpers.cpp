@@ -46,6 +46,7 @@
 #include "imports/extras/MPQStats.h"
 #include "imports/extras/TransactionDialogs.h"
 #include "imports/extras/WindowHandlers.h"
+#include "utils/Profiling.h"
 #include "utils/utils.h"
 
 #include "imports/extras/D2ActiveRoomStrc.h"
@@ -222,6 +223,7 @@ bool WaitForGameReady(std::chrono::milliseconds timeout) {
         if (std::chrono::steady_clock::now() >= deadline) {
             return false;
         }
+        const profiling::ScopedSleep waiting;
         std::this_thread::sleep_for(WAIT_GAME_READY_POLL);
     }
 }
@@ -1696,6 +1698,8 @@ int32_t SendIPC(uint32_t mode, std::string_view data, uintptr_t targetHwnd, std:
     cds.cbData = static_cast<DWORD>(buffer.size()) + 1U;  // include null terminator
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast) - COPYDATASTRUCT.lpData isn't mutated
     cds.lpData = const_cast<char*>(buffer.c_str());
+    // Synchronous across processes: this thread is parked until the manager handles the message.
+    const profiling::ScopedSleep waiting;
     return static_cast<int32_t>(SendMessageW(target, WM_COPYDATA, reinterpret_cast<WPARAM>(d2gfx::WINDOW_GetWindow()),
                                              reinterpret_cast<LPARAM>(&cds)));
 }

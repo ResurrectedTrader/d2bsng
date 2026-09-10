@@ -8,6 +8,7 @@
 #include <string>
 
 #include "game/Types.h"
+#include "utils/Profiling.h"
 
 // NOLINTBEGIN(readability-identifier-naming) - spdlog::logger is upstream API naming
 namespace spdlog {
@@ -45,6 +46,10 @@ struct Snapshot {
     bool inSession = false;
 };
 
+// The game thread's phases, for the Profiling panel. OnSleep walks the first five; the hooks that
+// run on the game thread between sleeps nest the rest through GameLoop::InPhase.
+enum class FramePhase : size_t { Game, Asleep, Body, Drain, AcquireWait, Draw, Events, ScriptWait };
+
 // Per-frame driver. Invoked from the per-version Sleep and render hooks via
 // the onSleep / onDraw callbacks. Owns HandleCache invalidation, chicken,
 // state-event synthesis, drawable flush, GameThread drain, script lifecycle,
@@ -71,6 +76,10 @@ class GameLoop {
     // Called from the game's render function. Flushes drawables for the most
     // recently observed game state.
     void OnDraw() const;
+
+    // Attributes the caller's scope to `phase` on the game thread's timeline. Inert on other
+    // threads, so a hook that can fire elsewhere uses it unconditionally.
+    [[nodiscard]] profiling::Timeline::Scope InPhase(FramePhase phase) { return frame_.Nest(phase); }
 
 #ifdef D2BS_TEST_HOOKS
     // Drop all accumulated tick state (previous snapshot, game-start anchor) so
@@ -132,6 +141,8 @@ class GameLoop {
     std::atomic<std::chrono::steady_clock::time_point> gameStartedAt_;
     // False until the first OnSleep acquires the write lock. Game-thread-only - no sync needed.
     bool writeLockHeld_ = false;
+    // Where the game thread's time goes, for the Profiling panel. Game-thread-only.
+    profiling::Timeline frame_;
 };
 
 }  // namespace d2bs::js::gameloop

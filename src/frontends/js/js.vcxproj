@@ -153,6 +153,7 @@
     <ClCompile Include="components\console\ConsolePanel.cpp" />
     <ClCompile Include="components\console\ScriptPanel.cpp" />
     <ClCompile Include="components\console\SettingsPanel.cpp" />
+    <ClCompile Include="components\console\ProfilingPanel.cpp" />
     <ClCompile Include="components\console\StacktracesPanel.cpp" />
     <ClCompile Include="components\console\ThreadsPanel.cpp" />
     <!-- Host lifecycle -->
@@ -194,6 +195,7 @@
     <ClInclude Include="components\console\ConsolePanel.h" />
     <ClInclude Include="components\console\ScriptPanel.h" />
     <ClInclude Include="components\console\SettingsPanel.h" />
+    <ClInclude Include="components\console\ProfilingPanel.h" />
     <ClInclude Include="components\console\StacktracesPanel.h" />
     <ClInclude Include="components\console\ThreadsPanel.h" />
     <!-- API Core -->

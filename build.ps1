@@ -13,6 +13,11 @@
 #   fix               clang-tidy --fix
 #   test              build and run the test suite (js_tests.exe)
 #
+# Switches:
+#   -Version          version baked into the DLL (CI passes the release version; build only)
+#   -AnalyticsKey     Aptabase app key baked into the DLL (see docs/analytics.md; build only)
+#   -NoProfiling      compile the profiling counters and Profiling panel out (build and test)
+#
 # The actual build is MSBuild over d2bsng.slnx; this script just locates the
 # toolchain and dispatches. You can also build directly with MSBuild or in
 # Visual Studio without this script.
@@ -26,7 +31,10 @@ param(
     # (D2BS_ANALYTICS_KEY). CI sets it from a release secret; without it the
     # source's empty default leaves analytics disabled. Defaults to the
     # same-named environment variable so CI can simply export the secret.
-    [string]$AnalyticsKey = $env:D2BS_ANALYTICS_KEY
+    [string]$AnalyticsKey = $env:D2BS_ANALYTICS_KEY,
+    # Compile the profiling counters and the console's Profiling panel out
+    # (MSBuild -p:D2bsProfiling=false; see Directory.Build.props).
+    [switch]$NoProfiling
 )
 
 # Native tools (msbuild, clang-format, clang-tidy) write to stderr in normal
@@ -194,7 +202,9 @@ switch ($mode) {
         exit 0
     }
     'test' {
-        & $msbuild -p:Configuration=Release -p:Platform=Win32 -t:js_tests
+        $testArgs = @('-p:Configuration=Release', '-p:Platform=Win32', '-t:js_tests')
+        if ($NoProfiling) { $testArgs += '-p:D2bsProfiling=false' }
+        & $msbuild @testArgs
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         & (Join-Path $PSScriptRoot 'Release\js_tests.exe')
         exit $LASTEXITCODE
@@ -212,6 +222,7 @@ switch ($mode) {
         # empty *global* property, which Directory.Build.props cannot override -
         # silently shadowing d2bs.local.props and the environment variable.
         if ($AnalyticsKey) { $msbuildArgs += "-p:D2bsAnalyticsKey=$AnalyticsKey" }
+        if ($NoProfiling) { $msbuildArgs += '-p:D2bsProfiling=false' }
         & $msbuild @msbuildArgs
         exit $LASTEXITCODE
     }
