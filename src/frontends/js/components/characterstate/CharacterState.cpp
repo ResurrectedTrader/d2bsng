@@ -9,7 +9,6 @@
 #include <map>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -118,30 +117,22 @@ json BuildProgression() {
     return progression;
 }
 
-// True when the section moved (and so has to ride this snapshot), storing the new
-// fingerprint. Every section is fingerprinted independently, so a snapshot carries only
-// what changed and the manager merges it in by key.
-bool TakeIfChanged(bool keyframe, size_t hash, std::optional<size_t>& fingerprint) {
-    if (!keyframe && fingerprint.has_value() && *fingerprint == hash) {
-        return false;
-    }
-    fingerprint = hash;
-    return true;
+// A section is (re)sent when a keyframe forces it or its freshly computed hash differs from
+// the one last sent. Pure - the caller latches the new hash when it decides to send, so the
+// "did it move" test and the "record what we sent" update stay visible and separate.
+bool Moved(bool keyframe, size_t current, const std::optional<size_t>& sent) {
+    return keyframe || !sent.has_value() || *sent != current;
 }
 
-// Keyframes carry every container (including empty) so the client has the full set and
-// grid sizes; steady state re-sends one only when its contents change.
-void EmitContainer(json& containers, std::string_view name, size_t bucket, const std::vector<game::Unit>& items,
-                   game::Size dims, bool keyframe, size_t hash, std::optional<size_t>& fingerprint) {
-    if (!TakeIfChanged(keyframe, hash, fingerprint)) {
-        return;
-    }
-    containers[std::string(name)] = BuildContainer(bucket, items, dims);
+// Order-independent combine of the slow-moving section hashes into the debounce signature,
+// without the per-tick string the earlier fmt-based version built. Boost-style mixer.
+size_t MixHash(size_t seed, size_t value) {
+    return seed ^ (value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2));
 }
 
-// A wearer section: its unit fields (one fingerprint, all-or-nothing) with `containers`
-// alongside (one fingerprint each). Empty when nothing about the wearer moved, so the
-// caller omits the key entirely and the manager keeps what it has.
+// A wearer section: its unit fields (one hash, all-or-nothing) with `containers` alongside
+// (one hash each). Empty when nothing about the wearer moved, so the caller omits the key
+// entirely and the manager keeps what it has.
 json BuildWearerSection(json&& unitDoc, bool unitChanged, json&& stats, bool statsChanged, json&& containers) {
     json out = unitChanged ? std::move(unitDoc) : json::object();
     if (statsChanged) {
@@ -186,9 +177,9 @@ json BuildKills(const std::map<std::pair<uint32_t, uint32_t>, uint32_t>& byClass
 }
 
 // Identity, progression and the merged stat blocks are built as small json documents for
-// the payload anyway, so their fingerprint hashes that document's dump rather than a second
-// streaming walk. The unit and container fingerprints, which would otherwise build a large
-// json every tick, stream instead (see Fingerprint.h).
+// the payload anyway, so their hash is taken over that document's dump rather than a second
+// streaming walk. The unit and container hashes, which would otherwise build a large json
+// every tick, stream instead (see Fingerprint.h).
 size_t HashOf(const json& value) {
     return std::hash<std::string>{}(value.dump());
 }
@@ -227,8 +218,8 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
     const bool keyframe = sessionEntered || !wasInGame_ || gameName != lastGameName_;
     wasInGame_ = true;
 
-    // system_clock (wall clock) so the same value doubles as the epoch-ms
-    // updatedAt below; the sampling cadence doesn't need a monotonic clock.
+    // system_clock (wall clock) so the same value doubles as the epoch-ms updatedAt below;
+    // the sampling cadence doesn't need a monotonic clock.
     const auto now = std::chrono::system_clock::now();
     if (!keyframe && lastCheck_.has_value() && (now - *lastCheck_) < CHECK_INTERVAL) {
         return;
@@ -238,14 +229,14 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
     if (keyframe) {
         lastGameName_ = gameName;
         gameId_ = fmt::format("{}#{}", gameName, ++createCounter_);
-        identityFingerprint_.reset();
-        progressionFingerprint_.reset();
-        playerFingerprint_.reset();
-        playerStatsFingerprint_.reset();
-        mercFingerprint_.reset();
-        mercStatsFingerprint_.reset();
-        for (auto& fingerprint : containerFingerprints_) {
-            fingerprint.reset();
+        sentIdentityHash_.reset();
+        sentProgressionHash_.reset();
+        sentPlayerHash_.reset();
+        sentPlayerStatsHash_.reset();
+        sentMercHash_.reset();
+        sentMercStatsHash_.reset();
+        for (auto& sentHash : sentContainerHashes_) {
+            sentHash.reset();
         }
     }
 
@@ -305,7 +296,7 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
     json playerStats = WearerStats(player);
     const size_t playerStatsHash = HashOf(playerStats);
     // A default-constructed unit hashes to the empty-walk value, distinct from any real
-    // merc, so a merc appearing or leaving moves the fingerprint.
+    // merc, so a merc appearing or leaving moves the hash.
     const size_t mercHash = mercUnit ? UnitHash(*mercUnit) : UnitHash(game::Unit{});
     json mercStats = mercUnit ? WearerStats(*mercUnit) : json();
     const size_t mercStatsHash = HashOf(mercStats);
@@ -324,18 +315,16 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
         ContainerHash(inventory, containerDims[BUCKET_INVENTORY]), ContainerHash(cube, containerDims[BUCKET_CUBE]),
         ContainerHash(belt, containerDims[BUCKET_BELT]),           ContainerHash(stash, containerDims[BUCKET_STASH])};
 
-    // Debounce: combine the slow-moving section fingerprints into one signature.
-    // While it differs from the previous sample the state is still settling, so
-    // remember it and wait; only once it stops changing do we diff + send. The wearer
-    // documents are deliberately left out: their experience/gold/hp tick continuously
-    // while farming and would never let the signature settle, starving every send. Each
-    // instead rides its own fingerprint below and flows at the ~1s cadence. Keyframes
-    // bypass the wait entirely.
-    std::string signature = fmt::format("{}:{}", identityHash, progressionHash);
+    // Debounce: combine the slow-moving section hashes into one signature. While it differs
+    // from the previous sample the state is still settling, so remember it and wait; only
+    // once it stops changing do we diff + send. The wearer documents are deliberately left
+    // out: their experience/gold/hp tick continuously while farming and would never let the
+    // signature settle, starving every send. Each instead rides its own hash below and flows
+    // at the ~1s cadence. Keyframes bypass the wait entirely.
+    size_t combined = MixHash(identityHash, progressionHash);
     for (const size_t containerHash : containerHashes) {
-        signature += fmt::format(":{}", containerHash);
+        combined = MixHash(combined, containerHash);
     }
-    const size_t combined = std::hash<std::string>{}(signature);
     if (!keyframe && (!pendingHash_.has_value() || *pendingHash_ != combined)) {
         pendingHash_ = combined;
         return;
@@ -343,44 +332,71 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
     pendingHash_ = combined;
 
     // Sections only; the envelope keys go on at the end so an untouched snapshot is
-    // literally empty and there is no "did anything change" bookkeeping to get wrong.
+    // literally empty and there is no "did anything change" bookkeeping to get wrong. Each
+    // section that moved is added and its sent-hash latched in the same place.
     json snapshot = json::object();
 
-    if (TakeIfChanged(keyframe, identityHash, identityFingerprint_)) {
+    if (Moved(keyframe, identityHash, sentIdentityHash_)) {
+        sentIdentityHash_ = identityHash;
         snapshot["identity"] = std::move(identity);
     }
-    if (TakeIfChanged(keyframe, progressionHash, progressionFingerprint_)) {
+    if (Moved(keyframe, progressionHash, sentProgressionHash_)) {
+        sentProgressionHash_ = progressionHash;
         snapshot["progression"] = std::move(progression);
     }
 
-    const bool playerChanged = TakeIfChanged(keyframe, playerHash, playerFingerprint_);
+    // Adds a container to `into` and latches its sent-hash when it moved. Keyframes carry
+    // every container (including empty) so the client has the full set and grid sizes. The
+    // per-bucket state is indexed by the caller so the array access stays constant.
+    auto emitContainer = [&](json& into, const char* name, size_t bucket, const std::vector<game::Unit>& items,
+                             game::Size dims, size_t currentHash, std::optional<size_t>& sentHash) {
+        if (!Moved(keyframe, currentHash, sentHash)) {
+            return;
+        }
+        sentHash = currentHash;
+        into[name] = BuildContainer(bucket, items, dims);
+    };
+
+    const bool playerChanged = Moved(keyframe, playerHash, sentPlayerHash_);
+    if (playerChanged) {
+        sentPlayerHash_ = playerHash;
+    }
+    const bool playerStatsChanged = Moved(keyframe, playerStatsHash, sentPlayerStatsHash_);
+    if (playerStatsChanged) {
+        sentPlayerStatsHash_ = playerStatsHash;
+    }
     json playerContainers = json::object();
-    EmitContainer(playerContainers, "equipped", BUCKET_EQUIPPED, equipped, containerDims[BUCKET_EQUIPPED], keyframe,
-                  containerHashes[BUCKET_EQUIPPED], containerFingerprints_[BUCKET_EQUIPPED]);
-    EmitContainer(playerContainers, "inventory", BUCKET_INVENTORY, inventory, containerDims[BUCKET_INVENTORY], keyframe,
-                  containerHashes[BUCKET_INVENTORY], containerFingerprints_[BUCKET_INVENTORY]);
-    EmitContainer(playerContainers, "cube", BUCKET_CUBE, cube, containerDims[BUCKET_CUBE], keyframe,
-                  containerHashes[BUCKET_CUBE], containerFingerprints_[BUCKET_CUBE]);
-    EmitContainer(playerContainers, "belt", BUCKET_BELT, belt, containerDims[BUCKET_BELT], keyframe,
-                  containerHashes[BUCKET_BELT], containerFingerprints_[BUCKET_BELT]);
-    EmitContainer(playerContainers, "stash", BUCKET_STASH, stash, containerDims[BUCKET_STASH], keyframe,
-                  containerHashes[BUCKET_STASH], containerFingerprints_[BUCKET_STASH]);
+    emitContainer(playerContainers, "equipped", BUCKET_EQUIPPED, equipped, containerDims[BUCKET_EQUIPPED],
+                  containerHashes[BUCKET_EQUIPPED], sentContainerHashes_[BUCKET_EQUIPPED]);
+    emitContainer(playerContainers, "inventory", BUCKET_INVENTORY, inventory, containerDims[BUCKET_INVENTORY],
+                  containerHashes[BUCKET_INVENTORY], sentContainerHashes_[BUCKET_INVENTORY]);
+    emitContainer(playerContainers, "cube", BUCKET_CUBE, cube, containerDims[BUCKET_CUBE], containerHashes[BUCKET_CUBE],
+                  sentContainerHashes_[BUCKET_CUBE]);
+    emitContainer(playerContainers, "belt", BUCKET_BELT, belt, containerDims[BUCKET_BELT], containerHashes[BUCKET_BELT],
+                  sentContainerHashes_[BUCKET_BELT]);
+    emitContainer(playerContainers, "stash", BUCKET_STASH, stash, containerDims[BUCKET_STASH],
+                  containerHashes[BUCKET_STASH], sentContainerHashes_[BUCKET_STASH]);
     // The player document is built only when it changed - most ticks only the volatile
-    // stats move, and those ride their own fingerprint below.
-    json playerJson = BuildWearerSection(
-        playerChanged ? UnitToJson(player) : json::object(), playerChanged, std::move(playerStats),
-        TakeIfChanged(keyframe, playerStatsHash, playerStatsFingerprint_), std::move(playerContainers));
+    // stats move, and those ride their own hash.
+    json playerJson = BuildWearerSection(playerChanged ? UnitToJson(player) : json::object(), playerChanged,
+                                         std::move(playerStats), playerStatsChanged, std::move(playerContainers));
     if (!playerJson.empty()) {
         snapshot["player"] = std::move(playerJson);
     }
 
-    // Run the merc container through the fingerprint even with no merc, so it settles
-    // to "empty" and a later merc with identical gear still re-sends.
+    // Run the merc container through its hash even with no merc, so it settles to "empty"
+    // and a later merc with identical gear still re-sends.
     json mercContainers = json::object();
-    EmitContainer(mercContainers, "equipped", BUCKET_MERC, merc, containerDims[BUCKET_MERC], keyframe,
-                  containerHashes[BUCKET_MERC], containerFingerprints_[BUCKET_MERC]);
-    const bool mercChanged = TakeIfChanged(keyframe, mercHash, mercFingerprint_);
-    const bool mercStatsChanged = TakeIfChanged(keyframe, mercStatsHash, mercStatsFingerprint_);
+    emitContainer(mercContainers, "equipped", BUCKET_MERC, merc, containerDims[BUCKET_MERC],
+                  containerHashes[BUCKET_MERC], sentContainerHashes_[BUCKET_MERC]);
+    const bool mercChanged = Moved(keyframe, mercHash, sentMercHash_);
+    if (mercChanged) {
+        sentMercHash_ = mercHash;
+    }
+    const bool mercStatsChanged = Moved(keyframe, mercStatsHash, sentMercStatsHash_);
+    if (mercStatsChanged) {
+        sentMercStatsHash_ = mercStatsHash;
+    }
     if (!mercUnit) {
         // Containers and stats would describe a merc that is gone, so the whole wearer
         // goes null.
