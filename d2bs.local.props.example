@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Local-only build settings for this checkout.
+
+  Copy this file to "d2bs.local.props" (same folder) to enable it. That name is
+  gitignored, so your local values are never committed. Directory.Build.props
+  imports it automatically when present, which means IDE builds (Visual Studio,
+  Rider) pick it up with no command line involved.
+
+  A `-p:` switch on the MSBuild command line still wins over anything here.
+-->
+<Project>
+  <PropertyGroup>
+    <!-- Aptabase app key to bake into the DLL. Directory.Build.props already
+         defaults this to the project's key, so you only need this to send your
+         events somewhere else - a dev/self-hosted Aptabase project - or to
+         build with analytics compiled out entirely (set it to empty).
+
+         An "A-SH-" (self-hosted) or "A-DEV-" key also needs the
+         D2BS_ANALYTICS_HOST environment variable; "A-US-" / "A-EU-" route
+         themselves. See docs/analytics.md.
+
+         Note this only controls where events go. To keep the key but stay
+         silent at runtime, use -noanalytics or D2BS_ANALYTICS_DISABLE. -->
+    <D2bsAnalyticsKey>A-DEV-0000000000</D2bsAnalyticsKey>
+
+    <!-- Compile the profiling counters and the console's Profiling panel out. -->
+    <D2bsProfiling>false</D2bsProfiling>
+  </PropertyGroup>
+</Project>

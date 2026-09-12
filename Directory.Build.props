@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Imported automatically by MSBuild into every project under this directory,
+  before the project body runs - so it works for IDE builds (Visual Studio,
+  Rider), which never go through build.ps1, as well as for the command line.
+
+  Its job is to resolve the build-time parameters that would otherwise arrive
+  only as `-p:` switches from build.ps1, so an IDE build is not silently a
+  different build. Precedence, highest first:
+
+    1. `-p:Name=...` on the MSBuild command line (a global property; build.ps1
+       and CI use this, and nothing here can override it)
+    2. d2bs.local.props, if present - gitignored, per-developer
+    3. the matching environment variable
+    4. the default below
+
+  MSBuild surfaces environment variables as properties, which is what makes (3)
+  a one-liner and lets the same D2BS_ANALYTICS_KEY that build.ps1 reads apply to
+  an IDE build. Note IDEs snapshot the environment at launch: a newly-set user
+  variable needs an IDE restart, which is the main reason to prefer (2).
+-->
+<Project>
+  <!-- Copy d2bs.local.props.example to d2bs.local.props to use it. -->
+  <Import Project="$(MSBuildThisFileDirectory)d2bs.local.props"
+          Condition="Exists('$(MSBuildThisFileDirectory)d2bs.local.props')" />
+
+  <PropertyGroup>
+    <D2bsAnalyticsKey Condition="'$(D2bsAnalyticsKey)' == ''">$(D2BS_ANALYTICS_KEY)</D2bsAnalyticsKey>
+    <!-- Aptabase app key baked into the DLL, so every build reports - not just
+         released ones. Committed deliberately: an Aptabase app key is a
+         client-side, write-only ingest key, and this one already ships verbatim
+         inside every published DLL, so it is not a credential.
+
+         Consequences worth knowing: a fork or a dev build reports into *this*
+         project by default. Builds without an explicit -Version carry
+         isDebug=true (D2BS_VERSION falls back to "2.0.0-dev"), which buckets
+         them apart from release traffic but does not separate them.
+
+         To point a build somewhere else, set D2bsAnalyticsKey via (1)-(3)
+         above; to build with analytics compiled out entirely, set it to empty
+         (`-p:D2bsAnalyticsKey=`). To leave it compiled in but silent at
+         runtime, use -noanalytics / D2BS_ANALYTICS_DISABLE. See
+         docs/analytics.md. -->
+    <D2bsAnalyticsKey Condition="'$(D2bsAnalyticsKey)' == ''">A-EU-6718352863</D2bsAnalyticsKey>
+
+    <!-- The console's Profiling panel and the counters behind it (utils/Profiling.h).
+         Set to false (`-p:D2bsProfiling=false`, build.ps1 -NoProfiling, or
+         d2bs.local.props) to compile all of it out: the recording calls become
+         empty inline stubs and the panel is not registered. -->
+    <D2bsProfiling Condition="'$(D2bsProfiling)' == ''">true</D2bsProfiling>
+  </PropertyGroup>
+
+  <!-- Every project appends to %(PreprocessorDefinitions), so this reaches all of them. -->
+  <ItemDefinitionGroup Condition="'$(D2bsProfiling)' == 'true'">
+    <ClCompile>
+      <PreprocessorDefinitions>D2BS_PROFILING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+</Project>
