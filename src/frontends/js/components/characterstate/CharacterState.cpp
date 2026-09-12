@@ -124,8 +124,9 @@ bool Moved(bool keyframe, size_t current, const std::optional<size_t>& sent) {
     return keyframe || !sent.has_value() || *sent != current;
 }
 
-// Order-independent combine of the slow-moving section hashes into the debounce signature,
-// without the per-tick string the earlier fmt-based version built. Boost-style mixer.
+// Folds the slow-moving section hashes into the debounce signature, replacing the per-tick
+// std::string the earlier fmt-based version built. Boost-style mixer; order-dependent, but
+// the inputs are always combined in the same fixed order.
 size_t MixHash(size_t seed, size_t value) {
     return seed ^ (value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2));
 }
@@ -295,9 +296,9 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
     const size_t playerHash = UnitHash(player);
     json playerStats = WearerStats(player);
     const size_t playerStatsHash = HashOf(playerStats);
-    // A default-constructed unit hashes to the empty-walk value, distinct from any real
+    // With no merc, the empty-unit sentinel stands in - stable and distinct from any real
     // merc, so a merc appearing or leaving moves the hash.
-    const size_t mercHash = mercUnit ? UnitHash(*mercUnit) : UnitHash(game::Unit{});
+    const size_t mercHash = mercUnit ? UnitHash(*mercUnit) : EmptyUnitHash();
     json mercStats = mercUnit ? WearerStats(*mercUnit) : json();
     const size_t mercStatsHash = HashOf(mercStats);
     // Zero for a grid the game has not populated its layout for yet: unknown, so draw no grid.

@@ -24,4 +24,10 @@ size_t ContainerHash(const std::vector<game::Unit>& items, game::Size dims);
 // volatile merged stats are fingerprinted separately by the caller.
 size_t UnitHash(const game::Unit& unit);
 
+// The hash of an empty unit walk - what UnitHash yields for a unit that does not resolve.
+// A stable "absent unit" sentinel, distinct from any real unit's hash (which always covers
+// at least unitType + classId). Used for the no-merc case, so it need not rely on a
+// default-constructed Unit happening to be unresolvable.
+size_t EmptyUnitHash();
+
 }  // namespace d2bs::js::characterstate

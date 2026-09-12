@@ -82,4 +82,9 @@ size_t UnitHash(const game::Unit& unit) {
     return visitor.Result();
 }
 
+size_t EmptyUnitHash() {
+    HashVisitor visitor;
+    return visitor.Result();
+}
+
 }  // namespace d2bs::js::characterstate
