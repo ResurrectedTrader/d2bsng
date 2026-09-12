@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+#include <span>
 #include <utility>
 
 // Inline-patch intercepts.
@@ -35,6 +37,14 @@ void InstallAll();
 
 // Restore every patched site to its original bytes. Idempotent.
 void RemoveAll();
+
+// Backend-internal tap on every packet the client receives, called on the game
+// thread from the P3 intercept before the framework callbacks, with no block
+// authority. One slot; nullptr clears it. For backend code that must wait for a
+// server reply (e.g. an item action acknowledgement) without going through the
+// frontend's event system.
+using IncomingPacketObserver = void (*)(std::span<const uint8_t> packet);
+void SetIncomingPacketObserver(IncomingPacketObserver observer);
 
 namespace detail {
 

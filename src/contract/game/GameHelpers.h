@@ -139,6 +139,39 @@ void TakeScreenshot();
 // fills it on first panel open; this force-runs that init).
 std::optional<Size> GetGridSize(ItemLocation location);
 
+// === Stash Tabs ===
+
+// Tabs of the local player's stash, personal first, then shared. Vanilla LoD has
+// exactly one active personal tab; paged and shared stashes add more. Empty when
+// there is no player unit.
+std::vector<StashTab> GetStashTabs();
+
+// Items on one tab, active or not. The active tab's items are the stash items of
+// the player's inventory. A backend that parks inactive tabs outside the
+// inventory still keeps those units alive, so they resolve as regular handles.
+// Empty for an unknown tab.
+std::vector<Unit> GetStashTabItems(StashTabKind kind, uint32_t index);
+
+// Left-click a grid cell of a stash tab, active or not: picks up the item there,
+// drops the cursor item, or swaps, exactly as ClickContainerSlot(Left, cell, Stash)
+// does on the active tab. The stash panel must be open. A backend whose packets
+// cannot address an inactive tab blocks the calling script thread while the tab
+// is swapped in, clicked, and the previous tab restored. StashTabUnavailable for
+// an unknown tab or a switch that did not complete. ClickItem(button, item)
+// likewise reaches items on inactive tabs.
+ClickResult ClickStashTabSlot(StashTabKind kind, uint32_t index, Position gridPos);
+
+// Move gold between the character's carried gold and a stash tab: Deposit takes
+// from the carried gold, Withdraw puts back. The stash panel must be open. Only
+// Deposit / Withdraw are meaningful modes. On the tab that carries the
+// character's stash gold this is the vanilla gold dialog; a shared pool may only
+// support moving "as much as fits" and ignore `amount`. false for an unknown
+// tab, a tab that holds no gold, a mode that is not Deposit / Withdraw, or
+// nothing to move; true once the request is issued. Fire and forget like
+// GoldAction: the tab's gold in GetStashTabs and the gold stats update when the
+// server's reply lands, so callers poll for the change as they do after gold().
+bool StashTabGold(StashTabKind kind, uint32_t index, GoldActionMode mode, uint32_t amount);
+
 // Toggle a body slot.
 //   owner=Player    -> BodyClickTable[slot] invoked with (player, inv, slot); slot must be in [1..10].
 //   owner=Mercenary -> MercItemAction(0x61, slot); slot must be in {Head(1), Body(3), RightPrimary(4)}.

@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "DrlgHelpers.h"
+#include "PlugY.h"
 #include "RoomData.h"
 #include "asm_thunks/asm_thunks.h"
 #include "game/Bridge.h"
@@ -58,6 +59,7 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-braces"
 // ReSharper disable once CppUnusedIncludeDirective
+#include <D2Items.h>              // D2C_ItemModes (IMODE_STORED)
 #include <DataTbls/InvTbls.h>    // D2InventoryGridInfoStrc
 #include <DataTbls/ItemsTbls.h>  // D2ItemsTxt
 #include <Path/Path.h>           // D2DynamicPathStrc
@@ -1066,6 +1068,13 @@ ClickResult ClickItem(ClickButton button, const Unit& item) {
     // D2MOO names the union variant `pStaticPath` and the coord pair `tGameCoords.nX/nY`.
     const auto gridX = itemPtr->pStaticPath->tGameCoords.nX;
     const auto gridY = itemPtr->pStaticPath->tGameCoords.nY;
+
+    // A stored-mode item outside any inventory is parked on an inactive PlugY page
+    // (its node byte was zeroed on removal, so `location` says Ground here).
+    if (itemPtr->dwItemMode == IMODE_STORED && itemPtr->pItemData->pExtraData.pParentInv == nullptr &&
+        plugy::HasPages()) {
+        return plugy::ClickParkedItem(button, item);
+    }
 
     d2client::gCursorHover->x = gridX;
     d2client::gCursorHover->y = gridY;
@@ -2106,6 +2115,9 @@ std::vector<std::string> GetActiveFeatures() {
     }
     if (opts.randomizeBnetCache) {
         features.emplace_back("bnetCacheFix");
+    }
+    if (plugy::IsActive()) {
+        features.emplace_back("plugy");
     }
     return features;
 }

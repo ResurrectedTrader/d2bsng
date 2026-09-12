@@ -955,6 +955,116 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             args.GetReturnValue().Set(ResolveTxtCell(isolate, *table, row, args[2]));
         });
 
+    /// @description Lists the tabs of your stash, personal tabs first, then shared. Vanilla LoD has a single
+    /// personal tab; a paged stash reports every page, including empty trailing ones. `isActive` marks the tab whose
+    /// items `getItems()` / `getItem()` currently see. `gold` is the gold stored on the tab; where the game keeps one
+    /// gold figure per stash rather than per tab it is attributed to the first tab of that kind. Read-only.
+    /// @signature getStashTabs()
+    /// @returns {Array<{kind:number, index:number, type:number, name:string, isActive:boolean, gold:number}>} - one entry per tab
+    /// (`kind` is a StashTabKind value, `type` a StashTabType value); empty when not in a game
+    v8_function::Register(
+        isolate, global, "getStashTabs", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+            auto* isolate = args.GetIsolate();
+            auto context = isolate->GetCurrentContext();
+            auto lock = game::Bridge::Lock();
+            const auto tabs = game::GetStashTabs();
+            auto arr = v8::Array::New(isolate, static_cast<int32_t>(tabs.size()));
+            uint32_t i = 0;
+            for (const auto& tab : tabs) {
+                arr->Set(context, i++, v8_convert::ToV8(isolate, tab)).Check();
+            }
+            args.GetReturnValue().Set(arr);
+        });
+
+    /// @description Returns the items on one stash tab, whether or not it is the active one. Items on inactive
+    /// tabs are live units and behave like any other Unit.
+    /// @signature getStashTabItems(kind: StashTabKind, index: number)
+    /// @param kind {StashTabKind} - personal or shared
+    /// @param index {number} - 0-based tab index within that kind, as reported by getStashTabs()
+    /// @returns {Unit[]} - the tab's items; empty for an unknown tab or when not in a game
+    v8_function::Register(
+        isolate, global, "getStashTabItems", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+            auto* isolate = args.GetIsolate();
+            if (args.Length() < 2 || !args[0]->IsNumber() || !args[1]->IsNumber()) {
+                v8_error::ThrowTypeError(isolate, "getStashTabItems(kind, index) expects two numbers");
+                return;
+            }
+            const auto kind = static_cast<game::StashTabKind>(v8_convert::ToUint32(isolate, args[0]));
+            const uint32_t index = v8_convert::ToUint32(isolate, args[1]);
+            auto context = isolate->GetCurrentContext();
+            auto lock = game::Bridge::Lock();
+            const auto items = game::GetStashTabItems(kind, index);
+            auto arr = v8::Array::New(isolate, static_cast<int32_t>(items.size()));
+            uint32_t i = 0;
+            for (const auto& item : items) {
+                auto obj = JSUnit::CreateInstance(isolate, context, std::make_unique<game::Unit>(item));
+                if (obj.IsEmpty()) {
+                    v8_error::ThrowError(isolate, "Failed to build item array");
+                    return;
+                }
+                arr->Set(context, i++, obj).Check();
+            }
+            args.GetReturnValue().Set(arr);
+        });
+
+    /// @description Left-clicks a grid cell of a stash tab, active or not: picks up the item there, drops the cursor
+    /// item, or swaps the two, as `clickItem(0, x, y, 7)` does on the active tab. The stash panel must be open. Where
+    /// the game cannot address an inactive tab directly, the call blocks while the tab is swapped in, clicked, and the
+    /// previous tab restored, so the game state is consistent when it returns. `clickItem(0, item)` reaches items on
+    /// inactive tabs the same way.
+    /// @signature clickStashTab(kind: StashTabKind, index: number, x: number, y: number)
+    /// @param kind {StashTabKind} - personal or shared
+    /// @param index {number} - 0-based tab index within that kind, as reported by getStashTabs()
+    /// @param x {number} - stash grid column
+    /// @param y {number} - stash grid row
+    /// @returns {boolean} - true if the click was handed to the game; false for an unknown tab, a tab switch that did
+    /// not complete, an open trade, or not being in a game. As with clickItem, true does not confirm the item moved.
+    v8_function::Register(
+        isolate, global, "clickStashTab", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+            auto* isolate = args.GetIsolate();
+            if (args.Length() < 4 || !args[0]->IsNumber() || !args[1]->IsNumber() || !args[2]->IsNumber() ||
+                !args[3]->IsNumber()) {
+                v8_error::ThrowTypeError(isolate, "clickStashTab(kind, index, x, y) expects four numbers");
+                return;
+            }
+            const auto kind = static_cast<game::StashTabKind>(v8_convert::ToUint32(isolate, args[0]));
+            const uint32_t index = v8_convert::ToUint32(isolate, args[1]);
+            const game::Position cell{.x = v8_convert::ToUint32(isolate, args[2]),
+                                      .y = v8_convert::ToUint32(isolate, args[3])};
+            const auto result = game::ClickStashTabSlot(kind, index, cell);
+            args.GetReturnValue().Set(result == game::ClickResult::Dispatched);
+        });
+
+    /// @description Moves gold between your carried gold and a stash tab, with the same mode codes as `gold()`: 3
+    /// deposits into the tab, 4 withdraws from it. The stash panel must be open. Fire and forget like `gold()`: the
+    /// request is sent and the tab's `gold` in getStashTabs() and your gold stats update when the server answers, so
+    /// poll for the change afterwards. A shared pool that PlugY manages moves as much as fits and ignores `amount`.
+    /// @signature stashTabGold(kind: StashTabKind, index: number, amount: number, mode: number)
+    /// @param kind {StashTabKind} - personal or shared
+    /// @param index {number} - 0-based tab index within that kind, as reported by getStashTabs()
+    /// @param amount {number} - gold to move; ignored where the tab only supports moving everything
+    /// @param mode {number} - 3 = deposit into the tab, 4 = withdraw from it
+    /// @returns {boolean} - true once the move was requested; false for an unknown tab, a tab that holds no gold, a
+    /// mode other than 3 or 4, nothing to move, or not being in a game
+    v8_function::Register(
+        isolate, global, "stashTabGold", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+            auto* isolate = args.GetIsolate();
+            if (args.Length() < 4 || !args[0]->IsNumber() || !args[1]->IsNumber() || !args[2]->IsNumber() ||
+                !args[3]->IsNumber()) {
+                v8_error::ThrowTypeError(isolate, "stashTabGold(kind, index, amount, mode) expects four numbers");
+                return;
+            }
+            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                return;
+            }
+            const auto kind = static_cast<game::StashTabKind>(v8_convert::ToUint32(isolate, args[0]));
+            const uint32_t index = v8_convert::ToUint32(isolate, args[1]);
+            const uint32_t amount = v8_convert::ToUint32(isolate, args[2]);
+            const auto mode = static_cast<game::GoldActionMode>(v8_convert::ToInt32(isolate, args[3]));
+            args.GetReturnValue().Set(game::StashTabGold(kind, index, mode, amount));
+        });
+
     /// @description Find the first UI control matching optional position/size filters; menu state only.
     /// @signature getControl(type?: number, x?: number, y?: number, xsize?: number, ysize?: number)
     /// @param type {number} - control type filter
@@ -2026,10 +2136,12 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
         });
 
-    /// @description Perform a gold action (e.g. drop/stash/withdraw).
+    /// @description Perform a gold action through the game's gold dialog: drop, move to the trade window, or move
+    /// between carried gold and the stash (stash panel open).
     /// @signature gold(amount?: number, mode?: number)
     /// @param amount {number} - gold amount (default 0)
-    /// @param mode {number} - gold action mode (default Stash)
+    /// @param mode {number} - 1 = drop, 2 = inventory to trade, 3 = deposit into the stash, 4 = withdraw from the stash
+    /// (default 1, drop, as in the reference)
     /// @returns {undefined} - no return value
     v8_function::Register(
         isolate, global, "gold", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -2041,7 +2153,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
 
             int32_t nGold = 0;
-            auto nMode = game::GoldActionMode::Stash;
+            auto nMode = game::GoldActionMode::Drop;
             if (args.Length() > 0 && args[0]->IsNumber()) {
                 nGold = v8_convert::ToInt32(isolate, args[0]);
             }

@@ -111,6 +111,9 @@ class Unit {
     ItemQuality Quality() const;
     NodePage Node() const;
     ItemLocation ItemLocation() const;
+    // The stash tab holding this item; nullopt unless the item is in the local
+    // player's stash (see GetStashTabs).
+    std::optional<StashTab> StashTab() const;
     // Item grid footprint (inventory xSize/ySize from item txt data).
     Size Size() const;
     uint32_t ItemType() const;

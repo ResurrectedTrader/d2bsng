@@ -548,6 +548,23 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             info.GetReturnValue().Set(static_cast<uint8_t>(data->ItemLocation()));
         });
 
+    /// @description The stash tab holding this item (see getStashTabs()); undefined unless the item is in your
+    /// stash. `kind` is a StashTabKind value, `type` a StashTabType value. Item units only.
+    /// @type {{kind:number, index:number, type:number, name:string, isActive:boolean, gold:number}|undefined}
+    Property(
+        isolate, inst, "stashTab", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
+            auto* data = Unwrap(info.Holder());
+            if (!*data || data->Type() != UnitType::Item) {
+                return;
+            }
+            auto lock = game::Bridge::Lock();
+            const auto tab = data->StashTab();
+            if (!tab) {
+                return;
+            }
+            info.GetReturnValue().Set(v8_convert::ToV8(info.GetIsolate(), *tab));
+        });
+
     /// @description Item width in inventory grid cells (Item units only).
     /// @type {number}
     Property(

@@ -1,5 +1,6 @@
 #include "game/Bridge.h"
 
+#include "PlugY.h"
 #include "asm_thunks/asm_thunks.h"
 #include "hooks/Intercepts.h"
 #include "hooks/Realms.h"
@@ -37,6 +38,8 @@ bool Bridge::Init() {
                     L"d2bsng init failure", MB_OK | MB_ICONERROR);
         return false;
     }
+
+    plugy::InstallInitHook();
 
     imports::Registry::Get().ResolveAll(base);
 

@@ -186,6 +186,19 @@ inline v8::Local<v8::Object> ToV8(v8::Isolate* isolate, const game::StatEntry& s
     return obj;
 }
 
+// {kind: StashTabKind, index: uint32, type: StashTabType, name: string, isActive: bool, gold: uint32}
+inline v8::Local<v8::Object> ToV8(v8::Isolate* isolate, const game::StashTab& tab) {
+    auto context = isolate->GetCurrentContext();
+    auto obj = v8::Object::New(isolate);
+    obj->CreateDataProperty(context, ToV8(isolate, "kind"), ToV8(isolate, static_cast<uint32_t>(tab.kind))).Check();
+    obj->CreateDataProperty(context, ToV8(isolate, "index"), ToV8(isolate, tab.index)).Check();
+    obj->CreateDataProperty(context, ToV8(isolate, "type"), ToV8(isolate, static_cast<uint32_t>(tab.type))).Check();
+    obj->CreateDataProperty(context, ToV8(isolate, "name"), ToV8(isolate, tab.name)).Check();
+    obj->CreateDataProperty(context, ToV8(isolate, "isActive"), ToV8(isolate, tab.isActive)).Check();
+    obj->CreateDataProperty(context, ToV8(isolate, "gold"), ToV8(isolate, tab.gold)).Check();
+    return obj;
+}
+
 // {flags: uint32, stateNo: uint32, stats: StatEntry[]}
 inline v8::Local<v8::Object> ToV8(v8::Isolate* isolate, const game::StatListEntry& list) {
     auto& keys = detail::Keys(isolate);

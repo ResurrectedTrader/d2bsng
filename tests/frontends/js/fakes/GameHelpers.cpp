@@ -201,6 +201,18 @@ void TakeScreenshot() {}
 std::optional<Size> GetGridSize(ItemLocation /*location*/) {
     return std::nullopt;
 }
+std::vector<StashTab> GetStashTabs() {
+    return {};
+}
+std::vector<Unit> GetStashTabItems(StashTabKind /*kind*/, uint32_t /*index*/) {
+    return {};
+}
+ClickResult ClickStashTabSlot(StashTabKind /*kind*/, uint32_t /*index*/, Position /*gridPos*/) {
+    return ClickResult::StashTabUnavailable;
+}
+bool StashTabGold(StashTabKind /*kind*/, uint32_t /*index*/, GoldActionMode /*mode*/, uint32_t /*amount*/) {
+    return false;
+}
 ClickResult ClickBodyLocation(BodyLocation /*slot*/, InventoryOwner /*owner*/) {
     return ClickResult::InvalidTarget;
 }

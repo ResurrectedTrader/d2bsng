@@ -57,6 +57,7 @@
 #include <spdlog/spdlog.h>
 
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -135,6 +136,8 @@ SiteState siteClassicCdKey, siteLodCdKey, siteFailToJoinBackoff;
 // unit selected" instead of game hover selection.
 std::atomic clickActionActive{false};
 std::atomic<D2UnitStrc*> clickActionUnit{nullptr};
+
+std::atomic<IncomingPacketObserver> incomingPacketObserver{nullptr};
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 constexpr uint32_t P1_RVA = 0x7C89D;
@@ -201,9 +204,15 @@ extern "C" uint32_t __fastcall OnGameInput(wchar_t* wMsg) {
 // requires both no-event AND per-handler-allows). Void per-id handlers
 // (`onGameEvent`, `onItemAction`) have no block authority.
 extern "C" uint32_t __fastcall OnGamePacketReceived(uint8_t* packet, uint32_t size) {
-    const auto* cb = GetActiveCallbacks();
-    if (cb == nullptr || packet == nullptr || size == 0) {
+    if (packet == nullptr || size == 0) {
         return 1;  // pass through
+    }
+    if (auto* observer = incomingPacketObserver.load(std::memory_order_acquire); observer != nullptr) {
+        observer(std::span<const uint8_t>{packet, size});
+    }
+    const auto* cb = GetActiveCallbacks();
+    if (cb == nullptr) {
+        return 1;
     }
 
     // Warden detection - reference TerminateProcess(self) on 0xAE; the new
@@ -982,6 +991,10 @@ bool Init() {
     classicCdKey = opts.classicCdKey.empty() ? nullptr : opts.classicCdKey.c_str();
     lodCdKey = opts.lodCdKey.empty() ? nullptr : opts.lodCdKey.c_str();
     return true;
+}
+
+void SetIncomingPacketObserver(IncomingPacketObserver observer) {
+    incomingPacketObserver.store(observer, std::memory_order_release);
 }
 
 void InstallAll() {
