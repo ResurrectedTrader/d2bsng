@@ -15,6 +15,7 @@
 
 #include <fmt/format.h>
 
+#include "components/characterstate/Fingerprint.h"
 #include "components/characterstate/UnitJson.h"
 #include "config/AppConfig.h"
 #include "game/Finders.h"
@@ -55,25 +56,6 @@ constexpr uint32_t QUEST_COUNT = 41;
 constexpr uint32_t QFLAG_REWARDGRANTED = 0;
 constexpr uint32_t QFLAG_REWARDPENDING = 1;
 constexpr uint32_t WAYPOINT_COUNT = 39;
-
-// Fingerprint of a container, built from the same traversal that produces the payload so
-// it can't miss a field. Detail::Structural keeps it Description()-free and leaves out the
-// stats that tick in place (durability, quantity).
-//
-// Dimensions are part of it because the belt's are not fixed: swapping a sash for a girdle
-// grows it from 4x2 to 4x4 while every potion in it stays put, so a contents-only
-// fingerprint would leave the manager decomposing slots against a stale grid.
-size_t ContainerHash(const std::vector<game::Unit>& items, game::Size dims) {
-    json structural = json::object();
-    structural["w"] = dims.width;
-    structural["h"] = dims.height;
-    json itemsArr = json::array();
-    for (const auto& item : items) {
-        itemsArr.push_back(UnitToJson(item, Detail::Structural));
-    }
-    structural["items"] = std::move(itemsArr);
-    return std::hash<std::string>{}(structural.dump());
-}
 
 json BuildContainer(size_t bucket, const std::vector<game::Unit>& items, game::Size dims) {
     json itemsArr = json::array();
@@ -203,6 +185,10 @@ json BuildKills(const std::map<std::pair<uint32_t, uint32_t>, uint32_t>& byClass
     return kills;
 }
 
+// Identity, progression and the merged stat blocks are built as small json documents for
+// the payload anyway, so their fingerprint hashes that document's dump rather than a second
+// streaming walk. The unit and container fingerprints, which would otherwise build a large
+// json every tick, stream instead (see Fingerprint.h).
 size_t HashOf(const json& value) {
     return std::hash<std::string>{}(value.dump());
 }
@@ -307,20 +293,20 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
         }
     }
 
-    // Build every section fingerprint first, so the debounce can tell whether the
-    // state is still changing before we commit to diffing or sending anything.
+    // Fingerprint every section by streaming its fields into a hash rather than building the
+    // wire json and hashing its dump: this runs every tick to detect change, while the json
+    // documents below are built only for the sections that actually moved. Identity and
+    // progression stay json-built - they are tiny and assembled here once regardless.
     json identity = BuildIdentity();
     const size_t identityHash = HashOf(identity);
     json progression = BuildProgression();
     const size_t progressionHash = HashOf(progression);
-    json playerUnit = UnitToJson(player);
-    const size_t playerHash = HashOf(playerUnit);
+    const size_t playerHash = UnitHash(player);
     json playerStats = WearerStats(player);
     const size_t playerStatsHash = HashOf(playerStats);
-    // Null rather than absent when there is no merc, so the manager sees the dismissal
-    // instead of holding the last one forever.
-    json mercUnitJson = mercUnit ? UnitToJson(*mercUnit) : json();
-    const size_t mercHash = HashOf(mercUnitJson);
+    // A default-constructed unit hashes to the empty-walk value, distinct from any real
+    // merc, so a merc appearing or leaving moves the fingerprint.
+    const size_t mercHash = mercUnit ? UnitHash(*mercUnit) : UnitHash(game::Unit{});
     json mercStats = mercUnit ? WearerStats(*mercUnit) : json();
     const size_t mercStatsHash = HashOf(mercStats);
     // Zero for a grid the game has not populated its layout for yet: unknown, so draw no grid.
@@ -379,9 +365,11 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
                   containerHashes[BUCKET_BELT], containerFingerprints_[BUCKET_BELT]);
     EmitContainer(playerContainers, "stash", BUCKET_STASH, stash, containerDims[BUCKET_STASH], keyframe,
                   containerHashes[BUCKET_STASH], containerFingerprints_[BUCKET_STASH]);
-    json playerJson = BuildWearerSection(std::move(playerUnit), playerChanged, std::move(playerStats),
-                                         TakeIfChanged(keyframe, playerStatsHash, playerStatsFingerprint_),
-                                         std::move(playerContainers));
+    // The player document is built only when it changed - most ticks only the volatile
+    // stats move, and those ride their own fingerprint below.
+    json playerJson = BuildWearerSection(
+        playerChanged ? UnitToJson(player) : json::object(), playerChanged, std::move(playerStats),
+        TakeIfChanged(keyframe, playerStatsHash, playerStatsFingerprint_), std::move(playerContainers));
     if (!playerJson.empty()) {
         snapshot["player"] = std::move(playerJson);
     }
@@ -399,8 +387,8 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
         if (mercChanged) {
             snapshot["merc"] = json();
         }
-    } else if (json mercJson = BuildWearerSection(std::move(mercUnitJson), mercChanged, std::move(mercStats),
-                                                  mercStatsChanged, std::move(mercContainers));
+    } else if (json mercJson = BuildWearerSection(mercChanged ? UnitToJson(*mercUnit) : json::object(), mercChanged,
+                                                  std::move(mercStats), mercStatsChanged, std::move(mercContainers));
                !mercJson.empty()) {
         snapshot["merc"] = std::move(mercJson);
     }

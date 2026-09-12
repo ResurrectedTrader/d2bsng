@@ -81,83 +81,145 @@ int32_t RawValue(const game::StatEntry& stat) {
     return stat.value;
 }
 
-json BuildStatLists(const game::Unit& unit) {
-    json lists = json::array();
-    for (const auto& list : unit.GetStatLists()) {
-        json stats = json::array();
+void VisitStatLists(UnitVisitor& visitor, const game::Unit& item) {
+    visitor.BeginArray("statsLists");
+    for (const auto& list : item.GetStatLists()) {
+        visitor.BeginElement();
+        visitor.Int("stateNo", list.stateNo);
+        visitor.Int("flags", list.flags);
+        visitor.BeginArray("stats");
         for (const auto& stat : list.stats) {
-            json entry = json::object();
-            entry["id"] = stat.statId;
-            entry["value"] = RawValue(stat);
+            visitor.BeginElement();
+            visitor.Int("id", stat.statId);
+            visitor.Int("value", RawValue(stat));
             if (stat.subIndex != 0) {
-                entry["layer"] = stat.subIndex;
+                visitor.Int("layer", stat.subIndex);
             }
-            stats.push_back(std::move(entry));
+            visitor.EndElement();
         }
-        json group = json::object();
-        group["stateNo"] = list.stateNo;
-        group["flags"] = list.flags;
-        group["stats"] = std::move(stats);
-        lists.push_back(std::move(group));
+        visitor.EndArray();
+        visitor.EndElement();
     }
-    return lists;
+    visitor.EndArray();
 }
 
-void AddItemFields(json& out, const game::Unit& item, Detail detail) {
+void VisitItem(UnitVisitor& visitor, const game::Unit& item, Detail detail) {
     // The compiled code is space padded, not NUL padded.
     std::string code = item.ItemCode();
     while (!code.empty() && code.back() == ' ') {
         code.pop_back();
     }
-    out["code"] = code;
+    visitor.Str("code", code);
 
-    out["quality"] = item.Quality();
-    out["itemFlags"] = item.ItemFlags();
-    out["format"] = item.ItemFormat();
+    visitor.Int("quality", static_cast<int64_t>(item.Quality()));
+    visitor.Int("itemFlags", item.ItemFlags());
+    visitor.Int("format", item.ItemFormat());
     const auto fileIndex = item.FileIndex();
-    out["fileIndex"] = fileIndex.has_value() ? static_cast<int32_t>(*fileIndex) : -1;
-    out["rarePrefix"] = item.RarePrefixNum();
-    out["rareSuffix"] = item.RareSuffixNum();
-    out["autoAffix"] = item.AutoAffixNum();
-    out["magicPrefix"] = item.PrefixNums();
-    out["magicSuffix"] = item.SuffixNums();
-    out["itemLevel"] = item.ItemLevel();
-    out["earLevel"] = item.EarLevel();
-    out["playerName"] = item.ItemPlayerName();
+    visitor.Int("fileIndex", fileIndex.has_value() ? static_cast<int64_t>(*fileIndex) : -1);
+    visitor.Int("rarePrefix", item.RarePrefixNum());
+    visitor.Int("rareSuffix", item.RareSuffixNum());
+    visitor.Int("autoAffix", item.AutoAffixNum());
+    const auto prefixes = item.PrefixNums();
+    visitor.Ints("magicPrefix", prefixes);
+    const auto suffixes = item.SuffixNums();
+    visitor.Ints("magicSuffix", suffixes);
+    visitor.Int("itemLevel", item.ItemLevel());
+    visitor.Int("earLevel", item.EarLevel());
+    visitor.Str("playerName", item.ItemPlayerName());
     // Which of the random inventory graphics this instance rolled, for item types with
     // varinvgfx (rings, amulets, jewels, charms). Nothing else in the document implies
     // it, so a consumer resolving the graphic itself needs it.
-    out["gfxIndex"] = item.GfxIndex();
+    visitor.Int("gfxIndex", item.GfxIndex());
 
     if (detail == Detail::Full) {
-        out["title"] = item.Name();
+        visitor.Str("title", item.Name());
         // Game tooltip, lines reversed to display order (see ReverseLines).
-        out["description"] = ReverseLines(item.Description());
-        out["statsLists"] = BuildStatLists(item);
+        visitor.Str("description", ReverseLines(item.Description()));
+        VisitStatLists(visitor, item);
     }
 
-    out["gid"] = item.Id();
-    out["location"] = item.ItemLocation();
+    visitor.Int("gid", item.Id());
+    visitor.Int("location", static_cast<int64_t>(item.ItemLocation()));
     // Slot containers (equipped/merc) carry the equip-location in x with y = 0;
     // grid containers carry the cell.
     const auto pos = item.Pos();
     const auto size = item.Size();
-    out["x"] = pos.x;
-    out["y"] = pos.y;
-    out["w"] = size.width;
-    out["h"] = size.height;
+    visitor.Int("x", pos.x);
+    visitor.Int("y", pos.y);
+    visitor.Int("w", size.width);
+    visitor.Int("h", size.height);
 
     // An item's contained units are its socket fillers, and the inventory chain is
     // append-ordered, so chain order is socket order. Fillers are contiguous from 0, so
     // array position is the socket index; the total is stat 194.
-    json sockets = json::array();
-    for (const auto& filler : item.GetItems()) {
-        sockets.push_back(UnitToJson(filler, detail));
-    }
-    if (!sockets.empty()) {
-        out["sockets"] = std::move(sockets);
+    const auto fillers = item.GetItems();
+    if (!fillers.empty()) {
+        visitor.BeginArray("sockets");
+        for (const auto& filler : fillers) {
+            visitor.BeginElement();
+            VisitUnit(visitor, filler, detail);
+            visitor.EndElement();
+        }
+        visitor.EndArray();
     }
 }
+
+void VisitWearer(UnitVisitor& visitor, const game::Unit& wearer) {
+    visitor.Int("flagsEx", wearer.FlagsEx());
+    visitor.Str("name", wearer.Name());
+
+    // A skill level is the one thing the stat lists can't carry. `level` is the bonused
+    // value the tooltip engine wants; `hard` is the invested points, so a consumer can
+    // recover the gear bonus as level - hard.
+    auto skills = wearer.GetAllSkills();
+    std::ranges::sort(skills, {}, &game::Unit::SkillInfo::skillId);
+    visitor.BeginArray("skills");
+    for (const auto& skill : skills) {
+        visitor.BeginElement();
+        visitor.Int("skill", skill.skillId);
+        visitor.Int("hard", skill.baseLevel);
+        visitor.Int("level", skill.totalLevel);
+        visitor.EndElement();
+    }
+    visitor.EndArray();
+}
+
+// Builds the nlohmann json document from the visit events, tracking the current insertion
+// container on a stack: the top is an object for Int/Str/Ints, an array for BeginElement.
+// json object nodes stay put across sibling inserts (std::map), and an array's elements are
+// only pushed while no child of a prior element is still on the stack, so held pointers
+// never dangle.
+class JsonVisitor final : public UnitVisitor {
+   public:
+    JsonVisitor() { stack_.push_back(&root_); }
+
+    void Int(std::string_view key, int64_t value) override { (*stack_.back())[std::string(key)] = value; }
+    void Str(std::string_view key, std::string_view value) override { (*stack_.back())[std::string(key)] = value; }
+    void Ints(std::string_view key, std::span<const uint16_t> values) override {
+        json arr = json::array();
+        for (const auto value : values) {
+            arr.push_back(value);
+        }
+        (*stack_.back())[std::string(key)] = std::move(arr);
+    }
+    void BeginArray(std::string_view key) override {
+        json& arr = ((*stack_.back())[std::string(key)] = json::array());
+        stack_.push_back(&arr);
+    }
+    void BeginElement() override {
+        json& arr = *stack_.back();
+        arr.push_back(json::object());
+        stack_.push_back(&arr.back());
+    }
+    void EndElement() override { stack_.pop_back(); }
+    void EndArray() override { stack_.pop_back(); }
+
+    json Take() { return std::move(root_); }
+
+   private:
+    json root_ = json::object();
+    std::vector<json*> stack_;
+};
 
 // Curated stat ids the manager's StatsPanel labels (D2BotNG stats.ts). Order is
 // irrelevant; the manager renders only ids it recognises.
@@ -165,6 +227,39 @@ constexpr std::array<uint32_t, 22> STAT_IDS = {0,  1,  2,  3,  7,  9,  12, 13, 1
                                                40, 41, 42, 43, 44, 45, 46, 80, 96, 99, 105};
 
 }  // namespace
+
+void VisitUnit(UnitVisitor& visitor, const game::Unit& unit, Detail detail) {
+    if (!unit) {
+        return;
+    }
+
+    const auto type = unit.Type();
+    visitor.Int("unitType", static_cast<int64_t>(type));
+    visitor.Int("classId", unit.ClassId());
+
+    switch (type) {
+        case game::UnitType::Item:
+            VisitItem(visitor, unit, detail);
+            break;
+        case game::UnitType::Player:
+            VisitWearer(visitor, unit);
+            visitor.Int("area", unit.Area());
+            // Reads a client global, so it only answers for the local player.
+            visitor.Int("hand", unit.WeaponSwitch());
+            break;
+        case game::UnitType::Monster:
+            VisitWearer(visitor, unit);
+            break;
+        default:
+            break;
+    }
+}
+
+json UnitToJson(const game::Unit& unit, Detail detail) {
+    JsonVisitor visitor;
+    VisitUnit(visitor, unit, detail);
+    return visitor.Take();
+}
 
 json WearerStats(const game::Unit& wearer) {
     // itemstatcost flags genuinely-signed stats (resists, etc.) as Signed=1 -> sign-extend;
@@ -196,59 +291,6 @@ json WearerStats(const game::Unit& wearer) {
         stats.push_back(std::move(entry));
     }
     return stats;
-}
-
-namespace {
-
-void AddWearerFields(json& out, const game::Unit& wearer) {
-    out["flagsEx"] = wearer.FlagsEx();
-    out["name"] = wearer.Name();
-
-    // A skill level is the one thing the stat lists can't carry. `level` is the bonused
-    // value the tooltip engine wants; `hard` is the invested points, so a consumer can
-    // recover the gear bonus as level - hard.
-    auto skills = wearer.GetAllSkills();
-    std::ranges::sort(skills, {}, &game::Unit::SkillInfo::skillId);
-    json skillsJson = json::array();
-    for (const auto& skill : skills) {
-        json entry = json::object();
-        entry["skill"] = skill.skillId;
-        entry["hard"] = skill.baseLevel;
-        entry["level"] = skill.totalLevel;
-        skillsJson.push_back(std::move(entry));
-    }
-    out["skills"] = std::move(skillsJson);
-}
-
-}  // namespace
-
-json UnitToJson(const game::Unit& unit, Detail detail) {
-    json out = json::object();
-    if (!unit) {
-        return out;
-    }
-
-    const auto type = unit.Type();
-    out["unitType"] = type;
-    out["classId"] = unit.ClassId();
-
-    switch (type) {
-        case game::UnitType::Item:
-            AddItemFields(out, unit, detail);
-            break;
-        case game::UnitType::Player:
-            AddWearerFields(out, unit);
-            out["area"] = unit.Area();
-            // Reads a client global, so it only answers for the local player.
-            out["hand"] = unit.WeaponSwitch();
-            break;
-        case game::UnitType::Monster:
-            AddWearerFields(out, unit);
-            break;
-        default:
-            break;
-    }
-    return out;
 }
 
 }  // namespace d2bs::js::characterstate
