@@ -56,6 +56,10 @@ constexpr std::array FRAME_PHASES = {
                          .what = "parked until a script handler answers a blocking event",
                          .warn = 5.0,
                          .bad = 15.0},
+    profiling::PhaseInfo{.name = "character state",
+                         .what = "CharacterState snapshot + diff to the manager (WM_COPYDATA)",
+                         .warn = 10.0,
+                         .bad = 25.0},
 };
 
 constexpr profiling::TimelineInfo FRAME_TIMELINE{
@@ -151,7 +155,10 @@ void GameLoop::OnSleep(std::chrono::milliseconds duration) {
     EmitStateEvents(previous_, cur);
     // Live character state to the manager. Runs here (game thread, write lock
     // held) so reads are consistent; self-throttles and diffs internally.
-    characterstate::CharacterState::Instance().OnTick(cur.state, !previous_.inSession && cur.inSession);
+    {
+        const auto phase = frame_.Nest(FramePhase::CharacterState);
+        characterstate::CharacterState::Instance().OnTick(cur.state, !previous_.inSession && cur.inSession);
+    }
     DriveScriptLifecycle(previous_, cur);
 
     frame_.Enter(FramePhase::Drain);

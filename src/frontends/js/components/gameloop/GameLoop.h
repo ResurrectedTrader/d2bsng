@@ -48,7 +48,7 @@ struct Snapshot {
 
 // The game thread's phases, for the Profiling panel. OnSleep walks the first five; the hooks that
 // run on the game thread between sleeps nest the rest through GameLoop::InPhase.
-enum class FramePhase : size_t { Game, Asleep, Body, Drain, AcquireWait, Draw, Events, ScriptWait };
+enum class FramePhase : size_t { Game, Asleep, Body, Drain, AcquireWait, Draw, Events, ScriptWait, CharacterState };
 
 // Per-frame driver. Invoked from the per-version Sleep and render hooks via
 // the onSleep / onDraw callbacks. Owns HandleCache invalidation, chicken,
