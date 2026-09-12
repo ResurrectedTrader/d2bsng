@@ -117,16 +117,14 @@ json BuildProgression() {
     return progression;
 }
 
-// A section is (re)sent when a keyframe forces it or its freshly computed hash differs from
-// the one last sent. Pure - the caller latches the new hash when it decides to send, so the
-// "did it move" test and the "record what we sent" update stay visible and separate.
+// A section is (re)sent when a keyframe forces it or its hash differs from the one last sent.
+// Pure - the caller latches the sent hash explicitly, so the test and the update stay separate.
 bool Moved(bool keyframe, size_t current, const std::optional<size_t>& sent) {
     return keyframe || !sent.has_value() || *sent != current;
 }
 
-// Folds the slow-moving section hashes into the debounce signature, replacing the per-tick
-// std::string the earlier fmt-based version built. Boost-style mixer; order-dependent, but
-// the inputs are always combined in the same fixed order.
+// Boost-style hash combine for the debounce signature. Order-dependent; the inputs are always
+// combined in the same order.
 size_t MixHash(size_t seed, size_t value) {
     return seed ^ (value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2));
 }
@@ -177,10 +175,9 @@ json BuildKills(const std::map<std::pair<uint32_t, uint32_t>, uint32_t>& byClass
     return kills;
 }
 
-// Identity, progression and the merged stat blocks are built as small json documents for
-// the payload anyway, so their hash is taken over that document's dump rather than a second
-// streaming walk. The unit and container hashes, which would otherwise build a large json
-// every tick, stream instead (see Fingerprint.h).
+// Identity, progression and the merged stat blocks are built as small json documents for the
+// payload anyway, so their hash is taken over that document's dump. Units and containers hash
+// via a streaming walk instead (see Fingerprint.h).
 size_t HashOf(const json& value) {
     return std::hash<std::string>{}(value.dump());
 }
@@ -285,10 +282,9 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
         }
     }
 
-    // Fingerprint every section by streaming its fields into a hash rather than building the
-    // wire json and hashing its dump: this runs every tick to detect change, while the json
-    // documents below are built only for the sections that actually moved. Identity and
-    // progression stay json-built - they are tiny and assembled here once regardless.
+    // Hash every section for change detection; the wire json documents below are built only
+    // for the sections that moved. Identity and progression are tiny, so they are built here
+    // once and hashed directly.
     json identity = BuildIdentity();
     const size_t identityHash = HashOf(identity);
     json progression = BuildProgression();

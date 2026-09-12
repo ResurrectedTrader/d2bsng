@@ -21,14 +21,12 @@ enum class Detail : uint8_t {
 };
 
 // One traversal of a unit's serialisable fields, driving two sinks: the wire document
-// (JsonVisitor, in UnitJson.cpp) and the change-detection hash (HashVisitor, in
-// Fingerprint.cpp). Because both go through this single list of fields, a field added here
-// is picked up by both - the fingerprint cannot silently stop covering a field the payload
-// still sends, which a second hand-written hash walk could.
+// (JsonVisitor) and the change-detection hash (HashVisitor). Both go through this single
+// field list, so a field added here is covered by both - the fingerprint cannot fall out of
+// sync with what the payload sends.
 //
-// It is a flat event stream: scalars carry a key (the JSON sink needs it; the hash sink
-// ignores it and relies on the fixed visit order), and nesting is bracketed by
-// BeginArray/EndArray around a run of BeginElement/EndElement objects.
+// A flat event stream: scalars carry a key (the JSON sink needs it; the hash sink ignores it
+// and relies on visit order), nesting is BeginArray/EndArray around BeginElement/EndElement.
 class UnitVisitor {
    public:
     UnitVisitor() = default;
