@@ -262,14 +262,4 @@ std::optional<std::string> GetLaunchProfile() {
     return std::nullopt;
 }
 
-// === Data tables ===
-// WearerStats latches its curated stat list only once every itemstatcost "signed" lookup
-// returns a cell, so answer those with unsigned; nothing else is a table this fake has.
-TxtValue GetTxtValue(std::string_view table, uint32_t /*row*/, std::string_view column) {
-    if (table == "itemstatcost" && column == "signed") {
-        return int64_t{0};
-    }
-    return std::monostate{};
-}
-
 }  // namespace d2bs::game

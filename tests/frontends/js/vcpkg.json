@@ -1,6 +1,6 @@
 {
   "name": "d2bsng-tests",
   "version-string": "0.0.1",
-  "dependencies": ["doctest", "spdlog", "nlohmann-json"],
+  "dependencies": ["doctest", "spdlog"],
   "builtin-baseline": "74e6536215718009aae747d86d84b78376bf9e09"
 }
