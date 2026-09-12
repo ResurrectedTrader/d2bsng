@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <string_view>
 #include <unordered_map>
 #include "V8Convert.h"
@@ -193,7 +194,7 @@ class V8ClassBase {
     static void InstanceProperty(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Local<v8::Object> obj,
                                  const char* name, Getter getter) {
         const v8::AccessorNameGetterCallback getterFn = +getter;
-        auto* accessors = js::script::InternAccessors(getterFn, nullptr);
+        auto* accessors = js::script::InternAccessors(BindingName(name), getterFn, nullptr);
         obj->SetNativeDataProperty(context, v8_convert::ToV8(isolate, name), &js::script::PropertyGetterTrampoline,
                                    nullptr, v8::External::New(isolate, accessors), v8::PropertyAttribute::ReadOnly)
             .Check();
@@ -204,13 +205,18 @@ class V8ClassBase {
                                  const char* name, Getter getter, Setter setter) {
         const v8::AccessorNameGetterCallback getterFn = +getter;
         const v8::AccessorNameSetterCallback setterFn = +setter;
-        auto* accessors = js::script::InternAccessors(getterFn, setterFn);
+        auto* accessors = js::script::InternAccessors(BindingName(name), getterFn, setterFn);
         obj->SetNativeDataProperty(context, v8_convert::ToV8(isolate, name), &js::script::PropertyGetterTrampoline,
                                    &js::script::PropertySetterTrampoline, v8::External::New(isolate, accessors))
             .Check();
     }
 
    protected:
+    // "Unit.x" rather than "x" in the Profiling panel's binding table.
+    [[nodiscard]] static std::string BindingName(const char* name) {
+        return std::string(Derived::ClassName) + "." + name;
+    }
+
     // ========================================================================
     // Property registration with lambda getters/setters
     // V8 v14+ uses SetNativeDataProperty with AccessorNameGetterCallback
@@ -222,7 +228,7 @@ class V8ClassBase {
     template <typename Getter>
     static void Property(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> inst, const char* name, Getter getter) {
         const v8::AccessorNameGetterCallback getterFn = +getter;
-        auto* accessors = js::script::InternAccessors(getterFn, nullptr);
+        auto* accessors = js::script::InternAccessors(BindingName(name), getterFn, nullptr);
         inst->SetNativeDataProperty(v8_convert::ToV8(isolate, name), &js::script::PropertyGetterTrampoline, nullptr,
                                     v8::External::New(isolate, accessors));
     }
@@ -233,7 +239,7 @@ class V8ClassBase {
                          Setter setter) {
         const v8::AccessorNameGetterCallback getterFn = +getter;
         const v8::AccessorNameSetterCallback setterFn = +setter;
-        auto* accessors = js::script::InternAccessors(getterFn, setterFn);
+        auto* accessors = js::script::InternAccessors(BindingName(name), getterFn, setterFn);
         inst->SetNativeDataProperty(v8_convert::ToV8(isolate, name), &js::script::PropertyGetterTrampoline,
                                     &js::script::PropertySetterTrampoline, v8::External::New(isolate, accessors));
     }
@@ -243,8 +249,7 @@ class V8ClassBase {
     template <typename Func>
     static void Method(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> proto, const char* name, Func func) {
         const v8::FunctionCallback fnPtr = +func;
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) - function-pointer through External void*
-        auto data = v8::External::New(isolate, reinterpret_cast<void*>(fnPtr));
+        auto data = v8::External::New(isolate, js::script::InternFunction(BindingName(name), fnPtr));
         proto->Set(isolate, name, v8::FunctionTemplate::New(isolate, &js::script::MethodTrampoline, data),
                    v8::DontEnum);
     }
@@ -253,8 +258,7 @@ class V8ClassBase {
     template <typename Func>
     static void StaticMethod(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl, const char* name, Func func) {
         const v8::FunctionCallback fnPtr = +func;
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) - function-pointer through External void*
-        auto data = v8::External::New(isolate, reinterpret_cast<void*>(fnPtr));
+        auto data = v8::External::New(isolate, js::script::InternFunction(BindingName(name), fnPtr));
         tpl->Set(isolate, name, v8::FunctionTemplate::New(isolate, &js::script::MethodTrampoline, data), v8::DontEnum);
     }
 };

@@ -12,10 +12,12 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <string>
 #include <thread>
 
 #include "hooks/HookManager.h"
 #include "imports/D2Gfx.h"
+#include "utils/Profiling.h"
 #include "utils/threadutils.h"
 
 // imgui_impl_win32.h declares this for apps that own their own WndProc.
@@ -151,6 +153,26 @@ bool InitGL(HWND hwnd, GLState& gl) {
     DisableVSync();
     return true;
 }
+
+// How the render thread's frame divides, for the Profiling panel: a slow build is our panels, while
+// slow GPU or swap is the driver (software rendering, vsync), which no panel tuning would fix.
+enum class FramePhase : size_t { Build, Gpu, Swap, Pump, Idle };
+
+constexpr std::array FRAME_PHASES = {
+    profiling::PhaseInfo{.name = "build (panels)", .what = "ImGui frame + the active panel's Draw"},
+    profiling::PhaseInfo{.name = "gpu (rasterise)", .what = "glClear + RenderDrawData"},
+    profiling::PhaseInfo{.name = "swap", .what = "SwapBuffers - a vsync wait shows up here"},
+    profiling::PhaseInfo{.name = "message pump", .what = "PeekMessage / DispatchMessage"},
+    profiling::PhaseInfo{.name = "idle", .what = "frame pacing, or parked while hidden", .blocking = true},
+};
+
+constexpr profiling::TimelineInfo FRAME_TIMELINE{
+    .title = "Console frame",
+    .phases = FRAME_PHASES,
+    .framePhase = static_cast<size_t>(FramePhase::Swap),
+    .idle = "No frames drawn - console hidden.",
+    .order = 400,
+};
 
 void DestroyGL(HWND hwnd, GLState& gl) {
     if (gl.hrc != nullptr) {
@@ -327,7 +349,17 @@ void RenderLoop(const std::stop_token& stop) {
     using std::chrono::steady_clock;
     auto nextFrame = steady_clock::now();
 
+    profiling::Timeline frame(FRAME_TIMELINE);
+
+    // "GDI Generic" means the software rasteriser: every pixel drawn on the CPU, whatever we do.
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) - GLubyte* to char*
+    if (const auto* renderer = reinterpret_cast<const char*>(glGetString(GL_RENDERER)); renderer != nullptr) {
+        frame.SetDetail(std::string("renderer: ") + renderer);
+    }
+
     while (!stop.stop_requested()) {
+        frame.Enter(FramePhase::Pump);
+
         MSG msg;
         bool quitting = false;
         while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE) != 0) {
@@ -347,6 +379,7 @@ void RenderLoop(const std::stop_token& stop) {
         // for the first game-title write.
         EnsureGameTitleSubclass(hwnd);
 
+        frame.Enter(FramePhase::Build);
         ImGui_ImplOpenGL2_NewFrame();
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
@@ -368,6 +401,7 @@ void RenderLoop(const std::stop_token& stop) {
         // Minimized counts as not showing: it keeps WS_VISIBLE, but nothing it draws reaches the
         // user either.
         if (IsWindowVisible(hwnd) == FALSE || IsIconic(hwnd) != FALSE) {
+            frame.Enter(FramePhase::Idle);
             MsgWaitForMultipleObjectsEx(0, nullptr, HIDDEN_WAIT_MS, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
             // Same frame floor as the visible path. Raw input is registered RIDEV_INPUTSINK, so
             // every keystroke system-wide wakes this wait - without the floor a fast enough
@@ -377,6 +411,7 @@ void RenderLoop(const std::stop_token& stop) {
             continue;
         }
 
+        frame.Enter(FramePhase::Gpu);
         RECT clientRect{};
         GetClientRect(hwnd, &clientRect);
         glViewport(0, 0, static_cast<GLsizei>(clientRect.right - clientRect.left),
@@ -384,6 +419,7 @@ void RenderLoop(const std::stop_token& stop) {
         glClearColor(0.10F, 0.10F, 0.12F, 1.00F);
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
+        frame.Enter(FramePhase::Swap);
         SwapBuffers(gl.hdc);
 
         // Resync when the deadline has fallen behind wall time. A fixed step per pass never catches
@@ -394,8 +430,10 @@ void RenderLoop(const std::stop_token& stop) {
         if (nextFrame < afterFrame) {
             nextFrame = afterFrame + milliseconds(TARGET_FRAME_MS);
         }
+        frame.Enter(FramePhase::Idle);
         std::this_thread::sleep_until(nextFrame);
     }
+    frame.Leave();
 
     // Unregister raw input (RIDEV_REMOVE requires a null hwndTarget).
     SetRawKeyboardInput(nullptr, RIDEV_REMOVE);

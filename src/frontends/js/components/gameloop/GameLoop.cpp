@@ -1,6 +1,7 @@
 #include "components/gameloop/GameLoop.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <thread>
 
@@ -21,11 +22,57 @@
 #include "game/HandleCache.h"
 #include "game/Unit.h"
 #include "speedhack/Speedhack.h"
+#include "utils/Profiling.h"
 #include "utils/utils.h"
 
 namespace d2bs::js::gameloop {
 
-GameLoop::GameLoop() {
+namespace {
+
+// Indexed by FramePhase. The game's own work (what is left between our hooks) is measured so the
+// other shares are of the real frame; the sleep is the game honouring its own Sleep(duration), so
+// it is blocking and not "our" cost. Every other phase is a cost this framework introduces, and
+// those carry the thresholds.
+constexpr std::array FRAME_PHASES = {
+    profiling::PhaseInfo{
+        .name = "game logic", .what = "outside our hook entirely - the game's own frame", .foreign = true},
+    profiling::PhaseInfo{.name = "asleep (game's Sleep)",
+                         .what = "honouring the duration the game asked for - not our cost",
+                         .blocking = true},
+    profiling::PhaseInfo{.name = "frame body", .what = "snapshot, events, script lifecycle", .warn = 25.0, .bad = 50.0},
+    profiling::PhaseInfo{.name = "script work (drain)",
+                         .what = "GameThread::Execute tasks posted by scripts",
+                         .warn = 15.0,
+                         .bad = 35.0},
+    profiling::PhaseInfo{
+        .name = "waiting for game lock", .what = "blocked until script readers release", .warn = 10.0, .bad = 25.0},
+    profiling::PhaseInfo{
+        .name = "draw hook", .what = "script drawables and the version banner", .warn = 10.0, .bad = 25.0},
+    profiling::PhaseInfo{.name = "event hooks",
+                         .what = "packet / chat / input / IPC hooks dispatching to scripts",
+                         .warn = 10.0,
+                         .bad = 25.0},
+    profiling::PhaseInfo{.name = "waiting for a script",
+                         .what = "parked until a script handler answers a blocking event",
+                         .warn = 5.0,
+                         .bad = 15.0},
+    profiling::PhaseInfo{.name = "character state",
+                         .what = "CharacterState snapshot + diff to the manager (WM_COPYDATA)",
+                         .warn = 10.0,
+                         .bad = 25.0},
+};
+
+constexpr profiling::TimelineInfo FRAME_TIMELINE{
+    .title = "Game thread",
+    .phases = FRAME_PHASES,
+    .framePhase = static_cast<size_t>(FramePhase::Body),
+    .idle = "No frames observed - the script engine is not up, or the game thread is not sleeping.",
+    .expanded = true,
+};
+
+}  // namespace
+
+GameLoop::GameLoop() : frame_(FRAME_TIMELINE) {
     logger_ = utils::GetLogger("loop");
 }
 
@@ -84,6 +131,8 @@ void GameLoop::OnSleep(std::chrono::milliseconds duration) {
     // waiting for the whole sleep duration.
     const auto deadline = std::chrono::steady_clock::now() + duration;
 
+    frame_.Enter(FramePhase::Body);
+
     Snapshot cur;
     game::InvalidateHandles();
     TakeSnapshot(cur);
@@ -106,13 +155,18 @@ void GameLoop::OnSleep(std::chrono::milliseconds duration) {
     EmitStateEvents(previous_, cur);
     // Live character state to the manager. Runs here (game thread, write lock
     // held) so reads are consistent; self-throttles and diffs internally.
-    characterstate::CharacterState::Instance().OnTick(cur.state, !previous_.inSession && cur.inSession);
+    {
+        const auto phase = frame_.Nest(FramePhase::CharacterState);
+        characterstate::CharacterState::Instance().OnTick(cur.state, !previous_.inSession && cur.inSession);
+    }
     DriveScriptLifecycle(previous_, cur);
 
+    frame_.Enter(FramePhase::Drain);
     game::GameThread::Drain();
 
     previous_ = cur;
 
+    frame_.Enter(FramePhase::Asleep);
     if (writeLockHeld_) {
         game::GameWriteLock::Release();
         // Release for idleSleep-ms real-wall slices so script readers get windows,
@@ -136,11 +190,18 @@ void GameLoop::OnSleep(std::chrono::milliseconds duration) {
                 speedhack::SpeedhackDisabledScope realWaits;
                 std::this_thread::sleep_for(std::clamp(realRemaining, std::chrono::milliseconds(1), idleSleep));
             }
+            frame_.Enter(FramePhase::AcquireWait);
             game::GameWriteLock lock;
+            frame_.Enter(FramePhase::Drain);
             game::GameThread::Drain();
+            frame_.Enter(FramePhase::Asleep);
         }
     }
+
+    frame_.Enter(FramePhase::AcquireWait);
     game::GameWriteLock::Acquire();
+    // Left open until the next OnSleep: everything in between is the game running its own frame.
+    frame_.Enter(FramePhase::Game);
     writeLockHeld_ = true;
 }
 

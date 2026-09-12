@@ -15,8 +15,7 @@ namespace d2bs::js::console {
 // multiline field with a Copy button.
 //
 // The list is enumerated once when the panel is first drawn and then only on demand, via the
-// Refresh button. CreateToolhelp32Snapshot walks every thread on the SYSTEM and filters by pid
-// afterwards, which is tens of milliseconds - doing it per frame cost a core.
+// Refresh button, so a chosen thread stays put while the user works with it.
 class ThreadsPanel : public Panel {
    public:
     [[nodiscard]] const char* Title() const override { return "Threads"; }

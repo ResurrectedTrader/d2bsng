@@ -9,6 +9,7 @@
 #include <array>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include <spdlog/spdlog.h>
 #include <tlhelp32.h>
@@ -53,28 +54,72 @@ bool HasThreadLocalStorage() noexcept {
     return tlsArray != nullptr && tlsArray[_tls_index] != nullptr;
 }
 
-std::vector<uint32_t> EnumerateProcessThreads() {
-    std::vector<uint32_t> result;
+namespace {
+
+using NtStatus = LONG;
+using NtGetNextThreadFn = NtStatus(NTAPI*)(HANDLE process, HANDLE thread, ACCESS_MASK access, ULONG attributes,
+                                           ULONG flags, PHANDLE next);
+
+// Undocumented but unchanged since Vista (System Informer relies on it): walks one process's
+// threads by handle, a few microseconds each. Toolhelp, the fallback, has no per-process mode and
+// walks every thread on the system - ~90ms on a busy machine.
+NtGetNextThreadFn ResolveNtGetNextThread() {
+    HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+    if (ntdll == nullptr) {
+        return nullptr;
+    }
+    // NOLINTNEXTLINE(clang-diagnostic-cast-function-type-strict) - GetProcAddress returns FARPROC
+    return reinterpret_cast<NtGetNextThreadFn>(GetProcAddress(ntdll, "NtGetNextThread"));
+}
+
+}  // namespace
+
+void ForEachProcessThread(const std::function<void(HANDLE, uint32_t)>& fn) {
+    static const auto NT_GET_NEXT_THREAD = ResolveNtGetNextThread();
+    if (NT_GET_NEXT_THREAD != nullptr) {
+        HANDLE thread = nullptr;
+        HANDLE next = nullptr;
+        while (NT_GET_NEXT_THREAD(GetCurrentProcess(), thread, THREAD_QUERY_LIMITED_INFORMATION, 0, 0, &next) >= 0) {
+            if (thread != nullptr) {
+                CloseHandle(thread);
+            }
+            thread = next;
+            fn(thread, GetThreadId(thread));
+        }
+        if (thread != nullptr) {
+            CloseHandle(thread);
+        }
+        return;
+    }
+
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
     if (snap == INVALID_HANDLE_VALUE) {
-        return result;
+        return;
     }
     THREADENTRY32 te{};
     te.dwSize = sizeof(te);
     const DWORD ourPid = GetCurrentProcessId();
     if (Thread32First(snap, &te) != FALSE) {
         do {
-            // dwSize is returned with the size of the populated struct; older
-            // snapshots may not include th32OwnerProcessID. Guard against that
-            // before filtering.
+            // dwSize is returned with the size of the populated struct; older snapshots may not
+            // include th32OwnerProcessID.
             if (te.dwSize >= FIELD_OFFSET(THREADENTRY32, th32OwnerProcessID) + sizeof(te.th32OwnerProcessID) &&
                 te.th32OwnerProcessID == ourPid) {
-                result.push_back(te.th32ThreadID);
+                if (HANDLE handle = OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, te.th32ThreadID);
+                    handle != nullptr) {
+                    fn(handle, te.th32ThreadID);
+                    CloseHandle(handle);
+                }
             }
             te.dwSize = sizeof(te);
         } while (Thread32Next(snap, &te) != FALSE);
     }
     CloseHandle(snap);
+}
+
+std::vector<uint32_t> EnumerateProcessThreads() {
+    std::vector<uint32_t> result;
+    ForEachProcessThread([&result](HANDLE /*handle*/, uint32_t tid) { result.push_back(tid); });
     return result;
 }
 

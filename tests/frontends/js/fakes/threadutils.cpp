@@ -6,6 +6,8 @@
 
 namespace d2bs::thread_utils {
 
+void ForEachProcessThread(const std::function<void(HANDLE, uint32_t)>& /*fn*/) {}
+
 std::vector<uint32_t> EnumerateProcessThreads() {
     return {};
 }
@@ -23,6 +25,11 @@ std::string GetThreadDescription(uint32_t /*threadId*/) {
 }
 
 void SetThreadDescription(const std::string& /*description*/, uint32_t /*threadId*/) {}
+
+// Test threads are ordinary CRT threads, so their thread_local storage is always backed.
+bool HasThreadLocalStorage() noexcept {
+    return true;
+}
 
 std::filesystem::path WriteCrashLog(std::string_view /*content*/) {
     return {};

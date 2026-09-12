@@ -16,6 +16,7 @@
 #include <vector>
 #include "ScriptTypes.h"
 #include "game/Types.h"
+#include "utils/Profiling.h"
 
 namespace d2bs::js::drawing {
 struct Drawable;
@@ -221,6 +222,8 @@ class Script : public std::enable_shared_from_this<Script> {
 
     std::filesystem::path path_;
     std::filesystem::path normalizedPath_;  // Lowercase for case-insensitive comparison
+    // Where this thread's time goes inside delay(), for the Profiling panel. Script-thread-only.
+    profiling::Timeline idle_;
     ScriptMode mode_;
     std::vector<std::vector<uint8_t>> args_;
     std::atomic<ScriptState> state_{ScriptState::Stopped};

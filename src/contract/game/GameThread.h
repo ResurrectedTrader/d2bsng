@@ -13,6 +13,7 @@
 #include <type_traits>
 
 #include "game/GameLock.h"
+#include "utils/Profiling.h"
 #include "utils/threadutils.h"
 
 namespace d2bs::game {
@@ -74,6 +75,10 @@ class GameThread {
             }
         }
 
+        // A wait, not work: descheduled until the game thread's next drain, which can be most of a
+        // frame, and not the posting binding's CPU cost. Declared first so it also covers the
+        // releaser's re-acquire.
+        const profiling::ScopedSleep waiting;
         // Release game read lock so the game thread's frame-advance write lock
         // can proceed. Re-acquires on scope exit.
         GameReadLockReleaser releaser;

@@ -119,8 +119,9 @@
     <ClCompile Include="..\..\..\src\contract\config\ProfileData.cpp" />
     <ClCompile Include="..\..\..\src\frontends\js\components\profile\ProfileService.cpp" />
     <ClCompile Include="..\..\..\src\frontends\js\components\script\Commands.cpp" />
-    <!-- utils dependency (IniConfigStore uses ToLower/ToStr/ToWStr) -->
+    <!-- utils dependency (IniConfigStore uses ToLower/ToStr/ToWStr; GameLoop owns a profiling::Timeline) -->
     <ClCompile Include="..\..\..\src\utils\utils.cpp" />
+    <ClCompile Include="..\..\..\src\utils\Profiling.cpp" />
     <!-- Test cases -->
     <ClCompile Include="pathfinding\tests\CollisionLookupTest.cpp" />
     <ClCompile Include="pathfinding\tests\WalkAStarTest.cpp" />

@@ -6,6 +6,7 @@
 #include <mutex>
 #include <optional>
 #include "BaseEvent.h"
+#include "components/gameloop/GameLoop.h"
 #include "game/GameLock.h"
 
 // Flip to 1 to make every BlockableEvent fire-and-forget: scripts still
@@ -102,6 +103,7 @@ class BlockableEvent : public BaseEvent {
         // Release GameWriteLock (if held by game thread) so scripts can acquire
         // GameReadLock to process the event handler. Re-acquires on scope exit.
         // No-op when no write lock is held.
+        const auto phase = js::gameloop::GameLoop::Instance().InPhase(js::gameloop::FramePhase::ScriptWait);
         game::GameWriteLockReleaser releaser;
         if (future_.wait_for(timeout) == std::future_status::timeout) {
             return std::nullopt;
