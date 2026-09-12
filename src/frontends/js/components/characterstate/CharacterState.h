@@ -60,20 +60,21 @@ class CharacterState {
     [[maybe_unused]] uint32_t createCounter_ = 0;
     [[maybe_unused]] bool wasInGame_ = false;
 
-    // Last-sent section fingerprints; nullopt means "not yet sent this game".
-    std::optional<size_t> identityFingerprint_;
-    std::optional<size_t> progressionFingerprint_;
-    // A wearer is fingerprinted in two parts: the unit document (identity, skills) which
-    // moves only on a real change, and the merged `stats` block, which tracks
-    // experience/gold and so moves nearly every sample.
-    std::optional<size_t> playerFingerprint_;
-    std::optional<size_t> playerStatsFingerprint_;
-    std::optional<size_t> mercFingerprint_;
-    std::optional<size_t> mercStatsFingerprint_;
-    std::array<std::optional<size_t>, CONTAINER_COUNT> containerFingerprints_;
+    // The hash last sent for each section; nullopt means "not yet sent this game". A
+    // section is re-sent when its freshly computed hash differs from the one here.
+    std::optional<size_t> sentIdentityHash_;
+    std::optional<size_t> sentProgressionHash_;
+    // A wearer is tracked in two parts: the unit document (identity, skills) which moves
+    // only on a real change, and the merged `stats` block, which tracks experience/gold
+    // and so moves nearly every sample.
+    std::optional<size_t> sentPlayerHash_;
+    std::optional<size_t> sentPlayerStatsHash_;
+    std::optional<size_t> sentMercHash_;
+    std::optional<size_t> sentMercStatsHash_;
+    std::array<std::optional<size_t>, CONTAINER_COUNT> sentContainerHashes_;
 
-    // Combined fingerprint of the most recently sampled state. The debounce holds
-    // off sending until this stops changing between samples.
+    // Combined hash of the most recently sampled state. The debounce holds off sending
+    // until this stops changing between samples.
     std::optional<size_t> pendingHash_;
 
     // Observed monster kills not yet sent - the pending delta. The death hook
