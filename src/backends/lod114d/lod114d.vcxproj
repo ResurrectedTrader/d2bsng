@@ -100,6 +100,7 @@
     <ClCompile Include="game\GameHelpers.cpp" />
     <ClCompile Include="game\LaunchOptions.cpp" />
     <ClCompile Include="game\Menu.cpp" />
+    <ClCompile Include="game\Stash.cpp" />
     <!-- Import layer -->
     <ClCompile Include="imports\ImportTypes.cpp" />
     <ClCompile Include="imports\extras\MPQStats.cpp" />

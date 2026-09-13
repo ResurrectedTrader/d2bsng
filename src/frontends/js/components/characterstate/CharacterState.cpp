@@ -19,6 +19,7 @@
 #include "config/AppConfig.h"
 #include "game/Finders.h"
 #include "game/GameHelpers.h"
+#include "game/StashTab.h"
 #include "game/Types.h"
 #include "game/Unit.h"
 
@@ -38,7 +39,7 @@ constexpr auto CHECK_INTERVAL = std::chrono::seconds{1};
 
 // Container bucket indices. Two slot-based containers (equipped, merc) carry the
 // equip-location in each item's `x` (y = 0); the rest are grids, except stash
-// which is sent as pages.
+// which is sent as one page per stash tab.
 constexpr size_t BUCKET_EQUIPPED = 0;
 constexpr size_t BUCKET_MERC = 1;
 constexpr size_t BUCKET_INVENTORY = 2;
@@ -56,28 +57,59 @@ constexpr uint32_t QFLAG_REWARDGRANTED = 0;
 constexpr uint32_t QFLAG_REWARDPENDING = 1;
 constexpr uint32_t WAYPOINT_COUNT = 39;
 
-json BuildContainer(size_t bucket, const std::vector<game::Unit>& items, game::Size dims) {
+json BuildItems(const std::vector<game::Unit>& items) {
     json itemsArr = json::array();
     for (const auto& item : items) {
         itemsArr.push_back(UnitToJson(item));
     }
+    return itemsArr;
+}
 
+json BuildContainer(const std::vector<game::Unit>& items, game::Size dims) {
     json container = json::object();
-    if (bucket == BUCKET_STASH) {
-        json page = json::object();
-        page["index"] = 0;
-        page["name"] = "Personal";
-        page["width"] = dims.width;
-        page["height"] = dims.height;
-        page["items"] = std::move(itemsArr);
-        json pages = json::array();
-        pages.push_back(std::move(page));
-        container["pages"] = std::move(pages);
-    } else {
-        container["width"] = dims.width;
-        container["height"] = dims.height;
-        container["items"] = std::move(itemsArr);
+    container["width"] = dims.width;
+    container["height"] = dims.height;
+    container["items"] = BuildItems(items);
+    return container;
+}
+
+// One stash tab and its items, active or not.
+struct StashPage {
+    game::StashTab tab;
+    std::vector<game::Unit> items;
+};
+
+// The tab's identity as sent on the wire and folded into the stash hash.
+json PageMeta(const game::StashTab& tab) {
+    json meta = json::object();
+    meta["kind"] = static_cast<uint32_t>(tab.Kind());
+    meta["index"] = tab.Index();
+    meta["type"] = static_cast<uint32_t>(tab.Type());
+    meta["name"] = tab.Name();
+    meta["gold"] = tab.Gold();
+    return meta;
+}
+
+std::vector<StashPage> CollectStashPages() {
+    std::vector<StashPage> pages;
+    for (const auto& tab : game::GetStashTabs()) {
+        pages.push_back({.tab = tab, .items = tab.GetItems()});
     }
+    return pages;
+}
+
+// Every tab shares the stash grid dimensions.
+json BuildStashContainer(const std::vector<StashPage>& pages, game::Size dims) {
+    json pagesArr = json::array();
+    for (const auto& page : pages) {
+        json doc = PageMeta(page.tab);
+        doc["width"] = dims.width;
+        doc["height"] = dims.height;
+        doc["items"] = BuildItems(page.items);
+        pagesArr.push_back(std::move(doc));
+    }
+    json container = json::object();
+    container["pages"] = std::move(pagesArr);
     return container;
 }
 
@@ -182,6 +214,17 @@ size_t HashOf(const json& value) {
     return std::hash<std::string>{}(value.dump());
 }
 
+// The stash moves when a page's identity (name, gold, ...) or contents move, or a page
+// appears / disappears (its index is part of the identity).
+size_t StashHash(const std::vector<StashPage>& pages, game::Size dims) {
+    size_t hash = 0;
+    for (const auto& page : pages) {
+        hash = MixHash(hash, HashOf(PageMeta(page.tab)));
+        hash = MixHash(hash, ContainerHash(page.items, dims));
+    }
+    return hash;
+}
+
 }  // namespace
 
 CharacterState& CharacterState::Instance() {
@@ -245,7 +288,6 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
     std::vector<game::Unit> inventory;
     std::vector<game::Unit> cube;
     std::vector<game::Unit> belt;
-    std::vector<game::Unit> stash;
     for (const auto& item : player.GetItems()) {
         const auto loc = item.ItemLocation();
         std::vector<game::Unit>* bucket = nullptr;
@@ -262,14 +304,14 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
             case game::ItemLocation::Belt:
                 bucket = &belt;
                 break;
-            case game::ItemLocation::Stash:
-                bucket = &stash;
-                break;
             default:
-                continue;
+                continue;  // stash items are gathered per tab below
         }
         bucket->push_back(item);
     }
+    // Every tab, not just the one the inventory walk can see; on vanilla this is the
+    // single personal tab with the same items the walk would have found.
+    const std::vector<StashPage> stashPages = CollectStashPages();
 
     // FindMerc walks the monster table; cheap at the ~1s cadence. Merc carries only
     // equipped items.
@@ -310,7 +352,7 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
     const std::array containerHashes = {
         ContainerHash(equipped, containerDims[BUCKET_EQUIPPED]),   ContainerHash(merc, containerDims[BUCKET_MERC]),
         ContainerHash(inventory, containerDims[BUCKET_INVENTORY]), ContainerHash(cube, containerDims[BUCKET_CUBE]),
-        ContainerHash(belt, containerDims[BUCKET_BELT]),           ContainerHash(stash, containerDims[BUCKET_STASH])};
+        ContainerHash(belt, containerDims[BUCKET_BELT]),           StashHash(stashPages, containerDims[BUCKET_STASH])};
 
     // Debounce: combine the slow-moving section hashes into one signature. While it differs
     // from the previous sample the state is still settling, so remember it and wait; only
@@ -345,13 +387,13 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
     // Adds a container to `into` and latches its sent-hash when it moved. Keyframes carry
     // every container (including empty) so the client has the full set and grid sizes. The
     // per-bucket state is indexed by the caller so the array access stays constant.
-    auto emitContainer = [&](json& into, const char* name, size_t bucket, const std::vector<game::Unit>& items,
-                             game::Size dims, size_t currentHash, std::optional<size_t>& sentHash) {
+    auto emitContainer = [&](json& into, const char* name, size_t currentHash, std::optional<size_t>& sentHash,
+                             const std::function<json()>& build) {
         if (!Moved(keyframe, currentHash, sentHash)) {
             return;
         }
         sentHash = currentHash;
-        into[name] = BuildContainer(bucket, items, dims);
+        into[name] = build();
     };
 
     const bool playerChanged = Moved(keyframe, playerHash, sentPlayerHash_);
@@ -363,16 +405,17 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
         sentPlayerStatsHash_ = playerStatsHash;
     }
     json playerContainers = json::object();
-    emitContainer(playerContainers, "equipped", BUCKET_EQUIPPED, equipped, containerDims[BUCKET_EQUIPPED],
-                  containerHashes[BUCKET_EQUIPPED], sentContainerHashes_[BUCKET_EQUIPPED]);
-    emitContainer(playerContainers, "inventory", BUCKET_INVENTORY, inventory, containerDims[BUCKET_INVENTORY],
-                  containerHashes[BUCKET_INVENTORY], sentContainerHashes_[BUCKET_INVENTORY]);
-    emitContainer(playerContainers, "cube", BUCKET_CUBE, cube, containerDims[BUCKET_CUBE], containerHashes[BUCKET_CUBE],
-                  sentContainerHashes_[BUCKET_CUBE]);
-    emitContainer(playerContainers, "belt", BUCKET_BELT, belt, containerDims[BUCKET_BELT], containerHashes[BUCKET_BELT],
-                  sentContainerHashes_[BUCKET_BELT]);
-    emitContainer(playerContainers, "stash", BUCKET_STASH, stash, containerDims[BUCKET_STASH],
-                  containerHashes[BUCKET_STASH], sentContainerHashes_[BUCKET_STASH]);
+    emitContainer(playerContainers, "equipped", containerHashes[BUCKET_EQUIPPED], sentContainerHashes_[BUCKET_EQUIPPED],
+                  [&] { return BuildContainer(equipped, containerDims[BUCKET_EQUIPPED]); });
+    emitContainer(playerContainers, "inventory", containerHashes[BUCKET_INVENTORY],
+                  sentContainerHashes_[BUCKET_INVENTORY],
+                  [&] { return BuildContainer(inventory, containerDims[BUCKET_INVENTORY]); });
+    emitContainer(playerContainers, "cube", containerHashes[BUCKET_CUBE], sentContainerHashes_[BUCKET_CUBE],
+                  [&] { return BuildContainer(cube, containerDims[BUCKET_CUBE]); });
+    emitContainer(playerContainers, "belt", containerHashes[BUCKET_BELT], sentContainerHashes_[BUCKET_BELT],
+                  [&] { return BuildContainer(belt, containerDims[BUCKET_BELT]); });
+    emitContainer(playerContainers, "stash", containerHashes[BUCKET_STASH], sentContainerHashes_[BUCKET_STASH],
+                  [&] { return BuildStashContainer(stashPages, containerDims[BUCKET_STASH]); });
     // The player document is built only when it changed - most ticks only the volatile
     // stats move, and those ride their own hash.
     json playerJson = BuildWearerSection(playerChanged ? UnitToJson(player) : json::object(), playerChanged,
@@ -384,8 +427,8 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
     // Run the merc container through its hash even with no merc, so it settles to "empty"
     // and a later merc with identical gear still re-sends.
     json mercContainers = json::object();
-    emitContainer(mercContainers, "equipped", BUCKET_MERC, merc, containerDims[BUCKET_MERC],
-                  containerHashes[BUCKET_MERC], sentContainerHashes_[BUCKET_MERC]);
+    emitContainer(mercContainers, "equipped", containerHashes[BUCKET_MERC], sentContainerHashes_[BUCKET_MERC],
+                  [&] { return BuildContainer(merc, containerDims[BUCKET_MERC]); });
     const bool mercChanged = Moved(keyframe, mercHash, sentMercHash_);
     if (mercChanged) {
         sentMercHash_ = mercHash;

@@ -21,6 +21,7 @@
 #include "game/JSParty.h"
 #include "game/JSPresetUnit.h"
 #include "game/JSRoom.h"
+#include "game/JSStashTab.h"
 #include "game/JSTxtTables.h"
 #include "game/JSUnit.h"
 #include "io/JSDBStatement.h"
@@ -44,12 +45,13 @@ namespace {
 // could share a tag and let Unwrap hand back a wrongly-typed pointer. This is the one place
 // every class is listed, so the invariant is checked here rather than left to review.
 constexpr std::array CLASS_NAMES = {
-    JSUnit::ClassName,       JSRoom::ClassName,      JSArea::ClassName,          JSExit::ClassName,
-    JSPresetUnit::ClassName, JSParty::ClassName,     JSControl::ClassName,       JSFile::ClassName,
-    JSFileTools::ClassName,  JSDirectory::ClassName, JSFrame::ClassName,         JSBox::ClassName,
-    JSLine::ClassName,       JSText::ClassName,      JSImage::ClassName,         JSScript::ClassName,
-    JSSandbox::ClassName,    JSProfile::ClassName,   JSCompatibility::ClassName, JSHttpClient::ClassName,
-    JSSocket::ClassName,     JSSQLite::ClassName,    JSDBStatement::ClassName,   JSTxtTables::ClassName,
+    JSUnit::ClassName,       JSRoom::ClassName,       JSArea::ClassName,      JSExit::ClassName,
+    JSStashTab::ClassName,   JSPresetUnit::ClassName, JSParty::ClassName,     JSControl::ClassName,
+    JSFile::ClassName,       JSFileTools::ClassName,  JSDirectory::ClassName, JSFrame::ClassName,
+    JSBox::ClassName,        JSLine::ClassName,       JSText::ClassName,      JSImage::ClassName,
+    JSScript::ClassName,     JSSandbox::ClassName,    JSProfile::ClassName,   JSCompatibility::ClassName,
+    JSHttpClient::ClassName, JSSocket::ClassName,     JSSQLite::ClassName,    JSDBStatement::ClassName,
+    JSTxtTables::ClassName,
 };
 
 consteval bool ClassTagsAreDistinct() {
@@ -74,6 +76,7 @@ void RegisterAllClasses(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> glob
     global->Set(isolate, "Room", JSRoom::GetTemplate(isolate));
     global->Set(isolate, "Area", JSArea::GetTemplate(isolate));
     global->Set(isolate, "Exit", JSExit::GetTemplate(isolate));
+    global->Set(isolate, "StashTab", JSStashTab::GetTemplate(isolate));
     global->Set(isolate, "PresetUnit", JSPresetUnit::GetTemplate(isolate));
     global->Set(isolate, "Party", JSParty::GetTemplate(isolate));
     global->Set(isolate, "Control", JSControl::GetTemplate(isolate));
@@ -112,6 +115,7 @@ void ClearAllClassCaches(v8::Isolate* isolate) {
     JSRoom::ClearCache(isolate);
     JSArea::ClearCache(isolate);
     JSExit::ClearCache(isolate);
+    JSStashTab::ClearCache(isolate);
     JSPresetUnit::ClearCache(isolate);
     JSParty::ClearCache(isolate);
     JSControl::ClearCache(isolate);

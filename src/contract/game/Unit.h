@@ -8,6 +8,7 @@
 
 #include "GameHelpers.h"
 #include "game/HandleCache.h"
+#include "game/StashTab.h"
 #include "game/Types.h"
 
 namespace d2bs::game {
@@ -111,6 +112,9 @@ class Unit {
     ItemQuality Quality() const;
     NodePage Node() const;
     ItemLocation ItemLocation() const;
+    // The stash tab holding this item; nullopt unless the item is in the local
+    // player's stash.
+    std::optional<StashTab> StashTab() const;
     // Item grid footprint (inventory xSize/ySize from item txt data).
     Size Size() const;
     uint32_t ItemType() const;

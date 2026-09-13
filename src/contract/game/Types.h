@@ -47,6 +47,7 @@ enum class ClickResult : uint8_t {
     TransactionInProgress,  // Blocked by an open TransactionDialog* flag.
     InvalidTarget,          // Slot out of range, no click fn, bad belt cell, etc.
     NotAnItem,              // Passed unit is not a UNIT_ITEM (ClickItem only).
+    StashTabUnavailable,    // Unknown stash tab, or the backend could not make it active in time.
 };
 
 // Control type values from reference/d2bs/Constants.h.
@@ -88,9 +89,14 @@ enum class CancelMode : int32_t {
 // Inventory / trade / gold
 // ============================================================================
 
+// Gold dialog action codes, as the game's gold dialog and the reference `gold()`
+// define them (reference commandRef: 1 drop, 2 inventory to trade, 3 inventory to
+// stash, 4 stash to inventory). Deposit / Withdraw need the stash panel open.
 enum class GoldActionMode : int32_t {
-    Drop = 0,
-    Stash = 1,
+    Drop = 1,
+    Trade = 2,
+    Deposit = 3,
+    Withdraw = 4,
 };
 
 enum class TradeInfoMode : uint32_t {
@@ -225,6 +231,22 @@ enum class ItemLocation : uint8_t {
 // Offset for encoding ItemLocation in unit mode filter parameter.
 // Scripts use mode = 100 + ItemLocation to filter items by location.
 constexpr uint32_t ITEM_LOCATION_MODE_OFFSET = 100;
+
+// Which stash a tab belongs to. Vanilla LoD has a single personal tab; paged
+// stashes (mods, D2R) add more, including account-wide shared tabs.
+enum class StashTabKind : uint8_t {
+    Personal = 0,
+    Shared = 1,
+};
+
+// What a stash tab holds. LoD tabs are all Normal; D2R adds tabs with stackable
+// item support and the Chronicle tab that tracks found set / unique / runeword
+// items instead of holding items.
+enum class StashTabType : uint8_t {
+    Normal = 0,
+    AdvancedStash = 1,
+    Chronicle = 2,
+};
 
 enum class ItemQuality : uint32_t {
     Inferior = 1,
