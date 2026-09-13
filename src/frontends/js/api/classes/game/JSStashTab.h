@@ -126,7 +126,7 @@ class JSStashTab : public V8ClassBase<JSStashTab, game::StashTab> {
         Method(
             isolate, proto, "depositGold", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 if (const auto amount = GoldAmount(args)) {
-                    args.GetReturnValue().Set(Unwrap(args.This())->DepositGold(*amount));
+                    args.GetReturnValue().Set(Unwrap(args.This())->MoveGold(game::GoldActionMode::Deposit, *amount));
                 }
             });
 
@@ -140,7 +140,7 @@ class JSStashTab : public V8ClassBase<JSStashTab, game::StashTab> {
         Method(
             isolate, proto, "withdrawGold", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 if (const auto amount = GoldAmount(args)) {
-                    args.GetReturnValue().Set(Unwrap(args.This())->WithdrawGold(*amount));
+                    args.GetReturnValue().Set(Unwrap(args.This())->MoveGold(game::GoldActionMode::Withdraw, *amount));
                 }
             });
     }

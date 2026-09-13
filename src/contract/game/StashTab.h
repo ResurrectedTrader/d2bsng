@@ -43,13 +43,12 @@ class StashTab {
     // clicked, and the previous one restored. StashTabUnavailable for a tab that
     // does not exist or could not be brought in.
     ClickResult Click(Position cell) const;
-    // Move gold between the carried gold and this tab. Fire and forget like
-    // GoldAction: Gold() and the gold stats update when the server's reply lands. A
-    // shared pool may only support moving "as much as fits" and ignore `amount`.
-    // false for a tab that holds no gold, nothing to move, or no player unit; true
-    // once the request is issued.
-    bool DepositGold(uint32_t amount) const;
-    bool WithdrawGold(uint32_t amount) const;
+    // Move gold between the carried gold and this tab; `mode` is GoldActionMode
+    // Deposit or Withdraw. Fire and forget like GoldAction: Gold() and the gold
+    // stats update when the server's reply lands. A shared pool may only support
+    // moving "as much as fits" and ignore `amount`. false for a tab that holds no
+    // gold, nothing to move, or no player unit; true once the request is issued.
+    bool MoveGold(GoldActionMode mode, uint32_t amount) const;
 
    private:
     StashTabKind kind_;

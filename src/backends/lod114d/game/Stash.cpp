@@ -73,29 +73,17 @@ ClickResult StashTab::Click(Position cell) const {
     return *this ? click() : ClickResult::StashTabUnavailable;
 }
 
-namespace {
-
-// Move gold to or from a stash tab: PlugY's shared pool for the shared tab, the
-// vanilla gold dialog for the personal tab. Fire and forget, like gold().
-bool MoveStashGold(const StashTab& tab, GoldActionMode mode, uint32_t amount) {
-    if (tab.Kind() == StashTabKind::Shared) {
-        return tab.Index() == 0 && plugy::IsActive() && plugy::HasStashTabs() && plugy::MoveSharedGold(mode);
+// PlugY's shared pool for the shared tab, the vanilla gold dialog for the personal
+// tab. Fire and forget, like gold().
+bool StashTab::MoveGold(GoldActionMode mode, uint32_t amount) const {
+    if (kind_ == StashTabKind::Shared) {
+        return index_ == 0 && plugy::IsActive() && plugy::HasStashTabs() && plugy::MoveSharedGold(mode);
     }
-    if (tab.Index() != 0 || amount == 0 || !tab) {
+    if (index_ != 0 || amount == 0 || !*this) {
         return false;
     }
     GoldAction(mode, static_cast<int32_t>(std::min<uint32_t>(amount, INT32_MAX)));
     return true;
-}
-
-}  // namespace
-
-bool StashTab::DepositGold(uint32_t amount) const {
-    return MoveStashGold(*this, GoldActionMode::Deposit, amount);
-}
-
-bool StashTab::WithdrawGold(uint32_t amount) const {
-    return MoveStashGold(*this, GoldActionMode::Withdraw, amount);
 }
 
 std::vector<StashTab> GetStashTabs() {

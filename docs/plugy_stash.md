@@ -195,8 +195,8 @@ corrupted list.
 
 PlugY pages have no gold of their own, so the stash-wide figures land on the
 first tab of each kind. Personal page 0 reports the character's stash gold, the
-`STAT_GOLDBANK` stat, and its `DepositGold` / `WithdrawGold` are the vanilla gold
-dialog exactly as without PlugY. Shared page 0 reports PlugY's single shared
+`STAT_GOLDBANK` stat, and its `MoveGold` is the vanilla gold dialog exactly as
+without PlugY. Shared page 0 reports PlugY's single shared
 pool, `PYPlayerData::sharedGold`, enabled by `ActiveSharedGold=1` and persisted
 in the shared stash file. Every other page reports 0 and refuses gold moves.
 

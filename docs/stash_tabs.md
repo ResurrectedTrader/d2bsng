@@ -26,8 +26,7 @@ class StashTab {
     uint32_t Gold() const;               // see Gold
     std::vector<Unit> GetItems() const;  // shown or not
     ClickResult Click(Position cell) const;          // left click: pick up / drop / swap
-    bool DepositGold(uint32_t amount) const;         // fire and forget
-    bool WithdrawGold(uint32_t amount) const;
+    bool MoveGold(GoldActionMode mode, uint32_t amount) const;  // Deposit/Withdraw; fire and forget
 };
 std::vector<StashTab> GetStashTabs();    // personal first, then shared; empty with no player unit
 std::optional<StashTab> Unit::StashTab() const;   // the tab holding an item
@@ -102,11 +101,11 @@ stash rather than per tab, it is attributed to the first tab of its kind and
 every other tab reports 0. On 1.14d that is personal tab 0 carrying the
 character's stash gold, the `STAT_GOLDBANK` stat.
 
-`DepositGold` / `WithdrawGold` are fire and forget, like `gold()`: the request
-is issued and the call returns; `Gold()` and the gold stats update when the
-server's reply lands, so scripts poll for the change afterwards. On 1.14d they
-run the vanilla gold dialog action (`GoldAction` with `Deposit` / `Withdraw`),
-which needs the stash panel open. A backend whose pool only supports moving
+`MoveGold` is fire and forget, like `gold()`: the request is issued and the call
+returns; `Gold()` and the gold stats update when the server's reply lands, so
+scripts poll for the change afterwards. On 1.14d it runs the vanilla gold dialog
+action (`GoldAction` with `Deposit` / `Withdraw`), which needs the stash panel
+open. A backend whose pool only supports moving
 "as much as fits" may ignore `amount`.
 
 `GoldActionMode` carries the dialog's codes (`Drop = 1`, `Trade = 2`,
