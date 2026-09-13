@@ -107,18 +107,17 @@ path; the manager's command line is the only one.
 
 PlugY writes raw bytes at fixed RVAs and verifies the bytes it expects to find
 there first, so it must not share a site with d2bs's hooks, whichever side
-patches first. `scripts/plugy_overlap_audit.py <PlugY source dir>` checks this: every
+patches first. This was checked once against PlugY 14.03 by collecting every
 1.14d entry of PlugY's `R8(...)` and `V114d ? offset + 0x...` patch sites with
-the bytes each writes, versus every d2bs site (the `Intercepts.cpp` RVA table
-with install lengths, plus the Detours targets `CursorLock`,
-`SSTR_RegistryReadValueEx` and `RegStoringKeysConfiguration` with a 16-byte
-prologue allowance). Against PlugY 14.03: 101 sites, zero
-intersections. The closest pair is in the same function: d2bs's multi-instance
-bypass replaces the `FindWindowA` call at 0xF5623 (6 bytes) and PlugY's
-`ActiveLaunchAnyNumberOfLOD` flips the `je` two bytes later at 0xF562B to `jmp`.
-They do not touch the same bytes and want the same outcome (the bypass returns
-no window, so the jump is taken either way). Re-run the audit when either side
-gains a hook.
+the bytes each writes, and comparing them with every d2bs site (the
+`Intercepts.cpp` RVA table with install lengths, plus the Detours targets
+`CursorLock`, `SSTR_RegistryReadValueEx` and `RegStoringKeysConfiguration` with
+a 16-byte prologue allowance): 101 PlugY sites, zero intersections. The closest
+pair is in the same function: d2bs's multi-instance bypass replaces the
+`FindWindowA` call at 0xF5623 (6 bytes) and PlugY's `ActiveLaunchAnyNumberOfLOD`
+flips the `je` two bytes later at 0xF562B to `jmp`. They do not touch the same
+bytes and want the same outcome (the bypass returns no window, so the jump is
+taken either way). Redo the comparison when either side gains a hook.
 
 ## Detection
 
