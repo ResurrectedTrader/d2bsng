@@ -2,10 +2,13 @@
 
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <algorithm>
+#include <array>
 #include <cwctype>
 #include <mutex>
 #include <ranges>
 #include <vector>
+
+#pragma comment(lib, "version.lib")
 
 namespace d2bs::utils {
 std::string ToStr(const std::wstring &str, uint32_t codePage) {
@@ -144,5 +147,31 @@ std::shared_ptr<spdlog::logger> GetLogger(const std::string &name) {
         return logger;
     }
     return instance;
+}
+
+std::optional<ModuleVersion> GetModuleVersion(HMODULE module) {
+    std::array<wchar_t, MAX_PATH> path{};
+    const DWORD length = GetModuleFileNameW(module, path.data(), path.size());
+    if (length == 0 || length >= path.size()) {
+        return std::nullopt;
+    }
+    const DWORD size = GetFileVersionInfoSizeW(path.data(), nullptr);
+    if (size == 0) {
+        return std::nullopt;
+    }
+    std::vector<uint8_t> buffer(size);
+    if (GetFileVersionInfoW(path.data(), 0, size, buffer.data()) == 0) {
+        return std::nullopt;
+    }
+    VS_FIXEDFILEINFO *info = nullptr;
+    UINT infoLength = 0;
+    if (VerQueryValueW(buffer.data(), L"\\", reinterpret_cast<void **>(&info), &infoLength) == 0 || info == nullptr ||
+        infoLength < sizeof(VS_FIXEDFILEINFO)) {
+        return std::nullopt;
+    }
+    return ModuleVersion{.major = HIWORD(info->dwFileVersionMS),
+                         .minor = LOWORD(info->dwFileVersionMS),
+                         .build = HIWORD(info->dwFileVersionLS),
+                         .revision = LOWORD(info->dwFileVersionLS)};
 }
 }  // namespace d2bs::utils

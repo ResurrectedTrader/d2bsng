@@ -69,19 +69,13 @@ struct PYPlayerData {
     // Guard for a corrupted or cyclic page list; PlugY itself has no practical limit.
     static constexpr uint32_t MAX_PAGES_WALKED = 1U << 16;
 
-    const Stash* Head(game::StashTabKind kind) const {
-        return kind == game::StashTabKind::Shared ? sharedStash : selfStash;
-    }
-
-    bool IsActivePage(const Stash& page) const { return &page == currentStash; }
-
     // Walks `kind`'s pages in order, calling fn(page, index) until it returns true;
     // returns the page it stopped on, or nullptr.
     template <typename Fn>
     const Stash* ForEachPage(game::StashTabKind kind, const Fn& fn) const {
         uint32_t index = 0;
-        for (const Stash* page = Head(kind); page != nullptr && index < MAX_PAGES_WALKED;
-             page = page->nextStash, ++index) {
+        for (const Stash* page = kind == game::StashTabKind::Shared ? sharedStash : selfStash;
+             page != nullptr && index < MAX_PAGES_WALKED; page = page->nextStash, ++index) {
             if (fn(*page, index)) {
                 return page;
             }
@@ -108,7 +102,7 @@ struct PYPlayerData {
             uint32_t found = 0;
             if (ForEachPage(kind, [&](const Stash& page, uint32_t i) {
                     found = i;
-                    return IsActivePage(page);
+                    return &page == currentStash;
                 }) != nullptr) {
                 return PageRef{.kind = kind, .index = found};
             }

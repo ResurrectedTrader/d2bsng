@@ -4,6 +4,7 @@
 #include <spdlog/logger.h>
 #include <spdlog/spdlog.h>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -54,4 +55,17 @@ std::string_view Trim(std::string_view s, std::string_view chars = " \t");
 std::vector<std::string> Split(std::string_view s, std::string_view separators, size_t maxTokens = 0);
 
 std::shared_ptr<spdlog::logger> GetLogger(const std::string &name);
+
+// FILEVERSION of a loaded module's VERSIONINFO resource (14,0,3,0 -> {14, 0, 3, 0}).
+struct ModuleVersion {
+    uint16_t major = 0;
+    uint16_t minor = 0;
+    uint16_t build = 0;
+    uint16_t revision = 0;
+
+    bool operator==(const ModuleVersion &) const = default;
+};
+
+// nullopt when the module has no version resource.
+std::optional<ModuleVersion> GetModuleVersion(HMODULE module);
 }  // namespace d2bs::utils

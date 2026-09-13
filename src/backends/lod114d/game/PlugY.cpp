@@ -40,8 +40,6 @@
 #include <thread>
 #include <vector>
 
-#pragma comment(lib, "version.lib")
-
 namespace d2bs::imports::extras::plugy {
 
 std::string Stash::Name() const {
@@ -52,7 +50,7 @@ std::string Stash::Name() const {
 }
 
 void PYPlayerData::ForEachItem(const Stash& page, const std::function<void(D2UnitStrc*)>& fn) const {
-    const bool isActive = IsActivePage(page);
+    const bool isActive = &page == currentStash;
     D2UnitStrc* first = page.ptListItem;
     if (isActive) {
         auto* player = d2client::UNITS_GetPlayerUnit();
@@ -145,19 +143,6 @@ constexpr std::chrono::milliseconds POLL_INTERVAL{5};
 // handful of item packets at most.
 constexpr size_t ACK_ID_CAPACITY = 64;
 
-struct Version {
-    uint16_t major = 0;
-    uint16_t minor = 0;
-    uint16_t build = 0;
-
-    bool operator==(const Version&) const = default;
-
-    // From the module's VERSIONINFO resource.
-    static std::optional<Version> Read(HMODULE module);
-    // PlugY displays FILEVERSION 14,0,3 as "14.03".
-    std::string ToString() const;
-};
-
 // The official releases that carry the 1.14d port. For each, PlugY's git
 // history was checked and everything read or sent here is identical: the
 // PYPlayerData / Stash layouts, the allocation patch site and its original
@@ -166,9 +151,11 @@ struct Version {
 // (docs/plugy_stash.md lists the checklist). An unknown build keeps the feature
 // off rather than risk misreading memory.
 constexpr std::array SUPPORTED_VERSIONS = {
-    Version{.major = 12, .minor = 0, .build = 0}, Version{.major = 14, .minor = 0, .build = 0},
-    Version{.major = 14, .minor = 0, .build = 1}, Version{.major = 14, .minor = 0, .build = 2},
-    Version{.major = 14, .minor = 0, .build = 3},
+    utils::ModuleVersion{.major = 12, .minor = 0, .build = 0},
+    utils::ModuleVersion{.major = 14, .minor = 0, .build = 0},
+    utils::ModuleVersion{.major = 14, .minor = 0, .build = 1},
+    utils::ModuleVersion{.major = 14, .minor = 0, .build = 2},
+    utils::ModuleVersion{.major = 14, .minor = 0, .build = 3},
 };
 
 constexpr std::array KINDS = {StashTabKind::Personal, StashTabKind::Shared};
@@ -187,38 +174,14 @@ std::shared_ptr<spdlog::logger>& Logger() {
     return logger;
 }
 
-std::string Version::ToString() const {
-    return fmt::format("{}.{}{}", major, minor, build);
-}
-
-std::optional<Version> Version::Read(HMODULE module) {
-    std::array<wchar_t, MAX_PATH> path{};
-    const DWORD length = GetModuleFileNameW(module, path.data(), path.size());
-    if (length == 0 || length >= path.size()) {
-        return std::nullopt;
-    }
-    const DWORD size = GetFileVersionInfoSizeW(path.data(), nullptr);
-    if (size == 0) {
-        return std::nullopt;
-    }
-    std::vector<uint8_t> buffer(size);
-    if (GetFileVersionInfoW(path.data(), 0, size, buffer.data()) == 0) {
-        return std::nullopt;
-    }
-    VS_FIXEDFILEINFO* info = nullptr;
-    UINT infoLength = 0;
-    if (VerQueryValueW(buffer.data(), L"\\", reinterpret_cast<void**>(&info), &infoLength) == 0 || info == nullptr ||
-        infoLength < sizeof(VS_FIXEDFILEINFO)) {
-        return std::nullopt;
-    }
-    return Version{.major = HIWORD(info->dwFileVersionMS),
-                   .minor = LOWORD(info->dwFileVersionMS),
-                   .build = HIWORD(info->dwFileVersionLS)};
+// PlugY displays FILEVERSION 14,0,3 as "14.03".
+std::string Label(const utils::ModuleVersion& version) {
+    return fmt::format("{}.{}{}", version.major, version.minor, version.build);
 }
 
 std::string VersionLabel(HMODULE module) {
-    const auto version = Version::Read(module);
-    return version ? version->ToString() : std::string("(unknown version)");
+    const auto version = utils::GetModuleVersion(module);
+    return version ? Label(*version) : "(unknown version)";
 }
 
 bool IsInsideModule(HMODULE module, uintptr_t address) {
@@ -238,21 +201,21 @@ T ReadValue(uintptr_t address) {
 }
 
 Detection Detect(HMODULE module) {
-    const auto version = Version::Read(module);
+    const auto version = utils::GetModuleVersion(module);
     if (!version) {
         Logger()->warn("PlugY.dll is loaded but has no readable version resource; stash tabs disabled");
         return Detection::Inactive;
     }
     if (std::ranges::find(SUPPORTED_VERSIONS, *version) == SUPPORTED_VERSIONS.end()) {
         Logger()->warn("version {} is not a known release (supported: 12.00, 14.00 - 14.03); stash tabs disabled",
-                       version->ToString());
+                       Label(*version));
         return Detection::Inactive;
     }
 
     const auto base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
     const uintptr_t callSite = base + ALLOC_CALL_RVA;
     if (ReadValue<uint8_t>(callSite) != OPCODE_CALL_REL32) {
-        Logger()->warn("{}: unexpected code at InitPlayerData+{:#x}; stash tabs disabled", version->ToString(),
+        Logger()->warn("{}: unexpected code at InitPlayerData+{:#x}; stash tabs disabled", Label(*version),
                        ALLOC_CALL_RVA - INIT_PLAYER_DATA_RVA);
         return Detection::Inactive;
     }
@@ -264,18 +227,18 @@ Detection Detect(HMODULE module) {
 
     const uintptr_t sizeSite = base + ALLOC_SIZE_MOV_RVA;
     if (ReadValue<uint8_t>(sizeSite) != OPCODE_MOV_EDX_IMM32) {
-        Logger()->warn("{}: unexpected code at InitPlayerData+{:#x}; stash tabs disabled", version->ToString(),
+        Logger()->warn("{}: unexpected code at InitPlayerData+{:#x}; stash tabs disabled", Label(*version),
                        ALLOC_SIZE_MOV_RVA - INIT_PLAYER_DATA_RVA);
         return Detection::Inactive;
     }
     const auto allocSize = ReadValue<uint32_t>(sizeSite + 1);
     if (allocSize != sizeof(D2PlayerDataStrc)) {
         Logger()->warn("{}: player data size {:#x} differs from the expected {:#x}; stash tabs disabled",
-                       version->ToString(), allocSize, sizeof(D2PlayerDataStrc));
+                       Label(*version), allocSize, sizeof(D2PlayerDataStrc));
         return Detection::Inactive;
     }
 
-    Logger()->info("{} detected, multi-page stash tabs enabled", version->ToString());
+    Logger()->info("{} detected, multi-page stash tabs enabled", Label(*version));
     return Detection::Active;
 }
 
