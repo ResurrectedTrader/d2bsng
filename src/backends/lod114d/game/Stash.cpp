@@ -13,33 +13,10 @@
 
 namespace d2bs::game {
 
-namespace {
-
 // 1.14d has one stash: a single personal tab.
-bool IsTheTab(const StashTab& tab) {
-    return tab.Kind() == StashTabKind::Personal && tab.Index() == 0;
-}
-
-// The character's stash gold, one figure for the whole stash.
-uint32_t BankGold() {
-    const auto gold = Unit::Player().GetStat(STAT_GOLDBANK);
-    return gold > 0 ? static_cast<uint32_t>(gold) : 0U;
-}
-
-bool MoveGold(const StashTab& tab, GoldActionMode mode, uint32_t amount) {
-    GameReadLock guard;
-    if (!IsTheTab(tab) || amount == 0 || !Unit::Player()) {
-        return false;
-    }
-    GoldAction(mode, static_cast<int32_t>(std::min<uint32_t>(amount, INT32_MAX)));
-    return true;
-}
-
-}  // namespace
-
 StashTab::operator bool() const {
     GameReadLock guard;
-    return IsTheTab(*this) && Unit::Player();
+    return kind_ == StashTabKind::Personal && index_ == 0 && Unit::Player();
 }
 
 StashTabType StashTab::Type() const {
@@ -52,7 +29,11 @@ std::string StashTab::Name() const {
 
 uint32_t StashTab::Gold() const {
     GameReadLock guard;
-    return *this ? BankGold() : 0U;
+    if (!*this) {
+        return 0;
+    }
+    const auto gold = Unit::Player().GetStat(STAT_GOLDBANK);
+    return gold > 0 ? static_cast<uint32_t>(gold) : 0U;
 }
 
 std::vector<Unit> StashTab::GetItems() const {
@@ -70,16 +51,23 @@ std::vector<Unit> StashTab::GetItems() const {
 }
 
 ClickResult StashTab::Click(Position cell) const {
-    return IsTheTab(*this) ? ClickContainerSlot(ClickButton::Left, cell, ItemLocation::Stash)
-                           : ClickResult::StashTabUnavailable;
+    return *this ? ClickContainerSlot(ClickButton::Left, cell, ItemLocation::Stash) : ClickResult::StashTabUnavailable;
 }
 
 bool StashTab::DepositGold(uint32_t amount) const {
-    return MoveGold(*this, GoldActionMode::Deposit, amount);
+    if (amount == 0 || !*this) {
+        return false;
+    }
+    GoldAction(GoldActionMode::Deposit, static_cast<int32_t>(std::min<uint32_t>(amount, INT32_MAX)));
+    return true;
 }
 
 bool StashTab::WithdrawGold(uint32_t amount) const {
-    return MoveGold(*this, GoldActionMode::Withdraw, amount);
+    if (amount == 0 || !*this) {
+        return false;
+    }
+    GoldAction(GoldActionMode::Withdraw, static_cast<int32_t>(std::min<uint32_t>(amount, INT32_MAX)));
+    return true;
 }
 
 std::vector<StashTab> GetStashTabs() {
