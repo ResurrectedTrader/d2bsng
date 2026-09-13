@@ -39,9 +39,10 @@ class StashTab {
     // Left-click a grid cell: picks up the item there, drops the cursor item, or
     // swaps, exactly as ClickContainerSlot(Left, cell, Stash) does on the shown tab.
     // The stash panel must be open. A backend whose packets cannot address an
-    // unshown tab blocks the calling script thread while the tab is brought in,
-    // clicked, and the previous one restored. StashTabUnavailable for a tab that
-    // does not exist or could not be brought in.
+    // unshown tab blocks the calling script thread while the tab is brought in
+    // and clicked, then best-effort restores the previously shown tab (which tab
+    // ends up shown is not part of the contract). StashTabUnavailable for a tab
+    // that does not exist or could not be brought in.
     ClickResult Click(Position cell) const;
     // Move gold between the carried gold and this tab; `mode` is GoldActionMode
     // Deposit or Withdraw. Fire and forget like GoldAction: Gold() and the gold

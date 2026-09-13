@@ -284,10 +284,10 @@ bool SwitchTo(PageRef from, PageRef to) {
             actual = ext->ActivePage();
         }
     }
-    Logger()->warn("stash page {}:{} -> {}:{} did not complete within {} ms ({} command(s) sent); mirror shows {}",
-                   static_cast<uint32_t>(from.kind), from.index, static_cast<uint32_t>(to.kind), to.index,
-                   PAGE_SWITCH_TIMEOUT.count(), plan.size(),
-                   actual ? fmt::format("{}:{}", static_cast<uint32_t>(actual->kind), actual->index) : "no page");
+    Logger()->debug("stash page {}:{} -> {}:{} did not complete within {} ms ({} command(s) sent); mirror shows {}",
+                    static_cast<uint32_t>(from.kind), from.index, static_cast<uint32_t>(to.kind), to.index,
+                    PAGE_SWITCH_TIMEOUT.count(), plan.size(),
+                    actual ? fmt::format("{}:{}", static_cast<uint32_t>(actual->kind), actual->index) : "no page");
     return false;
 }
 
@@ -569,9 +569,12 @@ ClickResult WithActivePage(StashTabKind kind, uint32_t index, const std::functio
         return ClickResult::StashTabUnavailable;
     }
     const ClickResult result = ClickAndAwaitAck(action);
+    // Best effort: PlugY reselects the page of the item the click touched, so a
+    // restore that deposited an item (drop or swap) loses this race by design. The
+    // click already happened; which page ends up shown is not part of the contract.
     if (!SwitchTo(target, *original)) {
-        Logger()->warn("stash page {}:{} could not be restored after the click", static_cast<uint32_t>(original->kind),
-                       original->index);
+        Logger()->debug("stash page {}:{} not restored after the click; PlugY reselected the clicked item's page",
+                        static_cast<uint32_t>(original->kind), original->index);
     }
     return result;
 }

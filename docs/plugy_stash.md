@@ -258,8 +258,12 @@ pool. No page switch is involved: the pool is independent of the page shown.
    changed nothing (empty cell with an empty cursor, a placement the game
    rejected) sent nothing and skips the wait. Timeout 2 s, logged; the click
    result is still returned.
-7. Send the reverse plan and wait the same way as step 4. A revert that times
-   out is logged; the click result is still returned since the item did move.
+7. Send the reverse plan and wait the same way as step 4. The revert is best
+   effort: PlugY's `updateItem` hook reselects the page of any stash item the
+   server updates (forcing it for page 0), so once the click has deposited an
+   item on the target page (a drop or a swap) PlugY snaps the view back to it and
+   the revert cannot win. That is expected, logged only at debug, and harmless -
+   the click already happened and which page is shown is not part of the contract.
 
 `ClickItem` hands off to `plugy::ClickParkedItem` for a parked item
 (`IsParkedItem`). `WithActivePage` refuses to re-enter on the thread already
