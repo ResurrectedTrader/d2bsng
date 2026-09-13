@@ -3,6 +3,7 @@
 #include "game/Types.h"
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -115,23 +116,10 @@ struct PYPlayerData {
         return std::nullopt;
     }
 
-    // The active page's items are the stash-located items of the player's
-    // inventory; an inactive page's items hang off its own list. Both chains are
-    // linked through the item's pNextItem, which is what NextItem follows.
-    D2UnitStrc* FirstItem(const Stash& page) const;
-    static D2UnitStrc* NextItem(D2UnitStrc* item);
-    static bool IsStashItem(const D2UnitStrc* item);
-
-    template <typename Fn>
-    void ForEachItem(const Stash& page, const Fn& fn) const {
-        const bool isActive = IsActivePage(page);
-        for (auto* item = FirstItem(page); item != nullptr; item = NextItem(item)) {
-            if (isActive && !IsStashItem(item)) {
-                continue;
-            }
-            fn(item);
-        }
-    }
+    // Calls fn(item) for every item on `page`. The active page's items are the
+    // stash-located items of the player's inventory; an inactive page's items hang
+    // off its own list. Both chains are linked through the item's pNextItem.
+    void ForEachItem(const Stash& page, const std::function<void(D2UnitStrc*)>& fn) const;
 
     // The 0x3A commands that walk the server from `from` to `to`. PlugY only has
     // relative moves, so a kind change lands on that kind's first page and the rest

@@ -51,24 +51,23 @@ std::string Stash::Name() const {
     return utils::ToStr(utils::ToWStr(name, CP_ACP));
 }
 
-D2UnitStrc* PYPlayerData::FirstItem(const Stash& page) const {
-    if (!IsActivePage(page)) {
-        return page.ptListItem;
+void PYPlayerData::ForEachItem(const Stash& page, const std::function<void(D2UnitStrc*)>& fn) const {
+    const bool isActive = IsActivePage(page);
+    D2UnitStrc* first = page.ptListItem;
+    if (isActive) {
+        auto* player = d2client::UNITS_GetPlayerUnit();
+        first = player != nullptr && player->pInventory != nullptr
+                    ? d2common::INVENTORY_GetFirstItem(player->pInventory)
+                    : nullptr;
     }
-    auto* player = d2client::UNITS_GetPlayerUnit();
-    if (player == nullptr || player->pInventory == nullptr) {
-        return nullptr;
+    for (auto* item = first; item != nullptr; item = d2common::INVENTORY_GetNextItem(item)) {
+        if (isActive &&
+            (item->pItemData == nullptr ||
+             static_cast<game::ItemLocation>(item->pItemData->pExtraData.nNodePos) != game::ItemLocation::Stash)) {
+            continue;
+        }
+        fn(item);
     }
-    return d2common::INVENTORY_GetFirstItem(player->pInventory);
-}
-
-D2UnitStrc* PYPlayerData::NextItem(D2UnitStrc* item) {
-    return d2common::INVENTORY_GetNextItem(item);
-}
-
-bool PYPlayerData::IsStashItem(const D2UnitStrc* item) {
-    return item->pItemData != nullptr &&
-           static_cast<game::ItemLocation>(item->pItemData->pExtraData.nNodePos) == game::ItemLocation::Stash;
 }
 
 std::vector<uint8_t> PYPlayerData::PlanSwitch(PageRef from, PageRef to) const {
