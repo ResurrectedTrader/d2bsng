@@ -546,8 +546,6 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
-            // Bridge::Lock spans the read: ItemLocation() chases the item's inventory
-            // pointer, which PlugY relinks on the game thread during a page switch.
             auto lock = game::Bridge::Lock();
             info.GetReturnValue().Set(static_cast<uint8_t>(data->ItemLocation()));
         });
