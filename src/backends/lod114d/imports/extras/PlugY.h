@@ -26,9 +26,8 @@ namespace d2bs::imports::extras::plugy {
 constexpr uint8_t PACKET_SPEND_STAT_POINT = 0x3A;
 constexpr uint8_t CMD_SELECT_PREVIOUS = 0x19;
 constexpr uint8_t CMD_SELECT_NEXT = 0x1A;
-constexpr uint8_t CMD_SELECT_PERSONAL = 0x1B;  // first personal page
-constexpr uint8_t CMD_SELECT_SHARED = 0x1C;    // first shared page
-constexpr uint8_t CMD_SELECT_FIRST = 0x1F;     // first page of the current kind
+constexpr uint8_t CMD_SELECT_PERSONAL = 0x1B;  // first personal page; ignored while the shared stash is off
+constexpr uint8_t CMD_SELECT_SHARED = 0x1C;    // first shared page; ignored while the shared stash is off
 constexpr uint8_t CMD_PUT_GOLD = 0x26;         // carried gold -> shared pool (all that fits)
 constexpr uint8_t CMD_TAKE_GOLD = 0x27;        // shared pool -> carried gold (all that fits)
 

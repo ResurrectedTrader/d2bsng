@@ -72,15 +72,23 @@ std::vector<uint8_t> PYPlayerData::PlanSwitch(PageRef from, PageRef to) const {
     if (to.index >= PageCount(to.kind)) {
         return commands;
     }
+    // The kind-select commands land on that kind's first page whether or not the
+    // kind changes, so they double as "jump to first". PlugY's own first-page
+    // command (0x1F) is not used: it picks the kind from the server's
+    // showSharedStash flag, which only the kind-select commands set, so it can
+    // land on the other kind's first page. The kind-select commands are ignored
+    // while the shared stash is disabled, so without one it is singles only.
+    const bool hasKindSelect = sharedStash != nullptr;
+    const uint8_t selectKind = to.kind == game::StashTabKind::Shared ? CMD_SELECT_SHARED : CMD_SELECT_PERSONAL;
     PageRef cur = from;
     if (cur.kind != to.kind) {
-        commands.push_back(to.kind == game::StashTabKind::Shared ? CMD_SELECT_SHARED : CMD_SELECT_PERSONAL);
+        commands.push_back(selectKind);
         cur = {.kind = to.kind, .index = 0};
     }
     if (to.index < cur.index) {
         const uint32_t back = cur.index - to.index;
-        if (to.index < back) {
-            commands.push_back(CMD_SELECT_FIRST);
+        if (hasKindSelect && to.index < back) {
+            commands.push_back(selectKind);
             cur.index = 0;
         } else {
             commands.insert(commands.end(), back, CMD_SELECT_PREVIOUS);
@@ -269,7 +277,21 @@ bool SwitchTo(PageRef from, PageRef to) {
     for (const auto command : plan) {
         SendCommand(command);
     }
-    return WaitForPage(to);
+    if (WaitForPage(to)) {
+        return true;
+    }
+    std::optional<PageRef> actual;
+    {
+        GameReadLock guard;
+        if (const auto* ext = Extension(); ext != nullptr) {
+            actual = ext->ActivePage();
+        }
+    }
+    Logger()->warn("stash page {}:{} -> {}:{} did not complete within {} ms ({} command(s) sent); mirror shows {}",
+                   static_cast<uint32_t>(from.kind), from.index, static_cast<uint32_t>(to.kind), to.index,
+                   PAGE_SWITCH_TIMEOUT.count(), plan.size(),
+                   actual ? fmt::format("{}:{}", static_cast<uint32_t>(actual->kind), actual->index) : "no page");
+    return false;
 }
 
 // PlugY's exported Init, run once. Reads PlugY.ini relative to the current

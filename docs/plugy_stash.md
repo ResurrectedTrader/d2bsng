@@ -222,13 +222,20 @@ pool. No page switch is involved: the pool is independent of the page shown.
    would stall the game thread the running operation is waiting on.
 2. Read the active page from the mirror, remember it.
 3. Plan the switch from the mirror and send every 0x3A command at once. PlugY
-   only has relative moves: a kind change goes through to-personal (0x1B) /
-   to-shared (0x1C), which land on that kind's first page; within a kind it is
-   previous (0x19) / next (0x1A) singles, or first-page (0x1F) when that is
-   shorter. The target must already exist in the mirror because "next" past the
-   last page creates a page server-side, and a script bug must not mint pages.
-   The client's list can only lag the server's, never lead it, so the clamp is
-   safe.
+   only has relative moves: to-personal (0x1B) / to-shared (0x1C) land on that
+   kind's first page whether or not the kind changes, so they serve both as the
+   kind change and as "jump to first" when that is shorter than previous (0x19)
+   singles; next (0x1A) singles do the rest. PlugY's own first-page command
+   (0x1F) is deliberately not used: the server resolves it through its
+   `showSharedStash` flag, which only the kind-select commands set, so after
+   page moves that did not go through them it can land on the other kind's
+   first page (seen live as "page 1:0 could not be restored" after a click). The
+   kind-select commands are ignored while the shared stash is disabled; with no
+   shared stash the plan is singles only. The target must already exist in the
+   mirror because "next" past the last page creates a page server-side, and a
+   script bug must not mint pages. The client's list can only lag the server's,
+   never lead it, so the clamp is safe. A switch that does not complete logs the
+   plan size and the page the mirror actually shows.
 4. Wait for the mirror to show the target active: poll under a brief read lock,
    sleep 5 ms between polls with locks released, give up after 3 s
    (`StashTabUnavailable`).
