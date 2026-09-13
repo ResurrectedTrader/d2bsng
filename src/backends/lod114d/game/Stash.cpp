@@ -17,7 +17,7 @@ namespace d2bs::game {
 // Without PlugY pages 1.14d has one stash: a single personal tab.
 StashTab::operator bool() const {
     GameReadLock guard;
-    if (plugy::HasPages()) {
+    if (plugy::IsActive() && plugy::HasStashTabs()) {
         return plugy::HasPage(kind_, index_);
     }
     return kind_ == StashTabKind::Personal && index_ == 0 && Unit::Player();
@@ -29,7 +29,7 @@ StashTabType StashTab::Type() const {
 
 std::string StashTab::Name() const {
     GameReadLock guard;
-    return plugy::HasPages() ? plugy::PageName(kind_, index_) : std::string{};
+    return plugy::IsActive() && plugy::HasStashTabs() ? plugy::PageName(kind_, index_) : std::string{};
 }
 
 // Neither stash keeps gold per page: the character's stash gold sits on personal
@@ -48,7 +48,7 @@ uint32_t StashTab::Gold() const {
 
 std::vector<Unit> StashTab::GetItems() const {
     GameReadLock guard;
-    if (plugy::HasPages()) {
+    if (plugy::IsActive() && plugy::HasStashTabs()) {
         return plugy::GetPageItems(kind_, index_);
     }
     std::vector<Unit> items;
@@ -67,7 +67,7 @@ ClickResult StashTab::Click(Position cell) const {
     const auto click = [cell] {
         return ClickContainerSlot(ClickButton::Left, cell, ItemLocation::Stash);
     };
-    if (plugy::HasPages()) {
+    if (plugy::IsActive() && plugy::HasStashTabs()) {
         return plugy::WithActivePage(kind_, index_, click);
     }
     return *this ? click() : ClickResult::StashTabUnavailable;
@@ -75,7 +75,8 @@ ClickResult StashTab::Click(Position cell) const {
 
 bool StashTab::DepositGold(uint32_t amount) const {
     if (kind_ == StashTabKind::Shared) {
-        return index_ == 0 && plugy::HasPages() && plugy::MoveSharedGold(GoldActionMode::Deposit);
+        return index_ == 0 && plugy::IsActive() && plugy::HasStashTabs() &&
+               plugy::MoveSharedGold(GoldActionMode::Deposit);
     }
     if (index_ != 0 || amount == 0 || !*this) {
         return false;
@@ -86,7 +87,8 @@ bool StashTab::DepositGold(uint32_t amount) const {
 
 bool StashTab::WithdrawGold(uint32_t amount) const {
     if (kind_ == StashTabKind::Shared) {
-        return index_ == 0 && plugy::HasPages() && plugy::MoveSharedGold(GoldActionMode::Withdraw);
+        return index_ == 0 && plugy::IsActive() && plugy::HasStashTabs() &&
+               plugy::MoveSharedGold(GoldActionMode::Withdraw);
     }
     if (index_ != 0 || amount == 0 || !*this) {
         return false;
@@ -98,7 +100,7 @@ bool StashTab::WithdrawGold(uint32_t amount) const {
 std::vector<StashTab> GetStashTabs() {
     GameReadLock guard;
     std::vector<StashTab> tabs;
-    if (plugy::HasPages()) {
+    if (plugy::IsActive() && plugy::HasStashTabs()) {
         for (const auto kind : {StashTabKind::Personal, StashTabKind::Shared}) {
             for (uint32_t index = 0, count = plugy::PageCount(kind); index < count; ++index) {
                 tabs.emplace_back(kind, index);
@@ -115,7 +117,7 @@ std::optional<StashTab> Unit::StashTab() const {
     if (Type() != UnitType::Item) {
         return std::nullopt;
     }
-    if (plugy::HasPages()) {
+    if (plugy::IsActive() && plugy::HasStashTabs()) {
         return plugy::FindPage(*this);
     }
     if (ItemLocation() != ItemLocation::Stash) {

@@ -41,10 +41,22 @@
 
 #pragma comment(lib, "version.lib")
 
+namespace d2bs::imports::extras::plugy {
+
+std::string Stash::Name() const {
+    if (name == nullptr || name[0] == '\0') {
+        return {};
+    }
+    return utils::ToStr(utils::ToWStr(name, CP_ACP));
+}
+
+}  // namespace d2bs::imports::extras::plugy
+
 namespace d2bs::game::plugy {
 
 namespace {
 
+using imports::extras::plugy::PageRef;
 using imports::extras::plugy::PYPlayerData;
 using imports::extras::plugy::Stash;
 
@@ -120,17 +132,7 @@ constexpr std::array SUPPORTED_VERSIONS = {
     Version{.major = 14, .minor = 0, .build = 3},
 };
 
-// Guard for a corrupted or cyclic page list; PlugY itself has no practical limit.
-constexpr uint32_t MAX_PAGES_WALKED = 1U << 16;
-
 constexpr std::array KINDS = {StashTabKind::Personal, StashTabKind::Shared};
-
-struct PageRef {
-    StashTabKind kind = StashTabKind::Personal;
-    uint32_t index = 0;
-
-    bool operator==(const PageRef&) const = default;
-};
 
 enum class Detection : uint8_t {
     Active,
@@ -239,11 +241,10 @@ Detection Detect(HMODULE module) {
     return Detection::Active;
 }
 
-// PlugY's extension sits right after the game's own player data block.
+// PlugY's extension sits right after the game's own player data block. Only
+// valid once IsActive() has returned true: without the patch those bytes belong
+// to whatever the Fog pool placed next.
 const PYPlayerData* Extension() {
-    if (!IsActive()) {
-        return nullptr;
-    }
     auto* player = imports::d2client::UNITS_GetPlayerUnit();
     if (player == nullptr || player->pPlayerData == nullptr) {
         return nullptr;
@@ -258,58 +259,6 @@ const PYPlayerData* Pages() {
     return ext != nullptr && ext->currentStash != nullptr ? ext : nullptr;
 }
 
-const Stash* ListHead(const PYPlayerData& ext, StashTabKind kind) {
-    return kind == StashTabKind::Shared ? ext.sharedStash : ext.selfStash;
-}
-
-// Walks `kind`'s pages in order, calling fn(page, index) until it returns true;
-// returns the page it stopped on, or nullptr.
-template <typename Fn>
-const Stash* ForEachPage(const PYPlayerData& ext, StashTabKind kind, const Fn& fn) {
-    uint32_t index = 0;
-    for (const Stash* page = ListHead(ext, kind); page != nullptr && index < MAX_PAGES_WALKED;
-         page = page->nextStash, ++index) {
-        if (fn(*page, index)) {
-            return page;
-        }
-    }
-    return nullptr;
-}
-
-const Stash* FindPage(const PYPlayerData& ext, StashTabKind kind, uint32_t index) {
-    return ForEachPage(ext, kind, [index](const Stash&, uint32_t i) { return i == index; });
-}
-
-uint32_t PageCount(const PYPlayerData& ext, StashTabKind kind) {
-    uint32_t count = 0;
-    ForEachPage(ext, kind, [&count](const Stash&, uint32_t) {
-        ++count;
-        return false;
-    });
-    return count;
-}
-
-std::optional<PageRef> ActivePage(const PYPlayerData& ext) {
-    for (const auto kind : KINDS) {
-        uint32_t found = 0;
-        if (ForEachPage(ext, kind, [&](const Stash& page, uint32_t i) {
-                found = i;
-                return &page == ext.currentStash;
-            }) != nullptr) {
-            return PageRef{.kind = kind, .index = found};
-        }
-    }
-    return std::nullopt;
-}
-
-// Page names are typed into PlugY's in-game text box and stored in the ANSI code page.
-std::string PageName(const Stash& page) {
-    if (page.name == nullptr || page.name[0] == '\0') {
-        return {};
-    }
-    return utils::ToStr(utils::ToWStr(page.name, CP_ACP));
-}
-
 bool IsStashItem(const D2UnitStrc* item) {
     return item->pItemData != nullptr &&
            static_cast<ItemLocation>(item->pItemData->pExtraData.nNodePos) == ItemLocation::Stash;
@@ -319,7 +268,7 @@ bool IsStashItem(const D2UnitStrc* item) {
 // an inactive page's items hang off its own list. Both chains are linked through
 // the item's pNextItem, which is what INVENTORY_GetNextItem follows.
 D2UnitStrc* FirstPageItem(const PYPlayerData& ext, const Stash& page) {
-    if (&page != ext.currentStash) {
+    if (!ext.IsActivePage(page)) {
         return page.ptListItem;
     }
     auto* player = imports::d2client::UNITS_GetPlayerUnit();
@@ -331,7 +280,7 @@ D2UnitStrc* FirstPageItem(const PYPlayerData& ext, const Stash& page) {
 
 template <typename Fn>
 void ForEachPageItem(const PYPlayerData& ext, const Stash& page, const Fn& fn) {
-    const bool isActive = &page == ext.currentStash;
+    const bool isActive = ext.IsActivePage(page);
     for (auto* item = FirstPageItem(ext, page); item != nullptr;
          item = imports::d2common::INVENTORY_GetNextItem(item)) {
         if (isActive && !IsStashItem(item)) {
@@ -348,7 +297,7 @@ void ForEachPageItem(const PYPlayerData& ext, const Stash& page, const Fn& fn) {
 // server-side, and a script bug must not mint pages. Empty for an unknown target.
 std::vector<uint8_t> PlanSwitch(const PYPlayerData& ext, PageRef from, PageRef to) {
     std::vector<uint8_t> commands;
-    if (to.index >= PageCount(ext, to.kind)) {
+    if (to.index >= ext.PageCount(to.kind)) {
         return commands;
     }
     PageRef cur = from;
@@ -396,7 +345,7 @@ bool WaitForPage(PageRef target) {
     return PollUntil(PAGE_SWITCH_TIMEOUT, [target] {
         GameReadLock guard;
         const auto* ext = Pages();
-        return ext != nullptr && ActivePage(*ext) == target;
+        return ext != nullptr && ext->ActivePage() == target;
     });
 }
 
@@ -584,9 +533,18 @@ bool IsActive() {
     if (const auto known = verdict.load(std::memory_order_acquire); known >= 0) {
         return known == 1;
     }
+    // PlugY.dll is loaded at Game.exe's startup (by PlugY.exe or by the manager
+    // ahead of d2bs) and its Init runs there too, long before a player unit exists.
+    // So with a player in the game, a missing module or a missing patch is final;
+    // before that, both are retried.
+    const bool inGame = imports::d2client::UNITS_GetPlayerUnit() != nullptr;
     HMODULE module = GetModuleHandleW(L"PlugY.dll");
     if (module == nullptr) {
-        return false;  // not cached: cheap to re-check, and the module may still arrive
+        if (inGame) {
+            Logger()->debug("PlugY.dll is not loaded; stash tabs are the vanilla single tab");
+            verdict.store(0, std::memory_order_release);
+        }
+        return false;
     }
     switch (Detect(module)) {
         case Detection::Active:
@@ -596,9 +554,7 @@ bool IsActive() {
             verdict.store(0, std::memory_order_release);
             return false;
         case Detection::NotYetPatched:
-            // A player unit exists only long after Game.exe's startup ran PlugY's
-            // Init, so once there is one the missing patch means the feature is off.
-            if (imports::d2client::UNITS_GetPlayerUnit() != nullptr) {
+            if (inGame) {
                 Logger()->info("{} loaded without the multi-page stash (ActiveMultiPageStash=0); stash tabs disabled",
                                VersionLabel(module));
                 verdict.store(0, std::memory_order_release);
@@ -608,30 +564,30 @@ bool IsActive() {
     return false;
 }
 
-bool HasPages() {
+bool HasStashTabs() {
     GameReadLock guard;
     return Pages() != nullptr;
 }
 
 bool IsParkedItem(const D2UnitStrc* item) {
     return item->dwItemMode == IMODE_STORED && item->pItemData != nullptr &&
-           item->pItemData->pExtraData.pParentInv == nullptr && HasPages();
+           item->pItemData->pExtraData.pParentInv == nullptr && IsActive() && HasStashTabs();
 }
 
 uint32_t PageCount(StashTabKind kind) {
     const auto* ext = Pages();
-    return ext != nullptr ? PageCount(*ext, kind) : 0U;
+    return ext != nullptr ? ext->PageCount(kind) : 0U;
 }
 
 bool HasPage(StashTabKind kind, uint32_t index) {
     const auto* ext = Pages();
-    return ext != nullptr && FindPage(*ext, kind, index) != nullptr;
+    return ext != nullptr && ext->FindPage(kind, index) != nullptr;
 }
 
 std::string PageName(StashTabKind kind, uint32_t index) {
     const auto* ext = Pages();
-    const Stash* page = ext != nullptr ? FindPage(*ext, kind, index) : nullptr;
-    return page != nullptr ? PageName(*page) : std::string{};
+    const Stash* page = ext != nullptr ? ext->FindPage(kind, index) : nullptr;
+    return page != nullptr ? page->Name() : std::string{};
 }
 
 uint32_t SharedGold() {
@@ -645,7 +601,7 @@ std::vector<Unit> GetPageItems(StashTabKind kind, uint32_t index) {
     if (ext == nullptr) {
         return items;
     }
-    const Stash* page = FindPage(*ext, kind, index);
+    const Stash* page = ext->FindPage(kind, index);
     if (page == nullptr) {
         return items;
     }
@@ -661,7 +617,7 @@ std::optional<StashTab> FindPage(const Unit& item) {
     const uint32_t itemId = item.Id();
     for (const auto kind : KINDS) {
         uint32_t index = 0;
-        const Stash* page = ForEachPage(*ext, kind, [&](const Stash& candidate, uint32_t i) {
+        const Stash* page = ext->ForEachPage(kind, [&](const Stash& candidate, uint32_t i) {
             bool found = false;
             ForEachPageItem(*ext, candidate, [&](const D2UnitStrc* unit) { found |= unit->dwUnitId == itemId; });
             index = i;
@@ -695,7 +651,7 @@ ClickResult WithActivePage(StashTabKind kind, uint32_t index, const std::functio
     {
         GameReadLock guard;
         if (const auto* ext = Pages(); ext != nullptr) {
-            original = ActivePage(*ext);
+            original = ext->ActivePage();
         }
     }
     if (!original) {

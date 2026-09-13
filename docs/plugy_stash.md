@@ -11,7 +11,8 @@ click can reach a page that is not shown.
 
 Everything PlugY-specific lives in `backends/lod114d/game/PlugY.h` / `PlugY.cpp`
 and `backends/lod114d/imports/extras/PlugY.h`. `game/Stash.cpp` delegates every
-`StashTab` member to `plugy::` while `plugy::HasPages()` holds and otherwise
+`StashTab` member to `plugy::` while `plugy::IsActive() && plugy::HasStashTabs()`
+holds and otherwise
 serves the vanilla single tab, so the contract, the JS bindings and the vanilla
 path are untouched by PlugY's presence.
 
@@ -124,8 +125,10 @@ taken either way). Redo the comparison when either side gains a hook.
 `backends/lod114d/game/PlugY.cpp`, on first use, in this order. A final verdict is
 cached and logged once; any failure keeps the feature off (vanilla behaviour):
 
-1. **Module.** `GetModuleHandleW(L"PlugY.dll")`. A miss is not cached: the DLL
-   is normally in the process before d2bs is, but the lookup is cheap.
+1. **Module.** `GetModuleHandleW(L"PlugY.dll")`. A miss is retried until a
+   player unit exists: the DLL is loaded at Game.exe's startup (by PlugY.exe or
+   by the manager ahead of d2bs), so with a player in the game a missing module
+   is final and a vanilla install pays one atomic load per query from then on.
 2. **Version allowlist.** The DLL ships a VERSIONINFO resource
    (`FILEVERSION 14,0,3,0`, shown as "14.03"). Only 12.00, 14.00, 14.01, 14.02
    and 14.03 are accepted. Those are the official releases that contain the
@@ -151,7 +154,7 @@ cached and logged once; any failure keeps the feature off (vanilla behaviour):
    allocation call inside `D2Common::InitPlayerData` (Game.exe RVA 0x221F90) to
    PlugY's own allocator. The backend decodes the `call rel32` at
    InitPlayerData+0x4C and requires its target to lie inside PlugY.dll's image.
-   A miss here is the one verdict not cached straight away: on the
+   A miss here is likewise not cached straight away: on the
    manager-injection path PlugY's `Init` runs at Game.exe's startup, possibly
    after analytics first asks, so it becomes final (and is logged as
    `ActiveMultiPageStash=0`) only once a player unit exists.
@@ -177,10 +180,15 @@ feature list). Never the version number.
 
 ## Reads
 
-All reads run under `GameReadLock`, since PlugY relinks the lists on the game
-thread during a page switch. Page names are ANSI (typed into PlugY's in-game
-text box) and converted to UTF-8. Walks are capped at 65536 pages as a guard
-against a corrupted list.
+Every `plugy::` read requires `IsActive()`; `Stash.cpp` pairs it with
+`HasStashTabs()` (the mirror's `currentStash` is set) before delegating, and
+`IsParkedItem`, the one entry reached from the generic item paths, checks both
+itself. The list walks are member functions of the `PYPlayerData` / `Stash`
+mirrors in `imports/extras/PlugY.h` (no data added, sizes still asserted). All
+reads run under `GameReadLock`, since PlugY relinks the lists on the game thread
+during a page switch. Page names are ANSI (typed into PlugY's in-game text box)
+and converted to UTF-8. Walks are capped at 65536 pages as a guard against a
+corrupted list.
 
 ## Gold
 
