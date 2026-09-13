@@ -146,9 +146,6 @@ constexpr uint8_t FIRST_PLUGY_FUNC = 0x18;
 constexpr std::chrono::milliseconds PAGE_SWITCH_TIMEOUT{3000};
 constexpr std::chrono::milliseconds ITEM_ACK_TIMEOUT{2000};
 constexpr std::chrono::milliseconds POLL_INTERVAL{5};
-// Item ids seen while one click's acknowledgement is awaited; a frame carries a
-// handful of item packets at most.
-constexpr size_t ACK_ID_CAPACITY = 64;
 
 // The official releases that carry the 1.14d port. For each, PlugY's git
 // history was checked and everything read or sent here is identical: the
@@ -338,12 +335,15 @@ extern "C" HMODULE __stdcall StartupLoadLibrary(LPCSTR name) {
     return LoadLibraryA(name);
 }
 
-// Item ids the server has named since the current click was armed. Written on the
-// game thread by the packet observer, read by the one script thread inside
-// WithActivePage (its operation mutex serialises clicks); ackMutex guards the vector.
+// The one or two item ids the current click is waiting for the server to name,
+// and whether it has. The one script thread inside WithActivePage (serialised by
+// its operation mutex) sets the targets before arming the observer and reads the
+// flag; the packet observer sets the flag on the game thread. All atomic, so the
+// observer holds no lock and cannot match against a partially-written target.
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
-std::mutex ackMutex;
-std::vector<uint32_t> ackSeenIds;
+std::atomic<uint32_t> ackTargetA{0};
+std::atomic<uint32_t> ackTargetB{0};
+std::atomic<bool> ackSeen{false};
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 void OnIncomingPacket(std::span<const uint8_t> packet) {
@@ -356,16 +356,10 @@ void OnIncomingPacket(std::span<const uint8_t> packet) {
     }
     uint32_t itemId = 0;
     std::memcpy(&itemId, packet.data() + ITEM_ACTION_ID_OFFSET, sizeof(itemId));
-    const std::scoped_lock lock(ackMutex);
-    if (ackSeenIds.size() < ACK_ID_CAPACITY) {
-        ackSeenIds.push_back(itemId);
+    if (itemId != 0 && (itemId == ackTargetA.load(std::memory_order_relaxed) ||
+                        itemId == ackTargetB.load(std::memory_order_relaxed))) {
+        ackSeen.store(true, std::memory_order_release);
     }
-}
-
-bool SawAckFor(std::span<const uint32_t> itemIds) {
-    const std::scoped_lock lock(ackMutex);
-    return std::ranges::any_of(
-        itemIds, [](uint32_t id) { return id != 0 && std::ranges::find(ackSeenIds, id) != ackSeenIds.end(); });
 }
 
 // The client applies an item click locally and only then tells the server, and
@@ -376,11 +370,6 @@ bool SawAckFor(std::span<const uint32_t> itemIds) {
 // is both the "did it send anything" test and the id set to wait for: the item
 // that left or reached the cursor is the one the server's item packet names.
 ClickResult ClickAndAwaitAck(const std::function<ClickResult()>& action) {
-    {
-        const std::scoped_lock lock(ackMutex);
-        ackSeenIds.clear();
-    }
-    hooks::intercepts::SetIncomingPacketObserver(&OnIncomingPacket);
     const auto cursorItemId = [] {
         GameReadLock guard;
         const auto cursor = Unit::CursorItem();
@@ -390,12 +379,21 @@ ClickResult ClickAndAwaitAck(const std::function<ClickResult()>& action) {
     const ClickResult result = action();
     const uint32_t cursorAfter = cursorItemId();
     if (result == ClickResult::Dispatched && cursorAfter != cursorBefore) {
-        const std::array ids = {cursorBefore, cursorAfter};
-        if (!PollUntil(ITEM_ACK_TIMEOUT, POLL_INTERVAL, [&ids] { return SawAckFor(ids); })) {
+        // The server's item packet names the item that left or reached the cursor;
+        // wait for exactly that id. Publish the targets and clear the flag before
+        // arming the observer, whose store-release install orders them ahead of any
+        // packet the game thread then delivers.
+        ackSeen.store(false, std::memory_order_relaxed);
+        ackTargetA.store(cursorBefore, std::memory_order_relaxed);
+        ackTargetB.store(cursorAfter, std::memory_order_relaxed);
+        hooks::intercepts::SetIncomingPacketObserver(&OnIncomingPacket);
+        if (!PollUntil(ITEM_ACK_TIMEOUT, POLL_INTERVAL, [] { return ackSeen.load(std::memory_order_acquire); })) {
             Logger()->warn("no server acknowledgement for the stash click within {} ms", ITEM_ACK_TIMEOUT.count());
         }
+        hooks::intercepts::SetIncomingPacketObserver(nullptr);
+        ackTargetA.store(0, std::memory_order_relaxed);
+        ackTargetB.store(0, std::memory_order_relaxed);
     }
-    hooks::intercepts::SetIncomingPacketObserver(nullptr);
     return result;
 }
 
