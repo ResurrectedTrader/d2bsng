@@ -8,6 +8,7 @@
 #include "imports/D2Client.h"
 #include "imports/D2Common.h"
 #include "imports/extras/PlugY.h"
+#include "utils/DeferGuard.h"
 #include "utils/Profiling.h"
 #include "utils/utils.h"
 
@@ -50,12 +51,59 @@ std::string Stash::Name() const {
     return utils::ToStr(utils::ToWStr(name, CP_ACP));
 }
 
+D2UnitStrc* PYPlayerData::FirstItem(const Stash& page) const {
+    if (!IsActivePage(page)) {
+        return page.ptListItem;
+    }
+    auto* player = d2client::UNITS_GetPlayerUnit();
+    if (player == nullptr || player->pInventory == nullptr) {
+        return nullptr;
+    }
+    return d2common::INVENTORY_GetFirstItem(player->pInventory);
+}
+
+D2UnitStrc* PYPlayerData::NextItem(D2UnitStrc* item) {
+    return d2common::INVENTORY_GetNextItem(item);
+}
+
+bool PYPlayerData::IsStashItem(const D2UnitStrc* item) {
+    return item->pItemData != nullptr &&
+           static_cast<game::ItemLocation>(item->pItemData->pExtraData.nNodePos) == game::ItemLocation::Stash;
+}
+
+std::vector<uint8_t> PYPlayerData::PlanSwitch(PageRef from, PageRef to) const {
+    std::vector<uint8_t> commands;
+    if (to.index >= PageCount(to.kind)) {
+        return commands;
+    }
+    PageRef cur = from;
+    if (cur.kind != to.kind) {
+        commands.push_back(to.kind == game::StashTabKind::Shared ? CMD_SELECT_SHARED : CMD_SELECT_PERSONAL);
+        cur = {.kind = to.kind, .index = 0};
+    }
+    if (to.index < cur.index) {
+        const uint32_t back = cur.index - to.index;
+        if (to.index < back) {
+            commands.push_back(CMD_SELECT_FIRST);
+            cur.index = 0;
+        } else {
+            commands.insert(commands.end(), back, CMD_SELECT_PREVIOUS);
+            cur.index = to.index;
+        }
+    }
+    commands.insert(commands.end(), to.index - cur.index, CMD_SELECT_NEXT);
+    return commands;
+}
+
 }  // namespace d2bs::imports::extras::plugy
 
 namespace d2bs::game::plugy {
 
 namespace {
 
+using imports::extras::plugy::CMD_PUT_GOLD;
+using imports::extras::plugy::CMD_TAKE_GOLD;
+using imports::extras::plugy::PACKET_SPEND_STAT_POINT;
 using imports::extras::plugy::PageRef;
 using imports::extras::plugy::PYPlayerData;
 using imports::extras::plugy::Stash;
@@ -72,19 +120,6 @@ constexpr uint32_t ALLOC_CALL_RVA = INIT_PLAYER_DATA_RVA + 0x4C;
 constexpr uint8_t OPCODE_MOV_EDX_IMM32 = 0xBA;
 constexpr uint8_t OPCODE_CALL_REL32 = 0xE8;
 constexpr size_t REL32_INSN_LEN = 5;
-
-// PlugY's client -> server channel: the vanilla 0x3A "spend stat point" packet
-// (BYTE id, WORD param) carrying an out-of-range command in the low byte
-// (PlugY/Commons/updatingConst.h). The server answers each with a 0x9D page
-// update that the client applies to its mirror.
-constexpr uint8_t PACKET_SPEND_STAT_POINT = 0x3A;
-constexpr uint8_t CMD_SELECT_PREVIOUS = 0x19;
-constexpr uint8_t CMD_SELECT_NEXT = 0x1A;
-constexpr uint8_t CMD_SELECT_PERSONAL = 0x1B;  // first personal page
-constexpr uint8_t CMD_SELECT_SHARED = 0x1C;    // first shared page
-constexpr uint8_t CMD_SELECT_FIRST = 0x1F;     // first page of the current kind
-constexpr uint8_t CMD_PUT_GOLD = 0x26;         // carried gold -> shared pool (all that fits)
-constexpr uint8_t CMD_TAKE_GOLD = 0x27;        // shared pool -> carried gold (all that fits)
 
 // Game.exe's startup loads advapi32 through this `call [IAT LoadLibraryA]`. It is
 // where PlugY.exe's stub runs PlugY's Init: Fog's memory pool already exists (Init
@@ -117,6 +152,11 @@ struct Version {
     uint16_t build = 0;
 
     bool operator==(const Version&) const = default;
+
+    // From the module's VERSIONINFO resource.
+    static std::optional<Version> Read(HMODULE module);
+    // PlugY displays FILEVERSION 14,0,3 as "14.03".
+    std::string ToString() const;
 };
 
 // The official releases that carry the 1.14d port. For each, PlugY's git
@@ -148,12 +188,11 @@ std::shared_ptr<spdlog::logger>& Logger() {
     return logger;
 }
 
-// PlugY displays FILEVERSION 14,0,3 as "14.03".
-std::string Format(const Version& v) {
-    return fmt::format("{}.{}{}", v.major, v.minor, v.build);
+std::string Version::ToString() const {
+    return fmt::format("{}.{}{}", major, minor, build);
 }
 
-std::optional<Version> ReadVersion(HMODULE module) {
+std::optional<Version> Version::Read(HMODULE module) {
     std::array<wchar_t, MAX_PATH> path{};
     const DWORD length = GetModuleFileNameW(module, path.data(), path.size());
     if (length == 0 || length >= path.size()) {
@@ -179,8 +218,8 @@ std::optional<Version> ReadVersion(HMODULE module) {
 }
 
 std::string VersionLabel(HMODULE module) {
-    const auto version = ReadVersion(module);
-    return version ? Format(*version) : std::string("(unknown version)");
+    const auto version = Version::Read(module);
+    return version ? version->ToString() : std::string("(unknown version)");
 }
 
 bool IsInsideModule(HMODULE module, uintptr_t address) {
@@ -200,21 +239,21 @@ T ReadValue(uintptr_t address) {
 }
 
 Detection Detect(HMODULE module) {
-    const auto version = ReadVersion(module);
+    const auto version = Version::Read(module);
     if (!version) {
         Logger()->warn("PlugY.dll is loaded but has no readable version resource; stash tabs disabled");
         return Detection::Inactive;
     }
     if (std::ranges::find(SUPPORTED_VERSIONS, *version) == SUPPORTED_VERSIONS.end()) {
         Logger()->warn("version {} is not a known release (supported: 12.00, 14.00 - 14.03); stash tabs disabled",
-                       Format(*version));
+                       version->ToString());
         return Detection::Inactive;
     }
 
     const auto base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
     const uintptr_t callSite = base + ALLOC_CALL_RVA;
     if (ReadValue<uint8_t>(callSite) != OPCODE_CALL_REL32) {
-        Logger()->warn("{}: unexpected code at InitPlayerData+{:#x}; stash tabs disabled", Format(*version),
+        Logger()->warn("{}: unexpected code at InitPlayerData+{:#x}; stash tabs disabled", version->ToString(),
                        ALLOC_CALL_RVA - INIT_PLAYER_DATA_RVA);
         return Detection::Inactive;
     }
@@ -226,18 +265,18 @@ Detection Detect(HMODULE module) {
 
     const uintptr_t sizeSite = base + ALLOC_SIZE_MOV_RVA;
     if (ReadValue<uint8_t>(sizeSite) != OPCODE_MOV_EDX_IMM32) {
-        Logger()->warn("{}: unexpected code at InitPlayerData+{:#x}; stash tabs disabled", Format(*version),
+        Logger()->warn("{}: unexpected code at InitPlayerData+{:#x}; stash tabs disabled", version->ToString(),
                        ALLOC_SIZE_MOV_RVA - INIT_PLAYER_DATA_RVA);
         return Detection::Inactive;
     }
     const auto allocSize = ReadValue<uint32_t>(sizeSite + 1);
     if (allocSize != sizeof(D2PlayerDataStrc)) {
         Logger()->warn("{}: player data size {:#x} differs from the expected {:#x}; stash tabs disabled",
-                       Format(*version), allocSize, sizeof(D2PlayerDataStrc));
+                       version->ToString(), allocSize, sizeof(D2PlayerDataStrc));
         return Detection::Inactive;
     }
 
-    Logger()->info("{} detected, multi-page stash tabs enabled", Format(*version));
+    Logger()->info("{} detected, multi-page stash tabs enabled", version->ToString());
     return Detection::Active;
 }
 
@@ -251,72 +290,6 @@ const PYPlayerData* Extension() {
     }
     return reinterpret_cast<const PYPlayerData*>(reinterpret_cast<uintptr_t>(player->pPlayerData) +
                                                  sizeof(D2PlayerDataStrc));
-}
-
-// Extension() with a populated page mirror, else nullptr. Callers hold a read lock.
-const PYPlayerData* Pages() {
-    const auto* ext = Extension();
-    return ext != nullptr && ext->currentStash != nullptr ? ext : nullptr;
-}
-
-bool IsStashItem(const D2UnitStrc* item) {
-    return item->pItemData != nullptr &&
-           static_cast<ItemLocation>(item->pItemData->pExtraData.nNodePos) == ItemLocation::Stash;
-}
-
-// The active page's items are the stash-located items of the player's inventory;
-// an inactive page's items hang off its own list. Both chains are linked through
-// the item's pNextItem, which is what INVENTORY_GetNextItem follows.
-D2UnitStrc* FirstPageItem(const PYPlayerData& ext, const Stash& page) {
-    if (!ext.IsActivePage(page)) {
-        return page.ptListItem;
-    }
-    auto* player = imports::d2client::UNITS_GetPlayerUnit();
-    if (player == nullptr || player->pInventory == nullptr) {
-        return nullptr;
-    }
-    return imports::d2common::INVENTORY_GetFirstItem(player->pInventory);
-}
-
-template <typename Fn>
-void ForEachPageItem(const PYPlayerData& ext, const Stash& page, const Fn& fn) {
-    const bool isActive = ext.IsActivePage(page);
-    for (auto* item = FirstPageItem(ext, page); item != nullptr;
-         item = imports::d2common::INVENTORY_GetNextItem(item)) {
-        if (isActive && !IsStashItem(item)) {
-            continue;
-        }
-        fn(item);
-    }
-}
-
-// The 0x3A commands that walk the server from `from` to `to`. PlugY only has
-// relative moves, so a kind change lands on that kind's first page and the rest
-// is singles (or a jump to the first page when that is shorter). The target must
-// already exist in the client mirror: "next" past the last page creates a page
-// server-side, and a script bug must not mint pages. Empty for an unknown target.
-std::vector<uint8_t> PlanSwitch(const PYPlayerData& ext, PageRef from, PageRef to) {
-    std::vector<uint8_t> commands;
-    if (to.index >= ext.PageCount(to.kind)) {
-        return commands;
-    }
-    PageRef cur = from;
-    if (cur.kind != to.kind) {
-        commands.push_back(to.kind == StashTabKind::Shared ? CMD_SELECT_SHARED : CMD_SELECT_PERSONAL);
-        cur = {.kind = to.kind, .index = 0};
-    }
-    if (to.index < cur.index) {
-        const uint32_t back = cur.index - to.index;
-        if (to.index < back) {
-            commands.push_back(CMD_SELECT_FIRST);
-            cur.index = 0;
-        } else {
-            commands.insert(commands.end(), back, CMD_SELECT_PREVIOUS);
-            cur.index = to.index;
-        }
-    }
-    commands.insert(commands.end(), to.index - cur.index, CMD_SELECT_NEXT);
-    return commands;
 }
 
 void SendCommand(uint8_t command) {
@@ -344,8 +317,8 @@ bool PollUntil(std::chrono::milliseconds timeout, const Ready& ready) {
 bool WaitForPage(PageRef target) {
     return PollUntil(PAGE_SWITCH_TIMEOUT, [target] {
         GameReadLock guard;
-        const auto* ext = Pages();
-        return ext != nullptr && ext->ActivePage() == target;
+        const auto* ext = Extension();
+        return ext != nullptr && ext->currentStash != nullptr && ext->ActivePage() == target;
     });
 }
 
@@ -356,11 +329,11 @@ bool SwitchTo(PageRef from, PageRef to) {
     std::vector<uint8_t> plan;
     {
         GameReadLock guard;
-        const auto* ext = Pages();
-        if (ext == nullptr) {
+        const auto* ext = Extension();
+        if (ext == nullptr || ext->currentStash == nullptr) {
             return false;
         }
-        plan = PlanSwitch(*ext, from, to);
+        plan = ext->PlanSwitch(from, to);
     }
     if (plan.empty()) {
         return false;
@@ -445,13 +418,6 @@ bool SawAckFor(std::span<const uint32_t> itemIds) {
         itemIds, [](uint32_t id) { return id != 0 && std::ranges::find(ackSeenIds, id) != ackSeenIds.end(); });
 }
 
-// 0 when nothing is on the cursor.
-uint32_t CursorItemId() {
-    GameReadLock guard;
-    const auto cursor = Unit::CursorItem();
-    return cursor ? cursor->Id() : 0U;
-}
-
 // The client applies an item click locally and only then tells the server, and
 // a page switch sent right behind the click can overtake it: the server would
 // then park the page before it sees the pick-up, reject the pick-up, and leave
@@ -465,9 +431,14 @@ ClickResult ClickAndAwaitAck(const std::function<ClickResult()>& action) {
         ackSeenIds.clear();
     }
     hooks::intercepts::SetIncomingPacketObserver(&OnIncomingPacket);
-    const uint32_t cursorBefore = CursorItemId();
+    const auto cursorItemId = [] {
+        GameReadLock guard;
+        const auto cursor = Unit::CursorItem();
+        return cursor ? cursor->Id() : 0U;
+    };
+    const uint32_t cursorBefore = cursorItemId();
     const ClickResult result = action();
-    const uint32_t cursorAfter = CursorItemId();
+    const uint32_t cursorAfter = cursorItemId();
     if (result == ClickResult::Dispatched && cursorAfter != cursorBefore) {
         const std::array ids = {cursorBefore, cursorAfter};
         if (!PollUntil(ITEM_ACK_TIMEOUT, [&ids] { return SawAckFor(ids); })) {
@@ -477,24 +448,6 @@ ClickResult ClickAndAwaitAck(const std::function<ClickResult()>& action) {
     hooks::intercepts::SetIncomingPacketObserver(nullptr);
     return result;
 }
-
-// Sets a flag for the scope; used for the per-thread re-entry guard below.
-class ScopedFlag {
-   public:
-    explicit ScopedFlag(bool& flag) : flag_(Raise(flag)) {}
-    ~ScopedFlag() { flag_ = false; }
-    ScopedFlag(const ScopedFlag&) = delete;
-    ScopedFlag& operator=(const ScopedFlag&) = delete;
-    ScopedFlag(ScopedFlag&&) = delete;
-    ScopedFlag& operator=(ScopedFlag&&) = delete;
-
-   private:
-    static bool& Raise(bool& flag) {
-        flag = true;
-        return flag;
-    }
-    bool& flag_;
-};
 
 }  // namespace
 
@@ -566,52 +519,53 @@ bool IsActive() {
 
 bool HasStashTabs() {
     GameReadLock guard;
-    return Pages() != nullptr;
+    const auto* ext = Extension();
+    return ext != nullptr && ext->currentStash != nullptr;
 }
 
 bool IsParkedItem(const D2UnitStrc* item) {
     return item->dwItemMode == IMODE_STORED && item->pItemData != nullptr &&
-           item->pItemData->pExtraData.pParentInv == nullptr && IsActive() && HasStashTabs();
+           item->pItemData->pExtraData.pParentInv == nullptr;
 }
 
 uint32_t PageCount(StashTabKind kind) {
-    const auto* ext = Pages();
-    return ext != nullptr ? ext->PageCount(kind) : 0U;
+    const auto* ext = Extension();
+    return ext != nullptr && ext->currentStash != nullptr ? ext->PageCount(kind) : 0U;
 }
 
 bool HasPage(StashTabKind kind, uint32_t index) {
-    const auto* ext = Pages();
-    return ext != nullptr && ext->FindPage(kind, index) != nullptr;
+    const auto* ext = Extension();
+    return ext != nullptr && ext->currentStash != nullptr && ext->FindPage(kind, index) != nullptr;
 }
 
 std::string PageName(StashTabKind kind, uint32_t index) {
-    const auto* ext = Pages();
-    const Stash* page = ext != nullptr ? ext->FindPage(kind, index) : nullptr;
+    const auto* ext = Extension();
+    const Stash* page = ext != nullptr && ext->currentStash != nullptr ? ext->FindPage(kind, index) : nullptr;
     return page != nullptr ? page->Name() : std::string{};
 }
 
 uint32_t SharedGold() {
-    const auto* ext = Pages();
-    return ext != nullptr && ext->sharedStash != nullptr ? ext->sharedGold : 0U;
+    const auto* ext = Extension();
+    return ext != nullptr && ext->currentStash != nullptr && ext->sharedStash != nullptr ? ext->sharedGold : 0U;
 }
 
 std::vector<Unit> GetPageItems(StashTabKind kind, uint32_t index) {
     std::vector<Unit> items;
-    const auto* ext = Pages();
-    if (ext == nullptr) {
+    const auto* ext = Extension();
+    if (ext == nullptr || ext->currentStash == nullptr) {
         return items;
     }
     const Stash* page = ext->FindPage(kind, index);
     if (page == nullptr) {
         return items;
     }
-    ForEachPageItem(*ext, *page, [&](D2UnitStrc* item) { items.push_back(Unit::FromPtr(item)); });
+    ext->ForEachItem(*page, [&](D2UnitStrc* item) { items.push_back(Unit::FromPtr(item)); });
     return items;
 }
 
 std::optional<StashTab> FindPage(const Unit& item) {
-    const auto* ext = Pages();
-    if (ext == nullptr) {
+    const auto* ext = Extension();
+    if (ext == nullptr || ext->currentStash == nullptr) {
         return std::nullopt;
     }
     const uint32_t itemId = item.Id();
@@ -619,7 +573,7 @@ std::optional<StashTab> FindPage(const Unit& item) {
         uint32_t index = 0;
         const Stash* page = ext->ForEachPage(kind, [&](const Stash& candidate, uint32_t i) {
             bool found = false;
-            ForEachPageItem(*ext, candidate, [&](const D2UnitStrc* unit) { found |= unit->dwUnitId == itemId; });
+            ext->ForEachItem(candidate, [&](const D2UnitStrc* unit) { found |= unit->dwUnitId == itemId; });
             index = i;
             return found;
         });
@@ -638,7 +592,8 @@ ClickResult WithActivePage(StashTabKind kind, uint32_t index, const std::functio
     if (inProgress) {
         return ClickResult::StashTabUnavailable;
     }
-    const ScopedFlag scope(inProgress);
+    inProgress = true;
+    const DeferGuard reset([] { inProgress = false; });
 
     // Drop this thread's read locks before queueing behind another script's page
     // operation: that operation needs the game thread, and the game thread needs
@@ -650,7 +605,7 @@ ClickResult WithActivePage(StashTabKind kind, uint32_t index, const std::functio
     std::optional<PageRef> original;
     {
         GameReadLock guard;
-        if (const auto* ext = Pages(); ext != nullptr) {
+        if (const auto* ext = Extension(); ext != nullptr && ext->currentStash != nullptr) {
             original = ext->ActivePage();
         }
     }
@@ -688,8 +643,8 @@ ClickResult ClickParkedItem(ClickButton button, const Unit& item) {
 bool MoveSharedGold(GoldActionMode mode) {
     {
         GameReadLock guard;
-        const auto* ext = Pages();
-        if (ext == nullptr || ext->sharedStash == nullptr) {
+        const auto* ext = Extension();
+        if (ext == nullptr || ext->currentStash == nullptr || ext->sharedStash == nullptr) {
             return false;
         }
         const auto carried = Unit::Player().GetStat(STAT_GOLD);

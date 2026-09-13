@@ -180,13 +180,14 @@ feature list). Never the version number.
 
 ## Reads
 
-Every `plugy::` read requires `IsActive()`; `Stash.cpp` pairs it with
-`HasStashTabs()` (the mirror's `currentStash` is set) before delegating, and
-`IsParkedItem`, the one entry reached from the generic item paths, checks both
-itself. The list walks are member functions of the `PYPlayerData` / `Stash`
-mirrors in `imports/extras/PlugY.h` (no data added, sizes still asserted). All
-reads run under `GameReadLock`, since PlugY relinks the lists on the game thread
-during a page switch. Page names are ANSI (typed into PlugY's in-game text box)
+Every `plugy::` read requires `IsActive()`; every caller, `Stash.cpp` and
+the generic item paths in `Unit::ItemLocation` / `ClickItem` alike, pairs it
+with `HasStashTabs()` (the mirror's `currentStash` is set) before calling
+anything else here. The page walks, the item walks and the switch planner are
+member functions of the `PYPlayerData` / `Stash` mirrors in
+`imports/extras/PlugY.h`, which also holds the 0x3A command bytes (no data
+added, sizes still asserted). All reads run under `GameReadLock`, since PlugY
+relinks the lists on the game thread during a page switch. Page names are ANSI (typed into PlugY's in-game text box)
 and converted to UTF-8. Walks are capped at 65536 pages as a guard against a
 corrupted list.
 

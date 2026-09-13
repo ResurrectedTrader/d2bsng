@@ -40,7 +40,7 @@ uint32_t StashTab::Gold() const {
         return 0;
     }
     if (kind_ == StashTabKind::Shared) {
-        return plugy::SharedGold();
+        return plugy::IsActive() && plugy::HasStashTabs() ? plugy::SharedGold() : 0U;
     }
     const auto gold = Unit::Player().GetStat(STAT_GOLDBANK);
     return gold > 0 ? static_cast<uint32_t>(gold) : 0U;

@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 struct D2UnitStrc;
 
@@ -12,9 +13,23 @@ struct D2UnitStrc;
 // grows the game's D2PlayerDataStrc allocation by sizeof(PYPlayerData) and keeps
 // its page lists in that tail. Layout from PlugY/playerCustomData.h, identical
 // across every 1.14d-capable release (12.00 - 14.03). Sizes verified by
-// static_assert; the member functions add no data and no vtable.
+// static_assert; the member functions add no data and no vtable. Members whose
+// bodies need the game imports are defined in game/PlugY.cpp.
 // NOLINTBEGIN(readability-identifier-naming) - struct fields match PlugY's source
 namespace d2bs::imports::extras::plugy {
+
+// PlugY's client -> server channel: the vanilla 0x3A "spend stat point" packet
+// (BYTE id, WORD param) carrying an out-of-range command in the low byte
+// (PlugY/Commons/updatingConst.h). The server answers each with a 0x9D page
+// update that the client applies to its mirror.
+constexpr uint8_t PACKET_SPEND_STAT_POINT = 0x3A;
+constexpr uint8_t CMD_SELECT_PREVIOUS = 0x19;
+constexpr uint8_t CMD_SELECT_NEXT = 0x1A;
+constexpr uint8_t CMD_SELECT_PERSONAL = 0x1B;  // first personal page
+constexpr uint8_t CMD_SELECT_SHARED = 0x1C;    // first shared page
+constexpr uint8_t CMD_SELECT_FIRST = 0x1F;     // first page of the current kind
+constexpr uint8_t CMD_PUT_GOLD = 0x26;         // carried gold -> shared pool (all that fits)
+constexpr uint8_t CMD_TAKE_GOLD = 0x27;        // shared pool -> carried gold (all that fits)
 
 struct Stash {
     uint32_t id;     // 0-based position within its list
@@ -28,7 +43,7 @@ struct Stash {
     Stash* nextStash;
 
     // User-given name as UTF-8; empty when unnamed. Typed into PlugY's in-game
-    // text box and stored in the ANSI code page. Defined in game/PlugY.cpp.
+    // text box and stored in the ANSI code page.
     std::string Name() const;
 };
 static_assert(sizeof(Stash) == 0x18);
@@ -99,6 +114,31 @@ struct PYPlayerData {
         }
         return std::nullopt;
     }
+
+    // The active page's items are the stash-located items of the player's
+    // inventory; an inactive page's items hang off its own list. Both chains are
+    // linked through the item's pNextItem, which is what NextItem follows.
+    D2UnitStrc* FirstItem(const Stash& page) const;
+    static D2UnitStrc* NextItem(D2UnitStrc* item);
+    static bool IsStashItem(const D2UnitStrc* item);
+
+    template <typename Fn>
+    void ForEachItem(const Stash& page, const Fn& fn) const {
+        const bool isActive = IsActivePage(page);
+        for (auto* item = FirstItem(page); item != nullptr; item = NextItem(item)) {
+            if (isActive && !IsStashItem(item)) {
+                continue;
+            }
+            fn(item);
+        }
+    }
+
+    // The 0x3A commands that walk the server from `from` to `to`. PlugY only has
+    // relative moves, so a kind change lands on that kind's first page and the rest
+    // is singles (or a jump to the first page when that is shorter). The target must
+    // already exist in this mirror: "next" past the last page creates a page
+    // server-side, and a script bug must not mint pages. Empty for an unknown target.
+    std::vector<uint8_t> PlanSwitch(PageRef from, PageRef to) const;
 };
 static_assert(sizeof(PYPlayerData) == 0x1C);
 

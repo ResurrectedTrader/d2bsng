@@ -1068,7 +1068,7 @@ ClickResult ClickItem(ClickButton button, const Unit& item) {
     const auto gridX = itemPtr->pStaticPath->tGameCoords.nX;
     const auto gridY = itemPtr->pStaticPath->tGameCoords.nY;
 
-    if (plugy::IsParkedItem(itemPtr)) {
+    if (plugy::IsActive() && plugy::HasStashTabs() && plugy::IsParkedItem(itemPtr)) {
         return plugy::ClickParkedItem(button, item);
     }
 

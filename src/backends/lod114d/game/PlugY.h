@@ -40,8 +40,8 @@ bool HasStashTabs();
 
 // A stored-mode item outside any inventory: PlugY parked it on an inactive page
 // (the game zeroes the node byte on removal, so its location reads Ground). No
-// vanilla item is ever in that state. `item` must be a UNIT_ITEM. Checks IsActive()
-// itself, being the one entry point reached from the generic item paths.
+// vanilla item is ever in that state. `item` must be a UNIT_ITEM; callers check
+// IsActive() && HasStashTabs() first, like for every other function here.
 bool IsParkedItem(const D2UnitStrc* item);
 
 // Page-level reads of the client mirror. Callers hold a read lock.
