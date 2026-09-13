@@ -101,6 +101,7 @@
     <ClCompile Include="game\LaunchOptions.cpp" />
     <ClCompile Include="game\Menu.cpp" />
     <ClCompile Include="game\Stash.cpp" />
+    <ClCompile Include="game\PlugY.cpp" />
     <!-- Import layer -->
     <ClCompile Include="imports\ImportTypes.cpp" />
     <ClCompile Include="imports\extras\MPQStats.cpp" />
@@ -120,6 +121,7 @@
   <ItemGroup>
     <ClInclude Include="game\DrlgHelpers.h" />
     <ClInclude Include="game\LaunchOptions.h" />
+    <ClInclude Include="game\PlugY.h" />
     <ClInclude Include="game\RoomData.h" />
     <ClInclude Include="imports\D2MOOConfig.h" />
     <ClInclude Include="imports\ImportTypes.h" />

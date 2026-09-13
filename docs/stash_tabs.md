@@ -74,7 +74,10 @@ through the tab API.
 One personal tab, index 0, whose `GetItems()` is the inventory walk filtered to
 `ItemLocation::Stash`, whose `Gold()` is the character's stash gold, and whose
 `Click` is `ClickContainerSlot(Left, cell, Stash)`. Implemented in
-`backends/lod114d/game/Stash.cpp`.
+`backends/lod114d/game/Stash.cpp`. When PlugY's multi-page stash is active,
+every member delegates to `plugy::` (`backends/lod114d/game/PlugY.h`) instead;
+`docs/plugy_stash.md` covers that path, and the vanilla one is the fallback
+whenever PlugY is absent, disabled, or inactive (Battle.net).
 
 ## JS surface
 

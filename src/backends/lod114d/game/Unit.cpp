@@ -1,5 +1,6 @@
 #include "game/Unit.h"
 
+#include "PlugY.h"
 #include "asm_thunks/asm_thunks.h"
 #include "game/Constants.h"
 #include "game/GameHelpers.h"
@@ -830,7 +831,13 @@ ItemLocation Unit::ItemLocation() const {
     if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return ItemLocation::Null;
     }
-    return static_cast<game::ItemLocation>(u->pItemData->pExtraData.nNodePos);
+    const auto location = static_cast<game::ItemLocation>(u->pItemData->pExtraData.nNodePos);
+    // Removing an item from an inventory zeroes its node byte, so an item parked on
+    // an inactive stash page reads Ground here; report it where it logically is.
+    if (location == ItemLocation::Ground && plugy::IsParkedItem(u)) {
+        return ItemLocation::Stash;
+    }
+    return location;
 }
 
 Size Unit::Size() const {
