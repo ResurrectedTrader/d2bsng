@@ -69,10 +69,19 @@ struct PYPlayerData {
     // Guard for a corrupted or cyclic page list; PlugY itself has no practical limit.
     static constexpr uint32_t MAX_PAGES_WALKED = 1U << 16;
 
+    // The page lists are populated (never on Battle.net, and not before the
+    // character is loaded). Every read below is empty (nullptr / 0 / nullopt / no
+    // items) until then.
+    bool HasStashTabs() const { return currentStash != nullptr; }
+    bool HasSharedStash() const { return HasStashTabs() && sharedStash != nullptr; }
+
     // Walks `kind`'s pages in order, calling fn(page, index) until it returns true;
     // returns the page it stopped on, or nullptr.
     template <typename Fn>
     const Stash* ForEachPage(game::StashTabKind kind, const Fn& fn) const {
+        if (!HasStashTabs()) {
+            return nullptr;
+        }
         uint32_t index = 0;
         for (const Stash* page = kind == game::StashTabKind::Shared ? sharedStash : selfStash;
              page != nullptr && index < MAX_PAGES_WALKED; page = page->nextStash, ++index) {
@@ -95,6 +104,9 @@ struct PYPlayerData {
         });
         return count;
     }
+
+    // PlugY's single shared gold pool; 0 without a shared stash.
+    uint32_t SharedGold() const { return HasSharedStash() ? sharedGold : 0U; }
 
     // The page currentStash points at, by position; nullopt when it is on neither list.
     std::optional<PageRef> ActivePage() const {

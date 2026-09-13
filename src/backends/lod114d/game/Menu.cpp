@@ -659,10 +659,8 @@ bool CreateCharacter(const std::string& name, CharacterClass charClass, bool /*i
     }
 
     // Wait for char-create screen to come up.
-    for (int32_t i = 0; i < 30 && GetOutOfGameLocation() != OutOfGameLocation::CharacterCreate; ++i) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-    if (GetOutOfGameLocation() != OutOfGameLocation::CharacterCreate) {
+    if (!PollUntil(std::chrono::seconds(3), std::chrono::milliseconds(100),
+                   [] { return GetOutOfGameLocation() == OutOfGameLocation::CharacterCreate; })) {
         return false;
     }
 

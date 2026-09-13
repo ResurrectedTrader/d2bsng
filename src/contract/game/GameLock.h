@@ -1,9 +1,11 @@
 #pragma once
 
 #include <cassert>
+#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <shared_mutex>
+#include <thread>
 
 #include "utils/Profiling.h"
 
@@ -203,5 +205,23 @@ class GameReadLockReleaser {
     GameReadLockReleaser(GameReadLockReleaser&&) = delete;
     GameReadLockReleaser& operator=(GameReadLockReleaser&&) = delete;
 };
+
+// Polls `ready` until it holds or `timeout` passes, sleeping `interval` between
+// polls. This thread's read locks are released for the duration so the game
+// thread can run the frames that produce the awaited state; `ready` takes its
+// own read lock if it needs one. True when `ready` held before the deadline.
+template <typename Ready>
+bool PollUntil(std::chrono::milliseconds timeout, std::chrono::milliseconds interval, const Ready& ready) {
+    const GameReadLockReleaser releaser;
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    while (!ready()) {
+        if (std::chrono::steady_clock::now() >= deadline) {
+            return false;
+        }
+        const profiling::ScopedSleep waiting;
+        std::this_thread::sleep_for(interval);
+    }
+    return true;
+}
 
 }  // namespace d2bs::game

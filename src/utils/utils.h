@@ -4,6 +4,7 @@
 #include <spdlog/logger.h>
 #include <spdlog/spdlog.h>
 #include <cstdint>
+#include <cstring>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -68,4 +69,15 @@ struct ModuleVersion {
 
 // nullopt when the module has no version resource.
 std::optional<ModuleVersion> GetModuleVersion(HMODULE module);
+
+// Whether `address` lies within a loaded module's image.
+bool IsInsideModule(HMODULE module, uintptr_t address);
+
+// Typed read of process memory at `address`, without alignment assumptions.
+template <typename T>
+T ReadValue(uintptr_t address) {
+    T value{};
+    std::memcpy(&value, reinterpret_cast<const void *>(address), sizeof(T));
+    return value;
+}
 }  // namespace d2bs::utils

@@ -1,5 +1,7 @@
 #include "utils.h"
 
+#include <Psapi.h>
+
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <algorithm>
 #include <array>
@@ -173,5 +175,14 @@ std::optional<ModuleVersion> GetModuleVersion(HMODULE module) {
                          .minor = LOWORD(info->dwFileVersionMS),
                          .build = HIWORD(info->dwFileVersionLS),
                          .revision = LOWORD(info->dwFileVersionLS)};
+}
+
+bool IsInsideModule(HMODULE module, uintptr_t address) {
+    MODULEINFO info{};
+    if (GetModuleInformation(GetCurrentProcess(), module, &info, sizeof(info)) == 0) {
+        return false;
+    }
+    const auto base = reinterpret_cast<uintptr_t>(info.lpBaseOfDll);
+    return address >= base && address < base + info.SizeOfImage;
 }
 }  // namespace d2bs::utils

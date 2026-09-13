@@ -9,7 +9,6 @@
 #include "imports/D2Common.h"
 #include "imports/extras/PlugY.h"
 #include "utils/DeferGuard.h"
-#include "utils/Profiling.h"
 #include "utils/utils.h"
 
 #include <D2Inventory.h>   // D2ItemExtraDataStrc
@@ -20,8 +19,6 @@
 #include <Units/Units.h>   // D2UnitStrc
 
 #include <Windows.h>
-
-#include <Psapi.h>
 
 #include <spdlog/spdlog.h>
 
@@ -37,7 +34,6 @@
 #include <optional>
 #include <span>
 #include <string>
-#include <thread>
 #include <vector>
 
 namespace d2bs::imports::extras::plugy {
@@ -50,6 +46,9 @@ std::string Stash::Name() const {
 }
 
 void PYPlayerData::ForEachItem(const Stash& page, const std::function<void(D2UnitStrc*)>& fn) const {
+    if (!HasStashTabs()) {
+        return;
+    }
     const bool isActive = &page == currentStash;
     D2UnitStrc* first = page.ptListItem;
     if (isActive) {
@@ -184,22 +183,6 @@ std::string VersionLabel(HMODULE module) {
     return version ? Label(*version) : "(unknown version)";
 }
 
-bool IsInsideModule(HMODULE module, uintptr_t address) {
-    MODULEINFO info{};
-    if (GetModuleInformation(GetCurrentProcess(), module, &info, sizeof(info)) == 0) {
-        return false;
-    }
-    const auto base = reinterpret_cast<uintptr_t>(info.lpBaseOfDll);
-    return address >= base && address < base + info.SizeOfImage;
-}
-
-template <typename T>
-T ReadValue(uintptr_t address) {
-    T value{};
-    std::memcpy(&value, reinterpret_cast<const void*>(address), sizeof(T));
-    return value;
-}
-
 Detection Detect(HMODULE module) {
     const auto version = utils::GetModuleVersion(module);
     if (!version) {
@@ -214,24 +197,24 @@ Detection Detect(HMODULE module) {
 
     const auto base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
     const uintptr_t callSite = base + ALLOC_CALL_RVA;
-    if (ReadValue<uint8_t>(callSite) != OPCODE_CALL_REL32) {
+    if (utils::ReadValue<uint8_t>(callSite) != OPCODE_CALL_REL32) {
         Logger()->warn("{}: unexpected code at InitPlayerData+{:#x}; stash tabs disabled", Label(*version),
                        ALLOC_CALL_RVA - INIT_PLAYER_DATA_RVA);
         return Detection::Inactive;
     }
-    const auto displacement = ReadValue<int32_t>(callSite + 1);
+    const auto displacement = utils::ReadValue<int32_t>(callSite + 1);
     const uintptr_t callTarget = callSite + REL32_INSN_LEN + static_cast<uintptr_t>(displacement);
-    if (!IsInsideModule(module, callTarget)) {
+    if (!utils::IsInsideModule(module, callTarget)) {
         return Detection::NotYetPatched;
     }
 
     const uintptr_t sizeSite = base + ALLOC_SIZE_MOV_RVA;
-    if (ReadValue<uint8_t>(sizeSite) != OPCODE_MOV_EDX_IMM32) {
+    if (utils::ReadValue<uint8_t>(sizeSite) != OPCODE_MOV_EDX_IMM32) {
         Logger()->warn("{}: unexpected code at InitPlayerData+{:#x}; stash tabs disabled", Label(*version),
                        ALLOC_SIZE_MOV_RVA - INIT_PLAYER_DATA_RVA);
         return Detection::Inactive;
     }
-    const auto allocSize = ReadValue<uint32_t>(sizeSite + 1);
+    const auto allocSize = utils::ReadValue<uint32_t>(sizeSite + 1);
     if (allocSize != sizeof(D2PlayerDataStrc)) {
         Logger()->warn("{}: player data size {:#x} differs from the expected {:#x}; stash tabs disabled",
                        Label(*version), allocSize, sizeof(D2PlayerDataStrc));
@@ -259,28 +242,11 @@ void SendCommand(uint8_t command) {
     SendGamePacket(packet);
 }
 
-// Polls `ready` until it holds or `timeout` passes. Releases this thread's read
-// locks while sleeping so the game thread can run the frames that deliver the
-// server's replies; `ready` takes its own read lock if it needs one.
-template <typename Ready>
-bool PollUntil(std::chrono::milliseconds timeout, const Ready& ready) {
-    const GameReadLockReleaser releaser;
-    const auto deadline = std::chrono::steady_clock::now() + timeout;
-    while (!ready()) {
-        if (std::chrono::steady_clock::now() >= deadline) {
-            return false;
-        }
-        const profiling::ScopedSleep waiting;
-        std::this_thread::sleep_for(POLL_INTERVAL);
-    }
-    return true;
-}
-
 bool WaitForPage(PageRef target) {
-    return PollUntil(PAGE_SWITCH_TIMEOUT, [target] {
+    return PollUntil(PAGE_SWITCH_TIMEOUT, POLL_INTERVAL, [target] {
         GameReadLock guard;
         const auto* ext = Extension();
-        return ext != nullptr && ext->currentStash != nullptr && ext->ActivePage() == target;
+        return ext != nullptr && ext->ActivePage() == target;
     });
 }
 
@@ -292,7 +258,7 @@ bool SwitchTo(PageRef from, PageRef to) {
     {
         GameReadLock guard;
         const auto* ext = Extension();
-        if (ext == nullptr || ext->currentStash == nullptr) {
+        if (ext == nullptr) {
             return false;
         }
         plan = ext->PlanSwitch(from, to);
@@ -403,7 +369,7 @@ ClickResult ClickAndAwaitAck(const std::function<ClickResult()>& action) {
     const uint32_t cursorAfter = cursorItemId();
     if (result == ClickResult::Dispatched && cursorAfter != cursorBefore) {
         const std::array ids = {cursorBefore, cursorAfter};
-        if (!PollUntil(ITEM_ACK_TIMEOUT, [&ids] { return SawAckFor(ids); })) {
+        if (!PollUntil(ITEM_ACK_TIMEOUT, POLL_INTERVAL, [&ids] { return SawAckFor(ids); })) {
             Logger()->warn("no server acknowledgement for the stash click within {} ms", ITEM_ACK_TIMEOUT.count());
         }
     }
@@ -423,14 +389,14 @@ void InstallInitHook() {
     // `FF 15 <slot>`: call through the IAT slot that must hold LoadLibraryA. Anything
     // else means PlugY.exe already redirected this call (its stub handles Init) or
     // the site is not what we expect; either way leave it alone.
-    if (ReadValue<uint8_t>(site) != OPCODE_CALL_INDIRECT[0] ||
-        ReadValue<uint8_t>(site + 1) != OPCODE_CALL_INDIRECT[1]) {
+    if (utils::ReadValue<uint8_t>(site) != OPCODE_CALL_INDIRECT[0] ||
+        utils::ReadValue<uint8_t>(site + 1) != OPCODE_CALL_INDIRECT[1]) {
         return;
     }
-    const auto slot = ReadValue<uintptr_t>(site + 2);
+    const auto slot = utils::ReadValue<uintptr_t>(site + 2);
     HMODULE kernel32 = GetModuleHandleW(L"kernel32.dll");
     FARPROC loadLibrary = kernel32 != nullptr ? GetProcAddress(kernel32, "LoadLibraryA") : nullptr;
-    if (loadLibrary == nullptr || ReadValue<uintptr_t>(slot) != reinterpret_cast<uintptr_t>(loadLibrary)) {
+    if (loadLibrary == nullptr || utils::ReadValue<uintptr_t>(slot) != reinterpret_cast<uintptr_t>(loadLibrary)) {
         return;
     }
     std::array<uint8_t, IAT_CALL_LEN> original{};
@@ -482,7 +448,7 @@ bool IsActive() {
 bool HasStashTabs() {
     GameReadLock guard;
     const auto* ext = Extension();
-    return ext != nullptr && ext->currentStash != nullptr;
+    return ext != nullptr && ext->HasStashTabs();
 }
 
 bool IsParkedItem(const D2UnitStrc* item) {
@@ -492,29 +458,29 @@ bool IsParkedItem(const D2UnitStrc* item) {
 
 uint32_t PageCount(StashTabKind kind) {
     const auto* ext = Extension();
-    return ext != nullptr && ext->currentStash != nullptr ? ext->PageCount(kind) : 0U;
+    return ext != nullptr ? ext->PageCount(kind) : 0U;
 }
 
 bool HasPage(StashTabKind kind, uint32_t index) {
     const auto* ext = Extension();
-    return ext != nullptr && ext->currentStash != nullptr && ext->FindPage(kind, index) != nullptr;
+    return ext != nullptr && ext->FindPage(kind, index) != nullptr;
 }
 
 std::string PageName(StashTabKind kind, uint32_t index) {
     const auto* ext = Extension();
-    const Stash* page = ext != nullptr && ext->currentStash != nullptr ? ext->FindPage(kind, index) : nullptr;
+    const Stash* page = ext != nullptr ? ext->FindPage(kind, index) : nullptr;
     return page != nullptr ? page->Name() : std::string{};
 }
 
 uint32_t SharedGold() {
     const auto* ext = Extension();
-    return ext != nullptr && ext->currentStash != nullptr && ext->sharedStash != nullptr ? ext->sharedGold : 0U;
+    return ext != nullptr ? ext->SharedGold() : 0U;
 }
 
 std::vector<Unit> GetPageItems(StashTabKind kind, uint32_t index) {
     std::vector<Unit> items;
     const auto* ext = Extension();
-    if (ext == nullptr || ext->currentStash == nullptr) {
+    if (ext == nullptr) {
         return items;
     }
     const Stash* page = ext->FindPage(kind, index);
@@ -527,7 +493,7 @@ std::vector<Unit> GetPageItems(StashTabKind kind, uint32_t index) {
 
 std::optional<StashTab> FindPage(const Unit& item) {
     const auto* ext = Extension();
-    if (ext == nullptr || ext->currentStash == nullptr) {
+    if (ext == nullptr) {
         return std::nullopt;
     }
     const uint32_t itemId = item.Id();
@@ -567,7 +533,7 @@ ClickResult WithActivePage(StashTabKind kind, uint32_t index, const std::functio
     std::optional<PageRef> original;
     {
         GameReadLock guard;
-        if (const auto* ext = Extension(); ext != nullptr && ext->currentStash != nullptr) {
+        if (const auto* ext = Extension(); ext != nullptr) {
             original = ext->ActivePage();
         }
     }
@@ -606,7 +572,7 @@ bool MoveSharedGold(GoldActionMode mode) {
     {
         GameReadLock guard;
         const auto* ext = Extension();
-        if (ext == nullptr || ext->currentStash == nullptr || ext->sharedStash == nullptr) {
+        if (ext == nullptr || !ext->HasSharedStash()) {
             return false;
         }
         const auto carried = Unit::Player().GetStat(STAT_GOLD);
