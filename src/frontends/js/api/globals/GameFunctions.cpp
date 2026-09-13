@@ -13,6 +13,7 @@
 #include "api/classes/game/JSParty.h"
 #include "api/classes/game/JSPresetUnit.h"
 #include "api/classes/game/JSRoom.h"
+#include "api/classes/game/JSStashTab.h"
 #include "api/classes/game/JSUnit.h"
 #include "api/core/V8Convert.h"
 #include "api/core/V8Error.h"
@@ -953,6 +954,30 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
             args.GetReturnValue().Set(ResolveTxtCell(isolate, *table, row, args[2]));
+        });
+
+    /// @description Lists the tabs of your stash as StashTab objects, personal tabs first, then shared. Vanilla LoD
+    /// has a single personal tab; a paged stash reports every page, including empty trailing ones. `getItems()` /
+    /// `getItem()` only ever see the tab that is shown; the other tabs are reached through `StashTab.items`.
+    /// @signature getStashTabs()
+    /// @returns {StashTab[]} - one entry per tab; empty when not in a game
+    v8_function::Register(
+        isolate, global, "getStashTabs", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+            auto* isolate = args.GetIsolate();
+            auto context = isolate->GetCurrentContext();
+            auto lock = game::Bridge::Lock();
+            const auto tabs = game::GetStashTabs();
+            auto arr = v8::Array::New(isolate, static_cast<int32_t>(tabs.size()));
+            uint32_t i = 0;
+            for (const auto& tab : tabs) {
+                auto obj = JSStashTab::CreateInstance(isolate, context, std::make_unique<game::StashTab>(tab));
+                if (obj.IsEmpty()) {
+                    v8_error::ThrowError(isolate, "Failed to build stash tab array");
+                    return;
+                }
+                arr->Set(context, i++, obj).Check();
+            }
+            args.GetReturnValue().Set(arr);
         });
 
     /// @description Find the first UI control matching optional position/size filters; menu state only.
@@ -2026,10 +2051,12 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
         });
 
-    /// @description Perform a gold action (e.g. drop/stash/withdraw).
+    /// @description Perform a gold action through the game's gold dialog: drop, move to the trade window, or move
+    /// between carried gold and the stash (stash panel open).
     /// @signature gold(amount?: number, mode?: number)
     /// @param amount {number} - gold amount (default 0)
-    /// @param mode {number} - gold action mode (default Stash)
+    /// @param mode {number} - 1 = drop, 2 = inventory to trade, 3 = deposit into the stash, 4 = withdraw from the stash
+    /// (default 1, drop, as in the reference)
     /// @returns {undefined} - no return value
     v8_function::Register(
         isolate, global, "gold", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -2041,7 +2068,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
 
             int32_t nGold = 0;
-            auto nMode = game::GoldActionMode::Stash;
+            auto nMode = game::GoldActionMode::Drop;
             if (args.Length() > 0 && args[0]->IsNumber()) {
                 nGold = v8_convert::ToInt32(isolate, args[0]);
             }

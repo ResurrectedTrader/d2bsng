@@ -98,6 +98,7 @@
     <ClInclude Include="game\Party.h" />
     <ClInclude Include="game\Room.h" />
     <ClInclude Include="game\Sprite.h" />
+    <ClInclude Include="game\StashTab.h" />
     <ClInclude Include="game\Types.h" />
     <ClInclude Include="game\Unit.h" />
   </ItemGroup>

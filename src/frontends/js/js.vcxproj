@@ -223,6 +223,7 @@
     <ClInclude Include="api\classes\game\JSParty.h" />
     <ClInclude Include="api\classes\game\JSPresetUnit.h" />
     <ClInclude Include="api\classes\game\JSRoom.h" />
+    <ClInclude Include="api\classes\game\JSStashTab.h" />
     <ClInclude Include="api\classes\game\JSTxtTables.h" />
     <ClInclude Include="api\classes\game\JSUnit.h" />
     <ClInclude Include="api\classes\game\JSControl.h" />

@@ -5,6 +5,7 @@
 #include <chrono>
 #include <optional>
 
+#include "api/classes/game/JSStashTab.h"
 #include "api/core/V8Extract.h"
 #include "components/script/Script.h"
 #include "components/script/ScriptEngine.h"
@@ -546,6 +547,27 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             info.GetReturnValue().Set(static_cast<uint8_t>(data->ItemLocation()));
+        });
+
+    /// @description The stash tab holding this item; undefined unless the item is in your stash. Item units only.
+    /// @type {StashTab|undefined}
+    Property(
+        isolate, inst, "stashTab", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
+            auto* data = Unwrap(info.Holder());
+            if (!*data || data->Type() != UnitType::Item) {
+                return;
+            }
+            auto* isolate = info.GetIsolate();
+            auto lock = game::Bridge::Lock();
+            const auto tab = data->StashTab();
+            if (!tab) {
+                return;
+            }
+            auto obj = JSStashTab::CreateInstance(isolate, isolate->GetCurrentContext(),
+                                                  std::make_unique<game::StashTab>(*tab));
+            if (!obj.IsEmpty()) {
+                info.GetReturnValue().Set(obj);
+            }
         });
 
     /// @description Item width in inventory grid cells (Item units only).

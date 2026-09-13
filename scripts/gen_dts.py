@@ -229,13 +229,17 @@ def build_dts(data, *, version):
     events = data.get("events", [])
     enums = data.get("enums", {})
 
-    # Constant namespaces (ProfileType) and numeric bitfield enums (CharFlag) are
-    # `number` in TS; value-enums / string flag-sets get a `type X = ...` alias.
+    # Numeric bitfield enums (CharFlag) and constant namespaces without an enum
+    # behind them (ProfileType) are `number` in TS; every other option set gets a
+    # `type X = ...` alias. A name that is both a constants namespace and a value
+    # enum (StashTabKind) gets both: the namespace holds the values, the alias is
+    # the type - TS keeps them in separate declaration spaces.
     global _NUMBER_TYPES
-    _NUMBER_TYPES = {c for c, v in constants.items() if isinstance(v, dict) and "properties" in v}
-    _NUMBER_TYPES |= {
+    bitfields = {
         n for n, d in enums.items() if d.get("kind") == "flags" and any(r.get("value", "") != "" for r in d["rows"])
     }
+    namespaces = {c for c, v in constants.items() if isinstance(v, dict) and "properties" in v}
+    _NUMBER_TYPES = bitfields | (namespaces - (set(enums) - bitfields))
 
     out = []
     out.append("// d2bsng JavaScript API - TypeScript declarations\n")
