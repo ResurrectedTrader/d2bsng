@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "DrlgHelpers.h"
+#include "PlugY.h"
 #include "RoomData.h"
 #include "asm_thunks/asm_thunks.h"
 #include "game/Bridge.h"
@@ -1067,6 +1068,10 @@ ClickResult ClickItem(ClickButton button, const Unit& item) {
     const auto gridX = itemPtr->pStaticPath->tGameCoords.nX;
     const auto gridY = itemPtr->pStaticPath->tGameCoords.nY;
 
+    if (plugy::IsActive() && plugy::HasStashTabs() && plugy::IsParkedItem(itemPtr)) {
+        return plugy::ClickParkedItem(button, item);
+    }
+
     d2client::gCursorHover->x = gridX;
     d2client::gCursorHover->y = gridY;
     auto guard = Bridge::Lock();
@@ -2106,6 +2111,9 @@ std::vector<std::string> GetActiveFeatures() {
     }
     if (opts.randomizeBnetCache) {
         features.emplace_back("bnetCacheFix");
+    }
+    if (plugy::IsActive()) {
+        features.emplace_back("plugy");
     }
     return features;
 }

@@ -1,5 +1,6 @@
 #include "game/StashTab.h"
 
+#include "PlugY.h"
 #include "game/GameHelpers.h"
 #include "game/GameLock.h"
 #include "game/Unit.h"
@@ -13,9 +14,12 @@
 
 namespace d2bs::game {
 
-// 1.14d has one stash: a single personal tab.
+// Without PlugY pages 1.14d has one stash: a single personal tab.
 StashTab::operator bool() const {
     GameReadLock guard;
+    if (plugy::IsActive() && plugy::HasStashTabs()) {
+        return plugy::HasPage(kind_, index_);
+    }
     return kind_ == StashTabKind::Personal && index_ == 0 && Unit::Player();
 }
 
@@ -24,13 +28,19 @@ StashTabType StashTab::Type() const {
 }
 
 std::string StashTab::Name() const {
-    return {};
+    GameReadLock guard;
+    return plugy::IsActive() && plugy::HasStashTabs() ? plugy::PageName(kind_, index_) : std::string{};
 }
 
+// Neither stash keeps gold per page: the character's stash gold sits on personal
+// tab 0 and PlugY's shared pool on shared tab 0.
 uint32_t StashTab::Gold() const {
     GameReadLock guard;
-    if (!*this) {
+    if (index_ != 0 || !*this) {
         return 0;
+    }
+    if (kind_ == StashTabKind::Shared) {
+        return plugy::IsActive() && plugy::HasStashTabs() ? plugy::SharedGold() : 0U;
     }
     const auto gold = Unit::Player().GetStat(STAT_GOLDBANK);
     return gold > 0 ? static_cast<uint32_t>(gold) : 0U;
@@ -38,6 +48,9 @@ uint32_t StashTab::Gold() const {
 
 std::vector<Unit> StashTab::GetItems() const {
     GameReadLock guard;
+    if (plugy::IsActive() && plugy::HasStashTabs()) {
+        return plugy::GetPageItems(kind_, index_);
+    }
     std::vector<Unit> items;
     if (!*this) {
         return items;
@@ -51,11 +64,21 @@ std::vector<Unit> StashTab::GetItems() const {
 }
 
 ClickResult StashTab::Click(Position cell) const {
-    return *this ? ClickContainerSlot(ClickButton::Left, cell, ItemLocation::Stash) : ClickResult::StashTabUnavailable;
+    const auto click = [cell] {
+        return ClickContainerSlot(ClickButton::Left, cell, ItemLocation::Stash);
+    };
+    if (plugy::IsActive() && plugy::HasStashTabs()) {
+        return plugy::WithActivePage(kind_, index_, click);
+    }
+    return *this ? click() : ClickResult::StashTabUnavailable;
 }
 
 bool StashTab::DepositGold(uint32_t amount) const {
-    if (amount == 0 || !*this) {
+    if (kind_ == StashTabKind::Shared) {
+        return index_ == 0 && plugy::IsActive() && plugy::HasStashTabs() &&
+               plugy::MoveSharedGold(GoldActionMode::Deposit);
+    }
+    if (index_ != 0 || amount == 0 || !*this) {
         return false;
     }
     GoldAction(GoldActionMode::Deposit, static_cast<int32_t>(std::min<uint32_t>(amount, INT32_MAX)));
@@ -63,7 +86,11 @@ bool StashTab::DepositGold(uint32_t amount) const {
 }
 
 bool StashTab::WithdrawGold(uint32_t amount) const {
-    if (amount == 0 || !*this) {
+    if (kind_ == StashTabKind::Shared) {
+        return index_ == 0 && plugy::IsActive() && plugy::HasStashTabs() &&
+               plugy::MoveSharedGold(GoldActionMode::Withdraw);
+    }
+    if (index_ != 0 || amount == 0 || !*this) {
         return false;
     }
     GoldAction(GoldActionMode::Withdraw, static_cast<int32_t>(std::min<uint32_t>(amount, INT32_MAX)));
@@ -73,7 +100,13 @@ bool StashTab::WithdrawGold(uint32_t amount) const {
 std::vector<StashTab> GetStashTabs() {
     GameReadLock guard;
     std::vector<StashTab> tabs;
-    if (Unit::Player()) {
+    if (plugy::IsActive() && plugy::HasStashTabs()) {
+        for (const auto kind : {StashTabKind::Personal, StashTabKind::Shared}) {
+            for (uint32_t index = 0, count = plugy::PageCount(kind); index < count; ++index) {
+                tabs.emplace_back(kind, index);
+            }
+        }
+    } else if (Unit::Player()) {
         tabs.emplace_back(StashTabKind::Personal, 0);
     }
     return tabs;
@@ -81,7 +114,13 @@ std::vector<StashTab> GetStashTabs() {
 
 std::optional<StashTab> Unit::StashTab() const {
     GameReadLock guard;
-    if (Type() != UnitType::Item || ItemLocation() != ItemLocation::Stash) {
+    if (Type() != UnitType::Item) {
+        return std::nullopt;
+    }
+    if (plugy::IsActive() && plugy::HasStashTabs()) {
+        return plugy::FindPage(*this);
+    }
+    if (ItemLocation() != ItemLocation::Stash) {
         return std::nullopt;
     }
     // Only the local player has a stash, so a stash-located item is on its one tab
