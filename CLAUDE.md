@@ -186,6 +186,11 @@ Commits should not be GPG signed:
 git commit --no-gpg-sign -m "message"
 ```
 
+Never put a Claude Code session link (`https://claude.ai/code/session_...`, a
+`Claude-Session:` trailer, or any equivalent) in a commit message, PR title or
+body, review reply, or anything else that lands in the repository or on GitHub.
+A `Co-Authored-By` trailer is fine; the session URL is not.
+
 ## Architecture
 
 ### Project Structure
