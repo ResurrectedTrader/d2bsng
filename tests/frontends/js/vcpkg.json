@@ -2,5 +2,5 @@
   "name": "d2bsng-tests",
   "version-string": "0.0.1",
   "dependencies": ["doctest", "spdlog"],
-  "builtin-baseline": "74e6536215718009aae747d86d84b78376bf9e09"
+  "builtin-baseline": "9e44ec0e9f247d77c230ced0ee66c76296837807"
 }

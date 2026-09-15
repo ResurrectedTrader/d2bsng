@@ -47,14 +47,8 @@ DevTools frontend UI can attach over, so it is not an option here.
 
 ## Pieces
 
-- **`InspectorServer`** (singleton) - one `DualModeServer` on one localhost
-  port. `DualModeServer` is `ix::HttpServer`'s HTTP-vs-WebSocket dispatch
-  reimplemented on `ix::WebSocketServer`: `ix::HttpServer` (final, so not
-  subclassable) compares the `Upgrade` header value case-SENSITIVELY against
-  "websocket", and the browser-side proxy that `chrome://inspect`'s inspect
-  link attaches through sends `Upgrade: WebSocket` - those upgrades fell into
-  the HTTP handler and 404'd. The value is case-insensitive per RFC 6455 4.2.1
-  (fix submitted upstream). The single port serves both:
+- **`InspectorServer`** (singleton) - one `ix::HttpServer` on one localhost
+  port, serving both:
   - HTTP `GET /json`, `/json/list`, `/json/version` - the discovery endpoints
     `chrome://inspect` polls. `/json` lists every registered target with its
     `webSocketDebuggerUrl`. Answered with `Connection: close` (the server
