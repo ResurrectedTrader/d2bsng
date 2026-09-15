@@ -1,7 +1,6 @@
 #include "hooks/Realms.h"
 
 #include <Windows.h>
-#include <detours/detours.h>
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -13,15 +12,22 @@
 #include <vector>
 
 #include "config/RealmRegistry.h"
+#include "detour/Hook.h"
 #include "game/GameHelpers.h"
 #include "game/GameThread.h"
 #include "game/LaunchOptions.h"
 #include "imports/BnClient.h"
 #include "imports/Storm.h"
+#include "utils/utils.h"
 
 namespace d2bs::hooks::realms {
 
 namespace {
+
+spdlog::logger& Log() {
+    static const auto LOGGER = utils::GetLogger("hooks.realms");
+    return *LOGGER;
+}
 
 // The registry values D2 stores its Battle.net server list in, under
 // HKCU\Software\Battle.net\Configuration (D2 names them "...gateways").
@@ -176,10 +182,13 @@ bool ReadRegistryBlob(std::vector<char>& out) {
 using ReadFn = int(__stdcall*)(const char*, const char*, int, void*, int, uint32_t*);
 using StoreFn = int(__stdcall*)(const char*, const char*, char, const char*, int);
 
+int __stdcall HookedRead(const char* subkey, const char* valueName, int type, void* buf, int len, uint32_t* outLen);
+int __stdcall HookedStore(const char* subkey, const char* valueName, char type, const char* data, int len);
+
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables) - hook owns module-level state
-ReadFn realRead = nullptr;
-StoreFn realStore = nullptr;
-bool installed = false;
+// Both Storm helpers are resolved from the import registry at install time.
+detour::Hook<ReadFn> readHook{&HookedRead};
+detour::Hook<StoreFn> storeHook{&HookedStore};
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 // Read the real server-list blob into `out`. Returns false if the value is
@@ -187,11 +196,11 @@ bool installed = false;
 // the client rebuilds defaults from gateways.txt (our next read then injects).
 bool ReadRealBlob(const char* subkey, const char* valueName, int type, std::vector<char>& out) {
     uint32_t size = 0;
-    if (realRead(subkey, valueName, type, nullptr, 0, &size) == 0 || size == 0) {
+    if (readHook(subkey, valueName, type, nullptr, 0, &size) == 0 || size == 0) {
         return false;
     }
     out.assign(size, '\0');
-    return realRead(subkey, valueName, type, out.data(), static_cast<int>(size), nullptr) != 0;
+    return readHook(subkey, valueName, type, out.data(), static_cast<int>(size), nullptr) != 0;
 }
 
 // Detour of SSTR_RegistryReadValueEx: hands D2 the real server list with the
@@ -199,11 +208,11 @@ bool ReadRealBlob(const char* subkey, const char* valueName, int type, std::vect
 // ever being written to the registry.
 int __stdcall HookedRead(const char* subkey, const char* valueName, int type, void* buf, int len, uint32_t* outLen) {
     if (!IsRealmListValue(valueName)) {
-        return realRead(subkey, valueName, type, buf, len, outLen);
+        return readHook(subkey, valueName, type, buf, len, outLen);
     }
     std::vector<char> real;
     if (!ReadRealBlob(subkey, valueName, type, real)) {
-        return realRead(subkey, valueName, type, buf, len, outLen);  // absent: let the client seed defaults
+        return readHook(subkey, valueName, type, buf, len, outLen);  // absent: let the client seed defaults
     }
     RealmList list = ParseBlob(real.data(), real.size());
     EnsureValidVersion(list);
@@ -224,12 +233,12 @@ int __stdcall HookedRead(const char* subkey, const char* valueName, int type, vo
 // server-list write the client makes, so a persisted value never carries them.
 int __stdcall HookedStore(const char* subkey, const char* valueName, char type, const char* data, int len) {
     if (!IsRealmListValue(valueName) || data == nullptr || len <= 0) {
-        return realStore(subkey, valueName, type, data, len);
+        return storeHook(subkey, valueName, type, data, len);
     }
     RealmList list = ParseBlob(data, static_cast<size_t>(len));
     StripCustomRealms(list);
     const std::vector<char> stripped = Serialize(list);
-    return realStore(subkey, valueName, type, stripped.data(), static_cast<int>(stripped.size()));
+    return storeHook(subkey, valueName, type, stripped.data(), static_cast<int>(stripped.size()));
 }
 
 }  // namespace
@@ -238,50 +247,33 @@ void Install() {
     // No -realm entries: leave D2's server-list reads/writes untouched (mirrors
     // socks5, which no-ops without -proxy). RealmRegistry is seeded by Init() in
     // Bridge::Init, before HookManager installs, so it is populated by now.
-    if (installed || config::RealmRegistry::Instance().All().empty()) {
+    if (readHook.IsAttached() || config::RealmRegistry::Instance().All().empty()) {
         return;
     }
     if (!imports::storm::SSTR_RegistryReadValueEx.IsResolved() ||
         !imports::storm::RegStoringKeysConfiguration.IsResolved()) {
-        spdlog::error("realms: registry imports unresolved; custom realms will not appear in-game");
+        Log().error("realms: registry imports unresolved; custom realms will not appear in-game");
         return;
     }
-    realRead = imports::storm::SSTR_RegistryReadValueEx.Ptr();
-    realStore = imports::storm::RegStoringKeysConfiguration.Ptr();
+    readHook.SetTarget(imports::storm::SSTR_RegistryReadValueEx.Ptr());
+    storeHook.SetTarget(imports::storm::RegStoringKeysConfiguration.Ptr());
 
-    DetourTransactionBegin();
-    DetourUpdateThread(GetCurrentThread());
-    DetourAttach(reinterpret_cast<PVOID*>(&realRead), reinterpret_cast<PVOID>(&HookedRead));
-    DetourAttach(reinterpret_cast<PVOID*>(&realStore), reinterpret_cast<PVOID>(&HookedStore));
-    const LONG err = DetourTransactionCommit();
-    if (err != NO_ERROR) {
-        spdlog::error("realms: failed to detour registry helpers ({})", err);
-        realRead = nullptr;
-        realStore = nullptr;
-        return;
+    if (const int32_t err = detour::AttachAll({&readHook, &storeHook}); err != 0) {
+        Log().error("realms: failed to detour registry helpers ({})", err);
     }
-    installed = true;
 }
 
 void Remove() {
-    if (!installed) {
-        return;
+    if (const int32_t err = detour::DetachAll({&readHook, &storeHook}); err != 0) {
+        Log().error("realms: failed to remove the registry detours ({})", err);
     }
-    DetourTransactionBegin();
-    DetourUpdateThread(GetCurrentThread());
-    DetourDetach(reinterpret_cast<PVOID*>(&realRead), reinterpret_cast<PVOID>(&HookedRead));
-    DetourDetach(reinterpret_cast<PVOID*>(&realStore), reinterpret_cast<PVOID>(&HookedStore));
-    DetourTransactionCommit();
-    installed = false;
-    realRead = nullptr;
-    realStore = nullptr;
 }
 
 void Init() {
     auto& registry = config::RealmRegistry::Instance();
     for (const auto& spec : game::GetLaunchOptions().realms) {
         if (!registry.AddSpec(spec)) {
-            spdlog::warn("realms: ignoring malformed -realm spec '{}' (expected name:host)", spec);
+            Log().warn("realms: ignoring malformed -realm spec '{}' (expected name:host)", spec);
         }
     }
 }

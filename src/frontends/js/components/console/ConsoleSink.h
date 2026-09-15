@@ -8,10 +8,10 @@ namespace d2bs::js::console {
 // spdlog sink that forwards each log entry to game::console::OnMessage with
 // source=Log and the raw payload (no pattern formatting, no color parsing).
 //
-// Registered as one of the default logger's sinks in js::Host::SetupLogging,
-// so every named logger obtained via utils::GetLogger inherits it and fans
-// framework-internal log entries into the port's OnMessage alongside any
-// file / stderr sinks the port chooses to register.
+// Added to the fan-out sink every named logger shares (js::Host::SetupLogging
+// -> utils::AddLogSink), so framework-internal entries from any logger - even
+// one created before SetupLogging ran - reach the port's OnMessage alongside
+// the file sink.
 //
 // Port-produced entries (print / debugLog / EvaluateEvent::Execute) call
 // OnMessage directly; this sink handles only framework-side entries.

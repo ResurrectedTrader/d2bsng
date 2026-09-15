@@ -1,48 +1,25 @@
 #include "game/LaunchOptions.h"
 
 #include <Windows.h>
-#include <shellapi.h>
 
 #include <mutex>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "config/OptionParser.h"
 #include "utils/utils.h"
 
 namespace d2bs::game {
 
 namespace {
 
-// One command-line switch: its name, the argument syntax shown in the docs
-// (empty for a bare flag), and the handler that folds the parsed value into
-// LaunchOptions. A flag's handler is called with an empty value; a value
-// option consumes the following argv token and receives it.
-//
 // scripts/extract_api.py reads the builder below - the Add("-name", "<syntax>")
 // string literals plus the preceding /// doc block - into the docs, the same
 // way it reads the CompatibilityFlags catalog. This table is therefore the
 // single source of truth for both parsing and documentation.
-using ApplyFn = void (*)(LaunchOptions&, std::wstring_view);
-
-struct OptionSpec {
-    std::string_view name;
-    std::string_view syntax;
-    ApplyFn apply;
-
-    bool TakesValue() const { return !syntax.empty(); }
-};
-
-struct SpecBuilder {
-    std::vector<OptionSpec> specs;
-
-    void Add(std::string_view name, std::string_view syntax, ApplyFn apply) {
-        specs.push_back({.name = name, .syntax = syntax, .apply = apply});
-    }
-};
-
-std::vector<OptionSpec> BuildSpecs() {
-    SpecBuilder builder;
+std::vector<config::OptionSpec<LaunchOptions>> BuildSpecs() {
+    config::SpecBuilder<LaunchOptions> builder;
 
     /// @description Select the D2BotNG profile to launch with. The framework reads it back through
     /// getProfile / GetLaunchProfile and uses it to name per-instance resources.
@@ -113,67 +90,20 @@ std::vector<OptionSpec> BuildSpecs() {
     return std::move(builder.specs);
 }
 
-// Command-line switches are pure ASCII, so compare the wide argv token to the
-// narrow spec name without a codepage conversion.
-bool EqualsAscii(std::wstring_view token, std::string_view name) {
-    if (token.size() != name.size()) {
-        return false;
-    }
-    for (size_t i = 0; i < token.size(); ++i) {
-        if (token[i] != static_cast<wchar_t>(name[i])) {
-            return false;
-        }
-    }
-    return true;
-}
-
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables) - process-wide cache
 LaunchOptions options;
 std::once_flag parsed;
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
-void Parse(LaunchOptions& out) {
-    const auto* cmdLine = GetCommandLineW();
-    if (cmdLine == nullptr) {
-        return;
-    }
-
-    int32_t argc = 0;
-    LPWSTR* argv = CommandLineToArgvW(cmdLine, &argc);
-    if (argv == nullptr) {
-        return;
-    }
-
-    const auto specs = BuildSpecs();
-
-    // argv[0] is the program name; skip it.
-    for (int32_t i = 1; i < argc; ++i) {
-        const std::wstring_view token{argv[i]};
-        for (const auto& spec : specs) {
-            if (!EqualsAscii(token, spec.name)) {
-                continue;
-            }
-            if (spec.TakesValue()) {
-                if (i + 1 < argc) {
-                    const std::wstring_view value{argv[++i]};
-                    if (!value.empty()) {
-                        spec.apply(out, value);
-                    }
-                }
-            } else {
-                spec.apply(out, {});
-            }
-            break;
-        }
-    }
-
-    LocalFree(static_cast<void*>(argv));
-}
-
 }  // namespace
 
 const LaunchOptions& GetLaunchOptions() {
-    std::call_once(parsed, [] { Parse(options); });
+    std::call_once(parsed, [] {
+        const auto specs = BuildSpecs();
+        config::ParseCommandLine(specs, options);
+        // The switches were for us; the game is left with only its own.
+        config::RemoveCommandLineOptions(specs);
+    });
     return options;
 }
 

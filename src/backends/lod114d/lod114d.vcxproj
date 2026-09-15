@@ -85,57 +85,57 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <!-- Game Abstraction Layer (1.14d) -->
+    <ClCompile Include="asm_thunks\asm_thunks.cpp" />
+    <ClCompile Include="console\Console.cpp">
+      <ObjectFileName>$(IntDir)console_Console.obj</ObjectFileName>
+    </ClCompile>
     <ClCompile Include="game\Bridge.cpp" />
     <ClCompile Include="game\Console.cpp">
       <ObjectFileName>$(IntDir)game_Console.obj</ObjectFileName>
     </ClCompile>
-    <ClCompile Include="game\Sprite.cpp" />
-    <ClCompile Include="game\Unit.cpp" />
-    <ClCompile Include="game\Room.cpp" />
-    <ClCompile Include="game\Level.cpp" />
     <ClCompile Include="game\Control.cpp" />
-    <ClCompile Include="game\Party.cpp" />
     <ClCompile Include="game\GameCallbacks.cpp" />
     <ClCompile Include="game\GameHelpers.cpp" />
     <ClCompile Include="game\LaunchOptions.cpp" />
+    <ClCompile Include="game\Level.cpp" />
     <ClCompile Include="game\Menu.cpp" />
-    <ClCompile Include="game\Stash.cpp" />
+    <ClCompile Include="game\Party.cpp" />
     <ClCompile Include="game\PlugY.cpp" />
-    <!-- Import layer -->
-    <ClCompile Include="imports\ImportTypes.cpp" />
-    <ClCompile Include="imports\extras\MPQStats.cpp" />
-    <!-- Naked-asm thunks for non-C-callable game entries -->
-    <ClCompile Include="asm_thunks\asm_thunks.cpp" />
-    <!-- Hook subsystem -->
+    <ClCompile Include="game\Room.cpp" />
+    <ClCompile Include="game\Sprite.cpp" />
+    <ClCompile Include="game\Stash.cpp" />
+    <ClCompile Include="game\Unit.cpp" />
     <ClCompile Include="hooks\HookManager.cpp" />
     <ClCompile Include="hooks\InlinePatch.cpp" />
     <ClCompile Include="hooks\Intercepts.cpp" />
     <ClCompile Include="hooks\Realms.cpp" />
-    <ClCompile Include="hooks\Socks5Proxy.cpp" />
-    <!-- Console host (window + GL + ImGui glue; UI lives in the js frontend) -->
-    <ClCompile Include="console\Console.cpp">
-      <ObjectFileName>$(IntDir)console_Console.obj</ObjectFileName>
-    </ClCompile>
+    <ClCompile Include="imports\ImportTypes.cpp" />
+    <ClCompile Include="imports\extras\MPQStats.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="asm_thunks\asm_thunks.h" />
+    <ClInclude Include="console\Console.h" />
     <ClInclude Include="game\DrlgHelpers.h" />
     <ClInclude Include="game\LaunchOptions.h" />
     <ClInclude Include="game\PlugY.h" />
     <ClInclude Include="game\RoomData.h" />
-    <ClInclude Include="imports\D2MOOConfig.h" />
-    <ClInclude Include="imports\ImportTypes.h" />
-    <ClInclude Include="imports\D2Client.h" />
-    <ClInclude Include="imports\D2Common.h" />
-    <ClInclude Include="imports\D2Net.h" />
-    <ClInclude Include="imports\D2Gfx.h" />
-    <ClInclude Include="imports\D2Win.h" />
-    <ClInclude Include="imports\D2Multi.h" />
-    <ClInclude Include="imports\D2Lang.h" />
-    <ClInclude Include="imports\D2Cmp.h" />
-    <ClInclude Include="imports\D2Game.h" />
-    <ClInclude Include="imports\D2Launch.h" />
+    <ClInclude Include="hooks\HookManager.h" />
+    <ClInclude Include="hooks\InlinePatch.h" />
+    <ClInclude Include="hooks\Intercepts.h" />
+    <ClInclude Include="hooks\Realms.h" />
     <ClInclude Include="imports\BnClient.h" />
+    <ClInclude Include="imports\D2Client.h" />
+    <ClInclude Include="imports\D2Cmp.h" />
+    <ClInclude Include="imports\D2Common.h" />
+    <ClInclude Include="imports\D2Game.h" />
+    <ClInclude Include="imports\D2Gfx.h" />
+    <ClInclude Include="imports\D2Lang.h" />
+    <ClInclude Include="imports\D2Launch.h" />
+    <ClInclude Include="imports\D2MOOConfig.h" />
+    <ClInclude Include="imports\D2Multi.h" />
+    <ClInclude Include="imports\D2Net.h" />
+    <ClInclude Include="imports\D2Win.h" />
+    <ClInclude Include="imports\ImportTypes.h" />
     <ClInclude Include="imports\Storm.h" />
     <ClInclude Include="imports\extras\BNGatewayAccess.h" />
     <ClInclude Include="imports\extras\BnetData.h" />
@@ -151,15 +151,9 @@
     <ClInclude Include="imports\extras\GameStructInfo.h" />
     <ClInclude Include="imports\extras\MPQStats.h" />
     <ClInclude Include="imports\extras\NPCMenu.h" />
+    <ClInclude Include="imports\extras\PlugY.h" />
     <ClInclude Include="imports\extras\TransactionDialogs.h" />
     <ClInclude Include="imports\extras\WindowHandlers.h" />
-    <ClInclude Include="asm_thunks\asm_thunks.h" />
-    <ClInclude Include="hooks\HookManager.h" />
-    <ClInclude Include="hooks\InlinePatch.h" />
-    <ClInclude Include="hooks\Intercepts.h" />
-    <ClInclude Include="hooks\Realms.h" />
-    <ClInclude Include="hooks\Socks5Proxy.h" />
-    <ClInclude Include="console\Console.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\contract\contract.vcxproj">

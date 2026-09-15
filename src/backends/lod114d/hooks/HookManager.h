@@ -10,10 +10,9 @@
 //   * Detours-installed function-replacement hooks
 //       - kernel32!Sleep (drives GameLoop ticks; gates on game thread)
 //       - cursor-lock no-op
-//   * Win32 hooks
-//       - SetWindowsHookEx WH_GETMESSAGE (input dispatch + blockKeys/blockMouse,
-//         pass-through of injected input)
-//       - WndProc subclass            (WM_COPYDATA -> onIPC, captures game thread id)
+//   * the game-window input hook and WM_COPYDATA subclass (core/input/InputHook),
+//     installed once the game window exists, and the game thread id captured
+//     from that window
 //   * Inline-patch infrastructure (5-byte JMPs at game-side mid-function sites,
 //     dispatch to naked-asm intercepts in src/backends/lod114d/hooks/Intercepts.cpp).
 
@@ -35,10 +34,5 @@ std::optional<DWORD> GetGameThreadId();
 
 // Accessor for the active callback table. Returns nullptr before Install() or after Remove().
 const game::GameCallbacks* GetActiveCallbacks();
-
-// Post synthetic input (clicks / keys) to the game window. Tagged so the input
-// hook lets it through even while blockKeys / blockMouse suppresses the human's
-// hardware input. Used by SendClick / SendKey / control clicks.
-void PostInjectedInput(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 
 }  // namespace d2bs::hooks

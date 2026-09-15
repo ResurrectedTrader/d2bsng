@@ -55,7 +55,32 @@ std::string_view Trim(std::string_view s, std::string_view chars = " \t");
 // If `maxTokens == 0`, no cap.
 std::vector<std::string> Split(std::string_view s, std::string_view separators, size_t maxTokens = 0);
 
+// The named logger for a component, created on first use. Names are dotted and
+// follow the source tree - "hooks.net", "conversion.controls", "loop".
+//
+// Every logger shares one fan-out sink, so where output goes is decided once,
+// by AddLogSink, and does not depend on whether a logger was created before or
+// after the host installed its sinks.
 std::shared_ptr<spdlog::logger> GetLogger(const std::string &name);
+
+// Add a destination every logger writes to, including the ones that already
+// exist and the default logger. The host calls this once it knows where output
+// belongs; anything logged before that is dropped rather than misrouted.
+void AddLogSink(const spdlog::sink_ptr &sink);
+
+// Set the level of the logger called `name`, matched exactly. Applies to the
+// logger if it already exists, and is remembered so one created under that name
+// afterwards starts at that level.
+void SetLogLevel(const std::string &name, spdlog::level::level_enum level);
+
+struct LoggerInfo {
+    std::string name;
+    spdlog::level::level_enum level = spdlog::level::info;
+};
+
+// Every logger that exists, sorted by name. A component's logger is created the
+// first time it logs, so the list grows as the process runs.
+[[nodiscard]] std::vector<LoggerInfo> Loggers();
 
 // FILEVERSION of a loaded module's VERSIONINFO resource (14,0,3,0 -> {14, 0, 3, 0}).
 struct ModuleVersion {

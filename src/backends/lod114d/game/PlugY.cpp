@@ -174,7 +174,7 @@ enum class Detection : uint8_t {
 };
 
 std::shared_ptr<spdlog::logger>& Logger() {
-    static auto logger = utils::GetLogger("plugy");
+    static auto logger = utils::GetLogger("game.plugy");
     return logger;
 }
 

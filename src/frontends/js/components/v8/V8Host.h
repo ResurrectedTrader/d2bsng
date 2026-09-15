@@ -10,6 +10,7 @@
 #include <v8.h>
 #include "config/AppConfig.h"
 #include "utils/threadutils.h"
+#include "utils/utils.h"
 
 // V8Host is a function-local static singleton that owns the V8 platform and engine lifecycle.
 // Its destructor calls v8::V8::Dispose() and v8::V8::DisposePlatform().
@@ -36,6 +37,11 @@ class V8Host {
     V8Host &operator=(const V8Host &) = delete;
 
    private:
+    static spdlog::logger &Log() {
+        static const auto LOGGER = d2bs::utils::GetLogger("v8");
+        return *LOGGER;
+    }
+
     V8Host() {
         v8::SandboxHardwareSupport::InitializeBeforeThreadCreation();
         v8::V8::InitializeICU();
@@ -47,7 +53,7 @@ class V8Host {
         const auto &cfg = d2bs::config::GetAppConfig();
         std::string v8Flags = cfg.v8Flags;
         if (!v8Flags.empty()) {
-            spdlog::info("Applying user V8 flags: {}", v8Flags);
+            Log().info("Applying user V8 flags: {}", v8Flags);
             v8Flags += ' ';
         }
         v8Flags += "--expose-gc";

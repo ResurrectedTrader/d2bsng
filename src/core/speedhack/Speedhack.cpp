@@ -5,22 +5,29 @@
 #include <synchapi.h>
 #include <timeapi.h>
 
-#include <detours/detours.h>
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cstdint>
 #include <mutex>
 
 #include "config/AppConfig.h"
+#include "detour/Hook.h"
 #include "utils/threadutils.h"
+#include "utils/utils.h"
 
 #pragma comment(lib, "winmm.lib")
 
 namespace d2bs::speedhack {
 
 namespace {
+
+spdlog::logger& Log() {
+    static const auto LOGGER = utils::GetLogger("core.speedhack");
+    return *LOGGER;
+}
 
 // State for one time domain (one DomainState per family of hooked reads that
 // share a clock). All fields are atomic so hook bodies can load them without
@@ -93,25 +100,80 @@ using SleepConditionVariableCSFn = BOOL(WINAPI*)(PCONDITION_VARIABLE, PCRITICAL_
 using SleepConditionVariableSRWFn = BOOL(WINAPI*)(PCONDITION_VARIABLE, PSRWLOCK, DWORD, ULONG);
 using WaitOnAddressFn = BOOL(WINAPI*)(volatile VOID*, PVOID, SIZE_T, DWORD);
 
-GetTickCountFn realGetTickCount = GetTickCount;
-GetTickCount64Fn realGetTickCount64 = GetTickCount64;
-QueryPerformanceCounterFn realQueryPerformanceCounter = QueryPerformanceCounter;
-TimeGetTimeFn realTimeGetTime = timeGetTime;
-GetSystemTimeFn realGetSystemTime = GetSystemTime;
-GetLocalTimeFn realGetLocalTime = GetLocalTime;
-GetSystemTimeAsFileTimeFn realGetSystemTimeAsFileTime = GetSystemTimeAsFileTime;
-GetSystemTimePreciseAsFileTimeFn realGetSystemTimePreciseAsFileTime = GetSystemTimePreciseAsFileTime;
-SleepExFn realSleepEx = SleepEx;
-WaitForSingleObjectFn realWaitForSingleObject = WaitForSingleObject;
-WaitForSingleObjectExFn realWaitForSingleObjectEx = WaitForSingleObjectEx;
-WaitForMultipleObjectsFn realWaitForMultipleObjects = WaitForMultipleObjects;
-WaitForMultipleObjectsExFn realWaitForMultipleObjectsEx = WaitForMultipleObjectsEx;
-MsgWaitForMultipleObjectsFn realMsgWaitForMultipleObjects = MsgWaitForMultipleObjects;
-MsgWaitForMultipleObjectsExFn realMsgWaitForMultipleObjectsEx = MsgWaitForMultipleObjectsEx;
-SleepConditionVariableCSFn realSleepConditionVariableCS = SleepConditionVariableCS;
-SleepConditionVariableSRWFn realSleepConditionVariableSRW = SleepConditionVariableSRW;
-WaitOnAddressFn realWaitOnAddress = WaitOnAddress;
+// The replacements the slots below are paired with; the bodies follow.
+DWORD WINAPI HookedGetTickCount();
+ULONGLONG WINAPI HookedGetTickCount64();
+BOOL WINAPI HookedQueryPerformanceCounter(LARGE_INTEGER* lpPerformanceCount);
+DWORD WINAPI HookedTimeGetTime();
+VOID WINAPI HookedGetSystemTime(LPSYSTEMTIME lpSystemTime);
+VOID WINAPI HookedGetLocalTime(LPSYSTEMTIME lpSystemTime);
+VOID WINAPI HookedGetSystemTimeAsFileTime(LPFILETIME lpSystemTimeAsFileTime);
+VOID WINAPI HookedGetSystemTimePreciseAsFileTime(LPFILETIME lpSystemTimeAsFileTime);
+DWORD WINAPI HookedSleepEx(DWORD dwMilliseconds, BOOL bAlertable);
+DWORD WINAPI HookedWaitForSingleObject(HANDLE hHandle, DWORD dwMilliseconds);
+DWORD WINAPI HookedWaitForSingleObjectEx(HANDLE hHandle, DWORD dwMilliseconds, BOOL bAlertable);
+DWORD WINAPI HookedWaitForMultipleObjects(DWORD nCount, const HANDLE* lpHandles, BOOL bWaitAll, DWORD dwMilliseconds);
+DWORD WINAPI HookedWaitForMultipleObjectsEx(DWORD nCount, const HANDLE* lpHandles, BOOL bWaitAll, DWORD dwMilliseconds,
+                                            BOOL bAlertable);
+DWORD WINAPI HookedMsgWaitForMultipleObjects(DWORD nCount, const HANDLE* pHandles, BOOL fWaitAll, DWORD dwMilliseconds,
+                                             DWORD dwWakeMask);
+DWORD WINAPI HookedMsgWaitForMultipleObjectsEx(DWORD nCount, const HANDLE* pHandles, DWORD dwMilliseconds,
+                                               DWORD dwWakeMask, DWORD dwFlags);
+BOOL WINAPI HookedSleepConditionVariableCS(PCONDITION_VARIABLE conditionVariable, PCRITICAL_SECTION criticalSection,
+                                           DWORD dwMilliseconds);
+BOOL WINAPI HookedSleepConditionVariableSRW(PCONDITION_VARIABLE conditionVariable, PSRWLOCK srwLock,
+                                            DWORD dwMilliseconds, ULONG flags);
+BOOL WINAPI HookedWaitOnAddress(volatile VOID* address, PVOID compareAddress, SIZE_T addressSize, DWORD dwMilliseconds);
+
+detour::Hook<GetTickCountFn> getTickCountHook{GetTickCount, &HookedGetTickCount};
+detour::Hook<GetTickCount64Fn> getTickCount64Hook{GetTickCount64, &HookedGetTickCount64};
+detour::Hook<QueryPerformanceCounterFn> queryPerformanceCounterHook{QueryPerformanceCounter,
+                                                                    &HookedQueryPerformanceCounter};
+detour::Hook<TimeGetTimeFn> timeGetTimeHook{timeGetTime, &HookedTimeGetTime};
+detour::Hook<GetSystemTimeFn> getSystemTimeHook{GetSystemTime, &HookedGetSystemTime};
+detour::Hook<GetLocalTimeFn> getLocalTimeHook{GetLocalTime, &HookedGetLocalTime};
+detour::Hook<GetSystemTimeAsFileTimeFn> getSystemTimeAsFileTimeHook{GetSystemTimeAsFileTime,
+                                                                    &HookedGetSystemTimeAsFileTime};
+detour::Hook<GetSystemTimePreciseAsFileTimeFn> getSystemTimePreciseAsFileTimeHook{
+    GetSystemTimePreciseAsFileTime, &HookedGetSystemTimePreciseAsFileTime};
+detour::Hook<SleepExFn> sleepExHook{SleepEx, &HookedSleepEx};
+detour::Hook<WaitForSingleObjectFn> waitForSingleObjectHook{WaitForSingleObject, &HookedWaitForSingleObject};
+detour::Hook<WaitForSingleObjectExFn> waitForSingleObjectExHook{WaitForSingleObjectEx, &HookedWaitForSingleObjectEx};
+detour::Hook<WaitForMultipleObjectsFn> waitForMultipleObjectsHook{WaitForMultipleObjects,
+                                                                  &HookedWaitForMultipleObjects};
+detour::Hook<WaitForMultipleObjectsExFn> waitForMultipleObjectsExHook{WaitForMultipleObjectsEx,
+                                                                      &HookedWaitForMultipleObjectsEx};
+detour::Hook<MsgWaitForMultipleObjectsFn> msgWaitForMultipleObjectsHook{MsgWaitForMultipleObjects,
+                                                                        &HookedMsgWaitForMultipleObjects};
+detour::Hook<MsgWaitForMultipleObjectsExFn> msgWaitForMultipleObjectsExHook{MsgWaitForMultipleObjectsEx,
+                                                                            &HookedMsgWaitForMultipleObjectsEx};
+detour::Hook<SleepConditionVariableCSFn> sleepConditionVariableCSHook{SleepConditionVariableCS,
+                                                                      &HookedSleepConditionVariableCS};
+detour::Hook<SleepConditionVariableSRWFn> sleepConditionVariableSRWHook{SleepConditionVariableSRW,
+                                                                        &HookedSleepConditionVariableSRW};
+detour::Hook<WaitOnAddressFn> waitOnAddressHook{WaitOnAddress, &HookedWaitOnAddress};
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
+
+// Every hook in one transaction: the speedhack is only coherent with all of
+// its clock and wait reads scaled together.
+const std::array<detour::Slot* const, 18> HOOKS = {&getTickCountHook,
+                                                   &getTickCount64Hook,
+                                                   &queryPerformanceCounterHook,
+                                                   &timeGetTimeHook,
+                                                   &getSystemTimeHook,
+                                                   &getLocalTimeHook,
+                                                   &getSystemTimeAsFileTimeHook,
+                                                   &getSystemTimePreciseAsFileTimeHook,
+                                                   &sleepExHook,
+                                                   &waitForSingleObjectHook,
+                                                   &waitForSingleObjectExHook,
+                                                   &waitForMultipleObjectsHook,
+                                                   &waitForMultipleObjectsExHook,
+                                                   &msgWaitForMultipleObjectsHook,
+                                                   &msgWaitForMultipleObjectsExHook,
+                                                   &sleepConditionVariableCSHook,
+                                                   &sleepConditionVariableSRWHook,
+                                                   &waitOnAddressHook};
 
 Snapshot LoadSnapshot(const DomainState& state) {
     return {
@@ -164,7 +226,7 @@ bool ScalingEngaged() {
 // Read-API hooks ------------------------------------------------------------
 
 DWORD WINAPI HookedGetTickCount() {
-    const DWORD real = realGetTickCount();
+    const DWORD real = getTickCountHook();
     if (!ScalingEngaged()) {
         return real;
     }
@@ -175,7 +237,7 @@ DWORD WINAPI HookedGetTickCount() {
 }
 
 ULONGLONG WINAPI HookedGetTickCount64() {
-    const ULONGLONG real = realGetTickCount64();
+    const ULONGLONG real = getTickCount64Hook();
     if (!ScalingEngaged()) {
         return real;
     }
@@ -185,7 +247,7 @@ ULONGLONG WINAPI HookedGetTickCount64() {
 
 BOOL WINAPI HookedQueryPerformanceCounter(LARGE_INTEGER* lpPerformanceCount) {
     LARGE_INTEGER realQpc;
-    const BOOL ok = realQueryPerformanceCounter(&realQpc);
+    const BOOL ok = queryPerformanceCounterHook(&realQpc);
     if (!ok || lpPerformanceCount == nullptr) {
         return ok;
     }
@@ -199,7 +261,7 @@ BOOL WINAPI HookedQueryPerformanceCounter(LARGE_INTEGER* lpPerformanceCount) {
 }
 
 DWORD WINAPI HookedTimeGetTime() {
-    const DWORD real = realTimeGetTime();
+    const DWORD real = timeGetTimeHook();
     if (!ScalingEngaged()) {
         return real;
     }
@@ -216,7 +278,7 @@ VOID WINAPI HookedGetSystemTimeAsFileTime(LPFILETIME lpSystemTimeAsFileTime) {
         return;
     }
     FILETIME realFt;
-    realGetSystemTimeAsFileTime(&realFt);
+    getSystemTimeAsFileTimeHook(&realFt);
     if (!ScalingEngaged()) {
         *lpSystemTimeAsFileTime = realFt;
         return;
@@ -230,7 +292,7 @@ VOID WINAPI HookedGetSystemTimePreciseAsFileTime(LPFILETIME lpSystemTimeAsFileTi
         return;
     }
     FILETIME realFt;
-    realGetSystemTimePreciseAsFileTime(&realFt);
+    getSystemTimePreciseAsFileTimeHook(&realFt);
     if (!ScalingEngaged()) {
         *lpSystemTimeAsFileTime = realFt;
         return;
@@ -244,11 +306,11 @@ VOID WINAPI HookedGetSystemTime(LPSYSTEMTIME lpSystemTime) {
         return;
     }
     if (!ScalingEngaged()) {
-        realGetSystemTime(lpSystemTime);
+        getSystemTimeHook(lpSystemTime);
         return;
     }
     FILETIME realFt;
-    realGetSystemTimeAsFileTime(&realFt);
+    getSystemTimeAsFileTimeHook(&realFt);
     const auto snap = LoadSnapshot(fileTimeState);
     const FILETIME virtFt = Int64ToFileTime(ToVirtual(snap, FileTimeToInt64(realFt)));
     FileTimeToSystemTime(&virtFt, lpSystemTime);
@@ -259,13 +321,13 @@ VOID WINAPI HookedGetLocalTime(LPSYSTEMTIME lpSystemTime) {
         return;
     }
     if (!ScalingEngaged()) {
-        realGetLocalTime(lpSystemTime);
+        getLocalTimeHook(lpSystemTime);
         return;
     }
     // Compute virtual UTC FILETIME first, then convert UTC -> local via the
     // OS - avoids cracking the timezone offset ourselves.
     FILETIME realFt;
-    realGetSystemTimeAsFileTime(&realFt);
+    getSystemTimeAsFileTimeHook(&realFt);
     const auto snap = LoadSnapshot(fileTimeState);
     const FILETIME virtFtUtc = Int64ToFileTime(ToVirtual(snap, FileTimeToInt64(realFt)));
     SYSTEMTIME utc;
@@ -279,58 +341,58 @@ VOID WINAPI HookedGetLocalTime(LPSYSTEMTIME lpSystemTime) {
 
 DWORD WINAPI HookedSleepEx(DWORD dwMilliseconds, BOOL bAlertable) {
     NestedWaitGuard guard;
-    return realSleepEx(ScaleTimeout(dwMilliseconds), bAlertable);
+    return sleepExHook(ScaleTimeout(dwMilliseconds), bAlertable);
 }
 
 DWORD WINAPI HookedWaitForSingleObject(HANDLE hHandle, DWORD dwMilliseconds) {
     NestedWaitGuard guard;
-    return realWaitForSingleObject(hHandle, ScaleTimeout(dwMilliseconds));
+    return waitForSingleObjectHook(hHandle, ScaleTimeout(dwMilliseconds));
 }
 
 DWORD WINAPI HookedWaitForSingleObjectEx(HANDLE hHandle, DWORD dwMilliseconds, BOOL bAlertable) {
     NestedWaitGuard guard;
-    return realWaitForSingleObjectEx(hHandle, ScaleTimeout(dwMilliseconds), bAlertable);
+    return waitForSingleObjectExHook(hHandle, ScaleTimeout(dwMilliseconds), bAlertable);
 }
 
 DWORD WINAPI HookedWaitForMultipleObjects(DWORD nCount, const HANDLE* lpHandles, BOOL bWaitAll, DWORD dwMilliseconds) {
     NestedWaitGuard guard;
-    return realWaitForMultipleObjects(nCount, lpHandles, bWaitAll, ScaleTimeout(dwMilliseconds));
+    return waitForMultipleObjectsHook(nCount, lpHandles, bWaitAll, ScaleTimeout(dwMilliseconds));
 }
 
 DWORD WINAPI HookedWaitForMultipleObjectsEx(DWORD nCount, const HANDLE* lpHandles, BOOL bWaitAll, DWORD dwMilliseconds,
                                             BOOL bAlertable) {
     NestedWaitGuard guard;
-    return realWaitForMultipleObjectsEx(nCount, lpHandles, bWaitAll, ScaleTimeout(dwMilliseconds), bAlertable);
+    return waitForMultipleObjectsExHook(nCount, lpHandles, bWaitAll, ScaleTimeout(dwMilliseconds), bAlertable);
 }
 
 DWORD WINAPI HookedMsgWaitForMultipleObjects(DWORD nCount, const HANDLE* pHandles, BOOL fWaitAll, DWORD dwMilliseconds,
                                              DWORD dwWakeMask) {
     NestedWaitGuard guard;
-    return realMsgWaitForMultipleObjects(nCount, pHandles, fWaitAll, ScaleTimeout(dwMilliseconds), dwWakeMask);
+    return msgWaitForMultipleObjectsHook(nCount, pHandles, fWaitAll, ScaleTimeout(dwMilliseconds), dwWakeMask);
 }
 
 DWORD WINAPI HookedMsgWaitForMultipleObjectsEx(DWORD nCount, const HANDLE* pHandles, DWORD dwMilliseconds,
                                                DWORD dwWakeMask, DWORD dwFlags) {
     NestedWaitGuard guard;
-    return realMsgWaitForMultipleObjectsEx(nCount, pHandles, ScaleTimeout(dwMilliseconds), dwWakeMask, dwFlags);
+    return msgWaitForMultipleObjectsExHook(nCount, pHandles, ScaleTimeout(dwMilliseconds), dwWakeMask, dwFlags);
 }
 
 BOOL WINAPI HookedSleepConditionVariableCS(PCONDITION_VARIABLE conditionVariable, PCRITICAL_SECTION criticalSection,
                                            DWORD dwMilliseconds) {
     NestedWaitGuard guard;
-    return realSleepConditionVariableCS(conditionVariable, criticalSection, ScaleTimeout(dwMilliseconds));
+    return sleepConditionVariableCSHook(conditionVariable, criticalSection, ScaleTimeout(dwMilliseconds));
 }
 
 BOOL WINAPI HookedSleepConditionVariableSRW(PCONDITION_VARIABLE conditionVariable, PSRWLOCK srwLock,
                                             DWORD dwMilliseconds, ULONG flags) {
     NestedWaitGuard guard;
-    return realSleepConditionVariableSRW(conditionVariable, srwLock, ScaleTimeout(dwMilliseconds), flags);
+    return sleepConditionVariableSRWHook(conditionVariable, srwLock, ScaleTimeout(dwMilliseconds), flags);
 }
 
 BOOL WINAPI HookedWaitOnAddress(volatile VOID* address, PVOID compareAddress, SIZE_T addressSize,
                                 DWORD dwMilliseconds) {
     NestedWaitGuard guard;
-    return realWaitOnAddress(address, compareAddress, addressSize, ScaleTimeout(dwMilliseconds));
+    return waitOnAddressHook(address, compareAddress, addressSize, ScaleTimeout(dwMilliseconds));
 }
 
 // SetSpeed re-anchor: freeze virtual time at the current instant using the
@@ -338,11 +400,11 @@ BOOL WINAPI HookedWaitOnAddress(volatile VOID* address, PVOID compareAddress, SI
 // with the incoming speed. Keeps virtual time continuous across changes.
 void ReanchorLocked(float oldSpeed, float newSpeed) {
     LARGE_INTEGER realQpc;
-    realQueryPerformanceCounter(&realQpc);
+    queryPerformanceCounterHook(&realQpc);
     FILETIME realFt;
-    realGetSystemTimeAsFileTime(&realFt);
-    const int64_t realDwMs = realGetTickCount();
-    const int64_t realU64Ms = static_cast<int64_t>(realGetTickCount64());
+    getSystemTimeAsFileTimeHook(&realFt);
+    const int64_t realDwMs = getTickCountHook();
+    const int64_t realU64Ms = static_cast<int64_t>(getTickCount64Hook());
 
     auto reanchor = [oldSpeed](DomainState& state, int64_t realNow) {
         const int64_t base = state.realBase.load(std::memory_order_relaxed);
@@ -432,40 +494,8 @@ void Install() {
         return;
     }
 
-    DetourTransactionBegin();
-    DetourUpdateThread(GetCurrentThread());
-    DetourAttach(reinterpret_cast<PVOID*>(&realGetTickCount), reinterpret_cast<PVOID>(&HookedGetTickCount));
-    DetourAttach(reinterpret_cast<PVOID*>(&realGetTickCount64), reinterpret_cast<PVOID>(&HookedGetTickCount64));
-    DetourAttach(reinterpret_cast<PVOID*>(&realQueryPerformanceCounter),
-                 reinterpret_cast<PVOID>(&HookedQueryPerformanceCounter));
-    DetourAttach(reinterpret_cast<PVOID*>(&realTimeGetTime), reinterpret_cast<PVOID>(&HookedTimeGetTime));
-    DetourAttach(reinterpret_cast<PVOID*>(&realGetSystemTime), reinterpret_cast<PVOID>(&HookedGetSystemTime));
-    DetourAttach(reinterpret_cast<PVOID*>(&realGetLocalTime), reinterpret_cast<PVOID>(&HookedGetLocalTime));
-    DetourAttach(reinterpret_cast<PVOID*>(&realGetSystemTimeAsFileTime),
-                 reinterpret_cast<PVOID>(&HookedGetSystemTimeAsFileTime));
-    DetourAttach(reinterpret_cast<PVOID*>(&realGetSystemTimePreciseAsFileTime),
-                 reinterpret_cast<PVOID>(&HookedGetSystemTimePreciseAsFileTime));
-    DetourAttach(reinterpret_cast<PVOID*>(&realSleepEx), reinterpret_cast<PVOID>(&HookedSleepEx));
-    DetourAttach(reinterpret_cast<PVOID*>(&realWaitForSingleObject),
-                 reinterpret_cast<PVOID>(&HookedWaitForSingleObject));
-    DetourAttach(reinterpret_cast<PVOID*>(&realWaitForSingleObjectEx),
-                 reinterpret_cast<PVOID>(&HookedWaitForSingleObjectEx));
-    DetourAttach(reinterpret_cast<PVOID*>(&realWaitForMultipleObjects),
-                 reinterpret_cast<PVOID>(&HookedWaitForMultipleObjects));
-    DetourAttach(reinterpret_cast<PVOID*>(&realWaitForMultipleObjectsEx),
-                 reinterpret_cast<PVOID>(&HookedWaitForMultipleObjectsEx));
-    DetourAttach(reinterpret_cast<PVOID*>(&realMsgWaitForMultipleObjects),
-                 reinterpret_cast<PVOID>(&HookedMsgWaitForMultipleObjects));
-    DetourAttach(reinterpret_cast<PVOID*>(&realMsgWaitForMultipleObjectsEx),
-                 reinterpret_cast<PVOID>(&HookedMsgWaitForMultipleObjectsEx));
-    DetourAttach(reinterpret_cast<PVOID*>(&realSleepConditionVariableCS),
-                 reinterpret_cast<PVOID>(&HookedSleepConditionVariableCS));
-    DetourAttach(reinterpret_cast<PVOID*>(&realSleepConditionVariableSRW),
-                 reinterpret_cast<PVOID>(&HookedSleepConditionVariableSRW));
-    DetourAttach(reinterpret_cast<PVOID*>(&realWaitOnAddress), reinterpret_cast<PVOID>(&HookedWaitOnAddress));
-    const LONG err = DetourTransactionCommit();
-    if (err != NO_ERROR) {
-        spdlog::error("speedhack: Detours install failed: {}", err);
+    if (const int32_t err = detour::AttachAll(HOOKS); err != 0) {
+        Log().error("speedhack: Detours install failed: {}", err);
     }
 }
 
@@ -475,40 +505,8 @@ void Remove() {
         return;
     }
 
-    DetourTransactionBegin();
-    DetourUpdateThread(GetCurrentThread());
-    DetourDetach(reinterpret_cast<PVOID*>(&realGetTickCount), reinterpret_cast<PVOID>(&HookedGetTickCount));
-    DetourDetach(reinterpret_cast<PVOID*>(&realGetTickCount64), reinterpret_cast<PVOID>(&HookedGetTickCount64));
-    DetourDetach(reinterpret_cast<PVOID*>(&realQueryPerformanceCounter),
-                 reinterpret_cast<PVOID>(&HookedQueryPerformanceCounter));
-    DetourDetach(reinterpret_cast<PVOID*>(&realTimeGetTime), reinterpret_cast<PVOID>(&HookedTimeGetTime));
-    DetourDetach(reinterpret_cast<PVOID*>(&realGetSystemTime), reinterpret_cast<PVOID>(&HookedGetSystemTime));
-    DetourDetach(reinterpret_cast<PVOID*>(&realGetLocalTime), reinterpret_cast<PVOID>(&HookedGetLocalTime));
-    DetourDetach(reinterpret_cast<PVOID*>(&realGetSystemTimeAsFileTime),
-                 reinterpret_cast<PVOID>(&HookedGetSystemTimeAsFileTime));
-    DetourDetach(reinterpret_cast<PVOID*>(&realGetSystemTimePreciseAsFileTime),
-                 reinterpret_cast<PVOID>(&HookedGetSystemTimePreciseAsFileTime));
-    DetourDetach(reinterpret_cast<PVOID*>(&realSleepEx), reinterpret_cast<PVOID>(&HookedSleepEx));
-    DetourDetach(reinterpret_cast<PVOID*>(&realWaitForSingleObject),
-                 reinterpret_cast<PVOID>(&HookedWaitForSingleObject));
-    DetourDetach(reinterpret_cast<PVOID*>(&realWaitForSingleObjectEx),
-                 reinterpret_cast<PVOID>(&HookedWaitForSingleObjectEx));
-    DetourDetach(reinterpret_cast<PVOID*>(&realWaitForMultipleObjects),
-                 reinterpret_cast<PVOID>(&HookedWaitForMultipleObjects));
-    DetourDetach(reinterpret_cast<PVOID*>(&realWaitForMultipleObjectsEx),
-                 reinterpret_cast<PVOID>(&HookedWaitForMultipleObjectsEx));
-    DetourDetach(reinterpret_cast<PVOID*>(&realMsgWaitForMultipleObjects),
-                 reinterpret_cast<PVOID>(&HookedMsgWaitForMultipleObjects));
-    DetourDetach(reinterpret_cast<PVOID*>(&realMsgWaitForMultipleObjectsEx),
-                 reinterpret_cast<PVOID>(&HookedMsgWaitForMultipleObjectsEx));
-    DetourDetach(reinterpret_cast<PVOID*>(&realSleepConditionVariableCS),
-                 reinterpret_cast<PVOID>(&HookedSleepConditionVariableCS));
-    DetourDetach(reinterpret_cast<PVOID*>(&realSleepConditionVariableSRW),
-                 reinterpret_cast<PVOID>(&HookedSleepConditionVariableSRW));
-    DetourDetach(reinterpret_cast<PVOID*>(&realWaitOnAddress), reinterpret_cast<PVOID>(&HookedWaitOnAddress));
-    const LONG err = DetourTransactionCommit();
-    if (err != NO_ERROR) {
-        spdlog::error("speedhack: Detours remove failed: {}", err);
+    if (const int32_t err = detour::DetachAll(HOOKS); err != 0) {
+        Log().error("speedhack: Detours remove failed: {}", err);
     }
 }
 
