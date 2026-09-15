@@ -9,11 +9,11 @@
 #include "game/GameHelpers.h"
 #include "game/GameLock.h"
 #include "game/GameThread.h"
-#include "hooks/HookManager.h"
 #include "imports/D2Gfx.h"
 #include "imports/D2Lang.h"
 #include "imports/D2Win.h"
 #include "imports/extras/D2WinControlStrc.h"
+#include "input/InputHook.h"
 #include "utils/utils.h"
 
 #pragma clang diagnostic push
@@ -39,7 +39,7 @@ void PostMouseMessage(uint32_t msg, int32_t x, int32_t y) {
         return;
     }
     const LPARAM lp = (x & 0xFFFF) | ((y & 0xFFFF) << 16);
-    hooks::PostInjectedInput(hwnd, msg, 0, lp);
+    input::PostInjectedInput(hwnd, msg, 0, lp);
 }
 
 }  // namespace

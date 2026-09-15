@@ -30,7 +30,6 @@
 #include "game/Level.h"
 #include "game/Party.h"
 #include "game/Unit.h"
-#include "hooks/HookManager.h"
 #include "hooks/Intercepts.h"
 #include "imports/BnClient.h"
 #include "imports/D2Client.h"
@@ -47,6 +46,7 @@
 #include "imports/extras/MPQStats.h"
 #include "imports/extras/TransactionDialogs.h"
 #include "imports/extras/WindowHandlers.h"
+#include "input/InputHook.h"
 #include "utils/Profiling.h"
 #include "utils/utils.h"
 
@@ -73,6 +73,11 @@ using extras::D2DrlgActStrc;
 using extras::D2DrlgLevelStrc;
 
 namespace {
+
+spdlog::logger& Log() {
+    static const auto LOGGER = utils::GetLogger("game.helpers");
+    return *LOGGER;
+}
 
 constexpr std::chrono::milliseconds WAIT_GAME_READY_DEFAULT{15000};
 // Polling cadence -- matches reference (Sleep(10)) closely enough for parity.
@@ -155,8 +160,8 @@ std::optional<LayoutEntry> ResolveContainerLayout(ItemLocation location) {
         d2client::INVENTORY_Init();
     }
     if (entry.layout->nGridBoxWidth == 0 || entry.layout->nGridBoxHeight == 0) {
-        spdlog::warn("[ResolveContainerLayout] location={} still uninitialised after InitInventory (w={} h={})",
-                     static_cast<int32_t>(location), entry.layout->nGridBoxWidth, entry.layout->nGridBoxHeight);
+        Log().warn("[ResolveContainerLayout] location={} still uninitialised after InitInventory (w={} h={})",
+                   static_cast<int32_t>(location), entry.layout->nGridBoxWidth, entry.layout->nGridBoxHeight);
         return std::nullopt;
     }
     return entry;
@@ -1997,9 +2002,9 @@ void SendClick(Point pos) {
     }
     constexpr auto SETTLE_DELAY = std::chrono::milliseconds{100};
     const LPARAM lp = static_cast<LPARAM>(pos.x) | (static_cast<LPARAM>(pos.y) << 16);
-    hooks::PostInjectedInput(hwnd, WM_LBUTTONDOWN, 0, lp);
+    input::PostInjectedInput(hwnd, WM_LBUTTONDOWN, 0, lp);
     std::this_thread::sleep_for(SETTLE_DELAY);
-    hooks::PostInjectedInput(hwnd, WM_LBUTTONUP, 0, lp);
+    input::PostInjectedInput(hwnd, WM_LBUTTONUP, 0, lp);
     // Trailing pause prevents tight script loops from racing the game's input pump.
     std::this_thread::sleep_for(SETTLE_DELAY);
 }
@@ -2013,9 +2018,9 @@ void SendKey(uint32_t key) {
     LPARAM lpDown = 1;
     lpDown |= static_cast<LPARAM>(MapVirtualKeyW(key, MAPVK_VK_TO_VSC)) << 16;
     LPARAM lpUp = lpDown | static_cast<LPARAM>(0xC0000000U);
-    hooks::PostInjectedInput(hwnd, WM_KEYDOWN, key, lpDown);
+    input::PostInjectedInput(hwnd, WM_KEYDOWN, key, lpDown);
     std::this_thread::sleep_for(SETTLE_DELAY);
-    hooks::PostInjectedInput(hwnd, WM_KEYUP, key, lpUp);
+    input::PostInjectedInput(hwnd, WM_KEYUP, key, lpUp);
     // See SendClick -- trailing pause keeps tight script loops from racing the
     // game's input pump.
     std::this_thread::sleep_for(SETTLE_DELAY);

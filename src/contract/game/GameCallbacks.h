@@ -110,8 +110,10 @@ struct GameCallbacks {
     void (*onDraw)() = nullptr;
 };
 
-// Install all game hooks and bind the callback table.
-void InstallHooks(const GameCallbacks& callbacks);
+// Install all game hooks and bind the callback table. False means the port
+// could not bring its hooks up, and the framework must not continue: it
+// reports the reason itself, the way Bridge::Init does.
+bool InstallHooks(const GameCallbacks& callbacks);
 
 // Remove all game hooks. Call during shutdown.
 void RemoveHooks();

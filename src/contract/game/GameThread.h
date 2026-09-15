@@ -15,6 +15,7 @@
 #include "game/GameLock.h"
 #include "utils/Profiling.h"
 #include "utils/threadutils.h"
+#include "utils/utils.h"
 
 namespace d2bs::game {
 
@@ -38,6 +39,11 @@ class GameThread {
     // 50ms is roughly 3 frames at 60fps - anything past that is a visible
     // hitch.
     static constexpr std::chrono::milliseconds SLOW_TASK_THRESHOLD{50};
+
+    static spdlog::logger& Log() {
+        static const auto LOGGER = utils::GetLogger("game.thread");
+        return *LOGGER;
+    }
 
     // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables, cert-err58-cpp) - singleton queue by design;
     // default-constructed, no real throw risk
@@ -65,6 +71,8 @@ class GameThread {
         {
             std::lock_guard lock(queueMutex_);
             if constexpr (std::is_void_v<T>) {
+                // set_value only throws on a second call, which cannot happen here.
+                // NOLINTNEXTLINE(bugprone-exception-escape)
                 queue_.push({[f = std::move(func), &promise] {
                                  f();
                                  promise.set_value();
@@ -115,9 +123,9 @@ class GameThread {
             const auto elapsed =
                 std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start);
             if (elapsed >= SLOW_TASK_THRESHOLD) {
-                spdlog::warn("[GameThread] slow task: {}ms from {}:{} ({})", elapsed.count(),
-                             std::filesystem::path(task.loc.file_name()).filename().string(), task.loc.line(),
-                             task.loc.function_name());
+                Log().warn("[GameThread] slow task: {}ms from {}:{} ({})", elapsed.count(),
+                           std::filesystem::path(task.loc.file_name()).filename().string(), task.loc.line(),
+                           task.loc.function_name());
             }
             tasks.pop();
         }

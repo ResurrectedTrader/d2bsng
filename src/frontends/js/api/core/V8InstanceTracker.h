@@ -15,6 +15,8 @@
 
 #include <spdlog/spdlog.h>
 
+#include "utils/utils.h"
+
 namespace d2bs::api {
 
 // Transparent comparator map type - allows heterogeneous find/contains with string_view.
@@ -86,6 +88,11 @@ class V8InstanceTracker {
         return registration.Get();
     }
 
+    static spdlog::logger& Log() {
+        static const auto LOGGER = utils::GetLogger("api.tracker");
+        return *LOGGER;
+    }
+
    public:
     static V8InstanceTracker& Instance() {
         static V8InstanceTracker tracker;
@@ -105,7 +112,7 @@ class V8InstanceTracker {
         if (registry.classNames.size() >= MAX_CLASSES) {
             // Uncounted rather than out of bounds, but say so: the failure is a leak check that
             // reports clean for a class that is leaking, which is silent in the wrong direction.
-            spdlog::error("V8InstanceTracker: more than {} classes, '{}' will not be counted", MAX_CLASSES, className);
+            Log().error("V8InstanceTracker: more than {} classes, '{}' will not be counted", MAX_CLASSES, className);
             return -1;
         }
         registry.classNames.emplace_back(className);

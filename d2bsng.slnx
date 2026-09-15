@@ -1,14 +1,21 @@
 <Solution>
   <Configurations>
     <Platform Name="Win32" />
+    <Platform Name="x64" />
   </Configurations>
   <Project Path="src/utils/utils.vcxproj" />
   <Project Path="src/contract/contract.vcxproj" />
   <Project Path="src/core/core.vcxproj" />
   <Project Path="src/frontends/js/js.vcxproj" />
-  <Project Path="src/backends/lod114d/lod114d.vcxproj" />
-  <Project Path="src/glue/js-lod114d/d2bs.vcxproj" />
-  <Project Path="tests/frontends/js/js_tests.vcxproj" />
+  <Project Path="src/backends/lod114d/lod114d.vcxproj">
+    <Build Solution="*|x64" Project="false" />
+  </Project>
+  <Project Path="src/glue/js-lod114d/d2bs.vcxproj">
+    <Build Solution="*|x64" Project="false" />
+  </Project>
+  <Project Path="tests/frontends/js/js_tests.vcxproj">
+    <Build Solution="*|x64" Project="false" />
+  </Project>
   <Folder Name="/Solution Items/">
     <File Path="CLAUDE.md" />
   </Folder>

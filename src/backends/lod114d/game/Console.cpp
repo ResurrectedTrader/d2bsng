@@ -1,12 +1,15 @@
 #include "game/Console.h"
 
+#include <memory>
+#include <vector>
+
 #include "console/Console.h"
 #include "hooks/HookManager.h"
 
-// Port-side game::console sink. OnMessage forwards to the frontend console via the
+// Backend-side game::console sink. OnMessage forwards to the frontend console via the
 // registered onConsoleMessage callback; Show/Hide/Toggle forward to the host
-// window. game:: is the port-chosen sink - the frontend routes its ConsoleSink
-// through here so a port can intercept or redirect output.
+// window. game:: is the backend-chosen sink - the frontend routes its
+// ConsoleSink through here so a backend can intercept or redirect output.
 
 namespace d2bs::game::console {
 
@@ -31,6 +34,10 @@ void Toggle() {
 
 bool IsVisible() {
     return d2bs::console::IsVisible();
+}
+
+std::vector<std::unique_ptr<BackendPanel>> GetBackendPanels() {
+    return {};
 }
 
 }  // namespace d2bs::game::console

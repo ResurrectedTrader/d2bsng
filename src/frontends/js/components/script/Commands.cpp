@@ -21,7 +21,7 @@ namespace {
 
 // Cached logger - GetLogger is a registry lookup, not free.
 const std::shared_ptr<spdlog::logger>& Logger() {
-    static auto logger = utils::GetLogger("command");
+    static auto logger = utils::GetLogger("script.command");
     return logger;
 }
 

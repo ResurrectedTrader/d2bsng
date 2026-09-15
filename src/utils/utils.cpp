@@ -2,10 +2,12 @@
 
 #include <Psapi.h>
 
+#include <spdlog/sinks/dist_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <algorithm>
 #include <array>
 #include <cwctype>
+#include <map>
 #include <mutex>
 #include <ranges>
 #include <vector>
@@ -136,19 +138,76 @@ std::vector<std::string> Split(std::string_view s, std::string_view separators, 
     return out;
 }
 
-std::shared_ptr<spdlog::logger> GetLogger(const std::string &name) {
-    static std::mutex mutex;
-    std::scoped_lock lock(mutex);
+namespace {
 
-    auto instance = spdlog::get(name);
-    if (instance == nullptr) {
-        std::vector<spdlog::sink_ptr> sinks = spdlog::default_logger()->sinks();
-        auto logger = std::make_shared<spdlog::logger>(name, sinks.begin(), sinks.end());
-        logger->enable_backtrace(100);
-        spdlog::register_logger(logger);
-        return logger;
+// One fan-out sink shared by every logger. Sinks are added to it as the host
+// works out where output belongs, so a logger created at DLL attach and one
+// created after the file is open write to the same places. Without this, a
+// logger would capture whatever the default logger's sinks happened to be at
+// the moment it was created.
+std::shared_ptr<spdlog::sinks::dist_sink_mt> &SharedSink() {
+    static auto sink = std::make_shared<spdlog::sinks::dist_sink_mt>();
+    return sink;
+}
+
+std::mutex &LoggerMutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+
+// Levels asked for by name, kept so a logger created after the request lands on
+// the level it was already set to.
+std::map<std::string, spdlog::level::level_enum> &LevelOverrides() {
+    static std::map<std::string, spdlog::level::level_enum> levels;
+    return levels;
+}
+
+}  // namespace
+
+std::shared_ptr<spdlog::logger> GetLogger(const std::string &name) {
+    std::scoped_lock lock(LoggerMutex());
+
+    if (auto instance = spdlog::get(name); instance != nullptr) {
+        return instance;
     }
-    return instance;
+    auto logger = std::make_shared<spdlog::logger>(name, SharedSink());
+    logger->enable_backtrace(100);
+    logger->flush_on(spdlog::level::debug);
+    if (const auto rule = LevelOverrides().find(name); rule != LevelOverrides().end()) {
+        logger->set_level(rule->second);
+    }
+    spdlog::register_logger(logger);
+    return logger;
+}
+
+void AddLogSink(const spdlog::sink_ptr &sink) {
+    std::scoped_lock lock(LoggerMutex());
+    SharedSink()->add_sink(sink);
+}
+
+void SetLogLevel(const std::string &name, const spdlog::level::level_enum level) {
+    std::scoped_lock lock(LoggerMutex());
+    LevelOverrides()[name] = level;
+    if (const auto logger = spdlog::get(name); logger != nullptr) {
+        logger->set_level(level);
+    }
+}
+
+std::vector<LoggerInfo> Loggers() {
+    std::scoped_lock lock(LoggerMutex());
+
+    std::vector<LoggerInfo> loggers;
+    // spdlog holds the registry mutex across this callback, so it only collects.
+    // The stock default logger sits in the registry under an empty name and does
+    // not share our sink; it is not ours to report.
+    spdlog::apply_all([&loggers](const std::shared_ptr<spdlog::logger> &logger) {
+        if (logger->name().empty()) {
+            return;
+        }
+        loggers.push_back(LoggerInfo{.name = logger->name(), .level = logger->level()});
+    });
+    std::ranges::sort(loggers, {}, &LoggerInfo::name);
+    return loggers;
 }
 
 std::optional<ModuleVersion> GetModuleVersion(HMODULE module) {
