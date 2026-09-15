@@ -39,6 +39,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File build.ps1 Release
 #   test           - Build and run the test suite (js_tests.exe)
 #
 # Switches:
+#   -Platform Win32|x64 - Win32 (default) builds the 1.14d backend into Release\d2bs.dll;
+#                  x64 builds the platform-independent libraries into x64\Release\
 #   -NoProfiling   - Compile the profiling counters (utils/Profiling.h) and the console's
 #                    Profiling panel out (MSBuild -p:D2bsProfiling=false; see Directory.Build.props)
 ```
@@ -196,7 +198,7 @@ A `Co-Authored-By` trailer is fine; the session URL is not.
 
 ### Project Structure
 
-The codebase is split into six build targets (five static libs + one DLL) under `src/`, plus a test project. A frontend (JS) and a backend (1.14d) both compile against a shared `contract`, and a thin glue project links one of each into the final DLL:
+The codebase is split into six build targets (five static libs + one DLL) under `src/`, plus a test project. A frontend (JS) and a backend (1.14d) both compile against a shared `contract`, and a thin glue project links one of each into the final DLL. `utils`, `contract`, `core` and `js` hold no game-version-specific code and build for both Win32 and x64; the backend, its glue and the tests are Win32 only (the `.slnx` maps them).
 
 ```
 d2bsng/
@@ -213,9 +215,11 @@ d2bsng/
 │   │   ├── game/               Game interface headers + framework-owned utilities (only GameLock.cpp is compiled)
 │   │   └── config/             Shared DTOs: ProfileData, ScriptPaths
 │   ├── core/               core.lib - shared infrastructure (depends on contract)
-│   │   ├── config/             AppConfig, IniConfigStore, CompatibilityFlags, Version
+│   │   ├── config/             AppConfig, IniConfigStore, CompatibilityFlags, Version, OptionParser (launch-option parsing, and removing those switches from the command line afterwards)
+│   │   ├── detour/             Typed Detours slots + batched attach/detach transactions (every Detours hook in the tree)
 │   │   ├── speedhack/          Global game-time scaling
-│   │   └── proxy/              SOCKS5 bypass scope for script sockets
+│   │   ├── input/              WH_GETMESSAGE input hook + WM_COPYDATA subclass + injected-input tagging
+│   │   └── proxy/              SOCKS5 connect hook + bypass scope for script sockets
 │   ├── frontends/          One directory per scripting frontend
 │   │   └── js/             js.lib - JavaScript scripting frontend (V8); depends on contract + core
 │   │       ├── api/            V8 bindings: classes/ (game, io, scripting, drawing), globals/, core/
@@ -238,7 +242,7 @@ d2bsng/
 │   │   └── lod114d/        lod114d.lib - 1.14d game backend (implements contract); depends on contract + core
 │   │       ├── game/           1.14d implementation (.cpp + internal .h)
 │   │       ├── imports/        Typed game func/var registry + 1.14d offsets + extras/ structs
-│   │       ├── hooks/          Inline / IAT hooks (incl. WS2_32 connect SOCKS5 hook)
+│   │       ├── hooks/          Inline / IAT hooks, realm injection, intercepts
 │   │       ├── asm_thunks/     Hand-written ABI thunks
 │   │       └── console/        Port console host (window + GL + ImGui glue)
 │   └── glue/               One directory per frontend+backend combo (the shippable target)
@@ -256,9 +260,9 @@ d2bsng/
 |--------|------|--------|----------|
 | **utils** | Static lib | `Release/utils.lib` | `src/utils/` - crypto, threading, stackwalker |
 | **contract** | Static lib | `Release/contract.lib` | `src/contract/` - game interface headers (`game/*.h`) + framework-owned utilities + shared DTOs (`config/ProfileData.h`, `config/ScriptPaths.h`). The boundary both frontends and backends compile against. Depends on utils. |
-| **core** | Static lib | `Release/core.lib` | `src/core/` - shared infra: config (AppConfig/Ini/CompatibilityFlags/Version), speedhack, proxy. Depends on contract + utils. |
+| **core** | Static lib | `Release/core.lib` | `src/core/` - shared infra: config (AppConfig/Ini/CompatibilityFlags/Version/OptionParser), detour, speedhack, input, proxy. Depends on contract + utils. |
 | **js** | Static lib | `Release/js.lib` | `src/frontends/js/` - JavaScript scripting frontend (api/, components/). Depends on contract + core + utils + V8. Has unresolved game:: symbols. |
-| **lod114d** | Static lib | `Release/lod114d.lib` | `src/backends/lod114d/` - 1.14d game backend implementing the contract. Depends on contract + core + utils. No frontend dependency. |
+| **lod114d** | Static lib | `Release/lod114d.lib` | `src/backends/lod114d/` - 1.14d game backend implementing the contract (Win32 only). Depends on contract + core + utils. No frontend dependency. |
 | **d2bs** | DLL | `Release/d2bs.dll` | `src/glue/js-lod114d/` - glue: DllMain + version.rc. Links js + lod114d + contract + core + utils, resolves all symbols. |
 | **js_tests** | Console EXE | `Release/js_tests.exe` | `tests/frontends/js/` - doctest tests with fake game layer |
 
@@ -385,7 +389,7 @@ These are the intended dependencies. A few deliberate exceptions are noted inlin
 
 - **utils/** depends on: standard library, Windows headers, third-party libs (spdlog, stackwalker).
 - **contract/** (the boundary) depends on: utils + standard library only. NEVER on core, the frontend, V8, or any backend. Holds the game interface (`game/*.h`), the framework-owned utilities (Finders/GameLock/GameThread/HandleCache/Types), and the shared DTOs (`config/ProfileData.h`, `config/ScriptPaths.h`). `game/Menu.h` includes `config/ProfileData.h` (same project) so `Login()` takes the profile struct by const-ref.
-- **core/** (shared infra) depends on: contract + utils. Holds config (AppConfig/Ini/CompatibilityFlags/Version), speedhack, proxy. NEVER on the frontend or a backend.
+- **core/** (shared infra) depends on: contract + utils. Holds config (AppConfig/Ini/CompatibilityFlags/Version/OptionParser), detour (the Detours slot/batch API every hook in the tree goes through), speedhack, proxy (SOCKS5 hook), input (the game-window input hook). NEVER on the frontend or a backend.
 - **frontends/js/** (JavaScript frontend) depends on: contract + core + utils + V8. Reaches the game only through `game::` contract symbols (resolved at the glue link) and pushes its hooks down through the `GameCallbacks` table; it NEVER references a concrete backend.
   - **frontends/js/api/** depends on: contract (game/ interface + DTOs), core, components/, utils/, V8.
   - **frontends/js/components/** depends on: contract, core, utils/, V8. Exception: `components/script/` includes `api/` - the script engine is the JS-API composition root (it owns V8 isolate setup and registers the `api/` ClassRegistry + globals), and a few components reuse `api::v8_convert`. `components/update/` and `components/analytics/` reuse the V8-free `api::classes::PerformHttpRequest` (`api/classes/io/HttpEngine.h`).
@@ -394,7 +398,7 @@ These are the intended dependencies. A few deliberate exceptions are noted inlin
 
 ### Key Design Decisions
 
-- **32-bit only**: All projects currently target Win32 (1.14d game compatibility).
+- **Platform**: the 1.14d backend and `d2bs.dll` are Win32, because the game is 32-bit. `utils`, `contract`, `core` and `js` carry no game-version-specific code and build for both Win32 and x64, so a 64-bit target can reuse them; the test project is Win32.
 - **ClangCL compiler**: Uses LLVM/Clang with MSVC compatibility
 - **Static linking**: VCPKG dependencies and CRT statically linked (MT/MTd runtime)
 - **C++23**: Uses latest C++ standard

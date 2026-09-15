@@ -1,7 +1,7 @@
 #pragma once
 
 // Per-thread opt-out for the SOCKS5 `connect` detour (installed by the port - see
-// src/backends/lod114d/hooks/Socks5Proxy.cpp). With `-proxy`, that detour routes every
+// src/core/proxy/Socks5Proxy.cpp). With `-proxy`, that detour routes every
 // outbound TCP connection through the proxy by default; code that must reach the
 // network directly wraps its connect() in a BypassScope so the detour passes it
 // through.

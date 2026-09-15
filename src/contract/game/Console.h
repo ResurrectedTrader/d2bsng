@@ -1,11 +1,12 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
 
-// Port-visible interface for console output, visibility, and color-code helpers. Inline helpers are defined here
+// Backend-visible interface for console output, visibility, and color-code helpers. Inline helpers are defined here
 // because game/ has no .cpp files.
 
 namespace d2bs::game::console {
@@ -43,7 +44,7 @@ struct Segment {
 // Where the message came from. Set explicitly at the call site:
 //   - Print:         user-facing output from JS print() / debugLog() running
 //                    in any non-console-mode script. Routed to the log.
-//                    Distinguish the two at the port by `level`:
+//                    Distinguish the two in the backend by `level`:
 //                       level == Info  -> came from print()
 //                       level == Debug -> came from debugLog()
 //   - ConsolePrint:  same as Print, but emitted from a script running in
@@ -72,8 +73,8 @@ enum class MessageLevel : uint8_t {
     Critical,
 };
 
-// A log entry delivered to the port. Owned fields - safe to retain past the
-// call if the port needs to queue for render-thread drain.
+// A log entry delivered to the backend. Owned fields - safe to retain past
+// the call if the backend needs to queue for render-thread drain.
 //
 // `text` holds the raw string as produced by the caller, with color escapes
 // embedded if any. 1.14d ports pass it straight to D2WIN_DrawText (which
@@ -87,7 +88,7 @@ struct Message {
 };
 
 // ---------------------------------------------------------------------------
-// Implemented by the port, called by the framework
+// Implemented by the backend, called by the framework
 // ---------------------------------------------------------------------------
 
 // Called directly by print() / debugLog() / EvaluateEvent::Execute, and
@@ -97,7 +98,7 @@ struct Message {
 void OnMessage(const Message& msg);
 
 // Console visibility (for showConsole() / hideConsole() JS globals and
-// the framework's VK_HOME hotkey). A port with no distinct overlay concept
+// the framework's VK_HOME hotkey). A backend with no distinct overlay concept
 // may no-op Show/Hide/Toggle and return false from IsVisible.
 void Show();
 void Hide();
@@ -106,11 +107,38 @@ void Toggle();
 // work on this (e.g. it stops stack capture while the console is hidden).
 bool IsVisible();
 
+// A console tab supplied by the backend (a packet inspector, a UI-tree dump,
+// ...). Instances are owned by the framework's console module, which asks for
+// them once and keeps them for the rest of the process; they are drawn after
+// the console's own tabs, inside an ImGui tab item titled Title(). Only the
+// console's render thread calls Draw(), and only while the tab is active - a
+// panel fed from another thread (a recorder filling a capture buffer) owns the
+// synchronisation for that feed.
+class BackendPanel {
+   public:
+    virtual ~BackendPanel() = default;
+
+    BackendPanel(const BackendPanel&) = delete;
+    BackendPanel& operator=(const BackendPanel&) = delete;
+    BackendPanel(BackendPanel&&) = delete;
+    BackendPanel& operator=(BackendPanel&&) = delete;
+
+    [[nodiscard]] virtual std::string Title() const = 0;
+    virtual void Draw() = 0;
+
+   protected:
+    BackendPanel() = default;
+};
+
+// The backend's extra console tabs. Queried once when the console first draws;
+// a backend with none returns an empty vector.
+std::vector<std::unique_ptr<BackendPanel>> GetBackendPanels();
+
 // ---------------------------------------------------------------------------
-// Implemented by the framework (inline), callable by the port
+// Implemented by the framework (inline), callable by the backend
 // ---------------------------------------------------------------------------
 //
-// These are opt-in utilities - a port that passes msg.text straight to a
+// These are opt-in utilities - a backend that passes msg.text straight to a
 // color-aware renderer (e.g. 1.14d D2WIN_DrawText) never needs them. Ports
 // that want segment-level rendering (ImGui) or plain text (terminal / file)
 // use them on demand.
@@ -132,7 +160,7 @@ bool IsVisible();
 // are incomplete at EOF (e.g. trailing `\xFF c` with no X) pass through as
 // literal bytes. Unknown codes (outside the ColorCode enumeration) are
 // cast into Segment::colorCode anyway - ColorCode's fixed `char` underlying
-// type means any byte value is representable without UB. Port may choose
+// type means any byte value is representable without UB. A backend may choose
 // to treat unknown codes as White.
 // Also recognises a 4-byte UTF-8 form (0xC3 0xBF 'c' X): V8's Utf8Value
 // re-encodes U+00FF as 0xC3 0xBF, so JS-produced strings with the native

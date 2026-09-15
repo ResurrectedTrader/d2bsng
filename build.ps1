@@ -17,6 +17,7 @@
 #   -Version          version baked into the DLL (CI passes the release version; build only)
 #   -AnalyticsKey     Aptabase app key baked into the DLL (see docs/analytics.md; build only)
 #   -NoProfiling      compile the profiling counters and Profiling panel out (build and test)
+#   -Platform         Win32 (default, builds d2bs.dll) or x64 (the shared libraries only)
 #
 # The actual build is MSBuild over d2bsng.slnx; this script just locates the
 # toolchain and dispatches. You can also build directly with MSBuild or in
@@ -34,7 +35,13 @@ param(
     [string]$AnalyticsKey = $env:D2BS_ANALYTICS_KEY,
     # Compile the profiling counters and the console's Profiling panel out
     # (MSBuild -p:D2bsProfiling=false; see Directory.Build.props).
-    [switch]$NoProfiling
+    [switch]$NoProfiling,
+    # Solution platform. Win32 builds the 1.14d backend and d2bs.dll into
+    # Release\; x64 builds the platform-independent libraries into x64\Release\.
+    # The .slnx maps each project to the platforms it supports, so the ones that
+    # are Win32-only are skipped rather than failing.
+    [ValidateSet('Win32', 'x64')]
+    [string]$Platform = 'Win32'
 )
 
 # Native tools (msbuild, clang-format, clang-tidy) write to stderr in normal
@@ -213,7 +220,7 @@ switch ($mode) {
         $msbuildArgs = @(
             '-m'
             "-p:Configuration=$config"
-            '-p:Platform=Win32'
+            "-p:Platform=$Platform"
             "-p:D2bsVersion=$Version"
             "-p:D2bsVersionMajor=$($verParts[0])"
             "-p:D2bsVersionMinor=$($verParts[1])"

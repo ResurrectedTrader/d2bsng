@@ -116,6 +116,7 @@
     <!-- Real profile code under test -->
     <ClCompile Include="..\..\..\src\core\config\AppConfig.cpp" />
     <ClCompile Include="..\..\..\src\core\config\IniConfigStore.cpp" />
+    <ClCompile Include="..\..\..\src\core\config\OptionParser.cpp" />
     <ClCompile Include="..\..\..\src\contract\config\ProfileData.cpp" />
     <ClCompile Include="..\..\..\src\contract\game\GameLock.cpp" />
     <ClCompile Include="..\..\..\src\frontends\js\components\profile\ProfileService.cpp" />
@@ -124,6 +125,8 @@
     <ClCompile Include="..\..\..\src\utils\utils.cpp" />
     <ClCompile Include="..\..\..\src\utils\Profiling.cpp" />
     <!-- Test cases -->
+    <ClCompile Include="config\OptionParserTest.cpp" />
+    <ClCompile Include="utils\LoggingTest.cpp" />
     <ClCompile Include="pathfinding\tests\CollisionLookupTest.cpp" />
     <ClCompile Include="pathfinding\tests\WalkAStarTest.cpp" />
     <ClCompile Include="pathfinding\tests\TeleportAStarTest.cpp" />

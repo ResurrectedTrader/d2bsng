@@ -261,5 +261,4 @@ void LoadMpq(const std::string& /*path*/) {}
 std::optional<std::string> GetLaunchProfile() {
     return std::nullopt;
 }
-
 }  // namespace d2bs::game

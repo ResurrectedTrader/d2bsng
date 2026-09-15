@@ -97,7 +97,7 @@ class ScriptEngine {
 
     std::atomic<bool> initialized_ = false;
 
-    std::shared_ptr<spdlog::logger> logger_ = utils::GetLogger("ScriptEngine");
+    std::shared_ptr<spdlog::logger> logger_ = utils::GetLogger("script");
 };
 
 }  // namespace d2bs

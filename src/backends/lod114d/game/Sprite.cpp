@@ -53,7 +53,7 @@ Cache& GlobalCache() {
 }
 
 std::shared_ptr<spdlog::logger>& Logger() {
-    static auto logger = utils::GetLogger("sprite");
+    static auto logger = utils::GetLogger("game.sprite");
     return logger;
 }
 

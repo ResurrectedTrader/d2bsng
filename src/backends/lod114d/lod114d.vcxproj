@@ -112,7 +112,6 @@
     <ClCompile Include="hooks\InlinePatch.cpp" />
     <ClCompile Include="hooks\Intercepts.cpp" />
     <ClCompile Include="hooks\Realms.cpp" />
-    <ClCompile Include="hooks\Socks5Proxy.cpp" />
     <!-- Console host (window + GL + ImGui glue; UI lives in the js frontend) -->
     <ClCompile Include="console\Console.cpp">
       <ObjectFileName>$(IntDir)console_Console.obj</ObjectFileName>
@@ -158,7 +157,6 @@
     <ClInclude Include="hooks\InlinePatch.h" />
     <ClInclude Include="hooks\Intercepts.h" />
     <ClInclude Include="hooks\Realms.h" />
-    <ClInclude Include="hooks\Socks5Proxy.h" />
     <ClInclude Include="console\Console.h" />
   </ItemGroup>
   <ItemGroup>
