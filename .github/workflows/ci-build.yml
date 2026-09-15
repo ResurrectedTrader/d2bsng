@@ -67,7 +67,7 @@ jobs:
       VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/.vcpkg-cache
       # Pinned vcpkg commit (tool + builtin registry); matches builtin-baseline
       # in vcpkg.json. Bumping it deliberately invalidates the binary cache.
-      VCPKG_REF: 74e6536215718009aae747d86d84b78376bf9e09
+      VCPKG_REF: 9e44ec0e9f247d77c230ced0ee66c76296837807
     steps:
       - uses: actions/checkout@v4
         with:
@@ -139,7 +139,7 @@ jobs:
       VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/.vcpkg-cache
       # Pinned vcpkg commit (tool + builtin registry); matches builtin-baseline
       # in vcpkg.json. Bumping it deliberately invalidates the binary cache.
-      VCPKG_REF: 74e6536215718009aae747d86d84b78376bf9e09
+      VCPKG_REF: 9e44ec0e9f247d77c230ced0ee66c76296837807
     steps:
       - uses: actions/checkout@v4
         with:

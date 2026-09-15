@@ -7,12 +7,12 @@
 #include <string>
 
 namespace ix {
+class HttpServer;
 class WebSocket;
 }  // namespace ix
 
 namespace d2bs::js::inspector {
 
-class DualModeServer;
 class InspectorTarget;
 
 // Process-wide HTTP + WebSocket server fronting the V8 inspector. A single
@@ -54,7 +54,7 @@ class InspectorServer {
     [[nodiscard]] static std::string BuildVersionJson();
 
     mutable std::mutex mutex_;
-    std::unique_ptr<DualModeServer> server_;
+    std::unique_ptr<ix::HttpServer> server_;
     uint16_t port_ = 0;
 
     std::map<std::string, std::shared_ptr<InspectorTarget>> targets_;  // id -> target

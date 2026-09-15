@@ -2,6 +2,7 @@
 
 #include <ixwebsocket/IXConnectionState.h>
 #include <ixwebsocket/IXHttp.h>
+#include <ixwebsocket/IXHttpServer.h>
 #include <ixwebsocket/IXNetSystem.h>
 #include <ixwebsocket/IXSocket.h>
 #include <ixwebsocket/IXWebSocket.h>
@@ -51,46 +52,6 @@ bool IsPortFree(uint16_t port) {
 
 }  // namespace
 
-// One localhost port serving both the /json discovery endpoints (plain HTTP)
-// and the /<targetId> WebSocket upgrades. ix::HttpServer does exactly this, but
-// its dispatch compares the Upgrade header value case-SENSITIVELY ("websocket"),
-// and the browser-side proxy chrome://inspect attaches through sends
-// "Upgrade: WebSocket" - so every click-inspect upgrade fell through to the HTTP
-// handler and got a 404. The header value is case-insensitive per RFC 6455/7230
-// (ixwebsocket's own WS handshake checks it case-insensitively; only the
-// dispatch is strict), and ix::HttpServer is final, so this reimplements its
-// small dispatch on ix::WebSocketServer with a case-insensitive check.
-class DualModeServer : public ix::WebSocketServer {
-   public:
-    using HttpHandler = std::function<ix::HttpResponsePtr(const ix::HttpRequestPtr&)>;
-
-    DualModeServer(int port, const std::string& host) : WebSocketServer(port, host) {}
-
-    void SetHttpHandler(HttpHandler handler) { httpHandler_ = std::move(handler); }
-
-   private:
-    // Matches ix::HttpServer::kDefaultTimeoutSecs.
-    static constexpr int PARSE_TIMEOUT_SECS = 30;
-
-    void handleConnection(std::unique_ptr<ix::Socket> socket,
-                          std::shared_ptr<ix::ConnectionState> connectionState) override {
-        auto ret = ix::Http::parseRequest(socket, PARSE_TIMEOUT_SECS);
-        if (std::get<0>(ret)) {
-            const auto& request = std::get<2>(ret);
-            // Header NAMES are case-insensitive in the map; the VALUE compare
-            // must be case-insensitive too.
-            if (utils::ToLower(request->headers["Upgrade"]).find("websocket") != std::string::npos) {
-                handleUpgrade(std::move(socket), connectionState, request);
-            } else if (httpHandler_) {
-                ix::Http::sendResponse(httpHandler_(request), socket);
-            }
-        }
-        connectionState->setTerminated();
-    }
-
-    HttpHandler httpHandler_;
-};
-
 InspectorServer& InspectorServer::Instance() {
     static InspectorServer instance;
     return instance;
@@ -117,12 +78,13 @@ bool InspectorServer::Start(uint16_t port) {
         return false;
     }
 
-    auto server = std::make_unique<DualModeServer>(static_cast<int>(port), "127.0.0.1");
+    auto server = std::make_unique<ix::HttpServer>(static_cast<int>(port), "127.0.0.1");
 
     // Plain HTTP: serve the Chrome DevTools discovery endpoints. WebSocket
-    // upgrades never reach this handler - DualModeServer routes them to the
+    // upgrades never reach this handler - the server routes them to the
     // client-message callback below.
-    server->SetHttpHandler([this](const ix::HttpRequestPtr& request) -> ix::HttpResponsePtr {
+    server->setOnConnectionCallback([this](const ix::HttpRequestPtr& request,
+                                           const std::shared_ptr<ix::ConnectionState>&) -> ix::HttpResponsePtr {
         ix::WebSocketHttpHeaders headers;
         headers["Content-Type"] = "application/json; charset=UTF-8";
         headers["Cache-Control"] = "no-cache";
@@ -180,7 +142,7 @@ bool InspectorServer::Start(uint16_t port) {
 }
 
 void InspectorServer::Stop() {
-    std::unique_ptr<DualModeServer> server;
+    std::unique_ptr<ix::HttpServer> server;
     std::vector<std::shared_ptr<InspectorTarget>> targets;
     {
         std::scoped_lock lock(mutex_);
