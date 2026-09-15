@@ -202,7 +202,7 @@ switch ($mode) {
         exit 0
     }
     'test' {
-        $testArgs = @('-p:Configuration=Release', '-p:Platform=Win32', '-t:js_tests')
+        $testArgs = @('-m', '-p:Configuration=Release', '-p:Platform=Win32', '-t:js_tests')
         if ($NoProfiling) { $testArgs += '-p:D2bsProfiling=false' }
         & $msbuild @testArgs
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -211,6 +211,7 @@ switch ($mode) {
     }
     default {
         $msbuildArgs = @(
+            '-m'
             "-p:Configuration=$config"
             '-p:Platform=Win32'
             "-p:D2bsVersion=$Version"

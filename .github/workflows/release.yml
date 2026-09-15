@@ -1,8 +1,10 @@
 name: Release
 
 # Manual only (Actions -> Release -> Run workflow). Computes the next version
-# ONCE, bakes it into the DLL, builds + tests, then - if both pass - tags that
-# version and publishes d2bs.dll + .pdb + d2bsng.d.ts, then deploys the docs.
+# ONCE, bakes it into the DLL, builds + tests (the `build` job) while the API
+# surface is extracted in parallel (the `api` job), then - if both pass - tags
+# that version and publishes d2bs.dll + .pdb + d2bsng.d.ts + api.json, then
+# deploys the docs.
 #
 # The version is decided up front (the `version` job) and reused for both the
 # baked-in D2BS_VERSION and the git tag, so they can never drift. The release
@@ -133,16 +135,14 @@ jobs:
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           key: ${{ steps.vcpkg.outputs.cache-primary-key }}
-      # Extract the API surface (needs libclang + the just-restored vcpkg/V8
-      # includes) and render d2bsng.d.ts. api.json + d.ts ship as release
-      # assets; the docs site is assembled later (deploy-docs) from all releases.
-      - name: Generate API JSON + d.ts
+      # The solution build above already produced Release/js_tests.exe (the
+      # doctest suite; it links no V8), so run it here instead of rebuilding it
+      # from scratch in a second job.
+      - name: Run tests
         shell: pwsh
         run: |
-          pip install --quiet libclang
-          python scripts/extract_api.py -o api.json
-          python scripts/gen_dts.py api.json -o Release/d2bsng.d.ts --version "${{ needs.version.outputs.version }}"
-          Copy-Item api.json Release/api.json
+          .\Release\js_tests.exe
+          if ($LASTEXITCODE -ne 0) { throw "tests failed" }
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -150,16 +150,17 @@ jobs:
           path: |
             Release/d2bs.dll
             Release/d2bs.pdb
-            Release/d2bsng.d.ts
-            Release/api.json
           retention-days: 1
           if-no-files-found: error
 
-  tests:
-    name: Tests
-    # Serialized after build so the two jobs share one vcpkg build instead of
-    # racing into two concurrent cold-cache misses (build the deps twice).
-    needs: build
+  api:
+    name: API docs
+    # Extracts the API surface with libclang and renders d2bsng.d.ts. It reads
+    # only headers (the bindings' sources, the vendored V8 includes, the vcpkg
+    # packages, MSVC + SDK), never the built DLL, so it runs alongside `build`
+    # rather than after it. api.json + d.ts ship as release assets; the docs
+    # site is assembled later (deploy-docs) from all releases.
+    needs: version
     runs-on: windows-latest
     env:
       VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/.vcpkg-cache
@@ -169,9 +170,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: true
+          submodules: true   # LaunchOptions.cpp (a backend TU) pulls D2MOO headers
+      # Restore only - `build` saves. On a cold cache (VCPKG_REF bump) this job
+      # builds the deps from source too; that is a once-per-bump cost, accepted
+      # so the extraction stays off the release's critical path.
       - name: Restore vcpkg binary cache
-        id: vcpkg
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
@@ -179,32 +182,38 @@ jobs:
           restore-keys: |
             vcpkg-${{ runner.os }}-${{ env.VCPKG_REF }}-${{ hashFiles('vcpkg.json', 'tests/frontends/js/vcpkg.json') }}-
             vcpkg-${{ runner.os }}-${{ env.VCPKG_REF }}-
-      - name: Set up pinned vcpkg (binary cache + MSBuild manifest restore)
+      - name: Set up pinned vcpkg
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
-          # Pin vcpkg (tool + builtin registry) to a fixed commit so the runner
-          # image's bundled vcpkg can't drift our ABI hashes / dependency versions
-          # out from under the binary cache. VCPKG_REF matches builtin-baseline in
-          # vcpkg.json; integrate install from this copy points MSBuild at it.
           $vcpkgDir = "$env:RUNNER_TEMP\vcpkg"
           git clone --quiet https://github.com/microsoft/vcpkg.git $vcpkgDir
           git -C $vcpkgDir checkout --quiet $env:VCPKG_REF
           & "$vcpkgDir\bootstrap-vcpkg.bat" -disableMetrics
           if ($LASTEXITCODE -ne 0) { throw "vcpkg bootstrap failed" }
-          & "$vcpkgDir\vcpkg.exe" integrate install
-          if ($LASTEXITCODE -ne 0) { throw "vcpkg integrate failed" }
           "VCPKG_ROOT=$vcpkgDir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-      # The test exe links no V8, so no V8 fetch here.
-      - name: Build + run tests
+      # Same install root MSBuild's vcpkg integration uses, so the headers land
+      # where extract_api.py looks (vcpkg_installed/x86-windows-static/...).
+      - name: Install vcpkg packages (headers)
         shell: pwsh
-        run: .\build.ps1 test
-      - name: Save vcpkg binary cache
-        if: always()
-        uses: actions/cache/save@v4
+        run: |
+          & "$env:VCPKG_ROOT\vcpkg.exe" install --triplet x86-windows-static --x-manifest-root="$env:GITHUB_WORKSPACE" --x-install-root="$env:GITHUB_WORKSPACE\vcpkg_installed\x86-windows-static"
+          if ($LASTEXITCODE -ne 0) { throw "vcpkg install failed" }
+      - name: Generate API JSON + d.ts
+        shell: pwsh
+        run: |
+          pip install --quiet libclang
+          python scripts/extract_api.py -o api.json
+          python scripts/gen_dts.py api.json -o d2bsng.d.ts --version "${{ needs.version.outputs.version }}"
+      - name: Upload API artifacts
+        uses: actions/upload-artifact@v4
         with:
-          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
-          key: ${{ steps.vcpkg.outputs.cache-primary-key }}
+          name: d2bs-api
+          path: |
+            api.json
+            d2bsng.d.ts
+          retention-days: 1
+          if-no-files-found: error
 
   deploy-docs:
     name: Deploy docs
@@ -240,16 +249,19 @@ jobs:
 
   release:
     name: Release
-    needs: [version, build, tests]
+    needs: [version, build, api]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # d2bs-binaries (dll + pdb) from `build`, d2bs-api (api.json + d.ts)
+      # from `api`, flattened into one dist/.
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: d2bs-binaries
+          pattern: d2bs-*
+          merge-multiple: true
           path: dist
       - name: Tag + GitHub release
         env:

@@ -56,4 +56,32 @@
       <PreprocessorDefinitions>D2BS_PROFILING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
+
+  <!-- Compile every project's sources in parallel (the ClangCL toolset turns
+       MultiProcessorCompilation into its MultiToolTask scheduler rather than a
+       literal /MP). build.ps1 also passes MSBuild -m so independent projects
+       (lod114d, js, js_tests) build concurrently; EnforceProcessCountAcrossBuilds
+       makes those schedulers share one core-count budget instead of each
+       spawning a full set of compilers. -->
+  <PropertyGroup>
+    <EnforceProcessCountAcrossBuilds>true</EnforceProcessCountAcrossBuilds>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+  </ItemDefinitionGroup>
+
+  <!-- Link-time optimisation. The ClangCL toolset ignores WholeProgramOptimization
+       (no /GL equivalent reaches clang-cl), so the projects' Release setting is
+       turned into the clang flag here: objects are emitted as bitcode, llvm-lib
+       archives them as-is, and lld-link runs the whole-program optimisation at
+       link time - which is what lets the one-pointer game:: wrappers inline
+       across the static libs. Item definitions are evaluated after every
+       project's properties, so the condition sees the project's own value. -->
+  <ItemDefinitionGroup Condition="'$(WholeProgramOptimization)' == 'true'">
+    <ClCompile>
+      <AdditionalOptions>-flto %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+  </ItemDefinitionGroup>
 </Project>

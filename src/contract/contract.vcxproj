@@ -78,6 +78,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="config\ProfileData.cpp" />
+    <ClCompile Include="game\GameLock.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="config\ProfileData.h" />

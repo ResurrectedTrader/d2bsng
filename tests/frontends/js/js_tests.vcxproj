@@ -117,6 +117,7 @@
     <ClCompile Include="..\..\..\src\core\config\AppConfig.cpp" />
     <ClCompile Include="..\..\..\src\core\config\IniConfigStore.cpp" />
     <ClCompile Include="..\..\..\src\contract\config\ProfileData.cpp" />
+    <ClCompile Include="..\..\..\src\contract\game\GameLock.cpp" />
     <ClCompile Include="..\..\..\src\frontends\js\components\profile\ProfileService.cpp" />
     <ClCompile Include="..\..\..\src\frontends\js\components\script\Commands.cpp" />
     <!-- utils dependency (IniConfigStore uses ToLower/ToStr/ToWStr; GameLoop owns a profiling::Timeline) -->

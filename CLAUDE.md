@@ -210,7 +210,7 @@ d2bsng/
 ├── src/
 │   ├── utils/              utils.lib - standalone utilities (crypto, threading, stackwalker, profiling counters)
 │   ├── contract/           contract.lib - the boundary both frontends and backends compile against
-│   │   ├── game/               Game interface headers (NO .cpp) + framework-owned utilities
+│   │   ├── game/               Game interface headers + framework-owned utilities (only GameLock.cpp is compiled)
 │   │   └── config/             Shared DTOs: ProfileData, ScriptPaths
 │   ├── core/               core.lib - shared infrastructure (depends on contract)
 │   │   ├── config/             AppConfig, IniConfigStore, CompatibilityFlags, Version
@@ -290,7 +290,7 @@ contract + core              contract + core
 
 The game abstraction is split across two directories:
 
-- **`src/contract/game/`** - Interface headers only (18 `.h` files). Defines the wrapper classes (`Unit`, `Room`, `Level`, etc.) with method declarations using opaque `void*` pointers. Part of `contract.lib`. No game-version-specific code. Both the frontend and the backend compile against it.
+- **`src/contract/game/`** - Interface headers (18 `.h` files) plus `GameLock.cpp`, which only holds the two thread-local lock definitions that cannot be inline under LTO. Defines the wrapper classes (`Unit`, `Room`, `Level`, etc.) with method declarations using opaque `void*` pointers. Part of `contract.lib`. No game-version-specific code. Both the frontend and the backend compile against it.
 
 - **`src/backends/lod114d/game/`** - 1.14d implementation (12 `.cpp` files + internal headers like `RoomData.h` / `DrlgHelpers.h`). Part of `lod114d.lib`. The version-specific game-function/variable bindings, structs, and hooks live alongside it under `src/backends/lod114d/imports/` (typed import registry + per-DLL declarations), `src/backends/lod114d/imports/extras/` (structs not in D2MOO), `src/backends/lod114d/asm_thunks/`, and `src/backends/lod114d/hooks/`.
 
@@ -398,7 +398,8 @@ These are the intended dependencies. A few deliberate exceptions are noted inlin
 - **ClangCL compiler**: Uses LLVM/Clang with MSVC compatibility
 - **Static linking**: VCPKG dependencies and CRT statically linked (MT/MTd runtime)
 - **C++23**: Uses latest C++ standard
-- **LTO enabled**: `WholeProgramOptimization=true` in Release - wrapper methods inline across TUs and static libs
+- **LTO enabled**: the projects set `WholeProgramOptimization=true` in Release, and `Directory.Build.props` turns that into `-flto` for clang-cl (the ClangCL toolset ignores the property on its own), so objects are bitcode and lld-link optimises the whole program - wrapper methods inline across TUs and static libs.
+- **Parallel builds**: `Directory.Build.props` sets `MultiProcessorCompilation` for every project and `build.ps1` passes MSBuild `-m`, so sources compile across all cores and independent projects (lod114d, js, js_tests) build concurrently; `EnforceProcessCountAcrossBuilds` caps the total compiler process count at the core count.
 
 ### Dependencies (via VCPKG)
 

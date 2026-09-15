@@ -23,7 +23,10 @@ class GameReadLock {
     // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables) - thread-local by design
     inline static std::shared_mutex mutex_;
     inline static thread_local int32_t depth_ = 0;
-    inline static thread_local std::shared_lock<std::shared_mutex> lock_;
+    // Defined in GameLock.cpp rather than inline: a COMDAT thread_local with a
+    // non-trivial destructor breaks lld's LTO ("Associative COMDAT symbol ...
+    // does not exist"). Same for GameWriteLock::manual_.
+    static thread_local std::shared_lock<std::shared_mutex> lock_;
     // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
     friend class GameWriteLock;
@@ -69,8 +72,7 @@ class GameWriteLock {
     // Holder for Acquire()/Release() - the framework's Sleep-hook lock
     // lifecycle is not stack-scoped (release before ::Sleep, reacquire on
     // wake), so we store the instance on the thread instead of the stack.
-    // Definition is out-of-class so std::unique_ptr's destructor sees the
-    // complete GameWriteLock type.
+    // Defined in GameLock.cpp (see GameReadLock::lock_).
     // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables) - thread-local by design
     static thread_local std::unique_ptr<GameWriteLock> manual_;
 
@@ -96,8 +98,6 @@ class GameWriteLock {
     static void Release();
     static bool IsHeldByCurrentThread() { return active_ != nullptr; }
 };
-
-inline thread_local std::unique_ptr<GameWriteLock> GameWriteLock::manual_;
 
 inline void GameWriteLock::Acquire() {
     assert(active_ == nullptr && "GameWriteLock::Acquire while lock already held");
