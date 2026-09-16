@@ -1,4 +1,4 @@
-#include "hooks/Socks5Proxy.h"
+#include "proxy/Socks5Proxy.h"
 
 // winsock2 must precede Windows.h so the legacy winsock.h (pulled in by
 // Windows.h) does not win and shadow the v2 declarations.
@@ -6,7 +6,6 @@
 #include <ws2tcpip.h>
 //
 #include <Windows.h>
-#include <detours/detours.h>
 #include <spdlog/spdlog.h>
 
 #include <array>
@@ -20,15 +19,20 @@
 #include <unordered_map>
 #include <vector>
 
-#include "game/LaunchOptions.h"
+#include "detour/Hook.h"
 #include "proxy/ProxyBypass.h"
 #include "utils/utils.h"
 
 #pragma comment(lib, "Ws2_32.lib")
 
-namespace d2bs::hooks::socks5 {
+namespace d2bs::proxy::socks5 {
 
 namespace {
+
+spdlog::logger& Log() {
+    static const auto LOGGER = utils::GetLogger("core.proxy");
+    return *LOGGER;
+}
 
 using ConnectFn = int(WSAAPI*)(SOCKET, const sockaddr*, int);
 using GetHostByNameFn = hostent*(WSAAPI*)(const char*);
@@ -61,12 +65,22 @@ struct ProxyConfig {
 };
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables, cert-err58-cpp) - hook owns module-level state
-ConnectFn realConnect = nullptr;  // set in Install(); Detours rewrites it to the trampoline (original connect)
-GetHostByNameFn realGetHostByName = nullptr;  // trampoline to the original gethostbyname
-GetPeerNameFn realGetPeerName = nullptr;      // trampoline to the original getpeername
-CloseSocketFn realCloseSocket = nullptr;      // trampoline to the original closesocket
+int WSAAPI HookedConnect(SOCKET s, const sockaddr* name, int namelen);
+hostent* WSAAPI HookedGetHostByName(const char* name);
+int WSAAPI HookedGetPeerName(SOCKET s, sockaddr* name, int* namelen);
+int WSAAPI HookedCloseSocket(SOCKET s);
+
+// The same WS2_32 exports the game imports, so no build-specific addresses are
+// needed. Each slot reaches the original through Real().
+detour::Hook<ConnectFn> connectHook{connect, &HookedConnect};
+// NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations) - classic-Winsock API the game uses
+detour::Hook<GetHostByNameFn> getHostByNameHook{gethostbyname, &HookedGetHostByName};
+detour::Hook<GetPeerNameFn> getPeerNameHook{getpeername, &HookedGetPeerName};
+detour::Hook<CloseSocketFn> closeSocketHook{closesocket, &HookedCloseSocket};
+
+const std::array<detour::Slot* const, 4> HOOKS = {&connectHook, &getHostByNameHook, &getPeerNameHook, &closeSocketHook};
+
 bool installed = false;
-std::shared_ptr<spdlog::logger> logger;  // dedicated "socks5" logger; created in Install() once the sinks are wired
 
 std::optional<ProxyConfig> config;         // parsed once in Install(), before the hook goes live
 std::mutex resolveMutex;                   // guards resolvedProxy
@@ -247,7 +261,7 @@ bool RecvExact(SOCKET s, std::span<uint8_t> buf) {
 // wait for writability -> check SO_ERROR). Uses the Detours trampoline so dialing
 // the proxy does not re-enter our own hook.
 bool ProxyConnect(SOCKET s, const sockaddr_in& proxy) {
-    const int rc = realConnect(s, reinterpret_cast<const sockaddr*>(&proxy), static_cast<int>(sizeof(proxy)));
+    const int rc = connectHook(s, reinterpret_cast<const sockaddr*>(&proxy), static_cast<int>(sizeof(proxy)));
     if (rc == 0) {
         return true;
     }
@@ -375,9 +389,9 @@ int WSAAPI HookedConnect(SOCKET s, const sockaddr* name, int namelen) {
     // a malformed / non-IPv4 address, or a non-TCP socket. The last guard matters:
     // the game's local-IP discovery connects a UDP socket to an echo host, and
     // SOCKS5 CMD CONNECT is TCP-only.
-    if (!config || proxy::IsThreadBypassed() || name == nullptr || namelen < static_cast<int>(sizeof(sockaddr_in)) ||
+    if (!config || IsThreadBypassed() || name == nullptr || namelen < static_cast<int>(sizeof(sockaddr_in)) ||
         name->sa_family != AF_INET) {
-        return realConnect(s, name, namelen);
+        return connectHook(s, name, namelen);
     }
 
     // Loopback / private / link-local destinations are never tunnelled: they
@@ -397,7 +411,7 @@ int WSAAPI HookedConnect(SOCKET s, const sockaddr* name, int namelen) {
                                 (b1 == 172 && (b2 & 0xF0) == 16) ||  // 172.16.0.0/12
                                 (b1 == 192 && b2 == 168);            // 192.168.0.0/16
         if (loopback || linkLocal || privateNet) {
-            return realConnect(s, name, namelen);
+            return connectHook(s, name, namelen);
         }
     }
 
@@ -405,14 +419,14 @@ int WSAAPI HookedConnect(SOCKET s, const sockaddr* name, int namelen) {
     int optLen = sizeof(sockType);
     if (getsockopt(s, SOL_SOCKET, SO_TYPE, reinterpret_cast<char*>(&sockType), &optLen) != 0 ||
         sockType != SOCK_STREAM) {
-        return realConnect(s, name, namelen);
+        return connectHook(s, name, namelen);
     }
 
     const auto proxy = ResolveProxy();
     if (!proxy) {
         // Configured but unresolvable: fail the connect rather than fall back to a
         // direct one. A direct connection would defeat the entire point of -proxy.
-        logger->error("cannot resolve proxy {}:{}; failing connect", config->host, config->port);
+        Log().error("cannot resolve proxy {}:{}; failing connect", config->host, config->port);
         WSASetLastError(WSAECONNREFUSED);
         return SOCKET_ERROR;
     }
@@ -427,12 +441,12 @@ int WSAAPI HookedConnect(SOCKET s, const sockaddr* name, int namelen) {
     // Prefer remote DNS: if the game resolved a hostname for this IP, hand the
     // hostname to the proxy (ATYP=DOMAIN) so it picks a server in its own region.
     const std::string host = HostForIp(dest.sin_addr.s_addr);
-    logger->debug("connect -> {}:{}{}", host.empty() ? ipbuf.data() : host.c_str(), dport,
-                  host.empty() ? "" : " (remote DNS)");
+    Log().debug("connect -> {}:{}{}", host.empty() ? ipbuf.data() : host.c_str(), dport,
+                host.empty() ? "" : " (remote DNS)");
 
     if (!ProxyConnect(s, *proxy) || !Handshake(s, *config, dest, host)) {
-        logger->warn("tunnel to {} ({}:{}) via {}:{} failed", host.empty() ? ipbuf.data() : host.c_str(), ipbuf.data(),
-                     dport, config->host, config->port);
+        Log().warn("tunnel to {} ({}:{}) via {}:{} failed", host.empty() ? ipbuf.data() : host.c_str(), ipbuf.data(),
+                   dport, config->host, config->port);
         WSASetLastError(WSAECONNREFUSED);
         return SOCKET_ERROR;
     }
@@ -457,7 +471,7 @@ int WSAAPI HookedGetPeerName(SOCKET s, sockaddr* name, int* namelen) {
             }
         }
     }
-    return realGetPeerName(s, name, namelen);
+    return getPeerNameHook(s, name, namelen);
 }
 
 // Drop the peer mapping when the socket closes so a reused descriptor can't inherit
@@ -467,7 +481,7 @@ int WSAAPI HookedCloseSocket(SOCKET s) {
         const std::scoped_lock lock(peerMapMutex);
         peerMap.erase(s);
     }
-    return realCloseSocket(s);
+    return closeSocketHook(s);
 }
 
 // Detoured resolver: run the real lookup, then record every IPv4 -> hostname so
@@ -476,7 +490,7 @@ int WSAAPI HookedCloseSocket(SOCKET s) {
 // resolves Battle.net hosts through classic-Winsock gethostbyname, so that is the
 // only resolver we need to watch.
 hostent* WSAAPI HookedGetHostByName(const char* name) {
-    hostent* he = realGetHostByName(name);
+    hostent* he = getHostByNameHook(name);
     if (he == nullptr || name == nullptr || he->h_addrtype != AF_INET || he->h_length != 4 ||
         he->h_addr_list == nullptr || IsNumericHost(name)) {
         return he;
@@ -491,20 +505,14 @@ hostent* WSAAPI HookedGetHostByName(const char* name) {
 
 }  // namespace
 
-void Install() {
-    const auto& opts = game::GetLaunchOptions();
-    if (!opts.proxy) {
-        return;  // no -proxy: leave connect unhooked, connections go out directly
+void Install(std::string_view proxySpec) {
+    if (installed || proxySpec.empty()) {
+        return;  // no proxy: leave connect unhooked, connections go out directly
     }
 
-    // Dedicated "socks5" logger over the framework's sinks. GetLogger copies the
-    // default logger's sinks on first use; calling it here (after Framework's
-    // SetupLogging, well before any connect) is late enough to catch them.
-    logger = utils::GetLogger("socks5");
-
-    auto parsed = ParseProxyUrl(*opts.proxy);
+    auto parsed = ParseProxyUrl(proxySpec);
     if (!parsed) {
-        logger->error("invalid -proxy '{}' (expected socks5://[user:password@]host:port); proxy disabled", *opts.proxy);
+        Log().error("invalid -proxy '{}' (expected socks5://[user:password@]host:port); proxy disabled", proxySpec);
         return;
     }
     config = std::move(parsed);
@@ -514,47 +522,26 @@ void Install() {
     WSADATA wsa{};
     WSAStartup(MAKEWORD(2, 2), &wsa);
 
-    // Detour the WS2_32 `connect` export plus the sockets the remote-DNS / peer
-    // rewrite needs: `gethostbyname` feeds the IP->hostname map (so we can send
-    // ATYP=DOMAIN), and `getpeername` / `closesocket` back the per-socket peer
-    // rewrite. They are the same exports the game imports, so no build-specific
-    // addresses are needed. The real* pointers become the trampolines (the originals).
-    realConnect = connect;
-    // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations) - classic-Winsock API the game uses
-    realGetHostByName = gethostbyname;
-    realGetPeerName = getpeername;
-    realCloseSocket = closesocket;
-    DetourTransactionBegin();
-    DetourUpdateThread(GetCurrentThread());
-    DetourAttach(reinterpret_cast<PVOID*>(&realConnect), reinterpret_cast<PVOID>(&HookedConnect));
-    DetourAttach(reinterpret_cast<PVOID*>(&realGetHostByName), reinterpret_cast<PVOID>(&HookedGetHostByName));
-    DetourAttach(reinterpret_cast<PVOID*>(&realGetPeerName), reinterpret_cast<PVOID>(&HookedGetPeerName));
-    DetourAttach(reinterpret_cast<PVOID*>(&realCloseSocket), reinterpret_cast<PVOID>(&HookedCloseSocket));
-    const LONG err = DetourTransactionCommit();
-    if (err != NO_ERROR) {
-        logger->error("Detours attach failed ({}); proxy disabled", err);
+    // `connect` is the tunnel itself; `gethostbyname` feeds the IP->hostname map
+    // (so we can send ATYP=DOMAIN), and `getpeername` / `closesocket` back the
+    // per-socket peer rewrite.
+    if (const int32_t err = detour::AttachAll(HOOKS); err != 0) {
+        Log().error("Detours attach failed ({}); proxy disabled", err);
         config.reset();
         WSACleanup();
         return;
     }
 
     installed = true;
-    logger->info("routing connections via socks5://{}:{}", config->host, config->port);
+    Log().info("routing connections via socks5://{}:{}", config->host, config->port);
 }
 
 void Remove() {
     if (!installed) {
         return;
     }
-    DetourTransactionBegin();
-    DetourUpdateThread(GetCurrentThread());
-    DetourDetach(reinterpret_cast<PVOID*>(&realConnect), reinterpret_cast<PVOID>(&HookedConnect));
-    DetourDetach(reinterpret_cast<PVOID*>(&realGetHostByName), reinterpret_cast<PVOID>(&HookedGetHostByName));
-    DetourDetach(reinterpret_cast<PVOID*>(&realGetPeerName), reinterpret_cast<PVOID>(&HookedGetPeerName));
-    DetourDetach(reinterpret_cast<PVOID*>(&realCloseSocket), reinterpret_cast<PVOID>(&HookedCloseSocket));
-    const LONG err = DetourTransactionCommit();
-    if (err != NO_ERROR) {
-        logger->error("Detours detach failed ({})", err);
+    if (const int32_t err = detour::DetachAll(HOOKS); err != 0) {
+        Log().error("Detours detach failed ({})", err);
     }
 
     installed = false;
@@ -574,4 +561,4 @@ void Remove() {
     WSACleanup();
 }
 
-}  // namespace d2bs::hooks::socks5
+}  // namespace d2bs::proxy::socks5

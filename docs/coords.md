@@ -1,7 +1,7 @@
 # Coordinate Spaces
 
 Coordinate-space handling in the framework. The subtile -> game-coord conversion
-lives entirely inside the game-layer stubs (`src/backends/lod114d/game/*.cpp`); framework code
+lives entirely inside the game-layer stubs (`src/backends/<port>/game/*.cpp`); framework code
 never multiplies by 5.
 
 ## Background: two coordinate spaces
@@ -23,7 +23,7 @@ wrappers, and nowhere else.
 ## Agreed convention
 
 All position/size getters on `game::Room`, `game::Level`, and `game::Unit` return
-**game coordinates**. The game-layer implementation (`src/backends/lod114d/game/*.cpp`) is the
+**game coordinates**. The game-layer implementation (`src/backends/<port>/game/*.cpp`) is the
 only place that knows about the `* 5` factor.
 
 Rectangle-shaped types (`Room`, `Level`, `Control`) expose a single `Bounds()`

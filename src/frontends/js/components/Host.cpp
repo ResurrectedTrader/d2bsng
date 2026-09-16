@@ -84,7 +84,10 @@ void Host::DoInitialize(HMODULE hModule) {
             logger_->error("game::Bridge::Init() returned false - aborting framework init");
             return;
         }
-        game::InstallHooks(BuildCallbacks());
+        if (!game::InstallHooks(BuildCallbacks())) {
+            logger_->error("game::InstallHooks() returned false - aborting framework init");
+            return;
+        }
 
         // Build the compatibility-flag registry before any script runs: the
         // framework's built-in flags, then any the game-version port contributes

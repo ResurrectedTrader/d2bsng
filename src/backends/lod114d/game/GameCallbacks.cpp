@@ -8,10 +8,11 @@ namespace {
 GameCallbacks activeCallbacks;
 }  // namespace
 
-void InstallHooks(const GameCallbacks& callbacks) {
+bool InstallHooks(const GameCallbacks& callbacks) {
     // Copy into static storage - HookManager holds &activeCallbacks for the subsystem's lifetime.
     activeCallbacks = callbacks;
     hooks::Install(&activeCallbacks);
+    return true;
 }
 
 void RemoveHooks() {

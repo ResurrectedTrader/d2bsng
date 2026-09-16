@@ -5,6 +5,7 @@
 #include <deque>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -36,6 +37,7 @@ struct State {
     LogPanel* logPanel = nullptr;
     ConsolePanel* consolePanel = nullptr;
     std::vector<std::unique_ptr<Panel>> panels;
+    std::vector<std::unique_ptr<game::console::BackendPanel>> backendPanels;
 };
 
 State& GetState() {
@@ -62,6 +64,7 @@ void Initialize(State& state) {
     state.panels.push_back(std::make_unique<ProfilingPanel>());
 #endif
     state.panels.push_back(std::make_unique<SettingsPanel>());
+    state.backendPanels = game::console::GetBackendPanels();
     state.initialized = true;
 }
 
@@ -117,6 +120,13 @@ void DrawFrame() {
     if (ImGui::BeginTabBar("##tabs")) {
         for (const auto& panel : state.panels) {
             if (ImGui::BeginTabItem(panel->Title())) {
+                panel->Draw();
+                ImGui::EndTabItem();
+            }
+        }
+        for (const auto& panel : state.backendPanels) {
+            const std::string title = panel->Title();
+            if (ImGui::BeginTabItem(title.c_str())) {
                 panel->Draw();
                 ImGui::EndTabItem();
             }
