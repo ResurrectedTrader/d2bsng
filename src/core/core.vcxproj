@@ -95,6 +95,7 @@
   <ItemGroup>
     <ClCompile Include="config\AppConfig.cpp" />
     <ClCompile Include="config\CompatibilityFlags.cpp" />
+    <ClCompile Include="config\OptionParser.cpp" />
     <ClCompile Include="detour\Hook.cpp" />
     <ClCompile Include="config\IniConfigStore.cpp" />
     <ClCompile Include="config\RealmRegistry.cpp" />
@@ -103,6 +104,7 @@
   <ItemGroup>
     <ClInclude Include="config\AppConfig.h" />
     <ClInclude Include="config\CompatibilityFlags.h" />
+    <ClInclude Include="config\OptionParser.h" />
     <ClInclude Include="detour\Hook.h" />
     <ClInclude Include="config\ConfigStore.h" />
     <ClInclude Include="config\IniConfigStore.h" />
