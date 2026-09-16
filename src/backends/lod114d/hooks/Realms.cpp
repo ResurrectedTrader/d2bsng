@@ -18,10 +18,16 @@
 #include "game/LaunchOptions.h"
 #include "imports/BnClient.h"
 #include "imports/Storm.h"
+#include "utils/utils.h"
 
 namespace d2bs::hooks::realms {
 
 namespace {
+
+spdlog::logger& Log() {
+    static const auto LOGGER = utils::GetLogger("hooks.realms");
+    return *LOGGER;
+}
 
 // The registry values D2 stores its Battle.net server list in, under
 // HKCU\Software\Battle.net\Configuration (D2 names them "...gateways").
@@ -243,7 +249,7 @@ void Install() {
     }
     if (!imports::storm::SSTR_RegistryReadValueEx.IsResolved() ||
         !imports::storm::RegStoringKeysConfiguration.IsResolved()) {
-        spdlog::error("realms: registry imports unresolved; custom realms will not appear in-game");
+        Log().error("realms: registry imports unresolved; custom realms will not appear in-game");
         return;
     }
     realRead = imports::storm::SSTR_RegistryReadValueEx.Ptr();
@@ -255,7 +261,7 @@ void Install() {
     DetourAttach(reinterpret_cast<PVOID*>(&realStore), reinterpret_cast<PVOID>(&HookedStore));
     const LONG err = DetourTransactionCommit();
     if (err != NO_ERROR) {
-        spdlog::error("realms: failed to detour registry helpers ({})", err);
+        Log().error("realms: failed to detour registry helpers ({})", err);
         realRead = nullptr;
         realStore = nullptr;
         return;
@@ -281,7 +287,7 @@ void Init() {
     auto& registry = config::RealmRegistry::Instance();
     for (const auto& spec : game::GetLaunchOptions().realms) {
         if (!registry.AddSpec(spec)) {
-            spdlog::warn("realms: ignoring malformed -realm spec '{}' (expected name:host)", spec);
+            Log().warn("realms: ignoring malformed -realm spec '{}' (expected name:host)", spec);
         }
     }
 }

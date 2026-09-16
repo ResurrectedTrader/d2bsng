@@ -20,9 +20,9 @@ namespace d2bs::js::script {
 namespace {
 
 // Cached logger - GetLogger is a registry lookup, not free.
-const std::shared_ptr<spdlog::logger>& Logger() {
-    static auto logger = utils::GetLogger("command");
-    return logger;
+spdlog::logger& Log() {
+    static const auto LOGGER = utils::GetLogger("script.command");
+    return *LOGGER;
 }
 
 // Start the current starter script (matches reference's .start behavior -
@@ -36,7 +36,7 @@ void StartStarter() {
     const bool inGame = game::GetGameState() == game::GameState::InGame;
     const std::string& name = inGame ? paths.gameScript : paths.starterScript;
     if (name.empty()) {
-        Logger()->warn("No starter script configured");
+        Log().warn("No starter script configured");
         return;
     }
 
@@ -45,16 +45,16 @@ void StartStarter() {
     auto path = paths.basePath / name;
     auto script = ScriptEngine::Instance().StartScript(path, mode);
     if (script) {
-        Logger()->info("Started {}", name);
+        Log().info("Started {}", name);
     } else {
-        Logger()->warn("Failed to start {}", name);
+        Log().warn("Failed to start {}", name);
     }
 }
 
 // Mirrors reference/d2bs/Helpers.cpp:279-285.
 void LoadScript(std::string_view scriptName) {
     if (scriptName.empty()) {
-        Logger()->warn("load: missing script name");
+        Log().warn("load: missing script name");
         return;
     }
     auto paths = config::GetAppConfig().GetScriptPaths();
@@ -62,9 +62,9 @@ void LoadScript(std::string_view scriptName) {
     auto path = paths.basePath / std::string(scriptName);
     auto script = ScriptEngine::Instance().StartScript(path, mode);
     if (script) {
-        Logger()->info("Started {}", scriptName);
+        Log().info("Started {}", scriptName);
     } else {
-        Logger()->warn("Failed to start {}", scriptName);
+        Log().warn("Failed to start {}", scriptName);
     }
 }
 
@@ -74,9 +74,9 @@ void DumpAllStacks() {
     for (uint32_t tid : tids) {
         const auto name = thread_utils::GetThreadDescription(tid);
         const auto trace = thread_utils::GetThreadStacktrace(tid, /*skip=*/0);
-        Logger()->info("--- thread tid={:#x} name='{}' ---\n{}", tid, name, trace);
+        Log().info("--- thread tid={:#x} name='{}' ---\n{}", tid, name, trace);
     }
-    Logger()->info("stacks: dumped {} threads", tids.size());
+    Log().info("stacks: dumped {} threads", tids.size());
 }
 
 }  // namespace
@@ -84,7 +84,7 @@ void DumpAllStacks() {
 // .reload - stop all, brief settle, re-start starter.
 // Matches reference/d2bs/Helpers.cpp:231-250 (Reload).
 void ReloadAll() {
-    Logger()->info("Stopping all scripts");
+    Log().info("Stopping all scripts");
     ScriptEngine::Instance().StopAllScripts();
     using namespace std::chrono_literals;
     std::this_thread::sleep_for(500ms);  // reference uses Sleep(500) to let things catch up
@@ -137,14 +137,14 @@ void RunCommand(const std::string& line) {
         // .profile <name> - switch the active profile. GameLoop observes the
         // change on its next tick and reloads per-profile script paths.
         if (args.empty()) {
-            Logger()->warn(".profile: missing profile name");
+            Log().warn(".profile: missing profile name");
             return;
         }
         auto nameStr = std::string(args);
         if (profile::Switch(nameStr)) {
-            Logger()->info("switched to {}", nameStr);
+            Log().info("switched to {}", nameStr);
         } else {
-            Logger()->warn(".profile: profile '{}' not found", nameStr);
+            Log().warn(".profile: profile '{}' not found", nameStr);
         }
         return;
     }

@@ -15,12 +15,18 @@
 #include "api/core/V8Convert.h"
 #include "api/core/V8Error.h"
 #include "api/globals/Constants.h"
+#include "utils/utils.h"
 
 namespace d2bs::api::classes {
 
 using globals::FileMode;
 
 namespace file_detail {
+inline spdlog::logger& Log() {
+    static const auto LOGGER = utils::GetLogger("api.file");
+    return *LOGGER;
+}
+
 FILE* FileOpenRelScript(v8::Isolate* isolate, const std::string& relativePath, const wchar_t* mode);
 std::string ReadLine(FILE* fptr);
 bool WriteValue(FILE* fptr, v8::Isolate* isolate, v8::Local<v8::Value> value, bool isBinary);
@@ -41,7 +47,7 @@ struct FileData {
                 _unlock_file(handle);
             }
             if (fclose(handle) != 0) {
-                spdlog::warn("Close failed for file: {}", path.string());
+                file_detail::Log().warn("Close failed for file: {}", path.string());
             }
         }
     }

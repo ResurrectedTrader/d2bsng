@@ -124,6 +124,7 @@
     <ClCompile Include="..\..\..\src\utils\utils.cpp" />
     <ClCompile Include="..\..\..\src\utils\Profiling.cpp" />
     <!-- Test cases -->
+    <ClCompile Include="utils\LoggingTest.cpp" />
     <ClCompile Include="pathfinding\tests\CollisionLookupTest.cpp" />
     <ClCompile Include="pathfinding\tests\WalkAStarTest.cpp" />
     <ClCompile Include="pathfinding\tests\TeleportAStarTest.cpp" />

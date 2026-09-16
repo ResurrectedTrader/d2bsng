@@ -2,6 +2,7 @@
 
 #include <Psapi.h>
 
+#include <spdlog/sinks/dist_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <algorithm>
 #include <array>
@@ -136,19 +137,46 @@ std::vector<std::string> Split(std::string_view s, std::string_view separators, 
     return out;
 }
 
-std::shared_ptr<spdlog::logger> GetLogger(const std::string &name) {
-    static std::mutex mutex;
-    std::scoped_lock lock(mutex);
+namespace {
 
-    auto instance = spdlog::get(name);
-    if (instance == nullptr) {
-        std::vector<spdlog::sink_ptr> sinks = spdlog::default_logger()->sinks();
-        auto logger = std::make_shared<spdlog::logger>(name, sinks.begin(), sinks.end());
-        logger->enable_backtrace(100);
-        spdlog::register_logger(logger);
-        return logger;
+// One fan-out sink shared by every logger. Sinks are added to it as the host
+// works out where output belongs, so a logger created at DLL attach and one
+// created after the file is open write to the same places. Without this, a
+// logger would capture whatever the default logger's sinks happened to be at
+// the moment it was created.
+std::shared_ptr<spdlog::sinks::dist_sink_mt> &SharedSink() {
+    static auto sink = std::make_shared<spdlog::sinks::dist_sink_mt>();
+    return sink;
+}
+
+std::mutex &LoggerMutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+
+}  // namespace
+
+std::shared_ptr<spdlog::logger> GetLogger(const std::string &name) {
+    std::scoped_lock lock(LoggerMutex());
+
+    if (auto instance = spdlog::get(name); instance != nullptr) {
+        return instance;
     }
-    return instance;
+    auto logger = std::make_shared<spdlog::logger>(name, SharedSink());
+    logger->enable_backtrace(100);
+    // Flushing per record would put an fflush on every log line, inside the
+    // shared sink's lock - a script logging in a loop would stall whatever
+    // else is logging, including the game thread. The periodic flush the host
+    // installs bounds how much can be lost instead; this only forces the
+    // entries worth having on disk even if the next second never arrives.
+    logger->flush_on(spdlog::level::warn);
+    spdlog::register_logger(logger);
+    return logger;
+}
+
+void AddLogSink(const spdlog::sink_ptr &sink) {
+    std::scoped_lock lock(LoggerMutex());
+    SharedSink()->add_sink(sink);
 }
 
 std::optional<ModuleVersion> GetModuleVersion(HMODULE module) {

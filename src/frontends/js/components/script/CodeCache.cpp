@@ -61,7 +61,7 @@ CodeCache& CodeCache::Instance() {
     return instance;
 }
 
-CodeCache::CodeCache() : buildTag_(CurrentBuildTag()), logger_(utils::GetLogger("CodeCache")) {
+CodeCache::CodeCache() : buildTag_(CurrentBuildTag()), logger_(utils::GetLogger("script.cache")) {
     const auto& cfg = config::GetAppConfig();
     memoryLimit_ = cfg.codeCacheMemoryLimit;
     diskLimit_ = cfg.codeCacheDiskLimit;
