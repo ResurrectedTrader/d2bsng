@@ -120,6 +120,11 @@ jobs:
       - name: Build (Release)
         shell: pwsh
         run: .\build.ps1 Release
+      # utils / contract / core / js carry no game-version-specific code, so they
+      # also have to compile as 64-bit. Static libs only - nothing links here.
+      - name: Build (Release, x64 libraries)
+        shell: pwsh
+        run: .\build.ps1 Release -Platform x64
       # Always save: the key is run_id-unique so it never collides, and we want
       # the freshly-populated binary cache persisted even if a later step fails.
       - name: Save vcpkg binary cache

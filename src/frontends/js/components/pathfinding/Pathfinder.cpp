@@ -161,7 +161,7 @@ LevelGrid BuildLevelGrid(game::Level level) {
         if (roomW == 0 || roomH == 0 || collData.empty())
             continue;
 
-        uint32_t rows = std::min(roomH, collData.size() / roomW);
+        const auto rows = static_cast<uint32_t>(std::min<size_t>(roomH, collData.size() / roomW));
 
         // Rooms are always fully within their level grid (D2 level layout invariant:
         // every room's origin/size is contained by pLevel->dwPosX/Y/SizeX/Y), so the

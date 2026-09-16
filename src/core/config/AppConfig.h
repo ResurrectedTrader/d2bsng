@@ -77,7 +77,7 @@ struct AppConfig {
     // Additional settings - set once during initialization from INI [settings] section.
     // Read-only after init - no synchronization provided.
     std::chrono::milliseconds gameReadyTimeout{5000};  // for WaitForGameReady (INI value is seconds)
-    size_t memoryLimit = 100 * 1024 * 1024;            // bytes, V8 heap limit (INI value is MB)
+    size_t memoryLimit = size_t{100} * 1024 * 1024;    // bytes, V8 heap limit (INI value is MB)
 
     // Extra V8 flags (INI [settings]/V8Flags) applied via SetFlagsFromString at
     // engine init. Read once in V8Host's constructor.
@@ -99,7 +99,7 @@ struct AppConfig {
     // directory that survives restarts and is shared by every instance pointed
     // at it. Both limits are bytes; the INI values are MB.
     std::filesystem::path codeCachePath;
-    size_t codeCacheMemoryLimit = 64 * 1024 * 1024;
+    size_t codeCacheMemoryLimit = size_t{64} * 1024 * 1024;
     // 64-bit: unlike the memory budget, a disk budget isn't bounded by this
     // 32-bit process's address space.
     uint64_t codeCacheDiskLimit = 256ULL * 1024 * 1024;
