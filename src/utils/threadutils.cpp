@@ -56,6 +56,11 @@ bool HasThreadLocalStorage() noexcept {
 
 namespace {
 
+spdlog::logger& Log() {
+    static const auto LOGGER = utils::GetLogger("utils.crash");
+    return *LOGGER;
+}
+
 using NtStatus = LONG;
 using NtGetNextThreadFn = NtStatus(NTAPI*)(HANDLE process, HANDLE thread, ACCESS_MASK access, ULONG attributes,
                                            ULONG flags, PHANDLE next);
@@ -243,15 +248,15 @@ std::filesystem::path WriteCrashLog(std::string_view content) {
 }
 
 // Helper: emit to spdlog inside a structured-exception barrier so an AV
-// from corrupt logger state (we've seen spdlog::default_logger come back
-// dereferencing 0x2c after framework teardown) can't bubble back into our
-// own VEH and recurse. Must live in its own function - MSVC forbids
+// from corrupt logger state (we've seen the logger come back dereferencing
+// 0x2c after framework teardown) can't bubble back into our own VEH and
+// recurse. Must live in its own function - MSVC forbids
 // __try/__except in the same function as objects with non-trivial dtors.
 static void TryEmitSpdlog(std::string_view dump, const char* writtenNote) noexcept {
     __try {
-        spdlog::critical(dump);
+        Log().critical(dump);
         if (writtenNote != nullptr) {
-            spdlog::critical(writtenNote);
+            Log().critical(writtenNote);
         }
         spdlog::shutdown();
     } __except (EXCEPTION_EXECUTE_HANDLER) {
@@ -562,7 +567,7 @@ LONG WINAPI VectoredExceptionHandler(PEXCEPTION_POINTERS exceptionInfo) {
     // record in case a downstream handler (V8 UEF, D2 __try) swallows it and
     // calls ExitProcess before our SEH UEF gets a turn.
     WriteCrashLog(msg);
-    spdlog::warn(msg);
+    Log().warn(msg);
     return EXCEPTION_CONTINUE_SEARCH;
 }
 }  // namespace d2bs::thread_utils

@@ -18,10 +18,16 @@
 #include "imports/D2Gfx.h"
 #include "speedhack/Speedhack.h"
 #include "utils/threadutils.h"
+#include "utils/utils.h"
 
 namespace d2bs::hooks {
 
 namespace {
+
+spdlog::logger& Log() {
+    static const auto LOGGER = utils::GetLogger("hooks.manager");
+    return *LOGGER;
+}
 
 // ---------------------------------------------------------------------------
 // State
@@ -310,7 +316,7 @@ void InstallDetoursHooks() {
         // Failure leaves realSleep == ::Sleep (no trampoline): HookedSleep never
         // runs, onSleep never fires, GameLoop / chickening / drain all stall.
         // Bot is non-functional either way; log so the user can diagnose.
-        spdlog::error("Detours install failed: {}", err);
+        Log().error("Detours install failed: {}", err);
     }
 
     // Separate transaction so a speedhack failure doesn't leave Sleep / cursor
@@ -340,7 +346,7 @@ void RemoveDetoursHooks() {
     DetourDetach(reinterpret_cast<PVOID*>(&realSleep), reinterpret_cast<PVOID>(&HookedSleep));
     const LONG err = DetourTransactionCommit();
     if (err != NO_ERROR) {
-        spdlog::error("Detours remove failed: {}", err);
+        Log().error("Detours remove failed: {}", err);
     }
 }
 

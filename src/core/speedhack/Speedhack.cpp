@@ -15,12 +15,18 @@
 
 #include "config/AppConfig.h"
 #include "utils/threadutils.h"
+#include "utils/utils.h"
 
 #pragma comment(lib, "winmm.lib")
 
 namespace d2bs::speedhack {
 
 namespace {
+
+spdlog::logger& Log() {
+    static const auto LOGGER = utils::GetLogger("core.speedhack");
+    return *LOGGER;
+}
 
 // State for one time domain (one DomainState per family of hooked reads that
 // share a clock). All fields are atomic so hook bodies can load them without
@@ -465,7 +471,7 @@ void Install() {
     DetourAttach(reinterpret_cast<PVOID*>(&realWaitOnAddress), reinterpret_cast<PVOID>(&HookedWaitOnAddress));
     const LONG err = DetourTransactionCommit();
     if (err != NO_ERROR) {
-        spdlog::error("speedhack: Detours install failed: {}", err);
+        Log().error("speedhack: Detours install failed: {}", err);
     }
 }
 
@@ -508,7 +514,7 @@ void Remove() {
     DetourDetach(reinterpret_cast<PVOID*>(&realWaitOnAddress), reinterpret_cast<PVOID>(&HookedWaitOnAddress));
     const LONG err = DetourTransactionCommit();
     if (err != NO_ERROR) {
-        spdlog::error("speedhack: Detours remove failed: {}", err);
+        Log().error("speedhack: Detours remove failed: {}", err);
     }
 }
 

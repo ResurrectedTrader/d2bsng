@@ -24,9 +24,9 @@ namespace d2bs::js::inspector {
 
 namespace {
 
-const std::shared_ptr<spdlog::logger>& Logger() {
-    static std::shared_ptr<spdlog::logger> logger = utils::GetLogger("inspector");
-    return logger;
+spdlog::logger& Log() {
+    static const auto LOGGER = utils::GetLogger("inspector");
+    return *LOGGER;
 }
 
 // ixwebsocket's listener binds with SO_REUSEADDR, which on Windows permits a
@@ -95,7 +95,7 @@ bool InspectorServer::Start(uint16_t port) {
 
     constexpr std::chrono::milliseconds BIND_WAIT{2000};
     if (!WaitForPortFree(port, BIND_WAIT)) {
-        Logger()->error("port {} is already in use (another instance?)", port);
+        Log().error("port {} is already in use (another instance?)", port);
         ix::uninitNetSystem();
         return false;
     }
@@ -152,14 +152,14 @@ bool InspectorServer::Start(uint16_t port) {
     });
 
     if (const auto [ok, error] = server->listen(); !ok) {
-        Logger()->error("listen on 127.0.0.1:{} failed: {}", port, error);
+        Log().error("listen on 127.0.0.1:{} failed: {}", port, error);
         ix::uninitNetSystem();  // balance the initNetSystem() above when the bind fails
         return false;
     }
     server->start();
     server_ = std::move(server);
     port_ = port;
-    Logger()->info("listening on http://127.0.0.1:{}", port);
+    Log().info("listening on http://127.0.0.1:{}", port);
     return true;
 }
 
@@ -238,20 +238,20 @@ void InspectorServer::OnClientConnected(const std::string& connId, const std::st
         if (it == targets_.end()) {
             // Unknown target - e.g. a DevTools tab holding a target id from
             // before a restart (ids are per-run thread ids).
-            Logger()->warn("ws upgrade for unknown target '{}' - closing", id);
+            Log().warn("ws upgrade for unknown target '{}' - closing", id);
             ws.close();
             return;
         }
         if (targetToConn_.contains(id)) {
-            Logger()->warn("ws upgrade for '{}' ({}) rejected - a DevTools client is already attached", id,
-                           it->second->Title());
+            Log().warn("ws upgrade for '{}' ({}) rejected - a DevTools client is already attached", id,
+                       it->second->Title());
             ws.close();
             return;
         }
         target = it->second;
         connToTarget_[connId] = id;
         targetToConn_[id] = &ws;
-        Logger()->info("DevTools attached to '{}' ({})", id, target->Title());
+        Log().info("DevTools attached to '{}' ({})", id, target->Title());
     }
     target->Push(InspectorTarget::EventKind::Connected);
 }
@@ -284,7 +284,7 @@ void InspectorServer::OnClientClosed(const std::string& connId) {
         const std::string id = it->second;
         connToTarget_.erase(it);
         targetToConn_.erase(id);
-        Logger()->info("DevTools detached from '{}'", id);
+        Log().info("DevTools detached from '{}'", id);
         if (auto tit = targets_.find(id); tit != targets_.end()) {
             target = tit->second;
         }

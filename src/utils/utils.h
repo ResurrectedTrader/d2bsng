@@ -55,7 +55,19 @@ std::string_view Trim(std::string_view s, std::string_view chars = " \t");
 // If `maxTokens == 0`, no cap.
 std::vector<std::string> Split(std::string_view s, std::string_view separators, size_t maxTokens = 0);
 
+// The named logger for a component, created on first use. Names are dotted and
+// follow the source tree - "hooks.manager", "core.proxy", "script.cache".
+//
+// Every logger shares one fan-out sink, so where output goes is decided once,
+// by AddLogSink, and does not depend on whether a logger was created before or
+// after the host installed its sinks.
 std::shared_ptr<spdlog::logger> GetLogger(const std::string &name);
+
+// Add a destination every logger writes to, including the ones that already
+// exist. The host calls this once it knows where output belongs; anything
+// logged before that is dropped rather than misrouted. spdlog's own default
+// logger is reached only once the host points it at a GetLogger logger.
+void AddLogSink(const spdlog::sink_ptr &sink);
 
 // FILEVERSION of a loaded module's VERSIONINFO resource (14,0,3,0 -> {14, 0, 3, 0}).
 struct ModuleVersion {

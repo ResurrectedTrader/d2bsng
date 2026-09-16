@@ -1,9 +1,15 @@
 #include "Host.h"
 
+#include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/spdlog.h>
+
+#include <cctype>
+#include <chrono>
 #include <exception>
 #include <filesystem>
 #include <memory>
+#include <string>
+#include <string_view>
 
 #include "components/analytics/Analytics.h"
 #include "components/characterstate/CharacterState.h"
@@ -29,12 +35,14 @@
 #include "game/GameHelpers.h"
 #include "utils/DeferGuard.h"
 #include "utils/threadutils.h"
+#include "utils/utils.h"
 
 namespace d2bs::js {
 
 void Host::Initialize(HMODULE hModule) {
-    // Early logger - SetupLogging() replaces it; any failure here is still reportable.
-    logger_ = spdlog::default_logger();
+    // Claim the logger before SetupLogging so a failure on the way there is still
+    // reportable; it starts sinkless and picks up the sinks SetupLogging installs.
+    logger_ = utils::GetLogger("d2bs");
     // Spawn init on a separate thread to avoid heavy work under the DLL loader lock.
     initThread_ = std::jthread([hModule]() { DoInitialize(hModule); });
 }
@@ -109,9 +117,9 @@ void Host::DoInitialize(HMODULE hModule) {
                     case dde::Transaction::Poke: {
                         auto name = std::string(data);
                         if (profile::Switch(name)) {
-                            spdlog::info("DDE profile switch: '{}'", name);
+                            logger_->info("DDE profile switch: '{}'", name);
                         } else {
-                            spdlog::warn("DDE profile switch failed for '{}' (profile does not exist)", name);
+                            logger_->warn("DDE profile switch failed for '{}' (profile does not exist)", name);
                         }
                         break;
                     }
@@ -189,6 +197,7 @@ void Host::SetupPaths(HMODULE hModule) {
     std::array<wchar_t, MAX_PATH> dllPath{};
     GetModuleFileNameW(hModule, dllPath.data(), MAX_PATH);
     auto basePath = std::filesystem::path(dllPath.data()).parent_path();
+    dllDir_ = basePath;
 
     // Seed AppConfig.scriptPaths.basePath before LoadConfig() so GetPathRelScript()
     // and INI resolution have a valid base. LoadSettings() overwrites all four
@@ -199,26 +208,78 @@ void Host::SetupPaths(HMODULE hModule) {
     appConfig.SetScriptPaths(std::move(paths));
 }
 
+namespace {
+
+constexpr std::string_view INI_FILE_NAME = "d2bs.ini";
+
+// A farm leaves the log to grow unattended, so the file is capped and rolled
+// rather than trusted to stay small.
+constexpr size_t MAX_LOG_SIZE = 10 * 1024 * 1024;
+constexpr size_t MAX_LOG_FILES = 3;
+
+// A profile name is user text that reaches a path here.
+std::string SanitizeForFileName(std::string_view name) {
+    std::string out;
+    for (const char c : name) {
+        const bool safe = std::isalnum(static_cast<unsigned char>(c)) != 0 || c == '-' || c == '_' || c == '.';
+        out.push_back(safe ? c : '_');
+    }
+    return out;
+}
+
+// Per-profile, so concurrent instances never write to the same file.
+std::string LogFileName() {
+    const auto profile = SanitizeForFileName(game::GetLaunchProfile().value_or(std::string{}));
+    return profile.empty() ? "d2bs.log" : "d2bs-" + profile + ".log";
+}
+
+}  // namespace
+
 void Host::SetupLogging() {
-    // Host installs only the ConsoleSink: every frontend-internal log
-    // entry fans out to game::console::OnMessage with source=Log. File /
-    // stderr / network sinks are a port concern. Ports
-    // that want conventional log files push their own sink onto
-    // spdlog::default_logger()->sinks() during their own init, or write to
-    // disk from inside OnMessage.
-    auto consoleSink = std::make_shared<js::console::ConsoleSink>();
-    logger_ = std::make_shared<spdlog::logger>("d2bs", consoleSink);
+    // Two sinks: the ConsoleSink fans every frontend-internal entry out to
+    // game::console::OnMessage with source=Log, and the file is what outlives
+    // the process - the console's ring buffer dies with it. A file that cannot
+    // be opened is not fatal; the console still has everything.
+    // Both go to the fan-out sink every named logger already shares, so the
+    // loggers the backend created during Bridge::Init - which runs at DLL
+    // attach, before this - start writing here too rather than staying
+    // attached to whatever the default logger was at the time.
+    utils::AddLogSink(std::make_shared<js::console::ConsoleSink>());
+
+    std::string logFile;
+    std::string openError;
+    try {
+        const auto logPath = ConfigPath().parent_path() / "logs" / LogFileName();
+        std::filesystem::create_directories(logPath.parent_path());
+        logFile = logPath.string();
+        utils::AddLogSink(std::make_shared<spdlog::sinks::rotating_file_sink_mt>(logFile, MAX_LOG_SIZE, MAX_LOG_FILES));
+    } catch (const std::exception& ex) {
+        openError = ex.what();
+    }
+
+    logger_ = utils::GetLogger("d2bs");
     logger_->set_level(spdlog::level::debug);
-    logger_->flush_on(spdlog::level::info);
 
     spdlog::set_default_logger(logger_);
+    // Loggers only flush themselves from warn, so this is what gets everything
+    // below that onto disk. Without it a crash loses whatever the file buffer
+    // was still holding, which is exactly the run-up to the crash.
+    spdlog::flush_every(std::chrono::seconds{1});
+
+    if (openError.empty()) {
+        logger_->info("logging to {}", logFile);
+    } else {
+        logger_->error("no file log: {}", openError);
+    }
+}
+
+std::filesystem::path Host::ConfigPath() {
+    return dllDir_ / INI_FILE_NAME;
 }
 
 void Host::LoadConfig() {
     auto& appConfig = config::GetAppConfig();
-    auto iniPath = appConfig.GetScriptPaths().basePath / "d2bs.ini";
-
-    appConfig.store = std::make_unique<config::IniConfigStore>(iniPath);
+    appConfig.store = std::make_unique<config::IniConfigStore>(ConfigPath());
     appConfig.store->LoadSettings(appConfig);
 }
 
@@ -298,9 +359,9 @@ game::GameCallbacks Host::BuildCallbacks() {
                 return;
             case game::IpcMode::SwitchProfile:
                 if (profile::Switch(payload)) {
-                    spdlog::info("IPC profile switch: '{}'", payload);
+                    logger_->info("IPC profile switch: '{}'", payload);
                 } else {
-                    spdlog::warn("IPC profile switch failed for '{}' (profile does not exist)", payload);
+                    logger_->warn("IPC profile switch failed for '{}' (profile does not exist)", payload);
                 }
                 return;
         }

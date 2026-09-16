@@ -74,6 +74,11 @@ using extras::D2DrlgLevelStrc;
 
 namespace {
 
+spdlog::logger& Log() {
+    static const auto LOGGER = utils::GetLogger("game.helpers");
+    return *LOGGER;
+}
+
 constexpr std::chrono::milliseconds WAIT_GAME_READY_DEFAULT{15000};
 // Polling cadence -- matches reference (Sleep(10)) closely enough for parity.
 constexpr std::chrono::milliseconds WAIT_GAME_READY_POLL{10};
@@ -155,8 +160,8 @@ std::optional<LayoutEntry> ResolveContainerLayout(ItemLocation location) {
         d2client::INVENTORY_Init();
     }
     if (entry.layout->nGridBoxWidth == 0 || entry.layout->nGridBoxHeight == 0) {
-        spdlog::warn("[ResolveContainerLayout] location={} still uninitialised after InitInventory (w={} h={})",
-                     static_cast<int32_t>(location), entry.layout->nGridBoxWidth, entry.layout->nGridBoxHeight);
+        Log().warn("[ResolveContainerLayout] location={} still uninitialised after InitInventory (w={} h={})",
+                   static_cast<int32_t>(location), entry.layout->nGridBoxWidth, entry.layout->nGridBoxHeight);
         return std::nullopt;
     }
     return entry;
