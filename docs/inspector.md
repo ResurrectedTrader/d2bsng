@@ -20,7 +20,7 @@ both discovery and click-inspect (Chrome connects to the configured host, not
 the host in our URLs).
 
 Each target's `/json` entry also carries a ready-made `devtoolsFrontendUrl`
-(`devtools://devtools/bundled/inspector.html?...&ws=127.0.0.1:<port>/<id>`);
+(`devtools://devtools/bundled/js_app.html?...&ws=127.0.0.1:<port>/<id>`);
 pasting it into Chrome's address bar attaches directly, no chrome://inspect
 needed.
 
@@ -59,8 +59,12 @@ DevTools frontend UI can attach over, so it is not an option here.
   per target at a time (a second connection is closed). `Start()` probes the
   port with `SO_EXCLUSIVEADDRUSE` first: ixwebsocket binds with `SO_REUSEADDR`,
   which on Windows lets a second multi-boxed instance bind the same port and
-  silently split incoming connections between processes. Attach/detach/reject
-  events log under the `inspector` logger.
+  silently split incoming connections between processes. The probe is retried
+  for up to two seconds, because a restart (the Settings toggle, a port change)
+  binds again immediately and the old listener's sockets can outlive `stop()`
+  by a moment - long enough to refuse a port that is about to be free. A port
+  another instance really holds stays busy for the whole window. Attach /
+  detach / reject events log under the `inspector` logger.
 
 - **`InspectorTarget`** - a `shared_ptr`-managed, thread-safe inbound CDP queue
   plus its identity. The target id is the script's OS thread id - unique among
@@ -154,14 +158,17 @@ destroying a session inside the nested run loop.
 
 ## Limitations / notes
 
-- Targets advertise `type: "page"`, not `"node"`: chrome://inspect opens node
-  targets with the tip-of-tree frontend fetched from
-  chrome-devtools-frontend.appspot.com ("Direct node targets will always open
-  using ToT front-end" - DevToolsWindow::OpenDevToolsWindow), which stalls
-  without that network fetch and never attaches. "page" targets open the
-  bundled frontend and attach through the browser proxy, which works against
-  our raw V8 sessions (DevTools-only domains like DOM/CSS/Network answer with
-  "method not found", which the frontend tolerates).
+- Targets advertise `type: "node"` with the `js_app.html` frontend - Node's own
+  combination, and the two halves only work together. `type` is what decides
+  whether DevTools believes the target has a DOM: a `"page"` target opens on an
+  Elements panel that can never fill, and `v8only=true` does not undo that
+  because `inspector.html` ignores it. `js_app.html` is the V8-only frontend
+  (Sources, Console, Memory, Profiler) and does read `v8only`, but only a
+  `"node"` target is routed to it - a `"page"` target goes through the browser
+  proxy to Chrome's own frontend regardless of the URL we advertise. Changing
+  one half alone gets you an empty Elements panel or a window that never
+  attaches. DevTools-only domains like DOM/CSS/Network answer with "method not
+  found", which the frontend tolerates.
 - Sessions attach with `kNotWaitingForDebugger`: connecting DevTools does not
   halt a running script; breakpoints set afterward pause as expected.
 - Script source URLs DevTools sees are mapped to `file:///` form relative to

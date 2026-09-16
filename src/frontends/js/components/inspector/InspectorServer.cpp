@@ -10,8 +10,10 @@
 #include <ixwebsocket/IXWebSocketServer.h>
 #include <nlohmann/json.hpp>
 
+#include <chrono>
 #include <format>
 #include <functional>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -50,6 +52,25 @@ bool IsPortFree(uint16_t port) {
     return isFree;
 }
 
+// A restart (the Settings toggle, a port change) stops the server and binds
+// again immediately, and sockets the old listener owned can outlive stop() by a
+// moment - long enough for the exclusive probe above to refuse a port that is
+// about to be free. Give it a beat before believing the port belongs to someone
+// else; a port a second instance really holds stays busy for the whole window.
+bool WaitForPortFree(uint16_t port, std::chrono::milliseconds timeout) {
+    constexpr std::chrono::milliseconds RETRY_INTERVAL{50};
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    while (true) {
+        if (IsPortFree(port)) {
+            return true;
+        }
+        if (std::chrono::steady_clock::now() >= deadline) {
+            return false;
+        }
+        std::this_thread::sleep_for(RETRY_INTERVAL);
+    }
+}
+
 }  // namespace
 
 InspectorServer& InspectorServer::Instance() {
@@ -72,7 +93,8 @@ bool InspectorServer::Start(uint16_t port) {
     // own init refcount; balance this with uninitNetSystem() in Stop().
     ix::initNetSystem();
 
-    if (!IsPortFree(port)) {
+    constexpr std::chrono::milliseconds BIND_WAIT{2000};
+    if (!WaitForPortFree(port, BIND_WAIT)) {
         Logger()->error("port {} is already in use (another instance?)", port);
         ix::uninitNetSystem();
         return false;
@@ -283,21 +305,17 @@ std::string InspectorServer::BuildListJson() const {
     nlohmann::json list = nlohmann::json::array();
     for (const auto& [id, target] : targets_) {
         const std::string wsUrl = std::format("127.0.0.1:{}/{}", port_, id);
-        // inspector.html is the full bundled frontend and is verified to attach to
-        // our raw V8 sessions; js_app.html (the Node-specific frontend Node serves
-        // by default) is not. Emit the Compat key too for tools that read it.
-        const std::string frontend =
-            "devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=" + wsUrl;
-        // type "page", NOT "node": chrome://inspect's click-inspect opens node
-        // targets with the tip-of-tree js_app frontend fetched from
-        // chrome-devtools-frontend.appspot.com (see DevToolsWindow::
-        // OpenDevToolsWindow, "Direct node targets will always open using ToT
-        // front-end") - if that remote fetch stalls the window never attaches.
-        // "page" targets open the bundled frontend and attach via the browser
-        // proxy, which works against our raw V8 sessions.
+        // Node's own combination, and the only one that yields the right UI.
+        // What decides whether DevTools offers a DOM at all is `type`, not the
+        // frontend: a "page" target is assumed to have one, so the window opens
+        // on an Elements panel that can never fill, and `v8only` does not undo
+        // that - inspector.html ignores it. js_app.html is the V8-only frontend
+        // (Sources, Console, Memory, Profiler) and reads `v8only`, but only a
+        // "node" target gets routed to it.
+        const std::string frontend = "devtools://devtools/bundled/js_app.html?experiments=true&v8only=true&ws=" + wsUrl;
         list.push_back({
             {"id", id},
-            {"type", "page"},
+            {"type", "node"},
             {"title", target->Title()},
             {"description", "d2bs script"},
             {"url", target->Url()},
