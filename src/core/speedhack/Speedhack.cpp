@@ -496,6 +496,10 @@ void Install() {
 
     if (const int32_t err = detour::AttachAll(HOOKS); err != 0) {
         Log().error("speedhack: Detours install failed: {}", err);
+        // The batch is all-or-nothing, so a failure leaves nothing attached.
+        // Hand the flag back: Remove() has nothing to undo, and a later Install
+        // is a retry rather than a no-op against a slot set that never went in.
+        isInstalled.store(false);
     }
 }
 

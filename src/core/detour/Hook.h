@@ -81,7 +81,9 @@ class Slot {
     [[nodiscard]] const Target& Spec() const noexcept { return target_; }
 
     // Point the slot at a different function. Ignored while attached, since the
-    // pointer Detours rewrote is what reaches the original.
+    // pointer Detours rewrote is what reaches the original. Pointing a detached
+    // slot at an export drops the address it had: the new target is somewhere
+    // else, and where is not known until the attach resolves it.
     void SetTarget(Target target) noexcept {
         if (!attached_) {
             target_ = target;
@@ -113,7 +115,10 @@ class Slot {
 
 // A detour slot for a function of type Fn. Real() reaches the original whether
 // or not the slot is attached, so a caller outside the replacement can use it
-// as a plain "call the real thing" handle.
+// as a plain "call the real thing" handle - once the slot knows where the
+// original is. A slot built from an address knows immediately; one built from
+// an export name, or from the replacement alone, does not until it is attached
+// or handed an address, and Real() is null until then.
 template <typename Fn>
 class Hook : public Slot {
    public:
