@@ -223,9 +223,6 @@ void Script::ThreadMain(const std::stop_token& stopToken) {
     // last external reference.  Without this, `this` is destroyed mid-function.
     auto self = shared_from_this();
 
-    // V8 requires per-thread sandbox preparation before creating isolates
-    v8::SandboxHardwareSupport::PrepareCurrentThreadForHardwareSandboxing();
-
     // Store native Win32 thread ID for JS threadid property (avoids hash truncation)
     nativeThreadId_.store(GetCurrentThreadId(), std::memory_order_relaxed);
 
@@ -792,13 +789,16 @@ void Script::RegisterEvent(const std::string& eventName, v8::Local<v8::Function>
 void Script::UnregisterEvent(const std::string& eventName, v8::Local<v8::Function> func) {
     if (eventName.empty())
         return;
+    auto* iso = isolate_.load().get();
+    if (!iso)
+        return;
     std::scoped_lock lock(eventFunctionsMutex_);
     auto it = eventFunctions_.find(eventName);
     if (it == eventFunctions_.end())
         return;
 
-    const auto removed = std::erase_if(it->second, [&func](const v8::Global<v8::Function>& function) {
-        return function.Get(func->GetIsolate()) == func;
+    const auto removed = std::erase_if(it->second, [&func, iso](const v8::Global<v8::Function>& function) {
+        return function.Get(iso) == func;
     });
     events::ListenerCount::For(eventName).Add(-static_cast<int32_t>(removed));
     if (it->second.empty()) {

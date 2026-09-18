@@ -56,7 +56,7 @@ NativeBinding* InternFunction(const std::string& name, v8::FunctionCallback call
 }
 
 PropertyAccessors* InternAccessors(const std::string& name, v8::AccessorNameGetterCallback getter,
-                                   v8::AccessorNameSetterCallback setter) {
+                                   v8::AccessorNameSetterCallbackV2 setter) {
     return Intern(
         GetTables().accessors,
         [&](const PropertyAccessors& e) { return e.getter == getter && e.setter == setter && e.name == name; }, name,
@@ -117,7 +117,7 @@ void ResetNativeBindings() {
 // and is the console's cost, not the binding's.
 void MethodTrampoline(const v8::FunctionCallbackInfo<v8::Value>& args) {
     OnNativeCall(args.GetIsolate());
-    auto* binding = static_cast<NativeBinding*>(args.Data().As<v8::External>()->Value());
+    auto* binding = static_cast<NativeBinding*>(args.Data().As<v8::External>()->Value(v8::kExternalPointerTypeTagDefault));
     if (binding == nullptr || binding->callback == nullptr) {
         return;
     }
@@ -127,7 +127,7 @@ void MethodTrampoline(const v8::FunctionCallbackInfo<v8::Value>& args) {
 
 void PropertyGetterTrampoline(v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
     OnNativeCall(info.GetIsolate());
-    auto* accessors = static_cast<PropertyAccessors*>(info.Data().As<v8::External>()->Value());
+    auto* accessors = static_cast<PropertyAccessors*>(info.Data().As<v8::External>()->Value(v8::kExternalPointerTypeTagDefault));
     if (accessors == nullptr || accessors->getter == nullptr) {
         return;
     }
@@ -136,9 +136,9 @@ void PropertyGetterTrampoline(v8::Local<v8::Name> property, const v8::PropertyCa
 }
 
 void PropertySetterTrampoline(v8::Local<v8::Name> property, v8::Local<v8::Value> value,
-                              const v8::PropertyCallbackInfo<void>& info) {
+                              const v8::PropertyCallbackInfo<v8::Boolean>& info) {
     OnNativeCall(info.GetIsolate());
-    auto* accessors = static_cast<PropertyAccessors*>(info.Data().As<v8::External>()->Value());
+    auto* accessors = static_cast<PropertyAccessors*>(info.Data().As<v8::External>()->Value(v8::kExternalPointerTypeTagDefault));
     if (accessors == nullptr || accessors->setter == nullptr) {
         return;
     }

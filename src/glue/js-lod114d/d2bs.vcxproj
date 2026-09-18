@@ -63,7 +63,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(SolutionDir)dependencies\v8\libs\x86-debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>v8_monolith.lib;fmtd.lib;spdlogd.lib;sqlite3.lib;StackWalker.lib;detours.lib;imguid.lib;ixwebsocket.lib;zsd.lib;winmm.lib;dbghelp.lib;opengl32.lib;psapi.lib;shell32.lib;ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>v8_monolith.lib;ntdll.lib;userenv.lib;bcrypt.lib;fmtd.lib;spdlogd.lib;sqlite3.lib;StackWalker.lib;detours.lib;imguid.lib;ixwebsocket.lib;zsd.lib;winmm.lib;dbghelp.lib;opengl32.lib;psapi.lib;shell32.lib;ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -87,7 +87,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(SolutionDir)dependencies\v8\libs\x86-release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>v8_monolith.lib;fmt.lib;spdlog.lib;sqlite3.lib;StackWalker.lib;detours.lib;imgui.lib;ixwebsocket.lib;zs.lib;winmm.lib;dbghelp.lib;opengl32.lib;psapi.lib;shell32.lib;ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>v8_monolith.lib;ntdll.lib;userenv.lib;bcrypt.lib;fmt.lib;spdlog.lib;sqlite3.lib;StackWalker.lib;detours.lib;imgui.lib;ixwebsocket.lib;zs.lib;winmm.lib;dbghelp.lib;opengl32.lib;psapi.lib;shell32.lib;ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <!-- Build-time version for the DLL VERSIONINFO (version.rc). Set via build.ps1

@@ -387,7 +387,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
         +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             info.GetReturnValue().Set(game::GetAutomapOn());
         },
-        +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<void>& info) {
+        +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
             game::SetAutomapOn(value->BooleanValue(info.GetIsolate()));
         });
 
@@ -398,7 +398,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
         +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             info.GetReturnValue().Set(game::GetAlwaysRun() ? 1U : 0U);
         },
-        +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<void>& info) {
+        +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
             game::SetAlwaysRun(v8_convert::ToInt32(info.GetIsolate(), value) != 0);
         });
 
@@ -409,7 +409,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
         +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             info.GetReturnValue().Set(config::GetAppConfig().chickenHp.load());
         },
-        +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<void>& info) {
+        +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
             config::GetAppConfig().chickenHp.store(v8_convert::ToInt32(info.GetIsolate(), value));
         });
 
@@ -420,7 +420,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
         +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             info.GetReturnValue().Set(config::GetAppConfig().chickenMp.load());
         },
-        +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<void>& info) {
+        +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
             config::GetAppConfig().chickenMp.store(v8_convert::ToInt32(info.GetIsolate(), value));
         });
 
@@ -431,7 +431,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
         +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             info.GetReturnValue().Set(config::GetAppConfig().quitOnHostile.load());
         },
-        +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<void>& info) {
+        +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
             config::GetAppConfig().quitOnHostile.store(value->BooleanValue(info.GetIsolate()));
         });
 
@@ -442,7 +442,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
         +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             info.GetReturnValue().Set(config::GetAppConfig().blockKeys.load());
         },
-        +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<void>& info) {
+        +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
             config::GetAppConfig().blockKeys.store(value->BooleanValue(info.GetIsolate()));
         });
 
@@ -453,7 +453,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
         +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             info.GetReturnValue().Set(config::GetAppConfig().blockMouse.load());
         },
-        +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<void>& info) {
+        +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
             config::GetAppConfig().blockMouse.store(value->BooleanValue(info.GetIsolate()));
         });
 
@@ -468,7 +468,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
             }
             info.GetReturnValue().Set(game::GetNoPickUp());
         },
-        +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<void>& info) {
+        +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
             if (game::GetGameState() != game::GameState::InGame) {
                 return;
             }
@@ -482,7 +482,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
         +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             info.GetReturnValue().Set(config::GetAppConfig().quitOnError.load());
         },
-        +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<void>& info) {
+        +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
             config::GetAppConfig().quitOnError.store(value->BooleanValue(info.GetIsolate()));
         });
 
@@ -493,7 +493,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
         +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             info.GetReturnValue().Set(static_cast<uint32_t>(config::GetAppConfig().maxGameTime.load().count()));
         },
-        +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<void>& info) {
+        +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
             config::GetAppConfig().maxGameTime.store(
                 std::chrono::milliseconds{v8_convert::ToUint32(info.GetIsolate(), value)});
         });

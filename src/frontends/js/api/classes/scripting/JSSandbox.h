@@ -39,7 +39,7 @@ class JSSandbox : public V8ClassBase<JSSandbox, SandboxData> {
 
     // Setter for named properties
     static v8::Intercepted NamedPropertySetter(v8::Local<v8::Name> property, v8::Local<v8::Value> value,
-                                               const v8::PropertyCallbackInfo<void>& info);
+                                               const v8::PropertyCallbackInfo<v8::Boolean>& info);
 
     // Query for named properties
     static v8::Intercepted NamedPropertyQuery(v8::Local<v8::Name> property,

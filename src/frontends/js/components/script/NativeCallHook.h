@@ -32,12 +32,12 @@ struct NativeBinding {
 };
 
 struct PropertyAccessors {
-    PropertyAccessors(std::string name, v8::AccessorNameGetterCallback getter, v8::AccessorNameSetterCallback setter)
+    PropertyAccessors(std::string name, v8::AccessorNameGetterCallback getter, v8::AccessorNameSetterCallbackV2 setter)
         : name(std::move(name)), getter(getter), setter(setter) {}
 
     std::string name;
     v8::AccessorNameGetterCallback getter;
-    v8::AccessorNameSetterCallback setter;
+    v8::AccessorNameSetterCallbackV2 setter;
     profiling::NativeStats getStats;
     profiling::NativeStats setStats;
 };
@@ -48,12 +48,12 @@ struct PropertyAccessors {
 // pair keep separate stats.
 NativeBinding* InternFunction(const std::string& name, v8::FunctionCallback callback);
 PropertyAccessors* InternAccessors(const std::string& name, v8::AccessorNameGetterCallback getter,
-                                   v8::AccessorNameSetterCallback setter);
+                                   v8::AccessorNameSetterCallbackV2 setter);
 
 void MethodTrampoline(const v8::FunctionCallbackInfo<v8::Value>& args);
 void PropertyGetterTrampoline(v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info);
 void PropertySetterTrampoline(v8::Local<v8::Name> property, v8::Local<v8::Value> value,
-                              const v8::PropertyCallbackInfo<void>& info);
+                              const v8::PropertyCallbackInfo<v8::Boolean>& info);
 
 #ifdef D2BS_PROFILING
 

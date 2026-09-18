@@ -335,7 +335,6 @@ path. Add it with -I<path> to the command line
 //                                      - [[no_unique_address]] supported
 //  V8_HAS_CPP_ATTRIBUTE_LIFETIME_BOUND - [[clang::lifetimebound]] supported
 //  V8_HAS_BUILTIN_ADD_OVERFLOW         - __builtin_add_overflow() supported
-//  V8_HAS_BUILTIN_BIT_CAST             - __builtin_bit_cast() supported
 //  V8_HAS_BUILTIN_BSWAP16              - __builtin_bswap16() supported
 //  V8_HAS_BUILTIN_BSWAP32              - __builtin_bswap32() supported
 //  V8_HAS_BUILTIN_BSWAP64              - __builtin_bswap64() supported
@@ -414,11 +413,11 @@ path. Add it with -I<path> to the command line
     (V8_HAS_CPP_ATTRIBUTE(no_unique_address))
 #endif
 # define V8_HAS_CPP_ATTRIBUTE_LIFETIME_BOUND (V8_HAS_CPP_ATTRIBUTE(clang::lifetimebound))
+# define V8_HAS_CPP_ATTRIBUTE_GSL_POINTER (V8_HAS_CPP_ATTRIBUTE(gsl::Pointer))
 
 # define V8_HAS_BUILTIN_ADD_OVERFLOW (__has_builtin(__builtin_add_overflow))
 # define V8_HAS_BUILTIN_ASSUME (__has_builtin(__builtin_assume))
 # define V8_HAS_BUILTIN_ASSUME_ALIGNED (__has_builtin(__builtin_assume_aligned))
-# define V8_HAS_BUILTIN_BIT_CAST (__has_builtin(__builtin_bit_cast))
 # define V8_HAS_BUILTIN_BSWAP16 (__has_builtin(__builtin_bswap16))
 # define V8_HAS_BUILTIN_BSWAP32 (__has_builtin(__builtin_bswap32))
 # define V8_HAS_BUILTIN_BSWAP64 (__has_builtin(__builtin_bswap64))
@@ -434,6 +433,7 @@ path. Add it with -I<path> to the command line
 # define V8_HAS_BUILTIN_SUB_OVERFLOW (__has_builtin(__builtin_sub_overflow))
 # define V8_HAS_BUILTIN_UADD_OVERFLOW (__has_builtin(__builtin_uadd_overflow))
 # define V8_HAS_BUILTIN_UNREACHABLE (__has_builtin(__builtin_unreachable))
+# define V8_HAS_BUILTIN_DEDUP_PACK (__has_builtin(__builtin_dedup_pack))
 
 // Clang has no __has_feature for computed gotos.
 // GCC doc: https://gcc.gnu.org/onlinedocs/gcc/Labels-as-Values.html
@@ -473,15 +473,13 @@ path. Add it with -I<path> to the command line
 // for V8_HAS_CPP_ATTRIBUTE_NODISCARD. See https://crbug.com/v8/11707.
 
 # define V8_HAS_BUILTIN_ASSUME_ALIGNED 1
-# if __GNUC__ >= 11
-#  define V8_HAS_BUILTIN_BIT_CAST 1
-# endif
 # define V8_HAS_BUILTIN_CLZ 1
 # define V8_HAS_BUILTIN_CTZ 1
 # define V8_HAS_BUILTIN_EXPECT 1
 # define V8_HAS_BUILTIN_FRAME_ADDRESS 1
 # define V8_HAS_BUILTIN_POPCOUNT 1
 # define V8_HAS_BUILTIN_UNREACHABLE 1
+# define V8_HAS_BUILTIN_DEDUP_PACK 0
 
 // GCC doc: https://gcc.gnu.org/onlinedocs/gcc/Labels-as-Values.html
 #define V8_HAS_COMPUTED_GOTO 1
@@ -508,7 +506,7 @@ path. Add it with -I<path> to the command line
 #if !defined(DEBUG) && V8_HAS_ATTRIBUTE_ALWAYS_INLINE
 # define V8_INLINE inline __attribute__((always_inline))
 #elif !defined(DEBUG) && V8_HAS___FORCEINLINE
-# define V8_INLINE __forceinline
+# define V8_INLINE inline __forceinline
 #else
 # define V8_INLINE inline
 #endif
@@ -546,9 +544,8 @@ path. Add it with -I<path> to the command line
 # define V8_ASSUME USE
 #endif
 
-// Prefer c++20 std::assume_aligned. Don't use it on MSVC though, because it's
-// not happy with our large 4GB alignment values.
-#if __cplusplus >= 202002L && defined(__cpp_lib_assume_aligned) && !V8_CC_MSVC
+// Prefer c++20 std::assume_aligned.
+#if __cplusplus >= 202002L && defined(__cpp_lib_assume_aligned)
 # define V8_ASSUME_ALIGNED(ptr, alignment) \
   std::assume_aligned<(alignment)>(ptr)
 #elif V8_HAS_BUILTIN_ASSUME_ALIGNED
@@ -705,6 +702,27 @@ path. Add it with -I<path> to the command line
 #else
 #define V8_NODISCARD /* NOT SUPPORTED */
 #endif
+
+
+// Annotate a function to ensure the function is retained in the compiled binary
+// even if it appears to be unused to the compiler.
+#if V8_HAS_ATTRIBUTE_USED && V8_HAS_ATTRIBUTE_VISIBILITY
+#define V8_SYMBOL_USED \
+  __attribute__((used, visibility("default")))
+#else
+#define V8_SYMBOL_USED /* NOT SUPPORTED */
+#endif
+
+// Annotate a class indicating it represents a non-owning pointer.
+// This is used by Clang's lifetime-safety analysis to catch dangling pointers
+// by tracking the lifetime of the borrowed resources.
+// https://clang.llvm.org/docs/AttributeReference.html#pointer
+#if V8_HAS_CPP_ATTRIBUTE_GSL_POINTER
+#define V8_GSL_POINTER [[gsl::Pointer]]
+#else
+#define V8_GSL_POINTER /* NOT SUPPORTED */
+#endif
+
 
 // The no_unique_address attribute allows tail padding in a non-static data
 // member to overlap other members of the enclosing class (and in the special
@@ -1055,6 +1073,14 @@ arm64 host
 #define V8_TARGET_BIG_ENDIAN_BOOL true
 #else
 #define V8_TARGET_BIG_ENDIAN_BOOL false
+#endif
+
+// V8_USE_PERFETTO_SDK and V8_USE_PERFETTO_JSON_EXPORT must imply
+// V8_USE_PERFETTO.
+#if (defined(V8_USE_PERFETTO_SDK) || defined(V8_USE_PERFETTO_JSON_EXPORT)) && \
+    !defined(V8_USE_PERFETTO)
+#error Inconsistent build configuration: To build the V8 with Perfetto \
+features, set V8_USE_PERFETTO as well.
 #endif
 
 #endif  // V8CONFIG_H_

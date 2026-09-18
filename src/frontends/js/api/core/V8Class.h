@@ -133,7 +133,8 @@ class V8ClassBase {
         if (value.IsEmpty() || !value->IsObject()) {
             return false;
         }
-        auto* isolate = value.As<v8::Object>()->GetIsolate();
+        // Every caller is inside a V8 callback, so the current isolate owns this value.
+        auto* isolate = v8::Isolate::GetCurrent();
         return GetTemplate(isolate)->HasInstance(value);
     }
 
@@ -151,18 +152,18 @@ class V8ClassBase {
     // here (they already have sockets, files and raw packet access).
     static NativeType* Unwrap(v8::Local<v8::Object> obj) {
         if (obj.IsEmpty() || obj->InternalFieldCount() < INTERNAL_FIELD_COUNT ||
-            obj->GetAlignedPointerFromInternalField(TYPE_TAG_FIELD) != &typeTag_) {
+            obj->GetAlignedPointerFromInternalField(TYPE_TAG_FIELD, v8::kEmbedderDataTypeTagDefault) != &typeTag_) {
             return nullptr;
         }
-        return static_cast<NativeType*>(obj->GetAlignedPointerFromInternalField(NATIVE_PTR_FIELD));
+        return static_cast<NativeType*>(obj->GetAlignedPointerFromInternalField(NATIVE_PTR_FIELD, v8::kEmbedderDataTypeTagDefault));
     }
 
     // Wrap native pointer into V8 object's internal fields. Stamping the tag here (rather
     // than in InitInstance) covers the direct Wrap() callers too, so no instance of this
     // class can exist without one.
     static void Wrap(v8::Local<v8::Object> obj, NativeType* ptr) {
-        obj->SetAlignedPointerInInternalField(NATIVE_PTR_FIELD, ptr);
-        obj->SetAlignedPointerInInternalField(TYPE_TAG_FIELD, &typeTag_);
+        obj->SetAlignedPointerInInternalField(NATIVE_PTR_FIELD, ptr, v8::kEmbedderDataTypeTagDefault);
+        obj->SetAlignedPointerInInternalField(TYPE_TAG_FIELD, &typeTag_, v8::kEmbedderDataTypeTagDefault);
     }
 
     // Initialize a V8 object with native data and weak GC callback (constructor path).
@@ -196,7 +197,7 @@ class V8ClassBase {
         const v8::AccessorNameGetterCallback getterFn = +getter;
         auto* accessors = js::script::InternAccessors(BindingName(name), getterFn, nullptr);
         obj->SetNativeDataProperty(context, v8_convert::ToV8(isolate, name), &js::script::PropertyGetterTrampoline,
-                                   nullptr, v8::External::New(isolate, accessors), v8::PropertyAttribute::ReadOnly)
+                                   nullptr, v8::External::New(isolate, accessors, v8::kExternalPointerTypeTagDefault), v8::PropertyAttribute::ReadOnly)
             .Check();
     }
 
@@ -204,10 +205,10 @@ class V8ClassBase {
     static void InstanceProperty(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Local<v8::Object> obj,
                                  const char* name, Getter getter, Setter setter) {
         const v8::AccessorNameGetterCallback getterFn = +getter;
-        const v8::AccessorNameSetterCallback setterFn = +setter;
+        const v8::AccessorNameSetterCallbackV2 setterFn = +setter;
         auto* accessors = js::script::InternAccessors(BindingName(name), getterFn, setterFn);
         obj->SetNativeDataProperty(context, v8_convert::ToV8(isolate, name), &js::script::PropertyGetterTrampoline,
-                                   &js::script::PropertySetterTrampoline, v8::External::New(isolate, accessors))
+                                   &js::script::PropertySetterTrampoline, v8::External::New(isolate, accessors, v8::kExternalPointerTypeTagDefault))
             .Check();
     }
 
@@ -230,7 +231,7 @@ class V8ClassBase {
         const v8::AccessorNameGetterCallback getterFn = +getter;
         auto* accessors = js::script::InternAccessors(BindingName(name), getterFn, nullptr);
         inst->SetNativeDataProperty(v8_convert::ToV8(isolate, name), &js::script::PropertyGetterTrampoline, nullptr,
-                                    v8::External::New(isolate, accessors));
+                                    v8::External::New(isolate, accessors, v8::kExternalPointerTypeTagDefault));
     }
 
     // Read-write property with getter and setter lambdas.
@@ -238,10 +239,10 @@ class V8ClassBase {
     static void Property(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> inst, const char* name, Getter getter,
                          Setter setter) {
         const v8::AccessorNameGetterCallback getterFn = +getter;
-        const v8::AccessorNameSetterCallback setterFn = +setter;
+        const v8::AccessorNameSetterCallbackV2 setterFn = +setter;
         auto* accessors = js::script::InternAccessors(BindingName(name), getterFn, setterFn);
         inst->SetNativeDataProperty(v8_convert::ToV8(isolate, name), &js::script::PropertyGetterTrampoline,
-                                    &js::script::PropertySetterTrampoline, v8::External::New(isolate, accessors));
+                                    &js::script::PropertySetterTrampoline, v8::External::New(isolate, accessors, v8::kExternalPointerTypeTagDefault));
     }
 
     // Instance method. Wrapped via MethodTrampoline; user's function pointer
@@ -249,7 +250,7 @@ class V8ClassBase {
     template <typename Func>
     static void Method(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> proto, const char* name, Func func) {
         const v8::FunctionCallback fnPtr = +func;
-        auto data = v8::External::New(isolate, js::script::InternFunction(BindingName(name), fnPtr));
+        auto data = v8::External::New(isolate, js::script::InternFunction(BindingName(name), fnPtr), v8::kExternalPointerTypeTagDefault);
         proto->Set(isolate, name, v8::FunctionTemplate::New(isolate, &js::script::MethodTrampoline, data),
                    v8::DontEnum);
     }
@@ -258,7 +259,7 @@ class V8ClassBase {
     template <typename Func>
     static void StaticMethod(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl, const char* name, Func func) {
         const v8::FunctionCallback fnPtr = +func;
-        auto data = v8::External::New(isolate, js::script::InternFunction(BindingName(name), fnPtr));
+        auto data = v8::External::New(isolate, js::script::InternFunction(BindingName(name), fnPtr), v8::kExternalPointerTypeTagDefault);
         tpl->Set(isolate, name, v8::FunctionTemplate::New(isolate, &js::script::MethodTrampoline, data), v8::DontEnum);
     }
 };

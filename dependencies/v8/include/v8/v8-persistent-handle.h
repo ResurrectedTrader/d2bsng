@@ -163,7 +163,7 @@ class PersistentBase : public api_internal::IndirectHandleBase {
   template <typename P>
   V8_INLINE P* ClearWeak();
 
-  // TODO(dcarney): remove this.
+  V8_DEPRECATE_SOON("Use ClearWeak<void>() instead.")
   V8_INLINE void ClearWeak() { ClearWeak<void>(); }
 
   /**
@@ -308,8 +308,8 @@ class Persistent : public PersistentBase<T> {
     if (M::kResetInDestructor) this->Reset();
   }
 
-  // TODO(dcarney): this is pretty useless, fix or remove
   template <class S, class M2>
+  V8_DEPRECATE_SOON("Use Local::New(...).As<T>()")
   V8_INLINE static Persistent<T, M>& Cast(const Persistent<S, M2>& that) {
 #ifdef V8_ENABLE_CHECKS
     // If we're going to perform the type check then we have to check
@@ -320,10 +320,14 @@ class Persistent : public PersistentBase<T> {
         const_cast<Persistent<S, M2>&>(that));
   }
 
-  // TODO(dcarney): this is pretty useless, fix or remove
   template <class S, class M2>
+  V8_DEPRECATE_SOON("Use Local::New(...).As<T>()")
   V8_INLINE Persistent<S, M2>& As() const {
-    return Persistent<S, M2>::Cast(*this);
+#ifdef V8_ENABLE_CHECKS
+    if (!this->IsEmpty()) S::Cast(this->template value<T>());
+#endif
+    return reinterpret_cast<Persistent<S, M2>&>(
+        const_cast<Persistent<T, M>&>(*this));
   }
 
  private:
@@ -485,20 +489,13 @@ V8_INLINE void PersistentBase<T>::SetWeak(
     P* parameter, typename WeakCallbackInfo<P>::Callback callback,
     WeakCallbackType type) {
   using Callback = WeakCallbackInfo<void>::Callback;
-#if (__GNUC__ >= 8) && !defined(__clang__)
+#if (__GNUC__ >= 8) || defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-function-type"
 #endif
-#if __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wcast-function-type-mismatch"
-#endif
   api_internal::MakeWeak(this->slot(), parameter,
                          reinterpret_cast<Callback>(callback), type);
-#if __clang__
-#pragma clang diagnostic pop
-#endif
-#if (__GNUC__ >= 8) && !defined(__clang__)
+#if (__GNUC__ >= 8) || defined(__clang__)
 #pragma GCC diagnostic pop
 #endif
 }

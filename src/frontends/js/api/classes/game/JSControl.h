@@ -26,7 +26,7 @@ class JSControl : public V8ClassBase<JSControl, game::Control> {
     // nullptr (caller should early-return).
     //
     // Works for property getters (PropertyCallbackInfo<v8::Value>, .Holder()),
-    // property setters (PropertyCallbackInfo<void>, .Holder()) and methods
+    // property setters (PropertyCallbackInfo<Boolean>, .Holder()) and methods
     // (FunctionCallbackInfo<v8::Value>, .This()) via tag dispatch on InfoT.
     template <typename InfoT>
     static game::Control* MenuOnly(const InfoT& info) {
@@ -35,7 +35,7 @@ class JSControl : public V8ClassBase<JSControl, game::Control> {
         }
         game::Control* data = nullptr;
         if constexpr (std::is_same_v<InfoT, v8::FunctionCallbackInfo<v8::Value>>) {
-            data = Unwrap(info.This());
+            data = Unwrap(info.Holder());
         } else {
             data = Unwrap(info.Holder());
         }
@@ -67,7 +67,7 @@ class JSControl : public V8ClassBase<JSControl, game::Control> {
                 auto* isolate = info.GetIsolate();
                 info.GetReturnValue().Set(v8_convert::ToV8(isolate, data->Text()));
             },
-            +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<void>& info) {
+            +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
                 auto* data = MenuOnly(info);
                 if (!data)
                     return;
@@ -126,7 +126,7 @@ class JSControl : public V8ClassBase<JSControl, game::Control> {
                     return;
                 info.GetReturnValue().Set(static_cast<int32_t>(data->State()) - 2);
             },
-            +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<void>& info) {
+            +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
                 auto* data = MenuOnly(info);
                 if (!data)
                     return;
@@ -171,7 +171,7 @@ class JSControl : public V8ClassBase<JSControl, game::Control> {
                     return;
                 info.GetReturnValue().Set(static_cast<int32_t>(data->CursorPos()));
             },
-            +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<void>& info) {
+            +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
                 auto* data = MenuOnly(info);
                 if (!data)
                     return;
@@ -213,7 +213,7 @@ class JSControl : public V8ClassBase<JSControl, game::Control> {
                     return;
                 info.GetReturnValue().Set(static_cast<int32_t>(data->State()));
             },
-            +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<void>& info) {
+            +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
                 auto* data = MenuOnly(info);
                 if (!data)
                     return;

@@ -48,8 +48,11 @@ struct EphemeronPair {
   WeakMember<K> key;
   Member<V> value;
 
-  void ClearValueIfKeyIsDead(const LivenessBroker& broker) {
-    if (!broker.IsHeapObjectAlive(key)) value = nullptr;
+  void ClearKeyAndValueIfKeyIsDead(const LivenessBroker& broker) {
+    if (!broker.IsHeapObjectAlive(key)) {
+      key = nullptr;
+      value = nullptr;
+    }
   }
 
   void Trace(Visitor* visitor) const;
@@ -167,6 +170,7 @@ class V8_EXPORT Visitor {
    */
   template <typename T>
   void Trace(const T& object) {
+    static_assert(!IsGarbageCollectedOrMixinTypeV<T>);
 #if V8_ENABLE_CHECKS
     // This object is embedded in potentially multiple nested objects. The
     // outermost object must not be in construction as such objects are (a) not
@@ -217,8 +221,8 @@ class V8_EXPORT Visitor {
   template <typename K, typename V>
   void Trace(const EphemeronPair<K, V>& ephemeron_pair) {
     TraceEphemeron(ephemeron_pair.key, &ephemeron_pair.value);
-    RegisterWeakCallbackMethod<EphemeronPair<K, V>,
-                               &EphemeronPair<K, V>::ClearValueIfKeyIsDead>(
+    RegisterWeakCallbackMethod<
+        EphemeronPair<K, V>, &EphemeronPair<K, V>::ClearKeyAndValueIfKeyIsDead>(
         &ephemeron_pair);
   }
 
@@ -483,7 +487,7 @@ class V8_EXPORT RootVisitor {
       return;
     }
     VisitRoot(object, TraceTrait<PointeeType>::GetTraceDescriptor(object),
-              p.Location());
+              ExtractLocation(p));
   }
 
   template <typename AnyWeakPersistentType,
@@ -498,13 +502,13 @@ class V8_EXPORT RootVisitor {
       return;
     }
     VisitWeakRoot(object, TraceTrait<PointeeType>::GetTraceDescriptor(object),
-                  &HandleWeak<AnyWeakPersistentType>, &p, p.Location());
+                  &HandleWeak<AnyWeakPersistentType>, &p, ExtractLocation(p));
   }
 
  protected:
-  virtual void VisitRoot(const void*, TraceDescriptor, const SourceLocation&) {}
+  virtual void VisitRoot(const void*, TraceDescriptor, SourceLocation) {}
   virtual void VisitWeakRoot(const void* self, TraceDescriptor, WeakCallback,
-                             const void* weak_root, const SourceLocation&) {}
+                             const void* weak_root, SourceLocation) {}
 
  private:
   template <typename AnyPersistentType>
@@ -516,6 +520,19 @@ class V8_EXPORT RootVisitor {
                   "Persistent's pointee type must be GarbageCollected or "
                   "GarbageCollectedMixin");
     return p.GetFromGC();
+  }
+
+  template <typename AnyPersistentType>
+  static SourceLocation ExtractLocation(AnyPersistentType& p) {
+    return p.Location();
+  }
+
+  template <typename T, typename WeaknessPolicy, typename LocationPolicy,
+            typename CheckingPolicy>
+  static SourceLocation ExtractLocation(
+      const internal::BasicCrossThreadPersistent<
+          T, WeaknessPolicy, LocationPolicy, CheckingPolicy>& p) {
+    return p.LocationFromGC();
   }
 
   template <typename PointerType>

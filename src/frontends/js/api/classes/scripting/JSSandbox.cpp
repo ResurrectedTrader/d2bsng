@@ -187,7 +187,7 @@ void JSSandbox::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
 
 v8::Intercepted JSSandbox::NamedPropertyGetter(v8::Local<v8::Name> property,
                                                const v8::PropertyCallbackInfo<v8::Value>& info) {
-    auto data = Unwrap(info.This());
+    auto data = Unwrap(info.Holder());
     auto inner = GetInnerGlobal(info.GetIsolate(), data);
     if (inner.IsEmpty())
         return v8::Intercepted::kNo;
@@ -202,8 +202,8 @@ v8::Intercepted JSSandbox::NamedPropertyGetter(v8::Local<v8::Name> property,
 }
 
 v8::Intercepted JSSandbox::NamedPropertySetter(v8::Local<v8::Name> property, v8::Local<v8::Value> value,
-                                               const v8::PropertyCallbackInfo<void>& info) {
-    auto data = Unwrap(info.This());
+                                               const v8::PropertyCallbackInfo<v8::Boolean>& info) {
+    auto data = Unwrap(info.Holder());
     auto inner = GetInnerGlobal(info.GetIsolate(), data);
     if (inner.IsEmpty())
         return v8::Intercepted::kNo;
@@ -215,7 +215,7 @@ v8::Intercepted JSSandbox::NamedPropertySetter(v8::Local<v8::Name> property, v8:
 
 v8::Intercepted JSSandbox::NamedPropertyQuery(v8::Local<v8::Name> property,
                                               const v8::PropertyCallbackInfo<v8::Integer>& info) {
-    auto data = Unwrap(info.This());
+    auto data = Unwrap(info.Holder());
     auto inner = GetInnerGlobal(info.GetIsolate(), data);
     if (inner.IsEmpty())
         return v8::Intercepted::kNo;
@@ -230,7 +230,7 @@ v8::Intercepted JSSandbox::NamedPropertyQuery(v8::Local<v8::Name> property,
 
 v8::Intercepted JSSandbox::NamedPropertyDeleter(v8::Local<v8::Name> property,
                                                 const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-    auto data = Unwrap(info.This());
+    auto data = Unwrap(info.Holder());
     auto inner = GetInnerGlobal(info.GetIsolate(), data);
     if (inner.IsEmpty()) {
         info.GetReturnValue().SetFalse();
@@ -243,7 +243,7 @@ v8::Intercepted JSSandbox::NamedPropertyDeleter(v8::Local<v8::Name> property,
 }
 
 void JSSandbox::NamedPropertyEnumerator(const v8::PropertyCallbackInfo<v8::Array>& info) {
-    auto data = Unwrap(info.This());
+    auto data = Unwrap(info.Holder());
     auto inner = GetInnerGlobal(info.GetIsolate(), data);
     if (inner.IsEmpty()) {
         info.GetReturnValue().Set(v8::Array::New(info.GetIsolate(), 0));

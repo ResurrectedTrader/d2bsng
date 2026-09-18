@@ -51,13 +51,13 @@ class JSDrawableBase : public V8ClassBase<Derived, DrawableType> {
         Base::Property(
             isolate, inst, "x",
             +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Base::Unwrap(info.This());
+                auto* drawable = Base::Unwrap(info.Holder());
                 if (!drawable)
                     return;
                 info.GetReturnValue().Set(drawable->pos.load().x);
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<void>& info) {
-                auto* drawable = Base::Unwrap(info.This());
+            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
+                auto* drawable = Base::Unwrap(info.Holder());
                 if (!drawable)
                     return;
                 if (!value->IsNumber())
@@ -73,13 +73,13 @@ class JSDrawableBase : public V8ClassBase<Derived, DrawableType> {
         Base::Property(
             isolate, inst, "y",
             +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Base::Unwrap(info.This());
+                auto* drawable = Base::Unwrap(info.Holder());
                 if (!drawable)
                     return;
                 info.GetReturnValue().Set(drawable->pos.load().y);
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<void>& info) {
-                auto* drawable = Base::Unwrap(info.This());
+            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
+                auto* drawable = Base::Unwrap(info.Holder());
                 if (!drawable)
                     return;
                 if (!value->IsNumber())
@@ -95,13 +95,13 @@ class JSDrawableBase : public V8ClassBase<Derived, DrawableType> {
         Base::Property(
             isolate, inst, "visible",
             +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Base::Unwrap(info.This());
+                auto* drawable = Base::Unwrap(info.Holder());
                 if (!drawable)
                     return;
                 info.GetReturnValue().Set(drawable->isVisible.load());
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<void>& info) {
-                auto* drawable = Base::Unwrap(info.This());
+            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
+                auto* drawable = Base::Unwrap(info.Holder());
                 if (!drawable)
                     return;
                 if (!value->IsBoolean())
@@ -115,13 +115,13 @@ class JSDrawableBase : public V8ClassBase<Derived, DrawableType> {
         Base::Property(
             isolate, inst, "zorder",
             +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Base::Unwrap(info.This());
+                auto* drawable = Base::Unwrap(info.Holder());
                 if (!drawable)
                     return;
                 info.GetReturnValue().Set(drawable->zorder.load());
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<void>& info) {
-                auto* drawable = Base::Unwrap(info.This());
+            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
+                auto* drawable = Base::Unwrap(info.Holder());
                 if (!drawable)
                     return;
                 if (!value->IsNumber())
@@ -135,13 +135,13 @@ class JSDrawableBase : public V8ClassBase<Derived, DrawableType> {
         Base::Property(
             isolate, inst, "align",
             +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Base::Unwrap(info.This());
+                auto* drawable = Base::Unwrap(info.Holder());
                 if (!drawable)
                     return;
                 info.GetReturnValue().Set(static_cast<int32_t>(drawable->align.load()));
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<void>& info) {
-                auto* drawable = Base::Unwrap(info.This());
+            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
+                auto* drawable = Base::Unwrap(info.Holder());
                 if (!drawable)
                     return;
                 if (!value->IsNumber())
@@ -158,13 +158,13 @@ class JSDrawableBase : public V8ClassBase<Derived, DrawableType> {
         Base::Property(
             isolate, inst, "automap",
             +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Base::Unwrap(info.This());
+                auto* drawable = Base::Unwrap(info.Holder());
                 if (!drawable)
                     return;
                 info.GetReturnValue().Set(drawable->isAutomap.load());
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<void>& info) {
-                auto* drawable = Base::Unwrap(info.This());
+            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
+                auto* drawable = Base::Unwrap(info.Holder());
                 if (!drawable)
                     return;
                 if (!value->IsBoolean())
@@ -180,15 +180,15 @@ class JSDrawableBase : public V8ClassBase<Derived, DrawableType> {
         Base::Property(
             isolate, inst, "click",
             +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Base::Unwrap(info.This());
+                auto* drawable = Base::Unwrap(info.Holder());
                 if (!drawable)
                     return;
                 if (!drawable->onClick.IsEmpty()) {
                     info.GetReturnValue().Set(drawable->onClick.Get(info.GetIsolate()));
                 }
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<void>& info) {
-                auto* drawable = Base::Unwrap(info.This());
+            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
+                auto* drawable = Base::Unwrap(info.Holder());
                 if (!drawable)
                     return;
                 if (value->IsFunction()) {
@@ -206,15 +206,15 @@ class JSDrawableBase : public V8ClassBase<Derived, DrawableType> {
         Base::Property(
             isolate, inst, "hover",
             +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Base::Unwrap(info.This());
+                auto* drawable = Base::Unwrap(info.Holder());
                 if (!drawable)
                     return;
                 if (!drawable->onHover.IsEmpty()) {
                     info.GetReturnValue().Set(drawable->onHover.Get(info.GetIsolate()));
                 }
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<void>& info) {
-                auto* drawable = Base::Unwrap(info.This());
+            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
+                auto* drawable = Base::Unwrap(info.Holder());
                 if (!drawable)
                     return;
                 if (value->IsFunction()) {

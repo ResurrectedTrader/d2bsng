@@ -200,17 +200,32 @@ git submodule update --init --recursive
 
 ## V8
 
-The V8 headers are vendored under `dependencies/v8/include` (**V8 14.0.264.0**), but the
-prebuilt static libraries are **not** included in this repository - you must build and supply
-them yourself, matching the vendored headers exactly:
+The V8 headers are vendored under `dependencies/v8/include` (**V8 15.6.8**), but the prebuilt
+static libraries are **not** - they are over a gigabyte each. Download them from
+[v8-static-win](https://github.com/ResurrectedTrader/v8-static-win/releases), which builds the
+monolith for 32-bit Windows against the static CRT, and place `v8_monolith.lib` from each
+archive at:
 
-- `dependencies/v8/libs/x86-release/v8_monolith.lib` (Release)
-- `dependencies/v8/libs/x86-debug/v8_monolith.lib` (Debug)
+- `dependencies/v8/libs/x86-release/v8_monolith.lib` (from the `x86-release` archive)
+- `dependencies/v8/libs/x86-debug/v8_monolith.lib` (from the `x86-debug` archive)
 
-Build V8 **14.0.264.0** as a monolith for `target_cpu = "x86"` with the static CRT (`/MT` for
-Release, `/MTd` for Debug) so it matches the headers and this project's runtime settings. The
-build must include the `v8_inspector` engine (part of a standard monolith) for the DevTools
-integration. See the upstream [V8 build documentation](https://v8.dev/docs/build).
+Take the release matching the vendored headers - the library and the headers have to be the
+same V8, or the link fails on changed symbols. CI fetches exactly these assets; the tag it
+pins is `V8_RELEASE` in `.github/workflows/ci-build.yml`.
+
+The `msvc<x.y>` in each filename is the MSVC toolset the library was built with, and it is a
+**floor, not a match**: build with that toolset or newer. An older one fails with undefined
+`__std_*` symbols, because MSVC's STL headers call helpers that ship in its own `libcpmt.lib`.
+
+Compile with `/DV8_GN_HEADER` so the public headers pick up the bundled `include/v8-gn.h` and
+lay objects out the way the library does - this is an ABI requirement, not a convenience - and
+link `ntdll.lib`, `userenv.lib` and `bcrypt.lib` alongside it. The projects here already do
+both. Each archive's `README.txt` lists the full system-library set.
+
+To build V8 yourself instead, see the upstream [V8 build documentation](https://v8.dev/docs/build);
+it must be a monolith for `target_cpu = "x86"` with the static CRT (`/MT` for Release, `/MTd`
+for Debug), including the `v8_inspector` engine (part of a standard monolith) that the DevTools
+integration needs.
 
 ## Building
 

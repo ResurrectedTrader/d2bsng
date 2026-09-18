@@ -21,6 +21,14 @@ permissions:
   statuses: write       # /ci posts a commit status back to the PR
   pull-requests: read
 
+env:
+  # The published V8 this builds against. Changing these three is the CI half of
+  # a V8 upgrade; the vendored headers under dependencies/v8/include move with it,
+  # and the two have to agree or the link fails on missing or changed symbols.
+  V8_REPO: ResurrectedTrader/v8-static-win
+  V8_RELEASE: v8-15.6.8
+  V8_ASSET: v8-15.6.8-x86-release-*.zip
+
 jobs:
   # Gate: a `/ci` comment from a maintainer, or a manual dispatch. Resolves the
   # PR head commit (issue_comment checks out the default branch by default, so
@@ -100,23 +108,40 @@ jobs:
           & "$vcpkgDir\vcpkg.exe" integrate install
           if ($LASTEXITCODE -ne 0) { throw "vcpkg integrate failed" }
           "VCPKG_ROOT=$vcpkgDir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-      # V8 monolith libs are not in the repo; seed them once as the v8-14.0.264.0
-      # release asset (v8-libs.zip with x86-release/v8_monolith.lib).
+      # The V8 monolith is built and published by ResurrectedTrader/v8-static-win,
+      # because it is over a gigabyte per configuration and has no business in
+      # this repository. This used to unpack a zip uploaded here by hand, once -
+      # so a rebuilt V8 reached the build only when someone remembered to upload
+      # it again. It now takes the published artifact directly.
+      #
+      # Pinned, not floating: a V8 release can change the embedder API, so moving
+      # to a new one is an edit here that fails in its own pull request, rather
+      # than something that happens to the next unrelated build.
+      #
+      # Matched by pattern because the asset name carries the MSVC toolset it was
+      # built with (-msvc14.44), which changes when the publishing runner does.
+      # That toolset is a floor, not a match - anything at least that new links it.
       - name: Cache V8 monolith libs
         id: v8
         uses: actions/cache@v4
         with:
           path: dependencies/v8/libs
-          key: v8-libs-${{ runner.os }}-14.0.264.0
+          key: v8-libs-${{ runner.os }}-${{ env.V8_RELEASE }}
       - name: Fetch V8 monolith libs
         if: steps.v8.outputs.cache-hit != 'true'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          New-Item -ItemType Directory -Force dependencies/v8/libs | Out-Null
-          gh release download v8-14.0.264.0 --repo $env:GITHUB_REPOSITORY -p v8-libs.zip -O v8-libs.zip
-          Expand-Archive -Force v8-libs.zip dependencies/v8/libs
+          $dl = "$env:RUNNER_TEMP/v8"
+          gh release download $env:V8_RELEASE --repo $env:V8_REPO --pattern $env:V8_ASSET --dir $dl --clobber
+          if ($LASTEXITCODE -ne 0) { throw "no asset matching $env:V8_ASSET in $env:V8_REPO $env:V8_RELEASE" }
+          $zip = Get-ChildItem "$dl/*.zip" | Select-Object -First 1
+          if (-not $zip) { throw "download produced no zip" }
+          Expand-Archive -Force $zip.FullName "$dl/pkg"
+          New-Item -ItemType Directory -Force dependencies/v8/libs/x86-release | Out-Null
+          Copy-Item "$dl/pkg/v8_monolith.lib" dependencies/v8/libs/x86-release/ -Force
+          "$($zip.Name) - needs MSVC $((Get-Content "$dl/pkg/toolset.txt" -Raw).Trim()) or newer"
       - name: Build (Release)
         shell: pwsh
         run: .\build.ps1 Release
