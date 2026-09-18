@@ -1,0 +1,11 @@
+# Vendored V8 headers. They are third-party, they are not read as source here,
+# and they move as a block whenever V8 does - sixty-odd files that bury the
+# change actually under review. linguist-generated collapses them in pull
+# request diffs; linguist-vendored keeps them out of the repository's language
+# statistics. Both are display-only: the files are tracked and diffed normally
+# by git itself.
+#
+# Deliberately no text= or eol= rules in this file. This repository has mixed
+# line endings and core.autocrlf=false, so adding one would renormalise files
+# far outside whatever change introduced it.
+dependencies/v8/include/** linguist-generated=true linguist-vendored=true
