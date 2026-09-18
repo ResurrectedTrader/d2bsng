@@ -797,9 +797,8 @@ void Script::UnregisterEvent(const std::string& eventName, v8::Local<v8::Functio
     if (it == eventFunctions_.end())
         return;
 
-    const auto removed = std::erase_if(it->second, [&func, iso](const v8::Global<v8::Function>& function) {
-        return function.Get(iso) == func;
-    });
+    const auto removed = std::erase_if(
+        it->second, [&func, iso](const v8::Global<v8::Function>& function) { return function.Get(iso) == func; });
     events::ListenerCount::For(eventName).Add(-static_cast<int32_t>(removed));
     if (it->second.empty()) {
         eventFunctions_.erase(it);

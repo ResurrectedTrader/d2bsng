@@ -295,7 +295,8 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
 
                 info.GetReturnValue().Set(v8_convert::ToV8(isolate, data->autoflush));
             },
-            +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
+            +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value,
+                const v8::PropertyCallbackInfo<v8::Boolean>& info) {
                 auto* isolate = info.GetIsolate();
                 auto self = info.Holder();
                 auto* data = Unwrap(self);

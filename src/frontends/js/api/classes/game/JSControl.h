@@ -67,7 +67,8 @@ class JSControl : public V8ClassBase<JSControl, game::Control> {
                 auto* isolate = info.GetIsolate();
                 info.GetReturnValue().Set(v8_convert::ToV8(isolate, data->Text()));
             },
-            +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
+            +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value,
+                const v8::PropertyCallbackInfo<v8::Boolean>& info) {
                 auto* data = MenuOnly(info);
                 if (!data)
                     return;
@@ -126,7 +127,8 @@ class JSControl : public V8ClassBase<JSControl, game::Control> {
                     return;
                 info.GetReturnValue().Set(static_cast<int32_t>(data->State()) - 2);
             },
-            +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
+            +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value,
+                const v8::PropertyCallbackInfo<v8::Boolean>& info) {
                 auto* data = MenuOnly(info);
                 if (!data)
                     return;
@@ -171,7 +173,8 @@ class JSControl : public V8ClassBase<JSControl, game::Control> {
                     return;
                 info.GetReturnValue().Set(static_cast<int32_t>(data->CursorPos()));
             },
-            +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
+            +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value,
+                const v8::PropertyCallbackInfo<v8::Boolean>& info) {
                 auto* data = MenuOnly(info);
                 if (!data)
                     return;
@@ -213,7 +216,8 @@ class JSControl : public V8ClassBase<JSControl, game::Control> {
                     return;
                 info.GetReturnValue().Set(static_cast<int32_t>(data->State()));
             },
-            +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
+            +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value,
+                const v8::PropertyCallbackInfo<v8::Boolean>& info) {
                 auto* data = MenuOnly(info);
                 if (!data)
                     return;

@@ -155,7 +155,8 @@ class V8ClassBase {
             obj->GetAlignedPointerFromInternalField(TYPE_TAG_FIELD, v8::kEmbedderDataTypeTagDefault) != &typeTag_) {
             return nullptr;
         }
-        return static_cast<NativeType*>(obj->GetAlignedPointerFromInternalField(NATIVE_PTR_FIELD, v8::kEmbedderDataTypeTagDefault));
+        return static_cast<NativeType*>(
+            obj->GetAlignedPointerFromInternalField(NATIVE_PTR_FIELD, v8::kEmbedderDataTypeTagDefault));
     }
 
     // Wrap native pointer into V8 object's internal fields. Stamping the tag here (rather
@@ -197,7 +198,8 @@ class V8ClassBase {
         const v8::AccessorNameGetterCallback getterFn = +getter;
         auto* accessors = js::script::InternAccessors(BindingName(name), getterFn, nullptr);
         obj->SetNativeDataProperty(context, v8_convert::ToV8(isolate, name), &js::script::PropertyGetterTrampoline,
-                                   nullptr, v8::External::New(isolate, accessors, v8::kExternalPointerTypeTagDefault), v8::PropertyAttribute::ReadOnly)
+                                   nullptr, v8::External::New(isolate, accessors, v8::kExternalPointerTypeTagDefault),
+                                   v8::PropertyAttribute::ReadOnly)
             .Check();
     }
 
@@ -208,7 +210,8 @@ class V8ClassBase {
         const v8::AccessorNameSetterCallbackV2 setterFn = +setter;
         auto* accessors = js::script::InternAccessors(BindingName(name), getterFn, setterFn);
         obj->SetNativeDataProperty(context, v8_convert::ToV8(isolate, name), &js::script::PropertyGetterTrampoline,
-                                   &js::script::PropertySetterTrampoline, v8::External::New(isolate, accessors, v8::kExternalPointerTypeTagDefault))
+                                   &js::script::PropertySetterTrampoline,
+                                   v8::External::New(isolate, accessors, v8::kExternalPointerTypeTagDefault))
             .Check();
     }
 
@@ -242,7 +245,8 @@ class V8ClassBase {
         const v8::AccessorNameSetterCallbackV2 setterFn = +setter;
         auto* accessors = js::script::InternAccessors(BindingName(name), getterFn, setterFn);
         inst->SetNativeDataProperty(v8_convert::ToV8(isolate, name), &js::script::PropertyGetterTrampoline,
-                                    &js::script::PropertySetterTrampoline, v8::External::New(isolate, accessors, v8::kExternalPointerTypeTagDefault));
+                                    &js::script::PropertySetterTrampoline,
+                                    v8::External::New(isolate, accessors, v8::kExternalPointerTypeTagDefault));
     }
 
     // Instance method. Wrapped via MethodTrampoline; user's function pointer
@@ -250,7 +254,8 @@ class V8ClassBase {
     template <typename Func>
     static void Method(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> proto, const char* name, Func func) {
         const v8::FunctionCallback fnPtr = +func;
-        auto data = v8::External::New(isolate, js::script::InternFunction(BindingName(name), fnPtr), v8::kExternalPointerTypeTagDefault);
+        auto data = v8::External::New(isolate, js::script::InternFunction(BindingName(name), fnPtr),
+                                      v8::kExternalPointerTypeTagDefault);
         proto->Set(isolate, name, v8::FunctionTemplate::New(isolate, &js::script::MethodTrampoline, data),
                    v8::DontEnum);
     }
@@ -259,7 +264,8 @@ class V8ClassBase {
     template <typename Func>
     static void StaticMethod(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl, const char* name, Func func) {
         const v8::FunctionCallback fnPtr = +func;
-        auto data = v8::External::New(isolate, js::script::InternFunction(BindingName(name), fnPtr), v8::kExternalPointerTypeTagDefault);
+        auto data = v8::External::New(isolate, js::script::InternFunction(BindingName(name), fnPtr),
+                                      v8::kExternalPointerTypeTagDefault);
         tpl->Set(isolate, name, v8::FunctionTemplate::New(isolate, &js::script::MethodTrampoline, data), v8::DontEnum);
     }
 };
