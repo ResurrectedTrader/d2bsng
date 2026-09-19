@@ -30,6 +30,19 @@ class BlockableEvent : public BaseEvent {
    protected:
     BlockableEvent() = default;
 
+    // Records this script's answer and retires it from the expected set.
+    void Vote(bool blocked) {
+        if (blocked) {
+            ResolvePromise(true);
+        }
+        // Always decrement remaining count - both block=true and block=false paths.
+        // If this was the last script and nobody blocked, resolve as not-blocked.
+        // call_once prevents double-resolve if block=true already resolved above.
+        if (remaining_.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+            ResolvePromise(false);
+        }
+    }
+
    public:
     // Called before dispatching to each script that will receive this event.
     // Must be called before any Execute() can run (i.e., during the dispatch loop).
@@ -54,41 +67,7 @@ class BlockableEvent : public BaseEvent {
 
     void OnDropped() override { DecrementExpected(); }
 
-    void Execute(v8::Isolate* isolate, const std::vector<v8::Local<v8::Function>>& fns) override {
-        v8::HandleScope scope(isolate);
-        auto args = MakeArgs(isolate);
-        auto cx = isolate->GetCurrentContext();
-        bool block = false;
-        for (const auto& fn : fns) {
-            if (!fn.IsEmpty() && fn->IsFunction()) {
-                v8::TryCatch tryCatch(isolate);
-                v8::Local<v8::Value> returnValue;
-                if (fn->Call(cx, cx->Global(), static_cast<int32_t>(args.size()), args.data()).ToLocal(&returnValue) &&
-                    returnValue->BooleanValue(isolate)) {
-                    block = true;
-                }
-                if (tryCatch.HasCaught()) {
-                    auto message = tryCatch.Message();
-                    if (!message.IsEmpty()) {
-                        v8::String::Utf8Value errorStr(isolate, message->Get());
-                        GetLogger(isolate)->error("[{}] handler exception: {}", Name(),
-                                                  std::string(*errorStr, errorStr.length()));
-                    }
-                    // Exception counts as block=false for this handler
-                }
-            }
-        }
-
-        if (block) {
-            ResolvePromise(true);
-        }
-        // Always decrement remaining count - both block=true and block=false paths.
-        // If this was the last script and nobody blocked, resolve as not-blocked.
-        // call_once prevents double-resolve if block=true already resolved above.
-        if (remaining_.fetch_sub(1, std::memory_order_acq_rel) == 1) {
-            ResolvePromise(false);
-        }
-    }
+    void Execute(js::script::Invocation& call) override { Vote(call.Run(*this)); }
 
     [[nodiscard]] std::optional<bool> IsBlocked(
         std::chrono::milliseconds timeout = std::chrono::milliseconds::zero()) const {
