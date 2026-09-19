@@ -16,7 +16,7 @@
 #include "game/Room.h"
 #include "game/Types.h"
 #include "game/Unit.h"
-#include "utils/utils.h"
+#include "utils/Strings.h"
 
 namespace d2bs::game {
 

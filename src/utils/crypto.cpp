@@ -2,7 +2,7 @@
 
 #include <Windows.h>
 #include <bcrypt.h>
-#include <fmt/format.h>
+#include <format>
 #include <fstream>
 #include <vector>
 
@@ -15,7 +15,7 @@ std::string BytesToHex(const std::vector<uint8_t> &bytes) {
     std::string result;
     result.reserve(bytes.size() * 2);
     for (auto byte : bytes) {
-        result += fmt::format("{:02x}", byte);
+        result += std::format("{:02x}", byte);
     }
     return result;
 }
