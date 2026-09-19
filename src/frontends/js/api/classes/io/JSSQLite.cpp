@@ -15,9 +15,17 @@ static std::string PathToUtf8(const std::filesystem::path& path) {
 
 // NOLINTNEXTLINE(bugprone-exception-escape) - std::set operations theoretically throw but won't in practice
 void SQLiteData::Close() noexcept {
-    if (!isOpen)
-        return;
-
+    // Detach the statements before anything can return early. A statement's
+    // destructor reaches back through `parent` to unregister itself, so one
+    // still pointing here when this object dies would write through a freed
+    // pointer. Finalize() clears that pointer, which is what makes the order
+    // safe.
+    //
+    // On the !isOpen path this is a no-op: the set has already been drained and
+    // Finalize() is idempotent. It runs unconditionally so that staying safe
+    // does not depend on every future path clearing `isOpen` only after
+    // emptying the set.
+    //
     // Take a copy of the set to avoid iterator invalidation
     // (Finalize() calls parent->statements.erase(this))
     auto stmtsCopy = statements;
@@ -25,6 +33,9 @@ void SQLiteData::Close() noexcept {
         stmt->Finalize();
     }
     statements.clear();
+
+    if (!isOpen)
+        return;
 
     // Close the database
     if (handle) {
