@@ -46,6 +46,16 @@ Events store a JS callback and convert payloads. The stored callback is a GC
 reference, and that is the one place where the two engines genuinely disagree on
 rules rather than spelling (see *The rooting asymmetry*).
 
+The callback and the call around it are on `script::Ref` and
+`script::Invocation`. The payloads are on `script::Value`, a variant of what the
+twenty payload builders actually pass - numbers, booleans, strings, raw packet
+bytes, and one opaque blob (see *`script::CallArgs`*). So `Events.h` names no
+engine: every event *describes* its arguments and one converter per frontend
+materialises them.
+
+That now holds for the whole file, the two screen-hook events included - see
+*The rooting asymmetry* for the one case that took a different answer.
+
 ## The evidence for doing this
 
 16 translation units - **5,362 lines** - compiled into both frontends from a
@@ -79,6 +89,26 @@ off-thread. The SpiderMonkey port solved it by moving the handlers to the owning
 `Script` and leaving two atomic `hasClick` / `hasHover` flags behind, so the
 game thread hit-tests without touching JS. That shape is correct for V8 too.
 
+Moving the handlers is only half of it, because the game thread also *dispatches*
+them, and pinning a handler at dispatch time copies a root off its owning thread -
+legal under V8, forbidden under the stricter rule. So the screen-hook events do
+not carry a handler at all. They carry the `shared_ptr<Drawable>` the game thread
+already holds plus which of its two handlers they want, and
+`Invocation::Run(event, drawable, which)` resolves it out of the owning `Script`'s
+map when the event runs - on the script thread, where a value may be made. The
+`shared_ptr` is what keeps the map key, which is the drawable's address, from
+dangling between dispatch and delivery.
+
+**This changes one observable behaviour.** A handler cleared between dispatch and
+delivery - one task-queue hop - now finds nothing to call, where before V8 invoked
+the snapshot taken at dispatch. A script that sets `hook.onclick = null` from
+another event handler may therefore see a click it previously would have received
+go unanswered. This is arguably the more correct reading of "remove the handler",
+but it is a change, and it is the only one: the click event's block vote, hover
+enter/leave, the leave event `remove()` fires, and teardown ordering are all
+unchanged. `Script::RemoveDrawable` keeps its leave event working by dropping the
+handler entry *after* dispatching, rather than moving the handler out first.
+
 ## Proposal: a scripting contract
 
 Mirror what `contract/` already does for the game layer. A small, header-mostly
@@ -99,13 +129,52 @@ An opaque, move-only handle to a JS value, with SpiderMonkey's rules as the
 contract:
 
 - created and destroyed on the owning script's thread, and nowhere else;
-- copyable only as a reference to the same underlying root;
+- move-only, because a copy is a second root;
 - carries the owning script's identity so a misuse is detectable.
 
 V8 implements it over `v8::Global`, SpiderMonkey over `PersistentRooted`. The
 point is not to hide the engine - it is to give `components/` one thing to hold
 that both engines can satisfy, so `Drawable` and the event types stop naming an
 engine.
+
+It lives at `components/script/ScriptRef.h` today, not in a `src/scripting/`
+library, because one consumer does not justify a library. Alongside it is
+`Invocation`, which holds the script, the engine and the handlers that script
+registered and runs them, so the event types describe *what* to call without
+naming *how*. It hands out no isolate and takes no engine handle, so an event
+cannot reach the engine through it even by accident.
+
+One call site cannot take the handle, and it is the rule doing its job rather
+than a gap: a drawable's click and hover handlers are chosen by the **game**
+thread, which may not create a `Ref`. Those two events name the drawable instead
+and let `Invocation` resolve the handler on the script thread - see *The rooting
+asymmetry*.
+
+### `script::CallArgs` - describe the arguments, don't build them
+
+The third half of making a call, and engine-free outright
+(`components/script/CallArgs.h`):
+
+```cpp
+using Value = std::variant<bool, int32_t, uint32_t, double, std::string_view, Bytes, Serialized>;
+```
+
+Measured against what the events actually pass, that is the whole set. Numbers
+keep the width they were written with, because that is what decides whether the
+engine makes an integer or a double. `Bytes` is a packet, which becomes a
+`Uint8Array`.
+
+`Serialized` looks like the case that breaks it and is not. `scriptBroadcast`
+moves a structured-cloned value between scripts **of the same frontend**, so the
+blob never crosses engines: it travels opaquely and the frontend that wrote it
+reads it back. V8's `ValueSerializer` / `ValueDeserializer` calls live in the
+converter, not in the event.
+
+The converter is one function per frontend (`ToEngineValue` in `ScriptRef.cpp`).
+An event that needs an engine *operation* rather than an argument cannot go
+through it - the console REPL's `EvaluateEvent` compiles and runs a snippet - so
+`Invocation` grew an `Evaluate` for it, which is the same answer as `Run`: name
+the operation, let the frontend perform it.
 
 ### `script::Stats` - absence is a value
 
@@ -186,11 +255,15 @@ already gates CI.
 The staged version, cheapest first:
 
 - **Now.** Stop the incidental leaks. No new abstraction, no generation.
-- **Next.** Introduce `script::Ref` and move the event and drawable callbacks
-  onto it, so `components/` names no engine.
+- **Next.** Introduce `script::Ref` and `script::Value` and move the event
+  callbacks and payloads onto them, so `components/events/` names no engine.
+  Done - `components/events/` no longer names V8 anywhere.
 - **Then.** Invert the source of truth: today `api.json` is *extracted* from the
   bindings; make it *the input* and generate the bindings from it. Do it one
   class at a time, with the parity gate proving equivalence at each step.
+  `script::Value` is a first read on how far a described argument gets: it
+  covered every event payload, but events only ever *pass* values, and a binding
+  also reads arguments, throws, and hands back wrapped native objects.
 - **Not yet.** A general runtime abstraction over both engines. The measured
   cost is high, it is SpiderMonkey-shaped, and generation makes most of it moot.
 

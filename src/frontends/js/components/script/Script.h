@@ -215,10 +215,14 @@ class Script : public std::enable_shared_from_this<Script> {
                                                                   DrawableHandler which);
 
     // Game thread. Runs the drawable's handler on this script's event loop.
-    // The click variant waits for the handler's block vote and returns it;
-    // false if the handler is gone or the script is tearing down.
-    bool DispatchDrawableClick(const js::drawing::Drawable& drawable, game::ClickButton button, game::Point pos);
-    void DispatchDrawableHover(const js::drawing::Drawable& drawable, game::Point pos, bool entered);
+    // The event names the drawable and keeps it alive; the handler itself is
+    // resolved once the event reaches this script's thread, so nothing here
+    // touches a script value. The click variant waits for the handler's block
+    // vote and returns it; false if the handler is gone or the script is
+    // tearing down.
+    bool DispatchDrawableClick(std::shared_ptr<const js::drawing::Drawable> drawable, game::ClickButton button,
+                               game::Point pos);
+    void DispatchDrawableHover(std::shared_ptr<const js::drawing::Drawable> drawable, game::Point pos, bool entered);
 
    private:
     // Drops every handler and its listener counts. Caller holds eventFunctionsMutex_.

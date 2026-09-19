@@ -133,7 +133,7 @@ bool Drawable::OnClick(game::ClickButton button, game::Point pos, game::GameStat
     if (!hit.drawable) {
         return false;
     }
-    return hit.script->DispatchDrawableClick(*hit.drawable, button, pos);
+    return hit.script->DispatchDrawableClick(hit.drawable, button, pos);
 }
 
 void Drawable::OnMouseMove(game::Point pos, game::GameState state) {
@@ -166,7 +166,7 @@ void Drawable::OnMouseMove(game::Point pos, game::GameState state) {
             if (!drawable->isHovered.compare_exchange_strong(expected, shouldBeHovered)) {
                 continue;
             }
-            script->DispatchDrawableHover(*drawable, shouldBeHovered ? pos : game::Point::Zero, shouldBeHovered);
+            script->DispatchDrawableHover(drawable, shouldBeHovered ? pos : game::Point::Zero, shouldBeHovered);
         }
     }
 }
