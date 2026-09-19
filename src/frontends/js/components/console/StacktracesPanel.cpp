@@ -2,7 +2,6 @@
 
 #include <fmt/format.h>
 #include <imgui.h>
-#include <v8.h>
 #include <magic_enum/magic_enum.hpp>
 
 #include <algorithm>

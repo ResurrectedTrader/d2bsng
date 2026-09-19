@@ -443,7 +443,7 @@ void Script::SetupIsolate() {
 }
 
 void Script::TeardownIsolate() {
-    // RemoveDrawable handles per-drawable cleanup (pre-Reset Globals, run
+    // RemoveDrawable handles per-drawable cleanup (drop the handlers, run
     // onDestroy on this thread). fireLeaveEvent=false skips the synchronous
     // hover-leave dispatch - the script's event loop has exited and a same-
     // thread ExecuteEvent would run user JS that's about to be torn down.
@@ -657,6 +657,25 @@ void Script::UpdateHeapStats(std::chrono::steady_clock::time_point now, bool for
     iso->GetHeapStatistics(stats.get());
     cachedHeapStats_.store(std::move(stats));
     lastHeapStatsUpdate_ = now;
+}
+
+std::optional<HeapStats> Script::GetHeapStats() const {
+    auto stats = cachedHeapStats_.load();
+    if (!stats) {
+        return std::nullopt;
+    }
+    return HeapStats{.used = stats->used_heap_size(),
+                     .committed = stats->total_heap_size(),
+                     .limit = stats->heap_size_limit(),
+                     .physical = stats->total_physical_size(),
+                     .external = stats->external_memory(),
+                     .peakMalloced = stats->peak_malloced_memory(),
+                     .usedHandles = stats->used_global_handles_size(),
+                     .totalHandles = stats->total_global_handles_size()};
+}
+
+ObjectCounts Script::GetObjectCounts() const {
+    return api::V8InstanceTracker::Instance().Snapshot(GetThreadId());
 }
 
 void Script::SetStackCaptureMode(StackCaptureMode mode) {
@@ -1071,13 +1090,10 @@ void Script::RemoveDrawable(const std::shared_ptr<js::drawing::Drawable>& drawab
         return;
     }
 
-    // Snapshot any hover-leave handler under the lock, then pre-Reset Globals
-    // and run onDestroy on the script thread. The pre-Reset means a
-    // game-thread reader holding a shared_ptr via GetDrawables() finds empty
-    // Globals when ~Drawable eventually runs, making its defensive Reset a
-    // no-op. Running onDestroy here (script thread) keeps the
-    // V8InstanceTracker bucket aligned with the Increment thread. Dispatch
-    // the leave event after releasing the lock so a JS callback can safely
+    // Take any hover-leave handler out of the map before dropping the entry,
+    // then run onDestroy on the script thread - that keeps the
+    // V8InstanceTracker bucket aligned with the Increment thread. Dispatch the
+    // leave event after releasing the lock so a JS callback can safely
     // re-enter Add/RemoveDrawable without self-deadlock.
     v8::Global<v8::Function> leaveHandler;
     {
@@ -1088,13 +1104,14 @@ void Script::RemoveDrawable(const std::shared_ptr<js::drawing::Drawable>& drawab
         }
         drawables_.erase(it);
 
-        if (fireLeaveEvent && drawable->isHovered.load() && !drawable->onHover.IsEmpty()) {
-            if (auto iso = isolate_.load()) {
-                leaveHandler = v8::Global<v8::Function>(iso.get(), drawable->onHover);
+        if (auto handlers = drawableHandlers_.find(drawable.get()); handlers != drawableHandlers_.end()) {
+            if (fireLeaveEvent && drawable->isHovered.load() && isolate_.load()) {
+                leaveHandler = std::move(handlers->second.hover);
             }
+            drawableHandlers_.erase(handlers);
         }
-        drawable->onClick.Reset();
-        drawable->onHover.Reset();
+        drawable->hasClick.store(false);
+        drawable->hasHover.store(false);
         if (drawable->onDestroy) {
             drawable->onDestroy();
             drawable->onDestroy = nullptr;
@@ -1108,6 +1125,71 @@ void Script::RemoveDrawable(const std::shared_ptr<js::drawing::Drawable>& drawab
 std::vector<std::shared_ptr<js::drawing::Drawable>> Script::GetDrawables() {
     std::shared_lock lock(drawablesMutex_);
     return drawables_;
+}
+
+void Script::SetDrawableHandler(js::drawing::Drawable& drawable, DrawableHandler which,
+                                v8::Local<v8::Function> handler) {
+    std::unique_lock lock(drawablesMutex_);
+    auto iso = isolate_.load();
+    const bool isInstalled = !handler.IsEmpty() && iso;
+    if (isInstalled) {
+        auto& slot = drawableHandlers_[&drawable];
+        (which == DrawableHandler::Click ? slot.click : slot.hover).Reset(iso.get(), handler);
+    } else if (auto it = drawableHandlers_.find(&drawable); it != drawableHandlers_.end()) {
+        (which == DrawableHandler::Click ? it->second.click : it->second.hover).Reset();
+    }
+    (which == DrawableHandler::Click ? drawable.hasClick : drawable.hasHover).store(isInstalled);
+}
+
+v8::MaybeLocal<v8::Function> Script::GetDrawableHandler(const js::drawing::Drawable& drawable, DrawableHandler which) {
+    std::shared_lock lock(drawablesMutex_);
+    auto it = drawableHandlers_.find(&drawable);
+    auto iso = isolate_.load();
+    if (it == drawableHandlers_.end() || !iso) {
+        return {};
+    }
+    const auto& slot = (which == DrawableHandler::Click) ? it->second.click : it->second.hover;
+    if (slot.IsEmpty()) {
+        return {};
+    }
+    return slot.Get(iso.get());
+}
+
+bool Script::DispatchDrawableClick(const js::drawing::Drawable& drawable, game::ClickButton button, game::Point pos) {
+    v8::Global<v8::Function> fn;
+    {
+        std::shared_lock lock(drawablesMutex_);
+        auto it = drawableHandlers_.find(&drawable);
+        auto iso = isolate_.load();
+        if (it == drawableHandlers_.end() || it->second.click.IsEmpty() || !iso) {
+            return false;
+        }
+        fn = v8::Global<v8::Function>(iso.get(), it->second.click);
+    }
+    auto evt = std::make_shared<ScreenHookClickEvent>(button, pos, std::move(fn));
+    // Click events are blockable; bump the expected-handler counter so
+    // IsBlocked() waits for the JS callback's return value. Hover events are
+    // fire-and-forget and do not use this counter.
+    evt->IncrementExpected();
+    if (!ExecuteEvent(evt)) {
+        evt->DecrementExpected();
+        return false;
+    }
+    return evt->IsBlocked(std::chrono::seconds(3)).value_or(false);
+}
+
+void Script::DispatchDrawableHover(const js::drawing::Drawable& drawable, game::Point pos, bool entered) {
+    v8::Global<v8::Function> fn;
+    {
+        std::shared_lock lock(drawablesMutex_);
+        auto it = drawableHandlers_.find(&drawable);
+        auto iso = isolate_.load();
+        if (it == drawableHandlers_.end() || it->second.hover.IsEmpty() || !iso) {
+            return;
+        }
+        fn = v8::Global<v8::Function>(iso.get(), it->second.hover);
+    }
+    ExecuteEvent(std::make_shared<ScreenHookHoverEvent>(pos, entered, std::move(fn)));
 }
 
 }  // namespace d2bs

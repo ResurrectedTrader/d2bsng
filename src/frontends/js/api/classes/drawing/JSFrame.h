@@ -50,10 +50,10 @@ class JSFrame : public JSDrawableBase<JSFrame, FrameDrawable> {
             drawable->isAutomap.store(args[5]->BooleanValue(isolate));
         }
         if (args.Length() > 6 && args[6]->IsFunction()) {
-            drawable->onClick.Reset(isolate, args[6].As<v8::Function>());
+            script->SetDrawableHandler(*drawable, DrawableHandler::Click, args[6].As<v8::Function>());
         }
         if (args.Length() > 7 && args[7]->IsFunction()) {
-            drawable->onHover.Reset(isolate, args[7].As<v8::Function>());
+            script->SetDrawableHandler(*drawable, DrawableHandler::Hover, args[7].As<v8::Function>());
         }
 
         auto* rawDrawable = drawable.get();

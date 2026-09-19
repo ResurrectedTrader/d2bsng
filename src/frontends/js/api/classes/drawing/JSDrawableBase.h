@@ -43,6 +43,33 @@ class JSDrawableBase : public V8ClassBase<Derived, DrawableType> {
         };
     }
 
+    // The click / hover callbacks are owned by the script, not the drawable -
+    // see Script::SetDrawableHandler.
+    static void GetHandler(const v8::PropertyCallbackInfo<v8::Value>& info, DrawableHandler which) {
+        auto* drawable = Base::Unwrap(info.Holder());
+        if (!drawable)
+            return;
+        auto* script = ScriptEngine::Instance().GetScript(info.GetIsolate());
+        if (!script)
+            return;
+        v8::Local<v8::Function> handler;
+        if (script->GetDrawableHandler(*drawable, which).ToLocal(&handler)) {
+            info.GetReturnValue().Set(handler);
+        }
+    }
+
+    static void SetHandler(const v8::PropertyCallbackInfo<v8::Boolean>& info, DrawableHandler which,
+                           v8::Local<v8::Value> value) {
+        auto* drawable = Base::Unwrap(info.Holder());
+        if (!drawable)
+            return;
+        auto* script = ScriptEngine::Instance().GetScript(info.GetIsolate());
+        if (!script)
+            return;
+        script->SetDrawableHandler(*drawable, which,
+                                   value->IsFunction() ? value.As<v8::Function>() : v8::Local<v8::Function>());
+    }
+
     static void ConfigureCommonProperties(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> inst,
                                           v8::Local<v8::ObjectTemplate> proto) {
         // x property
@@ -180,22 +207,10 @@ class JSDrawableBase : public V8ClassBase<Derived, DrawableType> {
         Base::Property(
             isolate, inst, "click",
             +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Base::Unwrap(info.Holder());
-                if (!drawable)
-                    return;
-                if (!drawable->onClick.IsEmpty()) {
-                    info.GetReturnValue().Set(drawable->onClick.Get(info.GetIsolate()));
-                }
+                GetHandler(info, DrawableHandler::Click);
             },
             +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Base::Unwrap(info.Holder());
-                if (!drawable)
-                    return;
-                if (value->IsFunction()) {
-                    drawable->onClick.Reset(info.GetIsolate(), value.As<v8::Function>());
-                } else {
-                    drawable->onClick.Reset();
-                }
+                SetHandler(info, DrawableHandler::Click, value);
             });
 
         // hover property
@@ -206,22 +221,10 @@ class JSDrawableBase : public V8ClassBase<Derived, DrawableType> {
         Base::Property(
             isolate, inst, "hover",
             +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Base::Unwrap(info.Holder());
-                if (!drawable)
-                    return;
-                if (!drawable->onHover.IsEmpty()) {
-                    info.GetReturnValue().Set(drawable->onHover.Get(info.GetIsolate()));
-                }
+                GetHandler(info, DrawableHandler::Hover);
             },
             +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Base::Unwrap(info.Holder());
-                if (!drawable)
-                    return;
-                if (value->IsFunction()) {
-                    drawable->onHover.Reset(info.GetIsolate(), value.As<v8::Function>());
-                } else {
-                    drawable->onHover.Reset();
-                }
+                SetHandler(info, DrawableHandler::Hover, value);
             });
 
         // remove method

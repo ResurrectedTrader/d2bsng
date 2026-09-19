@@ -1,32 +1,24 @@
 #include "components/drawing/Drawable.h"
 
 #include <algorithm>
-#include <chrono>
 #include <ranges>
 #include <utility>
 #include <vector>
 
-#include "components/events/Events.h"
 #include "components/script/Script.h"
 #include "components/script/ScriptEngine.h"
 #include "game/GameHelpers.h"
 
 // Threading model:
 //
-// DrawAll / OnClick / OnMouseMove run on the **game thread**. Each
-// reads a per-script shared_ptr<Drawable> vector via Script::GetDrawables()
-// and holds those refs locally for the duration of its work. v8::Global
-// handles on a drawable may be pre-Reset by the owning script thread (via
-// Script::RemoveDrawable or Script::TeardownIsolate) while the game thread
-// still holds a shared_ptr; the game thread must therefore treat a freshly
-// copied Global being empty as "raced teardown" rather than a bug.
-//
-// Global copy across threads is safe without Locker/Isolate::Scope/HandleScope.
-// Global(isolate, source) calls GlobalizeReference, which is a slot allocation,
-// not JS execution. If the
-// owning thread Reset()s the source concurrently the race is safe on x86:
-// we either copy before Reset (valid independent handle) or after (source is
-// empty, New returns nullptr, no-op). Aligned pointer reads/writes are atomic.
+// DrawAll / OnClick / OnMouseMove run on the **game thread**. Each reads a
+// per-script shared_ptr<Drawable> vector via Script::GetDrawables() and holds
+// those refs locally for the duration of its work. Nothing here touches the
+// script engine: hit testing reads the drawable's own hasClick / hasHover
+// flags, and handler invocation is handed to the owning Script, which holds
+// the callbacks and can drop them the moment the drawable is removed. The
+// flags are therefore advisory - a script may clear one between the test and
+// the dispatch, and the dispatch then simply does nothing.
 
 namespace d2bs::js::drawing {
 
@@ -78,8 +70,7 @@ struct Hit {
 
 // Find the topmost visible drawable under `pos` across every script whose
 // drawables are visible in `state` and whose drawable satisfies `wants`. The
-// caller-supplied predicate filters by handler presence (onClick / onHover /
-// any).
+// caller-supplied predicate filters by handler presence (click / any).
 template <typename Wants>
 Hit FindTopHit(game::Point pos, game::GameState state, Wants wants) {
     Hit best;
@@ -105,8 +96,6 @@ Hit FindTopHit(game::Point pos, game::GameState state, Wants wants) {
 }  // namespace
 
 Drawable::~Drawable() {
-    onClick.Reset();
-    onHover.Reset();
     if (onDestroy) {
         onDestroy();
     }
@@ -140,37 +129,20 @@ void Drawable::DrawAll(game::GameState state) {
 }
 
 bool Drawable::OnClick(game::ClickButton button, game::Point pos, game::GameState state) {
-    auto hit = FindTopHit(pos, state, [](const Drawable& d) { return !d.onClick.IsEmpty(); });
+    auto hit = FindTopHit(pos, state, [](const Drawable& d) { return d.hasClick.load(); });
     if (!hit.drawable) {
         return false;
     }
-    auto iso = hit.script->GetIsolate();
-    if (!iso) {
-        return false;
-    }
-    v8::Global<v8::Function> fn(iso.get(), hit.drawable->onClick);
-    if (fn.IsEmpty()) {
-        return false;  // raced teardown / removal
-    }
-    auto evt = std::make_shared<ScreenHookClickEvent>(button, pos, std::move(fn));
-    // Click events are blockable; bump the expected-handler counter so
-    // IsBlocked() waits for the JS callback's return value. Hover events are
-    // fire-and-forget and do not use this counter.
-    evt->IncrementExpected();
-    if (!hit.script->ExecuteEvent(evt)) {
-        evt->DecrementExpected();
-        return false;
-    }
-    return evt->IsBlocked(std::chrono::seconds(3)).value_or(false);
+    return hit.script->DispatchDrawableClick(*hit.drawable, button, pos);
 }
 
 void Drawable::OnMouseMove(game::Point pos, game::GameState state) {
-    // Find the topmost visible drawable at pos regardless of onHover -
+    // Find the topmost visible drawable at pos regardless of its hover handler -
     // occlusion respects z-order over all drawables, so a non-hoverable
     // overlay still blocks hover events on a hoverable drawable below it.
     // Then walk every drawable in matching scripts and flip its isHovered
     // flag, dispatching enter/leave events for transitions. Drawables without
-    // an onHover handler are skipped in the flip pass - they can't fire an
+    // a hover handler are skipped in the flip pass - they can't fire an
     // event and don't need flag tracking. JS callbacks run asynchronously on
     // their owning script's thread so re-entrance into Add/RemoveDrawable is
     // safe.
@@ -180,14 +152,13 @@ void Drawable::OnMouseMove(game::Point pos, game::GameState state) {
         if (!script->DrawablesVisibleIn(state)) {
             continue;
         }
-        auto iso = script->GetIsolate();
-        if (!iso) {
+        if (!script->IsAlive()) {
             // Script is tearing down - drawables_ is already cleared (or about
             // to be), no meaningful hover work to do for this script.
             continue;
         }
         for (auto& drawable : script->GetDrawables()) {
-            if (drawable->onHover.IsEmpty()) {
+            if (!drawable->hasHover.load()) {
                 continue;
             }
             bool shouldBeHovered = drawable.get() == top.drawable.get();
@@ -195,12 +166,7 @@ void Drawable::OnMouseMove(game::Point pos, game::GameState state) {
             if (!drawable->isHovered.compare_exchange_strong(expected, shouldBeHovered)) {
                 continue;
             }
-            v8::Global<v8::Function> fn(iso.get(), drawable->onHover);
-            if (fn.IsEmpty()) {
-                continue;
-            }
-            script->ExecuteEvent(std::make_shared<ScreenHookHoverEvent>(shouldBeHovered ? pos : game::Point::Zero,
-                                                                        shouldBeHovered, std::move(fn)));
+            script->DispatchDrawableHover(*drawable, shouldBeHovered ? pos : game::Point::Zero, shouldBeHovered);
         }
     }
 }

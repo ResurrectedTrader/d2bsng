@@ -54,10 +54,10 @@ class JSBox : public JSDrawableBase<JSBox, BoxDrawable> {
             drawable->isAutomap.store(args[7]->BooleanValue(isolate));
         }
         if (args.Length() > 8 && args[8]->IsFunction()) {
-            drawable->onClick.Reset(isolate, args[8].As<v8::Function>());
+            script->SetDrawableHandler(*drawable, DrawableHandler::Click, args[8].As<v8::Function>());
         }
         if (args.Length() > 9 && args[9]->IsFunction()) {
-            drawable->onHover.Reset(isolate, args[9].As<v8::Function>());
+            script->SetDrawableHandler(*drawable, DrawableHandler::Hover, args[9].As<v8::Function>());
         }
 
         auto* rawDrawable = drawable.get();

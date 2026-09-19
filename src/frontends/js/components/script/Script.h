@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <set>
 #include <shared_mutex>
 #include <string>
@@ -107,6 +108,10 @@ class Script : public std::enable_shared_from_this<Script> {
     // the duration of the caller's use, even if TeardownIsolate runs concurrently.
     [[nodiscard]] std::shared_ptr<v8::Isolate> GetIsolate() const { return isolate_.load(); }
 
+    // Whether this script's execution environment still exists, so posted
+    // events can still run. False before SetupIsolate and after TeardownIsolate.
+    [[nodiscard]] bool IsAlive() const { return isolate_.load() != nullptr; }
+
     // The script's V8 context. Only valid on the script's own thread (a v8::Local
     // requires a HandleScope on the isolate's thread). Empty before SetupIsolate
     // and after TeardownIsolate.
@@ -118,6 +123,11 @@ class Script : public std::enable_shared_from_this<Script> {
     // Heap stats cached on the script's own thread (safe to read cross-thread).
     // Updated periodically (~1s), not on every event loop tick.
     [[nodiscard]] std::shared_ptr<v8::HeapStatistics> GetCachedHeapStats() const { return cachedHeapStats_.load(); }
+    // The same cached figures without naming an engine type, for the console.
+    // Empty until the first snapshot is taken.
+    [[nodiscard]] std::optional<HeapStats> GetHeapStats() const;
+    // Live native wrapper objects owned by this script's thread. Any thread.
+    [[nodiscard]] ObjectCounts GetObjectCounts() const;
     // Force a fresh snapshot - only safe from the script's own thread. `now` is
     // the caller's single steady_clock reading for the pass (steady_clock::now()
     // is QueryPerformanceCounter on MSVC, so event-loop callers pass theirs in
@@ -184,24 +194,31 @@ class Script : public std::enable_shared_from_this<Script> {
     // this script. Added and removed from V8 callbacks on the script's own
     // thread; iterated by the game thread via GetDrawables() for draw / hit
     // testing across all scripts.
-    //
-    // ~Drawable calls Reset() on its v8::Global onClick/onHover handles; that
-    // reaches into the isolate's GlobalHandles and UAFs after Isolate::Dispose.
-    // To make ~Drawable safe on any thread at any time, RemoveDrawable and
-    // TeardownIsolate explicitly Reset() the Globals on the script thread
-    // (under drawablesMutex_ while the isolate is still alive) before dropping
-    // the script's own shared_ptr. If a game-thread reader still holds a copy
-    // via GetDrawables(), its later ~Drawable finds empty Globals and the
-    // Reset becomes a no-op.
     void AddDrawable(std::shared_ptr<js::drawing::Drawable> drawable);
-    // Remove a drawable, pre-Reset its v8::Globals, and run its onDestroy
-    // hook on the script thread. If `fireLeaveEvent` is true and the drawable
-    // was hovered, dispatches a hover-leave ScreenHookHoverEvent after
-    // releasing the lock. TeardownIsolate passes false - the script's event
-    // loop has exited and a same-thread ExecuteEvent would synchronously run
-    // user JS that's about to be torn down.
+    // Remove a drawable, drop its handlers, and run its onDestroy hook on the
+    // script thread. If `fireLeaveEvent` is true and the drawable was hovered,
+    // dispatches a hover-leave ScreenHookHoverEvent after releasing the lock.
+    // TeardownIsolate passes false - the script's event loop has exited and a
+    // same-thread ExecuteEvent would synchronously run user JS that's about to
+    // be torn down.
     void RemoveDrawable(const std::shared_ptr<js::drawing::Drawable>& drawable, bool fireLeaveEvent = true);
     [[nodiscard]] std::vector<std::shared_ptr<js::drawing::Drawable>> GetDrawables();
+
+    // A drawable's click / hover callbacks live here rather than on the
+    // drawable, so the v8::Global is only ever created and destroyed on this
+    // script's thread - the game thread holds shared_ptr<Drawable> copies
+    // across a frame, which would otherwise release a GC root off-thread.
+    // The drawable carries the matching hasClick / hasHover flag for
+    // game-thread hit testing. An empty `handler` clears the slot.
+    void SetDrawableHandler(js::drawing::Drawable& drawable, DrawableHandler which, v8::Local<v8::Function> handler);
+    [[nodiscard]] v8::MaybeLocal<v8::Function> GetDrawableHandler(const js::drawing::Drawable& drawable,
+                                                                  DrawableHandler which);
+
+    // Game thread. Runs the drawable's handler on this script's event loop.
+    // The click variant waits for the handler's block vote and returns it;
+    // false if the handler is gone or the script is tearing down.
+    bool DispatchDrawableClick(const js::drawing::Drawable& drawable, game::ClickButton button, game::Point pos);
+    void DispatchDrawableHover(const js::drawing::Drawable& drawable, game::Point pos, bool entered);
 
    private:
     // Drops every handler and its listener counts. Caller holds eventFunctionsMutex_.
@@ -262,8 +279,16 @@ class Script : public std::enable_shared_from_this<Script> {
     std::set<std::filesystem::path> includes_;
     std::set<std::filesystem::path> inProgressIncludes_;
 
+    struct DrawableHandlers {
+        v8::Global<v8::Function> click;
+        v8::Global<v8::Function> hover;
+    };
+
     std::shared_mutex drawablesMutex_;
     std::vector<std::shared_ptr<js::drawing::Drawable>> drawables_;
+    // Keyed by drawable identity; the entry is erased in RemoveDrawable before
+    // the script's own shared_ptr drops, so a key never outlives its drawable.
+    std::unordered_map<const js::drawing::Drawable*, DrawableHandlers> drawableHandlers_;
 
     // V8 inspector (Chrome DevTools) attachment for this isolate. Created by
     // AttachInspector in SetupIsolate and destroyed in TeardownIsolate, both on

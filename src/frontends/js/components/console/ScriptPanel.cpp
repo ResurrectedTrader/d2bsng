@@ -2,15 +2,15 @@
 
 #include <fmt/format.h>
 #include <imgui.h>
-#include <v8.h>
 #include <magic_enum/magic_enum.hpp>
 
+#include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
-#include "api/core/V8InstanceTracker.h"
 #include "components/console/Theme.h"
 #include "components/script/Script.h"
 #include "components/script/ScriptEngine.h"
@@ -34,13 +34,18 @@ constexpr ImGuiTableFlags TABLE_FLAGS = ImGuiTableFlags_RowBg | ImGuiTableFlags_
     return ImGui::IsMouseHoveringRect(start, ImVec2(start.x + width, start.y + height));
 }
 
+// A figure the engine could not report renders as "-" rather than a zero that
+// would read as a measurement.
+[[nodiscard]] std::string FormatOptionalBytes(const std::optional<uint64_t>& value) {
+    return value ? theme::FormatBytes(*value) : std::string("-");
+}
+
 // Render the breakdown body shared between per-script and totals tooltips.
 // All fields here are things that actually move under script load: usage
 // vs. the limit, how much physical memory is backing the heap, external
-// buffers held outside V8's GC, peak malloced high-water mark, and the
+// buffers held outside the GC, peak malloced high-water mark, and the
 // global-handle pool (where leaks usually show up).
-void DrawHeapBreakdown(uint64_t used, uint64_t total, uint64_t limit, uint64_t physical, uint64_t external,
-                       uint64_t peakMalloced, uint64_t usedHandles, uint64_t totalHandles) {
+void DrawHeapBreakdown(const HeapStats& stats) {
     if (!ImGui::BeginTable("##heapbreakdown", 2, ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Borders)) {
         return;
     }
@@ -51,40 +56,46 @@ void DrawHeapBreakdown(uint64_t used, uint64_t total, uint64_t limit, uint64_t p
         ImGui::TableNextColumn();
         ImGui::TextUnformatted(value.c_str());
     };
-    const double pct = (limit > 0) ? (100.0 * static_cast<double>(used) / static_cast<double>(limit)) : 0.0;
-    row("Used", fmt::format("{} ({:.1f}% of limit)", theme::FormatBytes(used), pct));
-    row("Committed", theme::FormatBytes(total));
-    row("Physical", theme::FormatBytes(physical));
-    row("Limit", theme::FormatBytes(limit));
-    row("External", theme::FormatBytes(external));
-    row("Peak malloced", theme::FormatBytes(peakMalloced));
-    row("Global handles", fmt::format("{} / {}", theme::FormatBytes(usedHandles), theme::FormatBytes(totalHandles)));
+    const double pct = (stats.used && stats.limit && *stats.limit > 0)
+                           ? (100.0 * static_cast<double>(*stats.used) / static_cast<double>(*stats.limit))
+                           : 0.0;
+    row("Used", fmt::format("{} ({:.1f}% of limit)", FormatOptionalBytes(stats.used), pct));
+    row("Committed", FormatOptionalBytes(stats.committed));
+    row("Physical", FormatOptionalBytes(stats.physical));
+    row("Limit", FormatOptionalBytes(stats.limit));
+    row("External", FormatOptionalBytes(stats.external));
+    row("Peak malloced", FormatOptionalBytes(stats.peakMalloced));
+    row("Global handles",
+        fmt::format("{} / {}", FormatOptionalBytes(stats.usedHandles), FormatOptionalBytes(stats.totalHandles)));
     ImGui::EndTable();
 }
 
-void DrawHeapTooltipBody(const std::shared_ptr<v8::HeapStatistics>& stats) {
-    if (stats == nullptr) {
+void DrawHeapTooltipBody(const std::optional<HeapStats>& stats) {
+    if (!stats) {
         ImGui::TextDisabled("(no heap snapshot yet)");
         return;
     }
-    DrawHeapBreakdown(stats->used_heap_size(), stats->total_heap_size(), stats->heap_size_limit(),
-                      stats->total_physical_size(), stats->external_memory(), stats->peak_malloced_memory(),
-                      stats->used_global_handles_size(), stats->total_global_handles_size());
+    DrawHeapBreakdown(*stats);
 }
 
-// Sum-of-fields helper for the totals row tooltip.
-struct HeapTotals {
-    uint64_t used = 0;
-    uint64_t total = 0;
-    uint64_t limit = 0;
-    uint64_t physical = 0;
-    uint64_t external = 0;
-    uint64_t peakMalloced = 0;
-    uint64_t usedHandles = 0;
-    uint64_t totalHandles = 0;
-};
+void Accumulate(std::optional<uint64_t>& total, const std::optional<uint64_t>& value) {
+    if (value) {
+        total = total.value_or(0) + *value;
+    }
+}
 
-void DrawObjectsTooltipBody(const api::ClassCountMap& snapshot) {
+void AccumulateHeap(HeapStats& total, const HeapStats& value) {
+    Accumulate(total.used, value.used);
+    Accumulate(total.committed, value.committed);
+    Accumulate(total.limit, value.limit);
+    Accumulate(total.physical, value.physical);
+    Accumulate(total.external, value.external);
+    Accumulate(total.peakMalloced, value.peakMalloced);
+    Accumulate(total.usedHandles, value.usedHandles);
+    Accumulate(total.totalHandles, value.totalHandles);
+}
+
+void DrawObjectsTooltipBody(const ObjectCounts& snapshot) {
     if (snapshot.empty()) {
         ImGui::TextDisabled("(no live native objects)");
         return;
@@ -108,8 +119,8 @@ void OpenCellTooltip(BodyFn&& body) {
     ImGui::EndTooltip();
 }
 
-void DrawScriptRow(size_t rowIndex, const std::shared_ptr<Script>& script, HeapTotals& heapTotalsOut,
-                   int64_t& totalObjectsOut, api::ClassCountMap& mergedObjectsOut) {
+void DrawScriptRow(size_t rowIndex, const std::shared_ptr<Script>& script, HeapStats& heapTotalsOut,
+                   int64_t& totalObjectsOut, ObjectCounts& mergedObjectsOut) {
     ImGui::TableNextRow();
 
     ImGui::TableNextColumn();
@@ -128,18 +139,12 @@ void DrawScriptRow(size_t rowIndex, const std::shared_ptr<Script>& script, HeapT
     ImGui::TableNextColumn();
     {
         const bool hovered = IsCellHovered();
-        const auto stats = script->GetCachedHeapStats();
-        if (stats != nullptr) {
-            const auto used = static_cast<uint64_t>(stats->used_heap_size());
-            ImGui::TextUnformatted(theme::FormatBytes(used).c_str());
-            heapTotalsOut.used += used;
-            heapTotalsOut.total += static_cast<uint64_t>(stats->total_heap_size());
-            heapTotalsOut.limit += static_cast<uint64_t>(stats->heap_size_limit());
-            heapTotalsOut.physical += static_cast<uint64_t>(stats->total_physical_size());
-            heapTotalsOut.external += static_cast<uint64_t>(stats->external_memory());
-            heapTotalsOut.peakMalloced += static_cast<uint64_t>(stats->peak_malloced_memory());
-            heapTotalsOut.usedHandles += static_cast<uint64_t>(stats->used_global_handles_size());
-            heapTotalsOut.totalHandles += static_cast<uint64_t>(stats->total_global_handles_size());
+        const auto stats = script->GetHeapStats();
+        if (stats) {
+            AccumulateHeap(heapTotalsOut, *stats);
+        }
+        if (stats && stats->used) {
+            ImGui::TextUnformatted(theme::FormatBytes(*stats->used).c_str());
         } else {
             ImGui::TextDisabled("-");
         }
@@ -152,7 +157,7 @@ void DrawScriptRow(size_t rowIndex, const std::shared_ptr<Script>& script, HeapT
     ImGui::TableNextColumn();
     {
         const bool hovered = IsCellHovered();
-        const auto objectsSnapshot = api::V8InstanceTracker::Instance().Snapshot(script->GetThreadId());
+        const auto objectsSnapshot = script->GetObjectCounts();
         int32_t objectsTotal = 0;
         for (const auto& [name, count] : objectsSnapshot) {
             objectsTotal += count;
@@ -215,8 +220,8 @@ void DrawScriptRow(size_t rowIndex, const std::shared_ptr<Script>& script, HeapT
     ImGui::PopID();
 }
 
-void DrawTotalsRow(const std::vector<std::shared_ptr<Script>>& scripts, const HeapTotals& heapTotals,
-                   int64_t totalObjects, const api::ClassCountMap& mergedObjects) {
+void DrawTotalsRow(const std::vector<std::shared_ptr<Script>>& scripts, const HeapStats& heapTotals,
+                   int64_t totalObjects, const ObjectCounts& mergedObjects) {
     int32_t pausableCount = 0;
     int32_t resumableCount = 0;
     for (const auto& script : scripts) {
@@ -243,13 +248,9 @@ void DrawTotalsRow(const std::vector<std::shared_ptr<Script>>& scripts, const He
     ImGui::TableNextColumn();
     {
         const bool hovered = IsCellHovered();
-        ImGui::TextUnformatted(theme::FormatBytes(heapTotals.used).c_str());
+        ImGui::TextUnformatted(theme::FormatBytes(heapTotals.used.value_or(0)).c_str());
         if (hovered) {
-            OpenCellTooltip([&] {
-                DrawHeapBreakdown(heapTotals.used, heapTotals.total, heapTotals.limit, heapTotals.physical,
-                                  heapTotals.external, heapTotals.peakMalloced, heapTotals.usedHandles,
-                                  heapTotals.totalHandles);
-            });
+            OpenCellTooltip([&] { DrawHeapBreakdown(heapTotals); });
         }
     }
 
@@ -321,9 +322,9 @@ void ScriptPanel::Draw() {
                             ImGui::CalcTextSize("Stop all  Pause all  Resume all  GC all    ").x);
     ImGui::TableHeadersRow();
 
-    HeapTotals heapTotals;
+    HeapStats heapTotals;
     int64_t totalObjects = 0;
-    api::ClassCountMap mergedObjects;
+    ObjectCounts mergedObjects;
     std::ranges::sort(scripts, {}, [](const auto& script) { return script->GetName(); });
     for (size_t i = 0; i < scripts.size(); ++i) {
         DrawScriptRow(i, scripts[i], heapTotals, totalObjects, mergedObjects);

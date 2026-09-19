@@ -55,10 +55,10 @@ class JSText : public JSDrawableBase<JSText, TextDrawable> {
             drawable->isAutomap.store(args[6]->BooleanValue(isolate));
         }
         if (args.Length() > 7 && args[7]->IsFunction()) {
-            drawable->onClick.Reset(isolate, args[7].As<v8::Function>());
+            script->SetDrawableHandler(*drawable, DrawableHandler::Click, args[7].As<v8::Function>());
         }
         if (args.Length() > 8 && args[8]->IsFunction()) {
-            drawable->onHover.Reset(isolate, args[8].As<v8::Function>());
+            script->SetDrawableHandler(*drawable, DrawableHandler::Hover, args[8].As<v8::Function>());
         }
 
         auto* rawDrawable = drawable.get();

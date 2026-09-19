@@ -1,6 +1,5 @@
 #pragma once
 
-#include <v8.h>
 #include <atomic>
 #include <filesystem>
 #include <functional>
@@ -35,8 +34,13 @@ struct Drawable : std::enable_shared_from_this<Drawable> {
     // V8 instance count without pulling an api/ dependency into components/.
     std::function<void()> onDestroy;
 
-    v8::Global<v8::Function> onClick;
-    v8::Global<v8::Function> onHover;
+    // Whether the owning Script holds a click / hover callback for this
+    // drawable. The callbacks live on the Script, not here: the game thread
+    // holds shared_ptr copies across DrawAll, so anything reachable from a
+    // drawable is eventually released off the script's own thread. These flags
+    // are all the game thread needs to hit-test.
+    std::atomic<bool> hasClick = false;
+    std::atomic<bool> hasHover = false;
 
     virtual ~Drawable();
 
@@ -44,19 +48,18 @@ struct Drawable : std::enable_shared_from_this<Drawable> {
     virtual bool Contains(game::Point p) const = 0;
 
     // Game-thread collection entry points. Each iterates live scripts via
-    // Script::GetDrawables(), which returns a snapshot with per-script isolate
-    // keep-alive so ~Drawable's v8::Global::Reset is safe under concurrent
-    // script teardown.
+    // Script::GetDrawables(), which returns a snapshot of shared_ptrs, so a
+    // drawable stays alive for the walk even if its script removes it midway.
     static void DrawAll(game::GameState state);
 
-    // Returns true if a visible drawable with an onClick handler contains point.
+    // Returns true if a visible drawable with a click handler contains point.
     // Called from the game thread to decide whether to block the game's click handling.
-    // Also posts a ScreenHookClickEvent to the owning script for V8 callback invocation.
+    // Also asks the owning script to dispatch the handler.
     static bool OnClick(game::ClickButton button, game::Point pos, game::GameState state);
 
     // Tracks hover enter/leave state for all drawables.  Respects z-order:
-    // only the topmost visible drawable with an onHover handler is considered
-    // "hovered".  Posts ScreenHookHoverEvents to owning scripts on transitions.
+    // only the topmost visible drawable with a hover handler is considered
+    // "hovered".  Asks owning scripts to dispatch the handler on transitions.
     static void OnMouseMove(game::Point pos, game::GameState state);
 };
 
