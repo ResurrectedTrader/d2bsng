@@ -1,8 +1,8 @@
 #pragma once
 
-#include <v8.h>
 #include <atomic>
 #include <cstdint>
+#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
@@ -10,6 +10,8 @@
 #include "game/Types.h"
 
 namespace d2bs {
+
+class BaseEvent;
 
 namespace events {
 
@@ -40,7 +42,9 @@ void ItemActionEventDispatch(uint32_t unitId, uint32_t action, const std::string
 void GameActionEventDispatch(int32_t mode, uint32_t param1, uint32_t param2, const std::string& name1,
                              const std::string& name2);
 void CopyDataEventDispatch(game::IpcMode mode, const std::string& payload);
-void ScriptBroadcastEventDispatch(const v8::FunctionCallbackInfo<v8::Value>& args);
+// The caller builds the event: serialising the broadcast arguments can run script code and throw
+// out of scriptBroadcast(), so it has to happen whether or not anything is listening.
+void ScriptBroadcastEventDispatch(const std::shared_ptr<BaseEvent>& event);
 
 // Blockable event dispatchers (return true if event was blocked)
 bool KeyDownUpEventDispatch(uint32_t key, game::KeyState state);

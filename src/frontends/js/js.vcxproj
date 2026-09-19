@@ -146,6 +146,7 @@
     <ClCompile Include="components\script\NativeCallHook.cpp" />
     <ClCompile Include="components\script\Script.cpp" />
     <ClCompile Include="components\script\ScriptEngine.cpp" />
+    <ClCompile Include="components\script\ScriptRef.cpp" />
     <!-- Inspector (V8 / Chrome DevTools) -->
     <ClCompile Include="components\inspector\InspectorServer.cpp" />
     <ClCompile Include="components\inspector\InspectorTarget.cpp" />
@@ -260,6 +261,7 @@
     <ClInclude Include="api\classes\scripting\JSSandbox.h" />
     <ClInclude Include="api\classes\scripting\JSScript.h" />
     <!-- Script Components -->
+    <ClInclude Include="components\script\CallArgs.h" />
     <ClInclude Include="components\script\CodeCache.h" />
     <ClInclude Include="components\script\Commands.h" />
     <ClInclude Include="components\script\CompileSource.h" />
@@ -267,6 +269,7 @@
     <ClInclude Include="components\script\Script.h" />
     <ClInclude Include="components\script\ScriptEngine.h" />
     <ClInclude Include="components\script\ScriptLogger.h" />
+    <ClInclude Include="components\script\ScriptRef.h" />
     <ClInclude Include="components\script\ScriptTypes.h" />
     <!-- Inspector (V8 / Chrome DevTools) -->
     <ClInclude Include="components\inspector\InspectorServer.h" />

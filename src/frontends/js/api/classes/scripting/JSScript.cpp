@@ -193,8 +193,7 @@ void JSScript::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 return;
             }
 
-            // Serialize arguments using V8 ValueSerializer and dispatch as BroadcastEvent
-            auto evt = std::make_shared<BroadcastEvent>(args);
+            auto evt = std::make_shared<BroadcastEvent>(js::script::SerializeArgs(args));
             script->ExecuteEvent(evt);
         });
 }
