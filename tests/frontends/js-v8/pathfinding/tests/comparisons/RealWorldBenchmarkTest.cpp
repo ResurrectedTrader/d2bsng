@@ -1,7 +1,7 @@
 // Real-world benchmarks: run pathfinding on collision grids dumped from the game.
 //
 // If no .d2col fixture files are found, the test skips gracefully.
-// Dump game data to tests/frontends/js/fixtures/maps/ to enable these benchmarks.
+// Dump game data to tests/frontends/js-v8/fixtures/maps/ to enable these benchmarks.
 
 #include <array>
 #include <chrono>
@@ -38,7 +38,7 @@ TEST_CASE("Real world benchmarks") {
     auto fixtureFiles = FindFixtures(FixtureDir());
     if (fixtureFiles.empty()) {
         MESSAGE("No .d2col fixture files found in " << FixtureDir().string());
-        MESSAGE("Dump game data to tests/frontends/js/fixtures/maps/ to enable real-world benchmarks");
+        MESSAGE("Dump game data to tests/frontends/js-v8/fixtures/maps/ to enable real-world benchmarks");
         return;  // Skip gracefully
     }
 

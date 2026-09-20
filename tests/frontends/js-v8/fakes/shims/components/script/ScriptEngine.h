@@ -1,6 +1,6 @@
 #pragma once
 
-// Test shim for src/frontends/js/components/script/ScriptEngine.h
+// Test shim for src/frontends/js-v8/components/script/ScriptEngine.h
 //
 // Test-only shim for components/script/ScriptEngine.h. Drops the v8-heavy
 // isolate/console surface. Only StartScript and ForEachScript - the two hooks

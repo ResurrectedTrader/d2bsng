@@ -147,10 +147,10 @@ The codebase builds seven targets plus a test executable. A frontend (JS) and a 
 | `contract` | `src/contract/` | `contract.lib` | The version-agnostic game-abstraction *interface* (`game/` handle types) plus shared DTOs. The boundary both frontends and backends compile against. |
 | `core` | `src/core/` | `core.lib` | Shared infrastructure: config, speedhack, proxy. Depends on `contract`. |
 | `navigation` | `src/navigation/` | `navigation.lib` | Game-agnostic map algorithms over the contract: the A* pathfinder and the level-exit finder. Depends on `contract` + `utils` only - no `core`, no engine. |
-| `js` | `src/frontends/js/` | `js.lib` | JavaScript scripting frontend: engine + V8 JavaScript API. Depends on `contract` + `core` + `navigation`. |
+| `js-v8` | `src/frontends/js-v8/` | `js-v8.lib` | JavaScript scripting frontend: engine + V8 JavaScript API. Depends on `contract` + `core` + `navigation`. |
 | `lod114d` | `src/backends/lod114d/` | `lod114d.lib` | The 1.14d game *backend* (directory named for the patch it targets) - game-memory reads, function calls, hooks, offsets. Implements `contract`; depends on `contract` + `core`. No frontend dependency. |
-| `d2bs` | `src/glue/js-lod114d/` | `d2bs.dll` | Glue: `DllMain` + wiring. Links js + lod114d + navigation + contract + core + utils. This is the injectable DLL. |
-| `js_tests` | `tests/frontends/js/` | `js_tests.exe` | A [doctest](https://github.com/doctest/doctest) suite (pathfinding) compiled against a fake game layer |
+| `d2bs` | `src/glue/js-v8-lod114d/` | `d2bs.dll` | Glue: `DllMain` + wiring. Links js-v8 + lod114d + navigation + contract + core + utils. This is the injectable DLL. |
+| `js_tests` | `tests/frontends/js-v8/` | `js_tests.exe` | A [doctest](https://github.com/doctest/doctest) suite (pathfinding) compiled against a fake game layer |
 
 The key structural decision is the split between a **version-agnostic game interface**
 (`src/contract/game/` - thin handle types like `Unit`, `Room`, `Level`, `Party`, `Control`
@@ -159,7 +159,7 @@ provides the actual game-memory reads, function calls, hooks, and offsets. The f
 JavaScript API never touch game memory directly or depend on any particular game build;
 supporting another game version means adding a new backend lib (sibling of `src/backends/lod114d/`)
 over the same `contract` + `core`, and a new frontend (e.g. a non-JS host) is a sibling of
-`src/frontends/js/`. Frontend and backend never reference each other - only the `d2bs` glue does.
+`src/frontends/js-v8/`. Frontend and backend never reference each other - only the `d2bs` glue does.
 
 The project is **32-bit (Win32) only** (required for 1.14d), compiled with C++23 using the
 LLVM/Clang (ClangCL) toolchain with link-time optimization, so the thin wrapper types inline
@@ -296,7 +296,7 @@ The suite compiles the real pathfinder against fake game-layer implementations -
 V8, and no running game required. It currently covers the pathfinding engine.
 
 Real-game collision benchmarks run against the `.d2col` fixtures under
-`tests/frontends/js/fixtures/maps/` (collision dumps included in the repo). The benchmarks
+`tests/frontends/js-v8/fixtures/maps/` (collision dumps included in the repo). The benchmarks
 auto-discover whatever is present and skip gracefully if the folder is empty.
 
 ## Compatibility with legacy d2bs scripts

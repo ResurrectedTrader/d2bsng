@@ -251,4 +251,4 @@ std::vector<Position> FindPath(const PathRequest& request);
 // without duplicating the room walk + slab assembly.
 LevelGrid BuildLevelGrid(game::Level level);
 
-}  // namespace d2bs::pathfinding
+}  // namespace d2bs::navigation

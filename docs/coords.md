@@ -41,7 +41,7 @@ of truth, no `Pos()`/`Size()` pair.
 | `navigation::ExitInfo::pos` | game-coords | derived from room/level offsets already scaled |
 
 Consequences:
-- `src/frontends/js/` contains zero `* 5` coordinate scaling.
+- `src/frontends/js-v8/` contains zero `* 5` coordinate scaling.
 - `Room::Bounds()` and `Level::Bounds()` each produce a valid game-coord bounding
   box in a single resolve.
 - `LevelGrid` input/output is game-coords throughout.
@@ -81,8 +81,8 @@ Reference d2bs script contract (current behavior - Option A applied):
 - `room.xsize`, `room.ysize` -> **game-coords** (already `* 5`)
 - `level.x/y/xsize/ysize` -> **subtiles** for all four
 
-At the JS-API boundary (`src/frontends/js/api/classes/game/JSRoom.h`,
-`src/frontends/js/api/classes/game/JSArea.h`), the game-coord values from `Bounds()`
+At the JS-API boundary (`src/frontends/js-v8/api/classes/game/JSRoom.h`,
+`src/frontends/js-v8/api/classes/game/JSArea.h`), the game-coord values from `Bounds()`
 are divided by `5U` where reference exposed raw-subtile. `JSRoom` divides `x/y` only;
 `JSArea` divides all four. This preserves reference-d2bs script compatibility.
 

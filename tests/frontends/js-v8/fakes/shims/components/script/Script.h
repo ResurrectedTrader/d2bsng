@@ -1,6 +1,6 @@
 #pragma once
 
-// Test shim for src/frontends/js/components/script/Script.h
+// Test shim for src/frontends/js-v8/components/script/Script.h
 //
 // Test-only shim for components/script/Script.h. The real header depends on
 // <v8.h> for isolate/event machinery; GameLoop.cpp only needs Script::GetMode()

@@ -7,14 +7,14 @@
   <Project Path="src/contract/contract.vcxproj" />
   <Project Path="src/core/core.vcxproj" />
   <Project Path="src/navigation/navigation.vcxproj" />
-  <Project Path="src/frontends/js/js.vcxproj" />
+  <Project Path="src/frontends/js-v8/js-v8.vcxproj" />
   <Project Path="src/backends/lod114d/lod114d.vcxproj">
     <Build Solution="*|x64" Project="false" />
   </Project>
-  <Project Path="src/glue/js-lod114d/d2bs.vcxproj">
+  <Project Path="src/glue/js-v8-lod114d/d2bs.vcxproj">
     <Build Solution="*|x64" Project="false" />
   </Project>
-  <Project Path="tests/frontends/js/js_tests.vcxproj">
+  <Project Path="tests/frontends/js-v8/js_tests.vcxproj">
     <Build Solution="*|x64" Project="false" />
   </Project>
   <Folder Name="/Solution Items/">

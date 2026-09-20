@@ -109,8 +109,8 @@ std::vector<std::filesystem::path> FindFixtures(const std::filesystem::path& dir
 std::filesystem::path FixtureDir() {
     std::array candidates = {
         std::filesystem::path(__FILE__).parent_path() / "maps",
-        std::filesystem::path("tests/frontends/js/fixtures/maps"),
-        std::filesystem::path("../tests/frontends/js/fixtures/maps"),
+        std::filesystem::path("tests/frontends/js-v8/fixtures/maps"),
+        std::filesystem::path("../tests/frontends/js-v8/fixtures/maps"),
     };
     for (auto& p : candidates) {
         if (std::filesystem::exists(p))

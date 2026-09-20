@@ -956,4 +956,4 @@ std::vector<Position> FindPath(const PathRequest& request) {
                           request.teleportHWeight);
 }
 
-}  // namespace d2bs::pathfinding
+}  // namespace d2bs::navigation

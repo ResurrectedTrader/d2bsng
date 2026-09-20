@@ -165,7 +165,7 @@ def build_compile_flags():
         "-w",  # suppress diagnostics — we only want the AST
     ]
     for d in (
-        REPO_ROOT / "src" / "frontends" / "js",
+        REPO_ROOT / "src" / "frontends" / "js-v8",
         REPO_ROOT / "src" / "contract",
         REPO_ROOT / "src" / "core",
         REPO_ROOT / "src",
@@ -1000,15 +1000,15 @@ def merge_partials(partials):
 
 
 def find_api_sources():
-    api_dir = REPO_ROOT / "src" / "frontends" / "js" / "api"
+    api_dir = REPO_ROOT / "src" / "frontends" / "js-v8" / "api"
     files = []
     for ext in ("*.h", "*.cpp"):
         files.extend(sorted(api_dir.rglob(ext)))
     return files
 
 
-EVENTS_FILE = REPO_ROOT / "src" / "frontends" / "js" / "components" / "events" / "Events.h"
-TXT_TABLES_FILE = REPO_ROOT / "src" / "frontends" / "js" / "api" / "globals" / "TxtTables.h"
+EVENTS_FILE = REPO_ROOT / "src" / "frontends" / "js-v8" / "components" / "events" / "Events.h"
+TXT_TABLES_FILE = REPO_ROOT / "src" / "frontends" / "js-v8" / "api" / "globals" / "TxtTables.h"
 
 
 def extract_txt_tables(path=TXT_TABLES_FILE):
@@ -1408,7 +1408,7 @@ def extract_events(events_path=EVENTS_FILE):
 
 
 _DRAWABLE_BASE_FILE = (
-    REPO_ROOT / "src" / "frontends" / "js" / "api" / "classes" / "drawing" / "JSDrawableBase.h"
+    REPO_ROOT / "src" / "frontends" / "js-v8" / "api" / "classes" / "drawing" / "JSDrawableBase.h"
 )
 _DRAWABLE_REG_RE = re.compile(
     r'Base::(Property|Method)\(\s*isolate\s*,\s*\w+\s*,\s*"([^"]+)"'

@@ -61,7 +61,7 @@ cover the framework catalog only.
 
 ## The `Compatibility` JS object
 
-A non-constructable namespace object (`src/frontends/js/api/classes/scripting/JSCompatibility.h`),
+A non-constructable namespace object (`src/frontends/js-v8/api/classes/scripting/JSCompatibility.h`),
 modeled on `TxtTables`. The set of available flag names is documented in the API
 docs (the `CompatibilityFlag` option set), so there is no runtime enumeration
 method:

@@ -1,12 +1,12 @@
 #pragma once
 
-// Test shim for src/frontends/js/components/events/EventDispatch.h
+// Test shim for src/frontends/js-v8/components/events/EventDispatch.h
 //
 // Test-only shim for components/events/EventDispatch.h. The real header pulls
 // in <v8.h> via ScriptBroadcastEventDispatch, which the test binary does not
 // link. GameLoop.cpp only touches the three dispatchers below, so that's all we
 // declare here; the capturing implementations live in
-// tests/frontends/js/fakes/GameLoopCollaborators.cpp.
+// tests/frontends/js-v8/fakes/GameLoopCollaborators.cpp.
 
 #include <cstdint>
 

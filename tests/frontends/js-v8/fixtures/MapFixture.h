@@ -26,7 +26,7 @@ struct MapFixture {
 
 std::vector<std::filesystem::path> FindFixtures(const std::filesystem::path& dir);
 
-// Standard fixture directory: tests/frontends/js/fixtures/maps/
+// Standard fixture directory: tests/frontends/js-v8/fixtures/maps/
 std::filesystem::path FixtureDir();
 
 }  // namespace d2bs::test

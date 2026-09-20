@@ -65,7 +65,7 @@
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(ProjectDir)fakes\shims;$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\frontends\js;$(SolutionDir)src;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)fakes\shims;$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\frontends\js-v8;$(SolutionDir)src;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -86,7 +86,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <AdditionalIncludeDirectories>$(ProjectDir)fakes\shims;$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\frontends\js;$(SolutionDir)src;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)fakes\shims;$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\frontends\js-v8;$(SolutionDir)src;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -112,15 +112,15 @@
     <!-- Real pathfinder under test -->
     <ClCompile Include="..\..\..\src\navigation\Pathfinder.cpp" />
     <!-- Real gameloop component under test -->
-    <ClCompile Include="..\..\..\src\frontends\js\components\gameloop\GameLoop.cpp" />
+    <ClCompile Include="..\..\..\src\frontends\js-v8\components\gameloop\GameLoop.cpp" />
     <!-- Real profile code under test -->
     <ClCompile Include="..\..\..\src\core\config\AppConfig.cpp" />
     <ClCompile Include="..\..\..\src\core\config\IniConfigStore.cpp" />
     <ClCompile Include="..\..\..\src\core\config\OptionParser.cpp" />
     <ClCompile Include="..\..\..\src\contract\config\ProfileData.cpp" />
     <ClCompile Include="..\..\..\src\contract\game\GameLock.cpp" />
-    <ClCompile Include="..\..\..\src\frontends\js\components\profile\ProfileService.cpp" />
-    <ClCompile Include="..\..\..\src\frontends\js\components\script\Commands.cpp" />
+    <ClCompile Include="..\..\..\src\frontends\js-v8\components\profile\ProfileService.cpp" />
+    <ClCompile Include="..\..\..\src\frontends\js-v8\components\script\Commands.cpp" />
     <!-- utils dependency (IniConfigStore uses ToLower/ToStr/ToWStr; GameLoop owns a profiling::Timeline) -->
     <ClCompile Include="..\..\..\src\utils\Strings.cpp" />
     <ClCompile Include="..\..\..\src\utils\utils.cpp" />

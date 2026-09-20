@@ -62,7 +62,7 @@
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\frontends\js;$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\backends\lod114d;$(SolutionDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\frontends\js-v8;$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\backends\lod114d;$(SolutionDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -84,7 +84,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\frontends\js;$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\backends\lod114d;$(SolutionDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\frontends\js-v8;$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\backends\lod114d;$(SolutionDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -110,7 +110,7 @@
     <ResourceCompile Include="version.rc" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\frontends\js\js.vcxproj">
+    <ProjectReference Include="..\..\frontends\js-v8\js-v8.vcxproj">
       <Project>{B1A2C3D4-E5F6-7890-ABCD-100000000002}</Project>
     </ProjectReference>
     <ProjectReference Include="..\..\backends\lod114d\lod114d.vcxproj">
