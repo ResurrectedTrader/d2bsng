@@ -5,7 +5,7 @@
 #include <string_view>
 #include <vector>
 
-#include "HttpEngine.h"
+#include "http/Client.h"
 
 namespace d2bs::api::classes {
 
@@ -105,7 +105,7 @@ bool ReadBoolOption(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Lo
 // options are rejected (not silently ignored). Returns false with a pending
 // exception on any rejection / V8 error; true otherwise.
 bool ApplyOptions(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Local<v8::Object> options,
-                  HttpRequest& request, bool allowMethod, bool allowBody, bool& binary) {
+                  http::Request& request, bool allowMethod, bool allowBody, bool& binary) {
     if (allowMethod && !ReadStringOption(isolate, context, options, "method", request.method)) {
         return false;
     }
@@ -191,7 +191,7 @@ bool ApplyOptions(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Loca
 
 // Build the plain JS response object returned to scripts.
 v8::Local<v8::Value> BuildResponseObject(v8::Isolate* isolate, v8::Local<v8::Context> context,
-                                         const HttpResponse& response, bool binary) {
+                                         const http::Response& response, bool binary) {
     v8::EscapableHandleScope scope(isolate);
     auto object = v8::Object::New(isolate);
 
@@ -236,7 +236,7 @@ void RequestImpl(const v8::FunctionCallbackInfo<v8::Value>& args, std::string_vi
     auto* isolate = args.GetIsolate();
     auto context = isolate->GetCurrentContext();
 
-    HttpRequest request;
+    http::Request request;
     request.method = std::string(defaultMethod);
     bool binary = false;
 
@@ -288,8 +288,8 @@ void RequestImpl(const v8::FunctionCallbackInfo<v8::Value>& args, std::string_vi
         return;
     }
 
-    HttpResponse response;
-    std::string error = PerformHttpRequest(request, response);
+    http::Response response;
+    std::string error = http::Perform(request, response);
     if (!error.empty()) {
         v8_error::ThrowError(isolate, "HTTP request failed: " + error);
         return;

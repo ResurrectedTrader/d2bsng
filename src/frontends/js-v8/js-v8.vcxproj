@@ -133,7 +133,6 @@
     <ClCompile Include="api\classes\io\JSDirectory.cpp" />
     <ClCompile Include="api\classes\io\JSFile.cpp" />
     <ClCompile Include="api\classes\io\JSFileTools.cpp" />
-    <ClCompile Include="api\classes\io\HttpEngine.cpp" />
     <ClCompile Include="api\classes\io\JSHttpClient.cpp" />
     <ClCompile Include="api\classes\io\JSSocket.cpp" />
     <ClCompile Include="api\classes\io\JSSQLite.cpp" />
@@ -242,7 +241,6 @@
     <ClInclude Include="api\classes\io\JSDirectory.h" />
     <ClInclude Include="api\classes\io\JSFile.h" />
     <ClInclude Include="api\classes\io\JSFileTools.h" />
-    <ClInclude Include="api\classes\io\HttpEngine.h" />
     <ClInclude Include="api\classes\io\JSHttpClient.h" />
     <ClInclude Include="api\classes\io\JSSocket.h" />
     <ClInclude Include="api\classes\io\JSSQLite.h" />

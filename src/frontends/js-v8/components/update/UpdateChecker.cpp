@@ -12,11 +12,8 @@
 #include <spdlog/spdlog.h>
 #include <nlohmann/json.hpp>
 
-// The V8-free HTTP engine (WinHTTP; bypasses the game's SOCKS5 detour). Reused
-// here rather than duplicating the WinHTTP plumbing - this is a documented
-// components -> api exception (HttpEngine.h pulls in no V8 / JS headers).
-#include "api/classes/io/HttpEngine.h"
 #include "config/Version.h"
+#include "http/Client.h"
 #include "utils/threadutils.h"
 #include "utils/utils.h"
 
@@ -166,7 +163,7 @@ void UpdateChecker::Run(const std::stop_token& stopToken) {
 }
 
 bool UpdateChecker::CheckOnce() {
-    api::classes::HttpRequest request;
+    http::Request request;
     request.method = "GET";
     request.url = std::string(RELEASES_API_URL);
     request.headers = {
@@ -178,8 +175,8 @@ bool UpdateChecker::CheckOnce() {
     request.timeoutMs = 10000;
     request.totalTimeoutMs = 15000;
 
-    api::classes::HttpResponse response;
-    const std::string error = api::classes::PerformHttpRequest(request, response);
+    http::Response response;
+    const std::string error = http::Perform(request, response);
     if (!error.empty()) {
         logger_->debug("update check: request failed ({})", error);
         return false;

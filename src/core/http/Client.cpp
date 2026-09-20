@@ -1,4 +1,4 @@
-#include "HttpEngine.h"
+#include "Client.h"
 
 #include <array>
 #include <chrono>
@@ -18,7 +18,7 @@
 #include "proxy/ProxyBypass.h"
 #include "utils/utils.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::http {
 
 namespace {
 
@@ -142,7 +142,7 @@ void ParseHeaders(const std::string& raw, std::map<std::string, std::string>& ou
 
 }  // namespace
 
-std::string PerformHttpRequest(const HttpRequest& request, HttpResponse& out) {
+std::string Perform(const Request& request, Response& out) {
     // Keep script HTTP off the game's SOCKS5 connect detour (see ProxyBypass.h).
     // Synchronous WinHTTP issues its connect() on this thread, so the thread-local
     // bypass applies.
@@ -303,4 +303,4 @@ std::string PerformHttpRequest(const HttpRequest& request, HttpResponse& out) {
     return {};
 }
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::http

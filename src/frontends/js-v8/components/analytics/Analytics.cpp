@@ -23,15 +23,11 @@
 #include <spdlog/spdlog.h>
 #include <nlohmann/json.hpp>
 
-// The V8-free HTTP engine (WinHTTP; bypasses the game's SOCKS5 detour). Reused
-// here rather than duplicating the WinHTTP plumbing - a documented
-// components -> api exception (HttpEngine.h pulls in no V8 / JS headers), the
-// same one the update checker relies on.
-#include "api/classes/io/HttpEngine.h"
 #include "config/AppConfig.h"
 #include "config/CompatibilityFlags.h"
 #include "config/Version.h"
 #include "game/GameHelpers.h"
+#include "http/Client.h"
 #include "utils/crypto.h"
 #include "utils/threadutils.h"
 #include "utils/utils.h"
@@ -377,7 +373,7 @@ bool PostEvent(const EventContext& ctx, const std::shared_ptr<spdlog::logger>& l
     props["installId"] = ctx.installId;
     event["props"] = std::move(props);
 
-    api::classes::HttpRequest request;
+    http::Request request;
     request.method = "POST";
     request.url = std::string(ctx.host) + std::string(EVENT_PATH);
     request.headers = {
@@ -390,8 +386,8 @@ bool PostEvent(const EventContext& ctx, const std::shared_ptr<spdlog::logger>& l
     request.timeoutMs = NETWORK_TIMEOUT_MS;
     request.totalTimeoutMs = TOTAL_TIMEOUT_MS;
 
-    api::classes::HttpResponse response;
-    const std::string error = api::classes::PerformHttpRequest(request, response);
+    http::Response response;
+    const std::string error = http::Perform(request, response);
     if (!error.empty()) {
         logger->debug("analytics: {} request failed ({})", eventName, error);
         return false;

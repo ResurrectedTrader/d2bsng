@@ -100,6 +100,7 @@
     <ClCompile Include="config\RealmRegistry.cpp" />
     <ClCompile Include="detour\Hook.cpp" />
     <ClCompile Include="input\InputHook.cpp" />
+    <ClCompile Include="http\Client.cpp" />
     <ClCompile Include="proxy\Socks5Proxy.cpp" />
     <ClCompile Include="speedhack\Speedhack.cpp" />
   </ItemGroup>
@@ -113,6 +114,7 @@
     <ClInclude Include="config\Version.h" />
     <ClInclude Include="detour\Hook.h" />
     <ClInclude Include="input\InputHook.h" />
+    <ClInclude Include="http\Client.h" />
     <ClInclude Include="proxy\ProxyBypass.h" />
     <ClInclude Include="proxy\Socks5Proxy.h" />
     <ClInclude Include="speedhack\Speedhack.h" />
