@@ -2,10 +2,10 @@
 
 #include <algorithm>
 
-#include "components/profile/ProfileService.h"
 #include "config/AppConfig.h"
 #include "config/CompatibilityFlags.h"
 #include "game/Menu.h"
+#include "profile/ProfileService.h"
 
 namespace d2bs::api::classes {
 

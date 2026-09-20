@@ -6,10 +6,10 @@
 
 #include <fmt/format.h>
 
-#include "components/update/UpdateChecker.h"
 #include "config/Version.h"
 #include "game/GameHelpers.h"
 #include "game/Types.h"
+#include "update/UpdateChecker.h"
 
 namespace d2bs::js::drawing {
 

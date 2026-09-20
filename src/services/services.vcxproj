@@ -20,9 +20,9 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
-    <ProjectGuid>{B1A2C3D4-E5F6-7890-ABCD-100000000004}</ProjectGuid>
+    <ProjectGuid>{B1A2C3D4-E5F6-7890-ABCD-100000000008}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>core</RootNamespace>
+    <RootNamespace>services</RootNamespace>
     <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -60,12 +60,12 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_DEBUG;NOMINMAX;_WINSOCK_DEPRECATED_NO_WARNINGS;SPDLOG_WCHAR_TO_UTF8_SUPPORT;SPDLOG_FMT_EXTERNAL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;NOMINMAX;SPDLOG_WCHAR_TO_UTF8_SUPPORT;SPDLOG_FMT_EXTERNAL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(SolutionDir)src\contract;$(SolutionDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
@@ -76,42 +76,36 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;NDEBUG;NOMINMAX;_WINSOCK_DEPRECATED_NO_WARNINGS;SPDLOG_WCHAR_TO_UTF8_SUPPORT;SPDLOG_FMT_EXTERNAL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;NOMINMAX;SPDLOG_WCHAR_TO_UTF8_SUPPORT;SPDLOG_FMT_EXTERNAL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(SolutionDir)src\contract;$(SolutionDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="config\AppConfig.cpp" />
-    <ClCompile Include="config\CompatibilityFlags.cpp" />
-    <ClCompile Include="config\IniConfigStore.cpp" />
-    <ClCompile Include="config\OptionParser.cpp" />
-    <ClCompile Include="config\RealmRegistry.cpp" />
-    <ClCompile Include="detour\Hook.cpp" />
-    <ClCompile Include="input\InputHook.cpp" />
-    <ClCompile Include="http\Client.cpp" />
-    <ClCompile Include="proxy\Socks5Proxy.cpp" />
-    <ClCompile Include="speedhack\Speedhack.cpp" />
+    <ClCompile Include="analytics\Analytics.cpp" />
+    <ClCompile Include="characterstate\CharacterState.cpp" />
+    <ClCompile Include="characterstate\Fingerprint.cpp" />
+    <ClCompile Include="characterstate\UnitJson.cpp" />
+    <ClCompile Include="dde\DdeService.cpp" />
+    <ClCompile Include="profile\ProfileService.cpp" />
+    <ClCompile Include="update\UpdateChecker.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="config\AppConfig.h" />
-    <ClInclude Include="config\CompatibilityFlags.h" />
-    <ClInclude Include="config\ConfigStore.h" />
-    <ClInclude Include="config\IniConfigStore.h" />
-    <ClInclude Include="config\OptionParser.h" />
-    <ClInclude Include="config\RealmRegistry.h" />
-    <ClInclude Include="config\Version.h" />
-    <ClInclude Include="detour\Hook.h" />
-    <ClInclude Include="input\InputHook.h" />
-    <ClInclude Include="http\Client.h" />
-    <ClInclude Include="proxy\ProxyBypass.h" />
-    <ClInclude Include="proxy\Socks5Proxy.h" />
-    <ClInclude Include="speedhack\Speedhack.h" />
+    <ClInclude Include="analytics\Analytics.h" />
+    <ClInclude Include="characterstate\CharacterState.h" />
+    <ClInclude Include="characterstate\Fingerprint.h" />
+    <ClInclude Include="characterstate\UnitJson.h" />
+    <ClInclude Include="dde\DdeService.h" />
+    <ClInclude Include="profile\ProfileService.h" />
+    <ClInclude Include="update\UpdateChecker.h" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\core\core.vcxproj">
+      <Project>{B1A2C3D4-E5F6-7890-ABCD-100000000004}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\contract\contract.vcxproj">
       <Project>{B1A2C3D4-E5F6-7890-ABCD-100000000003}</Project>
     </ProjectReference>

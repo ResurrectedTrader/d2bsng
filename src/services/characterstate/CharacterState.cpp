@@ -1,4 +1,4 @@
-#include "components/characterstate/CharacterState.h"
+#include "characterstate/CharacterState.h"
 
 #include <nlohmann/json.hpp>
 
@@ -14,8 +14,8 @@
 
 #include <fmt/format.h>
 
-#include "components/characterstate/Fingerprint.h"
-#include "components/characterstate/UnitJson.h"
+#include "characterstate/Fingerprint.h"
+#include "characterstate/UnitJson.h"
 #include "config/AppConfig.h"
 #include "game/Finders.h"
 #include "game/GameHelpers.h"
@@ -23,7 +23,7 @@
 #include "game/Types.h"
 #include "game/Unit.h"
 
-namespace d2bs::js::characterstate {
+namespace d2bs::characterstate {
 
 namespace {
 
@@ -501,4 +501,4 @@ void CharacterState::RecordKill(uint32_t unitId) {
     }
 }
 
-}  // namespace d2bs::js::characterstate
+}  // namespace d2bs::characterstate

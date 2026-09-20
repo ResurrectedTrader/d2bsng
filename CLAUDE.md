@@ -201,7 +201,7 @@ A `Co-Authored-By` trailer is fine; the session URL is not.
 
 ### Project Structure
 
-The codebase is split into seven build targets (six static libs + one DLL) under `src/`, plus a test project. A frontend (JS) and a backend (1.14d) both compile against a shared `contract`, and a thin glue project links one of each into the final DLL. `utils`, `contract`, `core`, `navigation` and `js-v8` hold no game-version-specific code and build for both Win32 and x64; the backend, its glue and the tests are Win32 only (the `.slnx` maps them).
+The codebase is split into eight build targets (seven static libs + one DLL) under `src/`, plus a test project. A frontend (JS) and a backend (1.14d) both compile against a shared `contract`, and a thin glue project links one of each into the final DLL. `utils`, `contract`, `core`, `navigation`, `services` and `js-v8` hold no game-version-specific code and build for both Win32 and x64; the backend, its glue and the tests are Win32 only (the `.slnx` maps them).
 
 ```
 d2bsng/
@@ -227,6 +227,12 @@ d2bsng/
 │   ├── navigation/         navigation.lib - map algorithms over the contract; depends on contract + utils only
 │   │   ├── Pathfinder.h/.cpp   A* pathfinder + collision grids (d2bs::pathfinding)
 │   │   └── ExitFinder.h/.cpp   Level-exit finder + ExitInfo (d2bs::navigation)
+│   ├── services/           services.lib - bot services over the contract; depends on contract + core + utils
+│   │   ├── analytics/          Anonymous usage analytics (Aptabase)
+│   │   ├── characterstate/     Character-state snapshot -> D2BotNG manager (WM_COPYDATA)
+│   │   ├── dde/                DDE service
+│   │   ├── profile/            ProfileService (profile lookup/switch logic)
+│   │   └── update/             GitHub-release update checker (6h poll -> version-banner marker)
 │   ├── frontends/          One directory per scripting frontend
 │   │   └── js-v8/          js-v8.lib - JavaScript scripting frontend (V8); depends on contract + core + navigation
 │   │       ├── api/            V8 bindings: classes/ (game, io, scripting, drawing), globals/, core/
@@ -238,10 +244,6 @@ d2bsng/
 │   │       │   ├── console/        ImGui dev console (log/REPL/scripts/stacktraces/threads/profiling/settings)
 │   │       │   ├── inspector/      V8 inspector (Chrome DevTools) debug server
 │   │       │   ├── drawing/        Screen-hook drawables (Box/Frame/Line/Text/Image)
-│   │       │   ├── characterstate/ Character-state snapshot -> D2BotNG manager (WM_COPYDATA)
-│   │       │   ├── dde/            DDE service
-│   │       │   ├── profile/        ProfileService (profile lookup/switch logic)
-│   │       │   ├── update/         GitHub-release update checker (6h poll -> version-banner marker)
 │   │       │   └── Host.h/.cpp     Frontend lifecycle (d2bs::js::Host) + GameCallbacks wiring
 │   ├── backends/           One directory per game-version backend
 │   │   └── lod114d/        lod114d.lib - 1.14d game backend (implements contract); depends on contract + core
@@ -267,6 +269,7 @@ d2bsng/
 | **contract** | Static lib | `Release/contract.lib` | `src/contract/` - game interface headers (`game/*.h`) + framework-owned utilities + shared DTOs (`config/ProfileData.h`, `config/ScriptPaths.h`). The boundary both frontends and backends compile against. Depends on utils. |
 | **core** | Static lib | `Release/core.lib` | `src/core/` - shared infra: config (AppConfig/Ini/CompatibilityFlags/Version/OptionParser), detour, speedhack, input, proxy. Depends on contract + utils. |
 | **navigation** | Static lib | `Release/navigation.lib` | `src/navigation/` - game algorithms over the contract: A* pathfinder + level-exit finder. Depends on contract + utils ONLY. Has unresolved game:: symbols. |
+| **services** | Static lib | `Release/services.lib` | `src/services/` - bot services over the contract: analytics, character-state IPC, DDE, profile switching, update checks. Depends on contract + core + utils. Has unresolved game:: symbols. |
 | **js-v8** | Static lib | `Release/js-v8.lib` | `src/frontends/js-v8/` - JavaScript scripting frontend (api/, components/). Depends on contract + core + navigation + utils + V8. Has unresolved game:: symbols. |
 | **lod114d** | Static lib | `Release/lod114d.lib` | `src/backends/lod114d/` - 1.14d game backend implementing the contract (Win32 only). Depends on contract + core + utils. No frontend dependency. |
 | **d2bs** | DLL | `Release/js-v8-lod114d/d2bs.dll` | `src/glue/js-v8-lod114d/` - glue: DllMain + version.rc. Links js-v8 + lod114d + navigation + contract + core + utils, resolves all symbols. |
@@ -286,6 +289,12 @@ core.lib        <- config / speedhack / proxy. Depends on contract + utils.
      |              v             UNRESOLVED game:: symbols too. Depends on
      |              |             contract + utils ONLY - never core, never a
      |              |             frontend, never an engine header.
+     |              |
+     |         services.lib    <- analytics, character-state IPC, DDE, profile
+     |         (bot services)     switching, update checks. Also written against
+     |              v             the contract, so also UNRESOLVED game::.
+     |              |             Depends on contract + core + utils - never a
+     |              |             frontend, never an engine header.
      +--------------+-------------+----------------------------+
      v                            v
 js-v8.lib                     lod114d.lib    <- frontend and backend are mutually blind:
@@ -298,7 +307,7 @@ navigation
      +-------------+--------------+
                    v
                d2bs.dll   <- glue: DllMain + wiring. Links js-v8 + lod114d +
-                             navigation + contract + core + utils +
+                             navigation + services + contract + core + utils +
                              v8_monolith.lib. LTO inlines the thin game::
                              wrappers across all libs.
 ```
@@ -323,6 +332,7 @@ Each project has specific include directories that make cross-project includes w
 | **contract** | `$(ProjectDir)` ; `$(SolutionDir)src` |
 | **core** | `$(ProjectDir)` ; `$(SolutionDir)src\contract` ; `$(SolutionDir)src` |
 | **navigation** | `$(ProjectDir)` ; `$(SolutionDir)src\contract` ; `$(SolutionDir)src` |
+| **services** | `$(ProjectDir)` ; `$(SolutionDir)src\contract` ; `$(SolutionDir)src\core` ; `$(SolutionDir)src` |
 | **js-v8** | `$(ProjectDir)` ; `$(SolutionDir)src\contract` ; `$(SolutionDir)src\core` ; `$(SolutionDir)src` ; V8 include |
 | **lod114d** (backend) | `$(SolutionDir)src\contract` ; `$(SolutionDir)src\core` ; `$(SolutionDir)src` ; `$(ProjectDir)` ; `$(ProjectDir)game` ; D2MOO include roots ; V8 include |
 | **d2bs** (glue DLL) | `$(SolutionDir)src\frontends\js-v8` ; `$(SolutionDir)src\contract` ; `$(SolutionDir)src\core` ; `$(SolutionDir)src\backends\lod114d` ; `$(SolutionDir)src` |
@@ -406,11 +416,12 @@ These are the intended dependencies. A few deliberate exceptions are noted inlin
 - **contract/** (the boundary) depends on: utils + standard library only. NEVER on core, the frontend, V8, or any backend. Holds the game interface (`game/*.h`), the framework-owned utilities (Finders/GameLock/GameThread/HandleCache/Types), and the shared DTOs (`config/ProfileData.h`, `config/ScriptPaths.h`). `game/Menu.h` includes `config/ProfileData.h` (same project) so `Login()` takes the profile struct by const-ref.
 - **core/** (shared infra) depends on: contract + utils. Holds config (AppConfig/Ini/CompatibilityFlags/Version/OptionParser), detour (the Detours slot/batch API every hook in the tree goes through), speedhack, proxy (SOCKS5 hook), http (the WinHTTP request engine, which takes the proxy bypass), input (the game-window input hook). NEVER on the frontend or a backend.
 - **navigation/** (map algorithms) depends on: **contract + utils, and nothing else**. Not core, not a frontend, not `api/`, not V8 or any other engine header - the `#include` list is `game/*`, `utils/*` and the standard library. It holds the derived, game-version-agnostic algorithms over the contract's primitives: the A* pathfinder (`d2bs::pathfinding`) and the level-exit finder (`d2bs::navigation::GetExits` + `ExitInfo`). That narrow dependency set IS the library's purpose: these are algorithms every frontend wants and no backend needs, so they belong to neither. Anything that needs a setting, a log sink, a script callback or an engine value is a frontend concern and stays in the frontend. Like a frontend, it leaves `game::` symbols unresolved until the glue link.
-- **frontends/js-v8/** (JavaScript frontend) depends on: contract + core + navigation + utils + V8. Reaches the game only through `game::` contract symbols (resolved at the glue link) and pushes its hooks down through the `GameCallbacks` table; it NEVER references a concrete backend.
-  - **frontends/js-v8/api/** depends on: contract (game/ interface + DTOs), core, navigation, components/, utils/, V8.
+- **services/** (bot services) depends on: contract + core + utils. Holds the bot's own background features - anonymous analytics, the character-state snapshot sent to the D2BotNG manager, the DDE service, profile lookup/switching, and the GitHub-release update checker. None of them is frame-driven or script-driven, and none names an engine type, so they belong to no frontend: a second frontend links this library rather than reimplementing it. Like a frontend, it leaves `game::` symbols unresolved until the glue link. NEVER on a frontend, `api/`, or a backend.
+- **frontends/js-v8/** (JavaScript frontend) depends on: contract + core + navigation + services + utils + V8. Reaches the game only through `game::` contract symbols (resolved at the glue link) and pushes its hooks down through the `GameCallbacks` table; it NEVER references a concrete backend.
+  - **frontends/js-v8/api/** depends on: contract (game/ interface + DTOs), core, navigation, services, components/, utils/, V8.
   - **frontends/js-v8/components/** depends on: contract, core, navigation, utils/, and V8 **only where the engine actually is**. `components/events/` and `components/drawing/` name no engine type: they hold a script function as a `script::Ref` and describe call arguments as a `script::CallArgs` value, both resolved by `components/script/`. Keep it that way - a second frontend compiles those directories unchanged, and `docs/frontends.md` records which of the remaining references are essential. Exception: `components/script/` includes `api/` - the script engine is the JS-API composition root (it owns V8 isolate setup and registers the `api/` ClassRegistry + globals), and a few components reuse `api::v8_convert`.
 - **backends/lod114d/** (1.14d backend) depends on: contract + core + utils, plus sibling port headers (imports/, hooks/, asm_thunks/). Implements the `game::` contract symbols and calls UP into the frontend ONLY through the `GameCallbacks` pointers it is handed at init (`hooks::GetActiveCallbacks()`). NEVER on the frontend, api/, or V8. Config reads go through `core`; console output and rendering go through the `onConsoleMessage` / `onConsoleDrawFrame` callbacks.
-- **glue/js-v8-lod114d/** (glue) depends on: js-v8 + lod114d + navigation + contract + core + utils. The only project that sees both a frontend and a backend; owns `DllMain` and the bring-up wiring.
+- **glue/js-v8-lod114d/** (glue) depends on: js-v8 + lod114d + navigation + services + contract + core + utils. The only project that sees both a frontend and a backend; owns `DllMain` and the bring-up wiring.
 
 ### Key Design Decisions
 

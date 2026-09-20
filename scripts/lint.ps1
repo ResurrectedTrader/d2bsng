@@ -57,6 +57,7 @@ $dbUtils = 'src\utils\Release\utils.ClangTidy'
 $dbContract = 'src\contract\Release\contract.ClangTidy'
 $dbCore = 'src\core\Release\core.ClangTidy'
 $dbNavigation = 'src\navigation\Release\navigation.ClangTidy'
+$dbServices = 'src\services\Release\services.ClangTidy'
 $dbJs = 'src\frontends\js-v8\Release\js-v8.ClangTidy'
 $dbLod114d = 'src\backends\lod114d\Release\lod114d.ClangTidy'
 $dbGlue = 'src\glue\js-v8-lod114d\Release\d2bs.ClangTidy'
@@ -69,7 +70,7 @@ function Maybe-RegenDb($dbPath, $vcxproj) {
     return (Get-Item $vcxproj).LastWriteTime -gt (Get-Item $dbPath).LastWriteTime
 }
 
-$needRegen = (Maybe-RegenDb $dbUtils 'src\utils\utils.vcxproj') -or (Maybe-RegenDb $dbContract 'src\contract\contract.vcxproj') -or (Maybe-RegenDb $dbCore 'src\core\core.vcxproj') -or (Maybe-RegenDb $dbNavigation 'src\navigation\navigation.vcxproj') -or (Maybe-RegenDb $dbJs 'src\frontends\js-v8\js-v8.vcxproj') -or (Maybe-RegenDb $dbLod114d 'src\backends\lod114d\lod114d.vcxproj') -or (Maybe-RegenDb $dbGlue 'src\glue\js-v8-lod114d\d2bs.vcxproj') -or (Maybe-RegenDb $dbTests 'tests\frontends\js-v8\js_tests.vcxproj')
+$needRegen = (Maybe-RegenDb $dbUtils 'src\utils\utils.vcxproj') -or (Maybe-RegenDb $dbContract 'src\contract\contract.vcxproj') -or (Maybe-RegenDb $dbCore 'src\core\core.vcxproj') -or (Maybe-RegenDb $dbNavigation 'src\navigation\navigation.vcxproj') -or (Maybe-RegenDb $dbServices 'src\services\services.vcxproj') -or (Maybe-RegenDb $dbJs 'src\frontends\js-v8\js-v8.vcxproj') -or (Maybe-RegenDb $dbLod114d 'src\backends\lod114d\lod114d.vcxproj') -or (Maybe-RegenDb $dbGlue 'src\glue\js-v8-lod114d\d2bs.vcxproj') -or (Maybe-RegenDb $dbTests 'tests\frontends\js-v8\js_tests.vcxproj')
 if ($needRegen) {
     Write-Host 'Compile database missing or stale - regenerating...' -ForegroundColor Yellow
     $msbuild = $null
@@ -240,6 +241,7 @@ $dbUtilsFull = (Resolve-Path $dbUtils).Path
 $dbContractFull = (Resolve-Path $dbContract).Path
 $dbCoreFull = (Resolve-Path $dbCore).Path
 $dbNavigationFull = (Resolve-Path $dbNavigation).Path
+$dbServicesFull = (Resolve-Path $dbServices).Path
 $dbJsFull = (Resolve-Path $dbJs).Path
 $dbLod114dFull = (Resolve-Path $dbLod114d).Path
 $dbGlueFull = (Resolve-Path $dbGlue).Path
@@ -255,6 +257,9 @@ Get-ChildItem -Recurse 'src\core' -Filter '*.cpp' | ForEach-Object {
 }
 Get-ChildItem -Recurse 'src\navigation' -Filter '*.cpp' | ForEach-Object {
     $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbNavigationFull; CacheDir = 'src\navigation\Release\lint_cache' }
+}
+Get-ChildItem -Recurse 'src\services' -Filter '*.cpp' | ForEach-Object {
+    $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbServicesFull; CacheDir = 'src\services\Release\lint_cache' }
 }
 Get-ChildItem -Recurse 'src\frontends\js-v8' -Filter '*.cpp' | ForEach-Object {
     $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbJsFull; CacheDir = 'src\frontends\js-v8\Release\lint_cache' }

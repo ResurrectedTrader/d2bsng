@@ -9,13 +9,13 @@
 #include <string>
 #include <string_view>
 
-#include "components/profile/ProfileService.h"
 #include "components/script/ScriptEngine.h"
 #include "config/AppConfig.h"
 #include "config/ProfileData.h"
 #include "game/GameHelpers.h"
 #include "game/Menu.h"
 #include "game/Types.h"
+#include "profile/ProfileService.h"
 #include "speedhack/Speedhack.h"
 
 namespace d2bs::js::console {

@@ -6,12 +6,12 @@
 #include <thread>
 #include <utility>
 
-#include "components/profile/ProfileService.h"
 #include "components/script/Script.h"
 #include "components/script/ScriptEngine.h"
 #include "components/script/ScriptTypes.h"
 #include "config/AppConfig.h"
 #include "game/GameHelpers.h"
+#include "profile/ProfileService.h"
 #include "utils/threadutils.h"
 #include "utils/utils.h"
 

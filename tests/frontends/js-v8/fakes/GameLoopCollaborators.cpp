@@ -1,6 +1,6 @@
 #include "GameLoopCollaborators.h"
 
-#include "components/characterstate/CharacterState.h"
+#include "characterstate/CharacterState.h"
 #include "components/drawing/Drawable.h"
 #include "components/drawing/VersionBanner.h"
 #include "components/events/EventDispatch.h"
@@ -95,7 +95,7 @@ void ScriptEngine::Reset() {
 // === CharacterState (shim) ===
 // The real component pulls in nlohmann-json (not in the test's dependency set).
 // GameLoop only needs Instance()/OnTick() to resolve, so the fake is a no-op.
-namespace d2bs::js::characterstate {
+namespace d2bs::characterstate {
 
 CharacterState& CharacterState::Instance() {
     // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables) - matches real singleton shape
@@ -105,7 +105,7 @@ CharacterState& CharacterState::Instance() {
 
 void CharacterState::OnTick(game::GameState /*state*/, bool /*sessionEntered*/) {}
 
-}  // namespace d2bs::js::characterstate
+}  // namespace d2bs::characterstate
 
 // GetGameState / IsTownByLevelNo / ExitGame are defined in
 // fakes/GameHelpers.cpp and route through d2bs::test::State().

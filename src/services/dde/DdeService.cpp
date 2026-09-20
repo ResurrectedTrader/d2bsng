@@ -1,4 +1,4 @@
-#include "components/dde/DdeService.h"
+#include "dde/DdeService.h"
 
 #include <array>
 #include <future>

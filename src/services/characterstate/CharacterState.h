@@ -10,7 +10,7 @@
 
 #include "game/Types.h"
 
-namespace d2bs::js::characterstate {
+namespace d2bs::characterstate {
 
 // Assembles live character state (identity, stats, progression, equipment,
 // inventory, cube, belt, stash, merc) from the current player unit and pushes
@@ -92,4 +92,4 @@ class CharacterState {
     std::map<uint32_t, uint32_t> killsBySuperUnique_;
 };
 
-}  // namespace d2bs::js::characterstate
+}  // namespace d2bs::characterstate

@@ -196,6 +196,7 @@ switch ($mode) {
             'src\contract'           = 'src\contract\Release\contract.ClangTidy'
             'src\core'               = 'src\core\Release\core.ClangTidy'
             'src\navigation'         = 'src\navigation\Release\navigation.ClangTidy'
+            'src\services'           = 'src\services\Release\services.ClangTidy'
             'src\utils'              = 'src\utils\Release\utils.ClangTidy'
         }
         if (-not (Test-Path $dbByDir['src\backends\lod114d'])) {

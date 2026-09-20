@@ -1,4 +1,4 @@
-#include "components/update/UpdateChecker.h"
+#include "update/UpdateChecker.h"
 
 #include <algorithm>
 #include <charconv>
@@ -17,7 +17,7 @@
 #include "utils/threadutils.h"
 #include "utils/utils.h"
 
-namespace d2bs::js::update {
+namespace d2bs::update {
 
 namespace {
 
@@ -223,4 +223,4 @@ bool UpdateChecker::CheckOnce() {
     return true;
 }
 
-}  // namespace d2bs::js::update
+}  // namespace d2bs::update

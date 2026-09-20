@@ -11,7 +11,7 @@ and stays entirely anonymous - the only identity an event carries is a derived
 profile it runs. There is no per-action tracking, no keystroke/screen capture,
 and no game data of any kind.
 
-- Component: `src/frontends/js-v8/components/analytics/Analytics.h` / `.cpp`
+- Component: `src/services/analytics/Analytics.h` / `.cpp`
 - Launch switches: `src/backends/lod114d/game/LaunchOptions.cpp`
   (`-noanalytics`)
 - Contract surface: `game::GetAnalyticsLaunchOptions()`,

@@ -5,10 +5,10 @@
 #include <random>
 #include <string>
 
-#include "components/profile/ProfileService.h"
 #include "config/AppConfig.h"
 #include "config/IniConfigStore.h"
 #include "config/ProfileData.h"
+#include "profile/ProfileService.h"
 
 using namespace d2bs::config;
 

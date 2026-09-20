@@ -114,7 +114,7 @@ open. A backend whose pool only supports moving
 
 ## Character state
 
-The character-state producer (`components/characterstate`) sends the stash as
+The character-state producer (`services/characterstate`) sends the stash as
 `containers.stash.pages`, one entry per tab from `GetStashTabs()`, each carrying
 the tab's `kind`, `index`, `type`, `name` and `gold` plus the shared grid
 `width` / `height` and its `items` (from `StashTab::GetItems()`, so tabs that

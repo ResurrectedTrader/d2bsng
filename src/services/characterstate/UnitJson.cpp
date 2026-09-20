@@ -1,4 +1,4 @@
-#include "components/characterstate/UnitJson.h"
+#include "characterstate/UnitJson.h"
 
 #include <algorithm>
 #include <array>
@@ -16,7 +16,7 @@
 #include "game/GameHelpers.h"
 #include "game/Types.h"
 
-namespace d2bs::js::characterstate {
+namespace d2bs::characterstate {
 
 namespace {
 
@@ -293,4 +293,4 @@ json WearerStats(const game::Unit& wearer) {
     return stats;
 }
 
-}  // namespace d2bs::js::characterstate
+}  // namespace d2bs::characterstate

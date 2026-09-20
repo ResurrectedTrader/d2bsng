@@ -15,7 +15,7 @@ class logger;
 }  // namespace spdlog
 // NOLINTEND(readability-identifier-naming)
 
-namespace d2bs::js::update {
+namespace d2bs::update {
 
 // A comparable major.minor.patch triple. 0.0.0 doubles as the "no update"
 // sentinel - d2bsng releases start at 2.x.
@@ -89,4 +89,4 @@ class UpdateChecker {
     std::jthread thread_;
 };
 
-}  // namespace d2bs::js::update
+}  // namespace d2bs::update

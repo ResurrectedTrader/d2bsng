@@ -115,6 +115,26 @@
           Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)scripts\fetch_v8.ps1&quot; -Repo &quot;$(V8Repo)&quot; -Tag &quot;$(V8ReleaseTag)&quot; -Asset &quot;$(V8Asset)&quot; -Destination &quot;$(V8Dir)&quot;" />
   </Target>
 
+  <!-- Bake the build-time version into D2BS_VERSION (see core/config/Version.h,
+       which #ifndef-guards a dev fallback) and the Aptabase app key into
+       D2BS_ANALYTICS_KEY (see services/analytics/Analytics.cpp, which defaults it
+       to an empty string that compiles analytics out). Set via `build.ps1
+       -Version` / `-AnalyticsKey`, or MSBuild `-p:D2bsVersion=` /
+       `-p:D2bsAnalyticsKey=`. The &quot; make the quotes part of the value, so
+       each expands to a real string literal. They live here rather than in one
+       project because a source file that moves between projects would otherwise
+       lose the macro silently. -->
+  <ItemDefinitionGroup Condition="'$(D2bsVersion)'!=''">
+    <ClCompile>
+      <PreprocessorDefinitions>D2BS_VERSION=&quot;$(D2bsVersion)&quot;;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(D2bsAnalyticsKey)'!=''">
+    <ClCompile>
+      <PreprocessorDefinitions>D2BS_ANALYTICS_KEY=&quot;$(D2bsAnalyticsKey)&quot;;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+
   <!-- Every project appends to %(PreprocessorDefinitions), so this reaches all of them. -->
   <ItemDefinitionGroup Condition="'$(D2bsProfiling)' == 'true'">
     <ClCompile>

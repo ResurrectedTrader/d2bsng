@@ -1,13 +1,13 @@
-#include "components/characterstate/Fingerprint.h"
+#include "characterstate/Fingerprint.h"
 
 #include <cstddef>
 #include <cstdint>
 #include <span>
 #include <string_view>
 
-#include "components/characterstate/UnitJson.h"
+#include "characterstate/UnitJson.h"
 
-namespace d2bs::js::characterstate {
+namespace d2bs::characterstate {
 
 namespace {
 
@@ -87,4 +87,4 @@ size_t EmptyUnitHash() {
     return visitor.Result();
 }
 
-}  // namespace d2bs::js::characterstate
+}  // namespace d2bs::characterstate

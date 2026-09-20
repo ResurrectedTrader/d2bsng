@@ -3,11 +3,11 @@
 #include "api/core/V8Convert.h"
 #include "api/core/V8Error.h"
 #include "api/core/V8Function.h"
-#include "components/profile/ProfileService.h"
 #include "config/AppConfig.h"
 #include "config/ProfileData.h"
 #include "game/GameHelpers.h"
 #include "game/Menu.h"
+#include "profile/ProfileService.h"
 
 namespace d2bs::api::globals {
 

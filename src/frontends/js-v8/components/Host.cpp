@@ -11,28 +11,28 @@
 #include <string>
 #include <string_view>
 
-#include "components/analytics/Analytics.h"
-#include "components/characterstate/CharacterState.h"
+#include "analytics/Analytics.h"
+#include "characterstate/CharacterState.h"
 #include "components/console/Console.h"
 #include "components/console/ConsoleSink.h"
-#include "components/dde/DdeService.h"
 #include "components/drawing/Drawable.h"
 #include "components/events/EventDispatch.h"
 #include "components/gameloop/GameLoop.h"
-#include "components/profile/ProfileService.h"
 #include "components/script/Commands.h"
 #include "components/script/ScriptEngine.h"
-#include "components/update/UpdateChecker.h"
 #include "config/AppConfig.h"
 #include "config/CompatibilityFlags.h"
 #include "config/IniConfigStore.h"
 #include "config/ScriptPaths.h"
 #include "config/Version.h"
+#include "dde/DdeService.h"
 #include "game/Bridge.h"
 #include "game/Compatibility.h"
 #include "game/Console.h"
 #include "game/GameCallbacks.h"
 #include "game/GameHelpers.h"
+#include "profile/ProfileService.h"
+#include "update/UpdateChecker.h"
 #include "utils/DeferGuard.h"
 #include "utils/threadutils.h"
 #include "utils/utils.h"
@@ -135,12 +135,12 @@ void Host::DoInitialize(HMODULE hModule) {
         // Best-effort background update check (polls GitHub releases every 6h;
         // the game loop surfaces a notice on game entry). Independent of game
         // readiness, so it can start as soon as the framework is up.
-        js::update::UpdateChecker::Instance().Start();
+        update::UpdateChecker::Instance().Start();
 
         // Best-effort anonymous usage analytics: a single startup event to
         // Aptabase, off unless an app key is configured. Independent of game
         // readiness. See docs/analytics.md.
-        js::analytics::Analytics::Instance().Start();
+        analytics::Analytics::Instance().Start();
 
         logger_->info("d2bsng initialized");
     } catch (const std::exception& ex) {
@@ -177,8 +177,8 @@ void Host::Shutdown() {
 
         // Halt the background update poller (joins its thread) before the rest
         // of teardown so no network work outlives the framework.
-        js::update::UpdateChecker::Instance().Stop();
-        js::analytics::Analytics::Instance().Stop();
+        update::UpdateChecker::Instance().Stop();
+        analytics::Analytics::Instance().Stop();
 
         ScriptEngine::Instance().Shutdown();
         game::RemoveHooks();
@@ -346,7 +346,7 @@ game::GameCallbacks Host::BuildCallbacks() {
     // Unit::Find inside RecordKill resolves lock-free (see game/GameLock.h).
     callbacks.onMonsterDeath = +[](uint32_t unitId) {
         const auto phase = GameLoop::Instance().InPhase(FramePhase::Events);
-        js::characterstate::CharacterState::Instance().RecordKill(unitId);
+        characterstate::CharacterState::Instance().RecordKill(unitId);
     };
 
     // --- IPC ---

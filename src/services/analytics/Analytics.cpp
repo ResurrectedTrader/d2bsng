@@ -1,4 +1,4 @@
-#include "components/analytics/Analytics.h"
+#include "analytics/Analytics.h"
 
 #include <Windows.h>
 
@@ -32,7 +32,7 @@
 #include "utils/threadutils.h"
 #include "utils/utils.h"
 
-namespace d2bs::js::analytics {
+namespace d2bs::analytics {
 
 namespace {
 
@@ -602,4 +602,4 @@ bool Analytics::SendProfileEvent(const std::string& profileHash) {
                      std::move(props));
 }
 
-}  // namespace d2bs::js::analytics
+}  // namespace d2bs::analytics

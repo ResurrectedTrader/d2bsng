@@ -9,7 +9,6 @@
 #include <thread>
 
 #include "components/gameloop/GameLoop.h"
-#include "components/profile/ProfileService.h"
 #include "components/script/Commands.h"
 #include "components/script/ScriptEngine.h"
 #include "config/AppConfig.h"
@@ -18,6 +17,7 @@
 #include "config/ScriptPaths.h"
 #include "fakes/GameLoopCollaborators.h"
 #include "game/Types.h"
+#include "profile/ProfileService.h"
 #include "utils/utils.h"
 
 using d2bs::game::GameState;
