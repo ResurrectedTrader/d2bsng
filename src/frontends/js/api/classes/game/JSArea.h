@@ -6,6 +6,7 @@
 #include "api/core/V8Convert.h"
 #include "api/core/V8Error.h"
 #include "game/Level.h"
+#include "navigation/ExitFinder.h"
 
 namespace d2bs::api::classes {
 
@@ -32,12 +33,13 @@ class JSArea : public V8ClassBase<JSArea, game::Level> {
 
                 auto* isolate = info.GetIsolate();
 
-                auto exits = data->GetExits();
+                auto exits = navigation::GetExits(*data);
                 auto context = isolate->GetCurrentContext();
                 auto array = v8::Array::New(isolate, static_cast<int32_t>(exits.size()));
 
                 for (uint32_t i = 0; i < exits.size(); ++i) {
-                    auto exitObj = JSExit::CreateInstance(isolate, context, std::make_unique<game::ExitInfo>(exits[i]));
+                    auto exitObj =
+                        JSExit::CreateInstance(isolate, context, std::make_unique<navigation::ExitInfo>(exits[i]));
                     if (exitObj.IsEmpty()) {
                         v8_error::ThrowError(isolate, "Failed to build exit array");
                         return;

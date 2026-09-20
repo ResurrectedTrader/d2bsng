@@ -8,8 +8,8 @@
 
 #include <doctest/doctest.h>
 
-#include "components/pathfinding/Pathfinder.h"
 #include "fixtures/MapFixture.h"
+#include "navigation/Pathfinder.h"
 
 using namespace d2bs::pathfinding;
 using namespace d2bs::test;

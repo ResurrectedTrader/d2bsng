@@ -3,13 +3,13 @@
 #include <v8.h>
 #include "api/core/V8Class.h"
 #include "api/core/V8Error.h"
-#include "game/Level.h"
+#include "navigation/ExitFinder.h"
 
 namespace d2bs::api::classes {
 
 // Exit class - represents an exit point from one area to another
 // Exits are obtained from Area.exits property
-class JSExit : public V8ClassBase<JSExit, game::ExitInfo> {
+class JSExit : public V8ClassBase<JSExit, navigation::ExitInfo> {
    public:
     static constexpr std::string_view ClassName = "Exit";
 

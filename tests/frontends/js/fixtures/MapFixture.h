@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-#include "components/pathfinding/Pathfinder.h"
+#include "navigation/Pathfinder.h"
 
 namespace d2bs::test {
 

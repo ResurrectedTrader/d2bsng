@@ -1,4 +1,4 @@
-#include "components/pathfinding/Pathfinder.h"
+#include "navigation/Pathfinder.h"
 
 #include <algorithm>
 #include <array>

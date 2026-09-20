@@ -174,10 +174,6 @@
     <ClCompile Include="components\Host.cpp" />
     <!-- DDE -->
     <ClCompile Include="components\dde\DdeService.cpp" />
-    <!-- Pathfinding -->
-    <ClCompile Include="components\pathfinding\Pathfinder.cpp" />
-    <!-- Exit finder (framework-side Level::GetExits) -->
-    <ClCompile Include="components\exits\ExitFinder.cpp" />
     <!-- Profile -->
     <ClCompile Include="components\profile\ProfileService.cpp" />
     <!-- GameLoop -->
@@ -285,8 +281,6 @@
     <ClInclude Include="components\profile\ProfileService.h" />
     <!-- DDE -->
     <ClInclude Include="components\dde\DdeService.h" />
-    <!-- Pathfinding -->
-    <ClInclude Include="components\pathfinding\Pathfinder.h" />
     <!-- GameLoop -->
     <ClInclude Include="components\gameloop\GameLoop.h" />
     <!-- Character state -->
@@ -304,6 +298,9 @@
     </ProjectReference>
     <ProjectReference Include="..\..\core\core.vcxproj">
       <Project>{B1A2C3D4-E5F6-7890-ABCD-100000000004}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\navigation\navigation.vcxproj">
+      <Project>{B1A2C3D4-E5F6-7890-ABCD-100000000006}</Project>
     </ProjectReference>
     <ProjectReference Include="..\..\utils\utils.vcxproj">
       <Project>{B1A2C3D4-E5F6-7890-ABCD-100000000001}</Project>

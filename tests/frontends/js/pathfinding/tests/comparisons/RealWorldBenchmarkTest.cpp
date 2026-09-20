@@ -9,8 +9,8 @@
 
 #include <doctest/doctest.h>
 
-#include "components/pathfinding/Pathfinder.h"
 #include "fixtures/MapFixture.h"
+#include "navigation/Pathfinder.h"
 #include "pathfinding/reference/AStarPath.h"
 #include "pathfinding/reference/NoPathReducer.h"
 #include "pathfinding/reference/TeleportPathReducer.h"

@@ -110,7 +110,7 @@
     <ClCompile Include="fakes\Speedhack.cpp" />
     <ClCompile Include="fakes\threadutils.cpp" />
     <!-- Real pathfinder under test -->
-    <ClCompile Include="..\..\..\src\frontends\js\components\pathfinding\Pathfinder.cpp" />
+    <ClCompile Include="..\..\..\src\navigation\Pathfinder.cpp" />
     <!-- Real gameloop component under test -->
     <ClCompile Include="..\..\..\src\frontends\js\components\gameloop\GameLoop.cpp" />
     <!-- Real profile code under test -->

@@ -38,7 +38,7 @@ of truth, no `Pos()`/`Size()` pair.
 | `Level::Bounds()` | `Rect` (game-coords) | origin `{dwPosX * 5, dwPosY * 5}` (treat -1 as 0), size `{dwSizeX * 5, dwSizeY * 5}` |
 | `Control::Bounds()` | `Rect` (pixels) | origin `{dwPosX, dwPosY}`, size `{dwSizeX, dwSizeY}` |
 | `PresetUnitInfo::posInRoom` | game-coords | `preset->dwPosX/dwPosY` - already game-coords |
-| `ExitInfo::pos` | game-coords | derived from room/level offsets already scaled |
+| `navigation::ExitInfo::pos` | game-coords | derived from room/level offsets already scaled |
 
 Consequences:
 - `src/frontends/js/` contains zero `* 5` coordinate scaling.

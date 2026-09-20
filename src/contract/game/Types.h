@@ -437,25 +437,6 @@ struct StatListEntry {
     std::vector<StatEntry> stats;
 };
 
-// Result row for Level::GetExits (level transitions).
-//
-// `type` is either ExitType::Linkage (room-to-room edge between two
-// different levels) or ExitType::Tile (UNIT_TILE preset with a non-zero
-// destination via the source room's pRoomTiles warp table). The JS API
-// surface treats both identically - the type tag is just metadata.
-enum class ExitType : uint32_t {
-    Linkage = 1,
-    Tile = 2,
-};
-
-struct ExitInfo {
-    Position pos;  // game coordinates - see docs/coords.md
-    uint32_t target;
-    ExitType type;
-    uint32_t tileId;
-    uint32_t level;
-};
-
 // Result row for Room::GetPresetUnits (static placements within a room).
 struct PresetUnitInfo {
     uint32_t type = 0;

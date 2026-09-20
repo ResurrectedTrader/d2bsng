@@ -194,6 +194,7 @@ switch ($mode) {
             'src\glue\js-lod114d'  = 'src\glue\js-lod114d\Release\d2bs.ClangTidy'
             'src\contract'         = 'src\contract\Release\contract.ClangTidy'
             'src\core'             = 'src\core\Release\core.ClangTidy'
+            'src\navigation'       = 'src\navigation\Release\navigation.ClangTidy'
             'src\utils'            = 'src\utils\Release\utils.ClangTidy'
         }
         if (-not (Test-Path $dbByDir['src\backends\lod114d'])) {

@@ -43,7 +43,7 @@ using imports::extras::D2DrlgStrc;
 //   3. Fast path: when `pRoom != nullptr` on entry (the common case for
 //      the level the player is in - every room is already loaded), the
 //      ctor returns without taking the static mutex or calling
-//      AddRoomData. This is the critical optimisation: `Level::GetExits`
+//      AddRoomData. This is the critical optimisation: `navigation::GetExits`
 //      and the pathfinder's `BuildLevelGrid` both walk every room in the
 //      level and construct a guard per room, which otherwise costs one
 //      GameThread::Execute round-trip per room (paced by the engine's

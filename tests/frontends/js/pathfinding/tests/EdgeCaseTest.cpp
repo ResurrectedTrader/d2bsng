@@ -2,7 +2,7 @@
 
 #include <doctest/doctest.h>
 
-#include "components/pathfinding/Pathfinder.h"
+#include "navigation/Pathfinder.h"
 
 using namespace d2bs::pathfinding;
 

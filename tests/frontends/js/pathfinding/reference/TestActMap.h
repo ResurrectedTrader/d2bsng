@@ -6,7 +6,7 @@
 // instead of live game memory.
 
 #include "Types.h"
-#include "components/pathfinding/Pathfinder.h"
+#include "navigation/Pathfinder.h"
 
 class TestActMap {
     std::vector<const d2bs::pathfinding::LevelGrid*> grids_;

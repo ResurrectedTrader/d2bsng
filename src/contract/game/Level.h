@@ -37,9 +37,6 @@ class Level {
     // Traversal
     Room GetFirstRoom() const;
 
-    // Exits
-    std::vector<ExitInfo> GetExits() const;
-
     // Factory - resolves a Level from the current act's misc data.
     // Returns std::nullopt if the level does not exist.
     static std::optional<Level> Get(uint32_t levelNo);

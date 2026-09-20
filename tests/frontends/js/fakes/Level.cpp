@@ -28,10 +28,6 @@ Room Level::GetFirstRoom() const {
     return Room();
 }
 
-std::vector<ExitInfo> Level::GetExits() const {
-    return {};
-}
-
 std::optional<Level> Level::Get(uint32_t /*levelNo*/) {
     return std::nullopt;
 }

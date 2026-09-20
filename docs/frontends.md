@@ -13,6 +13,7 @@ numbers below are what actually happened rather than what seemed likely.
 | layer | lines (V8) | frontend-specific? |
 |---|---|---|
 | `contract/`, `core/`, `utils/` | - | No. Already engine-free, reused verbatim. |
+| `navigation/` | - | No. The pathfinder and the exit finder, lifted out of `components/` into their own library once this experiment showed they compiled into both frontends untouched. |
 | `components/` | 14,330 | **Partly** - see below. |
 | `api/` | 17,293 | Yes, entirely. |
 
@@ -60,7 +61,8 @@ That now holds for the whole file, the two screen-hook events included - see
 
 16 translation units - **5,362 lines** - compiled into both frontends from a
 single copy with no abstraction at all, purely because they name no engine type:
-the pathfinder, the exit finder, DDE, all of character state, analytics, the
+the pathfinder and the exit finder (which is why they are now `navigation/`
+rather than `components/`), DDE, all of character state, analytics, the
 update checker, and eight of the console's twelve files. `Console.cpp` is the
 instructive one: every engine-shaped name in it resolves through
 `components/script/`, so the same file serves both frontends unmodified.

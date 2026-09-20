@@ -1,6 +1,6 @@
-// Framework-side implementation of Level::GetExits.
+// Level exits: the transitions leading out of a level.
 //
-// Game-impl exposes the primitives this needs (room iteration via
+// The contract exposes the primitives this needs (room iteration via
 // GetFirstRoom + GetNext, cross-level neighbours via GetNearby, preset
 // units with tile-target-level lookup, room bounds, collision grids); the
 // algorithm itself is purely topological and game-version-agnostic. New
@@ -27,7 +27,7 @@
 // so cells in neighbour levels resolve without any per-call setup. The
 // pathfinder and exit finder share one act-wide collision view.
 
-#include "game/Level.h"
+#include "navigation/ExitFinder.h"
 
 #include <algorithm>
 #include <array>
@@ -36,17 +36,23 @@
 #include <utility>
 #include <vector>
 
-#include "components/pathfinding/Pathfinder.h"
 #include "game/GameLock.h"
+#include "game/Level.h"
 #include "game/Room.h"
 #include "game/Types.h"
+#include "navigation/Pathfinder.h"
 
-namespace d2bs::game {
+namespace d2bs::navigation {
 
-namespace {
-
+using game::GameReadLock;
+using game::Point;
+using game::Position;
+using game::Rect;
+using game::UnitType;
 using pathfinding::BuildLevelGrid;
 using pathfinding::CollisionLookup;
+
+namespace {
 
 // Reference ActMap::EdgeIsWalkable (ActMap.cpp:438-462): probes four cells
 // on the orthogonal axis through the edge point - two in the local room
@@ -115,19 +121,19 @@ using pathfinding::CollisionLookup;
 
 }  // namespace
 
-std::vector<ExitInfo> Level::GetExits() const {
-    if (!*this) {
+std::vector<ExitInfo> GetExits(game::Level level) {
+    if (!level) {
         return {};
     }
     GameReadLock guard;
-    const uint32_t levelId = Id();
+    const uint32_t levelId = level.Id();
     std::vector<ExitInfo> exits;
 
     // -----------------------------------------------------------------
     // Pass 1: tile exits - UNIT_TILE presets with a non-zero
     // tileTargetLevelId (resolved game-side via pRoomTiles).
     // -----------------------------------------------------------------
-    for (auto room = GetFirstRoom(); room; room = room.GetNext()) {
+    for (auto room = level.GetFirstRoom(); room; room = room.GetNext()) {
         for (const auto& preset : room.GetPresetUnits(std::to_underlying(UnitType::Tile))) {
             if (preset.tileTargetLevelId == 0) {
                 continue;
@@ -156,8 +162,8 @@ std::vector<ExitInfo> Level::GetExits() const {
     // collision view the pathfinder uses.
     // -----------------------------------------------------------------
     CollisionLookup lookup;
-    lookup.primary = BuildLevelGrid(*this);
-    const Rect myBounds = Bounds();
+    lookup.primary = BuildLevelGrid(level);
+    const Rect myBounds = level.Bounds();
 
     // Collect candidate walkable runs first, keyed by destination level.
     // After collecting we pick the run with the smallest centre-distance
@@ -168,7 +174,7 @@ std::vector<ExitInfo> Level::GetExits() const {
     };
     std::multimap<uint32_t, RunCandidate> candidates;
 
-    for (auto room = GetFirstRoom(); room; room = room.GetNext()) {
+    for (auto room = level.GetFirstRoom(); room; room = room.GetNext()) {
         const Rect a = room.Bounds();
         const int32_t aMinX = static_cast<int32_t>(a.origin.x);
         const int32_t aMinY = static_cast<int32_t>(a.origin.y);
@@ -317,4 +323,4 @@ std::vector<ExitInfo> Level::GetExits() const {
     return exits;
 }
 
-}  // namespace d2bs::game
+}  // namespace d2bs::navigation
