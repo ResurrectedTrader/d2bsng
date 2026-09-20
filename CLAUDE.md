@@ -40,7 +40,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File build.ps1 Release
 #   test           - Build and run the test suite (js_tests.exe)
 #
 # Switches:
-#   -Platform Win32|x64 - Win32 (default) builds the 1.14d backend into Release\d2bs.dll;
+#   -Platform Win32|x64 - Win32 (default) builds the 1.14d backend into Release\js-v8-lod114d\d2bs.dll;
 #                  x64 builds the platform-independent libraries into x64\Release\
 #   -NoProfiling   - Compile the profiling counters (utils/Profiling.h) and the console's
 #                    Profiling panel out (MSBuild -p:D2bsProfiling=false; see Directory.Build.props)
@@ -268,7 +268,7 @@ d2bsng/
 | **navigation** | Static lib | `Release/navigation.lib` | `src/navigation/` - game algorithms over the contract: A* pathfinder + level-exit finder. Depends on contract + utils ONLY. Has unresolved game:: symbols. |
 | **js-v8** | Static lib | `Release/js-v8.lib` | `src/frontends/js-v8/` - JavaScript scripting frontend (api/, components/). Depends on contract + core + navigation + utils + V8. Has unresolved game:: symbols. |
 | **lod114d** | Static lib | `Release/lod114d.lib` | `src/backends/lod114d/` - 1.14d game backend implementing the contract (Win32 only). Depends on contract + core + utils. No frontend dependency. |
-| **d2bs** | DLL | `Release/d2bs.dll` | `src/glue/js-v8-lod114d/` - glue: DllMain + version.rc. Links js-v8 + lod114d + navigation + contract + core + utils, resolves all symbols. |
+| **d2bs** | DLL | `Release/js-v8-lod114d/d2bs.dll` | `src/glue/js-v8-lod114d/` - glue: DllMain + version.rc. Links js-v8 + lod114d + navigation + contract + core + utils, resolves all symbols. |
 | **js_tests** | Console EXE | `Release/js_tests.exe` | `tests/frontends/js-v8/` - doctest tests with fake game layer |
 
 ### How Linking Works

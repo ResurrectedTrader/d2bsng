@@ -39,8 +39,9 @@ param(
     # Compile the profiling counters and the console's Profiling panel out
     # (MSBuild -p:D2bsProfiling=false; see Directory.Build.props).
     [switch]$NoProfiling,
-    # Solution platform. Win32 builds the 1.14d backend and d2bs.dll into
-    # Release\; x64 builds the platform-independent libraries into x64\Release\.
+    # Solution platform. Win32 builds the 1.14d backend into Release\ and the
+    # glue DLL into Release\js-v8-lod114d\; x64 builds the platform-independent
+    # libraries into x64\Release\.
     # The .slnx maps each project to the platforms it supports, so the ones that
     # are Win32-only are skipped rather than failing.
     [ValidateSet('Win32', 'x64')]

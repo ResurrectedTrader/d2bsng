@@ -46,6 +46,14 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <!-- Every project links into one solution-level output directory, so two glues
+       would otherwise fight over the same d2bs.dll. Each glue takes a directory
+       named after itself instead, leaving the DLL free to keep the name the
+       loader expects. Derived from the directory rather than spelled out, so a
+       sibling glue can copy this verbatim. -->
+  <PropertyGroup>
+    <OutDir>$(SolutionDir)$(Configuration)\$([System.IO.Path]::GetFileName($(MSBuildProjectDirectory)))\</OutDir>
+  </PropertyGroup>
   <!-- This project links the V8 monolith, so the FetchV8 target in
        Directory.Build.props unpacks the archive before it builds. -->
   <PropertyGroup>

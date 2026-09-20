@@ -152,8 +152,8 @@ jobs:
         with:
           name: d2bs-binaries
           path: |
-            Release/d2bs.dll
-            Release/d2bs.pdb
+            Release/js-v8-lod114d/d2bs.dll
+            Release/js-v8-lod114d/d2bs.pdb
           retention-days: 1
           if-no-files-found: error
 
