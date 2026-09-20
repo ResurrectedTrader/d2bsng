@@ -2,8 +2,8 @@
 
 #include <v8.h>
 
-#include <array>
 #include <cstddef>
+#include <deque>
 
 #include "scripting/Args.h"
 #include "scripting/Registry.h"
@@ -27,15 +27,17 @@ struct BuilderSlot {
 // Nothing here outlives the call, which is the property that lets the same
 // contract run on an engine with exact rooting.
 struct CallState {
-    // Deep enough for the shapes this API returns (arrays of flat objects); an
-    // overflow drops writes rather than corrupting anything.
-    static constexpr size_t MAX_BUILDERS = 16;
-
     explicit CallState(const v8::FunctionCallbackInfo<v8::Value>& info) : info(&info) {}
 
     const v8::FunctionCallbackInfo<v8::Value>* info;
-    std::array<BuilderSlot, MAX_BUILDERS> builders;
-    size_t used = 0;
+
+    // A deque, not a fixed array: a builder hands out a pointer to its slot and
+    // keeps using it while later slots are allocated, so the storage has to
+    // grow without moving what it already handed out. A capacity limit here is
+    // not a resource guard - it is silent truncation of whatever the binding
+    // was building, because the element is written into its parent before the
+    // slot for its own fields exists.
+    std::deque<BuilderSlot> builders;
 
     BuilderSlot* Allocate(v8::Isolate* isolate, v8::Local<v8::Object> object);
 };

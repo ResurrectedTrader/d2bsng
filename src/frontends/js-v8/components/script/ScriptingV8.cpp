@@ -9,11 +9,8 @@
 namespace d2bs::js::script {
 
 BuilderSlot* CallState::Allocate(v8::Isolate* isolate, v8::Local<v8::Object> object) {
-    if (used >= builders.size()) {
-        return nullptr;
-    }
-    builders.at(used) = BuilderSlot{.owner = this, .isolate = isolate, .object = object};
-    return &builders.at(used++);
+    builders.push_back(BuilderSlot{.owner = this, .isolate = isolate, .object = object});
+    return &builders.back();
 }
 
 }  // namespace d2bs::js::script
@@ -70,6 +67,10 @@ bool Field(void* state, size_t i, std::string_view key, v8::Local<v8::Value>& ou
 }
 
 }  // namespace
+
+bool Args::HasPendingException() const {
+    return Iso(state_)->HasPendingException() || Iso(state_)->IsExecutionTerminating();
+}
 
 size_t Args::Count() const {
     return static_cast<size_t>(Info(state_).Length());
@@ -169,54 +170,62 @@ std::optional<std::string> Args::FieldString(size_t i, std::string_view key) con
     return api::v8_convert::ToString(Iso(state_), value);
 }
 
-void Args::Return(int32_t value) {
+void Args::SetReturnValue(int32_t value) {
     Info(state_).GetReturnValue().Set(value);
 }
-void Args::Return(uint32_t value) {
+void Args::SetReturnValue(uint32_t value) {
     Info(state_).GetReturnValue().Set(value);
 }
-void Args::Return(double value) {
+void Args::SetReturnValue(double value) {
     Info(state_).GetReturnValue().Set(value);
 }
-void Args::Return(bool value) {
+void Args::SetReturnValue(bool value) {
     Info(state_).GetReturnValue().Set(value);
 }
 
-void Args::Return(std::string_view value) {
+void Args::SetReturnValue(std::string_view value) {
     Info(state_).GetReturnValue().Set(api::v8_convert::ToV8(Iso(state_), value));
 }
 
-void Args::Return(game::Point value) {
+void Args::SetReturnValue(game::Point value) {
     Info(state_).GetReturnValue().Set(api::v8_convert::ToV8(Iso(state_), value));
 }
 
-void Args::Return(game::Position value) {
+void Args::SetReturnValue(game::Position value) {
     Info(state_).GetReturnValue().Set(api::v8_convert::ToV8(Iso(state_), value));
 }
 
-void Args::Return(game::Size value) {
+void Args::SetReturnValue(game::Size value) {
     Info(state_).GetReturnValue().Set(api::v8_convert::ToV8(Iso(state_), value));
 }
 
-void Args::ReturnNull() {
+void Args::SetReturnValueNull() {
     Info(state_).GetReturnValue().SetNull();
 }
-void Args::ReturnUndefined() {
+void Args::SetReturnValueUndefined() {
     Info(state_).GetReturnValue().SetUndefined();
 }
 
-ObjectBuilder Args::ReturnObject() {
+ObjectBuilder Args::NewObject() {
     auto* isolate = Iso(state_);
-    auto object = v8::Object::New(isolate);
-    Info(state_).GetReturnValue().Set(object);
-    return ObjectBuilder(Call(state_)->Allocate(isolate, object));
+    return ObjectBuilder(Call(state_)->Allocate(isolate, v8::Object::New(isolate)));
 }
 
-ArrayBuilder Args::ReturnArray(size_t length) {
+ArrayBuilder Args::NewArray(size_t length) {
     auto* isolate = Iso(state_);
-    auto array = v8::Array::New(isolate, static_cast<int32_t>(length));
-    Info(state_).GetReturnValue().Set(array);
-    return ArrayBuilder(Call(state_)->Allocate(isolate, array));
+    return ArrayBuilder(Call(state_)->Allocate(isolate, v8::Array::New(isolate, static_cast<int32_t>(length))));
+}
+
+void Args::SetReturnValue(const ObjectBuilder& value) {
+    if (auto* slot = Slot(value.state_)) {
+        Info(state_).GetReturnValue().Set(slot->object);
+    }
+}
+
+void Args::SetReturnValue(const ArrayBuilder& value) {
+    if (auto* slot = Slot(value.state_)) {
+        Info(state_).GetReturnValue().Set(slot->object);
+    }
 }
 
 void Args::Throw(ErrorKind kind, std::string_view message) {
@@ -322,15 +331,48 @@ ArrayBuilder& ArrayBuilder::Set(size_t index, std::string_view value) {
     return *this;
 }
 
-ObjectBuilder ArrayBuilder::SetObject(size_t index) {
-    auto* slot = Slot(state_);
-    if (slot == nullptr) {
-        return ObjectBuilder(nullptr);
+namespace {
+
+// Writing one builder into another: both sides already live in the call's slot
+// pool, so this only links two existing objects.
+void PutBuilderField(void* state, std::string_view key, void* value) {
+    auto* slot = Slot(state);
+    auto* inner = Slot(value);
+    if (slot == nullptr || inner == nullptr) {
+        return;
     }
-    auto* isolate = slot->isolate;
-    auto object = v8::Object::New(isolate);
-    slot->object->Set(isolate->GetCurrentContext(), static_cast<uint32_t>(index), object).Check();
-    return ObjectBuilder(slot->owner->Allocate(isolate, object));
+    slot->object->Set(slot->isolate->GetCurrentContext(), Key(slot->isolate, key), inner->object).Check();
+}
+
+void PutBuilderIndex(void* state, size_t index, void* value) {
+    auto* slot = Slot(state);
+    auto* inner = Slot(value);
+    if (slot == nullptr || inner == nullptr) {
+        return;
+    }
+    slot->object->Set(slot->isolate->GetCurrentContext(), static_cast<uint32_t>(index), inner->object).Check();
+}
+
+}  // namespace
+
+ObjectBuilder& ObjectBuilder::Set(std::string_view key, const ObjectBuilder& value) {
+    PutBuilderField(state_, key, value.state_);
+    return *this;
+}
+
+ObjectBuilder& ObjectBuilder::Set(std::string_view key, const ArrayBuilder& value) {
+    PutBuilderField(state_, key, value.state_);
+    return *this;
+}
+
+ArrayBuilder& ArrayBuilder::Set(size_t index, const ObjectBuilder& value) {
+    PutBuilderIndex(state_, index, value.state_);
+    return *this;
+}
+
+ArrayBuilder& ArrayBuilder::Set(size_t index, const ArrayBuilder& value) {
+    PutBuilderIndex(state_, index, value.state_);
+    return *this;
 }
 
 void Registry::Global(std::string_view name, Native fn) {

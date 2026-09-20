@@ -132,7 +132,16 @@ void MethodTrampoline(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (binding->contractFn != nullptr) {
         CallState state(args);
         d2bs::script::Args callArgs(&state);
-        binding->contractFn(callArgs);
+        if (!binding->contractFn(callArgs)) {
+            // False with nothing pending is how a binding says "terminate" on
+            // an engine whose native returns bool. V8 has no such channel, so
+            // the equivalent is raised here out of band. With an exception
+            // already pending V8 unwinds on its own and this does nothing.
+            auto* isolate = args.GetIsolate();
+            if (!isolate->HasPendingException() && !isolate->IsExecutionTerminating()) {
+                isolate->TerminateExecution();
+            }
+        }
         return;
     }
     if (binding->callback != nullptr) {

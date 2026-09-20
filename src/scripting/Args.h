@@ -59,21 +59,36 @@ class Args {
     [[nodiscard]] std::optional<double> FieldNumber(size_t i, std::string_view key) const;
     [[nodiscard]] std::optional<std::string> FieldString(size_t i, std::string_view key) const;
 
-    void Return(int32_t value);
-    void Return(uint32_t value);
-    void Return(double value);
-    void Return(bool value);
-    void Return(std::string_view value);
-    void Return(game::Point value);
-    void Return(game::Position value);
-    void Return(game::Size value);
-    void ReturnNull();
-    void ReturnUndefined();
+    // True when the engine already has an exception waiting. A read that
+    // returns nullopt means either "not that type" or "converting it threw",
+    // and only this tells them apart.
+    //
+    // On V8 the reads gate on the type first, so almost nothing user-defined
+    // runs and this is almost always false. On an engine where converting a
+    // value can call a script's own toString, it is the difference between
+    // propagating the script's exception and silently replacing it with ours.
+    // A binding that sees it set should return false rather than throw over it.
+    [[nodiscard]] bool HasPendingException() const;
 
-    // Both builders are valid only until this call returns - they build into
-    // the engine's current frame and root nothing of their own.
-    [[nodiscard]] ObjectBuilder ReturnObject();
-    [[nodiscard]] ArrayBuilder ReturnArray(size_t length);
+    // Make a value. Valid only until this call returns: both build into the
+    // engine's current frame and root nothing of their own. Creating a value
+    // and returning it are separate steps, so a value can be built, nested
+    // inside another, and returned - or not returned at all.
+    [[nodiscard]] ObjectBuilder NewObject();
+    [[nodiscard]] ArrayBuilder NewArray(size_t length);
+
+    void SetReturnValue(int32_t value);
+    void SetReturnValue(uint32_t value);
+    void SetReturnValue(double value);
+    void SetReturnValue(bool value);
+    void SetReturnValue(std::string_view value);
+    void SetReturnValue(game::Point value);
+    void SetReturnValue(game::Position value);
+    void SetReturnValue(game::Size value);
+    void SetReturnValue(const ObjectBuilder& value);
+    void SetReturnValue(const ArrayBuilder& value);
+    void SetReturnValueNull();
+    void SetReturnValueUndefined();
 
     void Throw(ErrorKind kind, std::string_view message);
 
@@ -90,9 +105,14 @@ class ObjectBuilder {
     ObjectBuilder& Set(std::string_view key, double value);
     ObjectBuilder& Set(std::string_view key, bool value);
     ObjectBuilder& Set(std::string_view key, std::string_view value);
+    ObjectBuilder& Set(std::string_view key, const ObjectBuilder& value);
+    ObjectBuilder& Set(std::string_view key, const ArrayBuilder& value);
     ObjectBuilder& SetNull(std::string_view key);
 
    private:
+    friend class Args;
+    friend class ArrayBuilder;
+
     void* state_;
 };
 
@@ -105,14 +125,26 @@ class ArrayBuilder {
     ArrayBuilder& Set(size_t index, double value);
     ArrayBuilder& Set(size_t index, bool value);
     ArrayBuilder& Set(size_t index, std::string_view value);
-    [[nodiscard]] ObjectBuilder SetObject(size_t index);
+    ArrayBuilder& Set(size_t index, const ObjectBuilder& value);
+    ArrayBuilder& Set(size_t index, const ArrayBuilder& value);
 
    private:
+    friend class Args;
+    friend class ObjectBuilder;
+
     void* state_;
 };
 
 // What a binding is. Engine-free by construction: the only thing it can touch
 // is the Args it was handed.
-using Native = void (*)(Args&);
+//
+// Returns false to mean "stop" - either an exception is pending, or the script
+// is being terminated. V8's own callback returns void because it signals
+// termination out of band through TerminateExecution(), but an engine that has
+// no such channel says it here instead, by returning false with nothing
+// pending. Modelling V8's void return would throw that answer away, so a
+// binding says it explicitly and the frontend maps it to whatever its engine
+// expects. Returning true after Throw() is a bug; return false.
+using Native = bool (*)(Args&);
 
 }  // namespace d2bs::script
