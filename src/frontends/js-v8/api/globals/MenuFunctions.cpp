@@ -1,17 +1,18 @@
 #include "MenuFunctions.h"
 
-#include "api/core/V8Convert.h"
-#include "api/core/V8Error.h"
-#include "api/core/V8Function.h"
+#include <string>
+
+#include "ArgChecks.h"
 #include "config/AppConfig.h"
 #include "config/ProfileData.h"
 #include "game/GameHelpers.h"
 #include "game/Menu.h"
 #include "profile/ProfileService.h"
+#include "scripting/Args.h"
 
 namespace d2bs::api::globals {
 
-void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> global) {
+void RegisterMenuFunctions(script::Registry& registry) {
     /// @description Logs in at the menu using a stored profile, driving the UI through character selection.
     /// @signature login()
     /// @signature login(profileName: string)
@@ -20,30 +21,28 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @throws {Error} - Profile name resolves empty (none passed, none configured).
     /// @throws {Error} - Named profile does not exist.
     /// @throws {Error} - Login attempt fails.
-    v8_function::Register(
-        isolate, global, "login", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
-
+    registry.Global(
+        "login", +[](script::Args& args) {
             // Reference: only works when client is in menu state
             if (game::GetGameState() != game::GameState::Menu) {
-                return;
+                return true;
             }
 
             std::string profileName;
-            if (args.Length() > 0 && args[0]->IsString()) {
-                profileName = v8_convert::ToString(isolate, args[0]);
+            if (args.Count() > 0 && args.IsString(0)) {
+                profileName = args.String(0).value_or(std::string{});
             } else {
                 profileName = config::GetAppConfig().GetProfileName();
                 if (profileName.empty()) {
-                    v8_error::ThrowError(isolate, "Invalid profile specified!");
-                    return;
+                    args.Throw(script::ErrorKind::Error, "Invalid profile specified!");
+                    return false;
                 }
             }
 
             auto profile = services::profile::Load(profileName);
             if (!profile) {
-                v8_error::ThrowError(isolate, "Profile does not exist!");
-                return;
+                args.Throw(script::ErrorKind::Error, "Profile does not exist!");
+                return false;
             }
 
             // Set name only on success: reference sets it before ProfileExists, leaving szProfile
@@ -52,8 +51,10 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             auto result = game::Login(*profile);
             if (result.status != game::LoginStatus::Success) {
-                v8_error::ThrowError(isolate, result.errorMessage);
+                args.Throw(script::ErrorKind::Error, result.errorMessage);
+                return false;
             }
+            return true;
         });
 
     /// @description Selects a profile's character in the character-selection screen.
@@ -61,25 +62,23 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param profileName {string} - Name of the stored profile whose character should be selected.
     /// @returns {boolean} - true if the character was selected, false otherwise.
     /// @throws {Error} - Profile cannot be resolved to a character.
-    v8_function::Register(
-        isolate, global, "selectCharacter", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
-
+    registry.Global(
+        "selectCharacter", +[](script::Args& args) {
             // Reference JSMenu.cpp:45-46 throws one message for both wrong arg
             // count and wrong arg type; reproduce verbatim so scripts that
             // string-match the error keep working.
-            if (args.Length() != 1 || !args[0]->IsString()) {
-                v8_error::ThrowError(isolate, "Invalid parameters specified to selectCharacter");
-                return;
+            if (args.Count() != 1 || !args.IsString(0)) {
+                args.Throw(script::ErrorKind::Error, "Invalid parameters specified to selectCharacter");
+                return false;
             }
 
-            std::string profileName = v8_convert::ToString(isolate, args[0]);
-            auto charname = services::profile::ResolveCharacter(profileName);
+            auto charname = services::profile::ResolveCharacter(args.String(0).value_or(std::string{}));
             if (!charname) {
-                v8_error::ThrowError(isolate, "Invalid profile specified");
-                return;
+                args.Throw(script::ErrorKind::Error, "Invalid profile specified");
+                return false;
             }
-            args.GetReturnValue().Set(game::SelectCharacter(*charname));
+            args.SetReturnValue(game::SelectCharacter(*charname));
+            return true;
         });
 
     /// @description Creates a new character at the menu with the given name and class.
@@ -91,49 +90,42 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param ladder {boolean} - Create as ladder; defaults to false.
     /// @returns {boolean} - Result of the creation attempt; undefined if not at the menu. Throws on invalid arguments.
     /// @throws {Error} - Character type is outside the valid class range (0-6).
-    v8_function::Register(
-        isolate, global, "createCharacter", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
-
+    registry.Global(
+        "createCharacter", +[](script::Args& args) {
             // Reference: only works when client is in menu state
             if (game::GetGameState() != game::GameState::Menu) {
-                return;
+                return true;
             }
 
-            if (args.Length() < 2) {
-                v8_error::ThrowError(isolate, "createCharacter requires at least 2 arguments");
-                return;
+            if (args.Count() < 2) {
+                args.Throw(script::ErrorKind::Error, "createCharacter requires at least 2 arguments");
+                return false;
+            }
+            if (!CheckIsString(args, 0, "name") || !CheckIsNumber(args, 1, "type")) {
+                return false;
             }
 
-            if (!v8_error::CheckIsString(args, 0, "name")) {
-                return;
-            }
-
-            if (!v8_error::CheckIsNumber(args, 1, "type")) {
-                return;
-            }
-
-            std::string name = v8_convert::ToString(isolate, args[0]);
-            int32_t type = v8_convert::ToInt32(isolate, args[1]);
+            const std::string name = args.String(0).value_or(std::string{});
+            const int32_t type = args.Int32(1).value_or(0);
 
             bool hardcore = false;
-            if (args.Length() > 2 && args[2]->IsBoolean()) {
-                hardcore = args[2]->BooleanValue(isolate);
+            if (args.Count() > 2 && args.IsBool(2)) {
+                hardcore = args.Bool(2).value_or(false);
             }
 
             bool ladder = false;
-            if (args.Length() > 3 && args[3]->IsBoolean()) {
-                ladder = args[3]->BooleanValue(isolate);
+            if (args.Count() > 3 && args.IsBool(3)) {
+                ladder = args.Bool(3).value_or(false);
             }
 
             // Validate character class (0-6)
             if (type < 0 || type > static_cast<int32_t>(game::CharacterClass::Assassin)) {
-                v8_error::ThrowError(isolate, "Invalid character type");
-                return;
+                args.Throw(script::ErrorKind::Error, "Invalid character type");
+                return false;
             }
 
-            args.GetReturnValue().Set(
-                game::CreateCharacter(name, static_cast<game::CharacterClass>(type), hardcore, ladder));
+            args.SetReturnValue(game::CreateCharacter(name, static_cast<game::CharacterClass>(type), hardcore, ladder));
+            return true;
         });
 
     /// @description Creates an online game at the menu with the given name, password, and difficulty.
@@ -146,118 +138,120 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @throws {Error} - Game name or password exceeds 15 characters.
     /// @throws {Error} - Difficulty is outside 0-3.
     /// @throws {Error} - Create attempt fails.
-    v8_function::Register(
-        isolate, global, "createGame", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
-            args.GetReturnValue().SetNull();
+    registry.Global(
+        "createGame", +[](script::Args& args) {
+            args.SetReturnValueNull();
 
             // Reference: only works when client is in menu state
             if (game::GetGameState() != game::GameState::Menu) {
-                return;
+                return true;
             }
 
-            if (!v8_error::CheckArgCount(args, 1, "createGame")) {
-                return;
+            if (!CheckArgCount(args, 1, "createGame") || !CheckIsString(args, 0, "name")) {
+                return false;
             }
 
-            if (!v8_error::CheckIsString(args, 0, "name")) {
-                return;
-            }
-
-            std::string name = v8_convert::ToString(isolate, args[0]);
-
-            // Validate name length
+            const std::string name = args.String(0).value_or(std::string{});
             if (name.length() > 15) {
-                v8_error::ThrowError(isolate, "Invalid game name or password length");
-                return;
+                args.Throw(script::ErrorKind::Error, "Invalid game name or password length");
+                return false;
             }
 
-            // Get optional password
             std::string pass;
-            if (args.Length() > 1) {
-                if (!args[1]->IsString()) {
-                    v8_error::ThrowTypeError(isolate, "Invalid arguments specified to createGame");
-                    return;
+            if (args.Count() > 1) {
+                if (!args.IsString(1)) {
+                    args.Throw(script::ErrorKind::TypeError, "Invalid arguments specified to createGame");
+                    return false;
                 }
-                pass = v8_convert::ToString(isolate, args[1]);
+                pass = args.String(1).value_or(std::string{});
                 if (pass.length() > 15) {
-                    v8_error::ThrowError(isolate, "Invalid game name or password length");
-                    return;
+                    args.Throw(script::ErrorKind::Error, "Invalid game name or password length");
+                    return false;
                 }
             }
 
-            // Get optional difficulty (0-2, default 3 for highest available)
-            int32_t diff = 3;
-            if (args.Length() > 2) {
-                if (!args[2]->IsNumber()) {
-                    v8_error::ThrowTypeError(isolate, "Invalid arguments specified to createGame");
-                    return;
+            int32_t diff = static_cast<int32_t>(game::Difficulty::HighestAvailable);
+            if (args.Count() > 2) {
+                if (!args.IsNumber(2)) {
+                    args.Throw(script::ErrorKind::TypeError, "Invalid arguments specified to createGame");
+                    return false;
                 }
-                diff = v8_convert::ToInt32(isolate, args[2]);
+                diff = args.Int32(2).value_or(diff);
             }
 
             if (diff < 0 || diff > static_cast<int32_t>(game::Difficulty::HighestAvailable)) {
-                v8_error::ThrowError(isolate, "Invalid difficulty (must be 0-3)");
-                return;
+                args.Throw(script::ErrorKind::Error, "Invalid difficulty (must be 0-3)");
+                return false;
             }
 
             if (!game::CreateGame(name, pass, static_cast<game::Difficulty>(diff))) {
-                v8_error::ThrowError(isolate, "createGame failed");
-                return;
+                args.Throw(script::ErrorKind::Error, "createGame failed");
+                return false;
             }
+            return true;
         });
 
-    /// @description Joins an existing online game at the menu by name and optional password.
+    /// @description Joins an existing online game at the menu by name.
     /// @signature joinGame(name: string, password?: string)
-    /// @param name {string} - Name of the game to join, max 15 characters.
+    /// @param name {string} - Game name, max 15 characters.
     /// @param password {string} - Game password, max 15 characters.
     /// @returns {null} - Always null; no-op unless at the menu. Throws on validation or join failure.
     /// @throws {Error} - Game name or password exceeds 15 characters.
     /// @throws {Error} - Join attempt fails.
-    v8_function::Register(
-        isolate, global, "joinGame", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
-            args.GetReturnValue().SetNull();
+    registry.Global(
+        "joinGame", +[](script::Args& args) {
+            args.SetReturnValueNull();
 
             // Reference: only works when client is in menu state
             if (game::GetGameState() != game::GameState::Menu) {
-                return;
+                return true;
             }
 
-            if (!v8_error::CheckArgCount(args, 1, "joinGame")) {
-                return;
+            if (!CheckArgCount(args, 1, "joinGame") || !CheckIsString(args, 0, "name")) {
+                return false;
             }
 
-            if (!v8_error::CheckIsString(args, 0, "name")) {
-                return;
-            }
-
-            std::string name = v8_convert::ToString(isolate, args[0]);
-
-            // Validate name length
+            const std::string name = args.String(0).value_or(std::string{});
             if (name.length() > 15) {
-                v8_error::ThrowError(isolate, "Invalid game name or password length");
-                return;
+                args.Throw(script::ErrorKind::Error, "Invalid game name or password length");
+                return false;
             }
 
-            // Get optional password
             std::string pass;
-            if (args.Length() > 1) {
-                if (!args[1]->IsString()) {
-                    v8_error::ThrowTypeError(isolate, "Invalid arguments specified to joinGame");
-                    return;
+            if (args.Count() > 1) {
+                if (!args.IsString(1)) {
+                    args.Throw(script::ErrorKind::TypeError, "Invalid arguments specified to joinGame");
+                    return false;
                 }
-                pass = v8_convert::ToString(isolate, args[1]);
+                pass = args.String(1).value_or(std::string{});
                 if (pass.length() > 15) {
-                    v8_error::ThrowError(isolate, "Invalid game name or password length");
-                    return;
+                    args.Throw(script::ErrorKind::Error, "Invalid game name or password length");
+                    return false;
                 }
             }
 
             if (!game::JoinGame(name, pass)) {
-                v8_error::ThrowError(isolate, "joinGame failed");
-                return;
+                args.Throw(script::ErrorKind::Error, "joinGame failed");
+                return false;
             }
+            return true;
+        });
+
+    /// @description Lists the custom Battle.net gateways injected into the realm list.
+    /// @signature getRealms()
+    /// @returns {Array<{name:string,host:string}>} - one entry per registered realm
+    registry.Global(
+        "getRealms", +[](script::Args& args) {
+            const auto realms = game::GetRealms();
+            auto array = args.NewArray(realms.size());
+            size_t i = 0;
+            for (const auto& realm : realms) {
+                auto entry = args.NewObject();
+                entry.Set("name", realm.name).Set("host", realm.host);
+                array.Set(i++, entry);
+            }
+            args.SetReturnValue(array);
+            return true;
         });
 
     /// @description Adds or overwrites a stored profile in the d2bs profile config.
@@ -274,52 +268,44 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @returns {null} - Always null. Throws on invalid arguments.
     /// @throws {Error} - spdifficulty is outside 0-3.
     /// @throws {Error} - mode string does not map to a known profile type.
-    v8_function::Register(
-        isolate, global, "addProfile", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
-
-            // Require at least 6 arguments
-            if (args.Length() < 6) {
-                v8_error::ThrowError(isolate, "Invalid arguments passed to addProfile");
-                return;
-            }
-
-            // Require no more than 7 arguments
-            if (args.Length() > 7) {
-                v8_error::ThrowError(isolate, "Invalid arguments passed to addProfile");
-                return;
+    registry.Global(
+        "addProfile", +[](script::Args& args) {
+            // Require at least 6 and no more than 7 arguments
+            if (args.Count() < 6 || args.Count() > 7) {
+                args.Throw(script::ErrorKind::Error, "Invalid arguments passed to addProfile");
+                return false;
             }
 
             // Validate all 6 required string arguments
-            for (int32_t i = 0; i < 6; i++) {
-                if (!args[i]->IsString()) {
-                    v8_error::ThrowError(isolate, "Invalid argument passed to addProfile");
-                    return;
+            for (size_t i = 0; i < 6; i++) {
+                if (!args.IsString(i)) {
+                    args.Throw(script::ErrorKind::Error, "Invalid argument passed to addProfile");
+                    return false;
                 }
             }
 
-            std::string profileName = v8_convert::ToString(isolate, args[0]);
-            std::string mode = v8_convert::ToString(isolate, args[1]);
-            std::string gateway = v8_convert::ToString(isolate, args[2]);
-            std::string username = v8_convert::ToString(isolate, args[3]);
-            std::string password = v8_convert::ToString(isolate, args[4]);
-            std::string charname = v8_convert::ToString(isolate, args[5]);
+            const std::string profileName = args.String(0).value_or(std::string{});
+            const std::string mode = args.String(1).value_or(std::string{});
+            const std::string gateway = args.String(2).value_or(std::string{});
+            const std::string username = args.String(3).value_or(std::string{});
+            const std::string password = args.String(4).value_or(std::string{});
+            const std::string charname = args.String(5).value_or(std::string{});
 
             // Get optional spdifficulty (default 3). Reject non-number arg consistently
             // with the string-arg validation above - silently dropping it hides script bugs.
-            int32_t spdifficulty = 3;
-            if (args.Length() == 7) {
-                if (!args[6]->IsNumber()) {
-                    v8_error::ThrowError(isolate, "Invalid argument passed to addProfile");
-                    return;
+            int32_t spdifficulty = static_cast<int32_t>(game::Difficulty::HighestAvailable);
+            if (args.Count() == 7) {
+                if (!args.IsNumber(6)) {
+                    args.Throw(script::ErrorKind::Error, "Invalid argument passed to addProfile");
+                    return false;
                 }
-                spdifficulty = v8_convert::ToInt32(isolate, args[6]);
+                spdifficulty = args.Int32(6).value_or(spdifficulty);
             }
 
             // Validate spdifficulty range
             if (spdifficulty < 0 || spdifficulty > static_cast<int32_t>(game::Difficulty::HighestAvailable)) {
-                v8_error::ThrowError(isolate, "Invalid argument passed to addProfile");
-                return;
+                args.Throw(script::ErrorKind::Error, "Invalid argument passed to addProfile");
+                return false;
             }
 
             config::ProfileData data;
@@ -331,8 +317,8 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             // "invalid". Reject instead to surface the mistake - documented
             // divergence from reference.
             if (data.type == config::ProfileType::Invalid) {
-                v8_error::ThrowError(isolate, "Invalid argument passed to addProfile");
-                return;
+                args.Throw(script::ErrorKind::Error, "Invalid argument passed to addProfile");
+                return false;
             }
             data.gateway = gateway;
             data.password = password;
@@ -349,21 +335,23 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             // Return value discarded; reference sets rval=null regardless of
             // whether the profile already existed.
             services::profile::Add(data);
-            args.GetReturnValue().SetNull();
+            args.SetReturnValueNull();
+            return true;
         });
 
     /// @description Returns the current out-of-game menu location id (which menu screen the client is on).
     /// @signature getLocation()
     /// @returns {number|null} - Numeric out-of-game location id when at the menu; null otherwise.
-    v8_function::Register(
-        isolate, global, "getLocation", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+    registry.Global(
+        "getLocation", +[](script::Args& args) {
             // Reference: only works when client is in menu state
             if (game::GetGameState() != game::GameState::Menu) {
-                args.GetReturnValue().SetNull();
-                return;
+                args.SetReturnValueNull();
+                return true;
             }
 
-            args.GetReturnValue().Set(static_cast<int32_t>(game::GetOutOfGameLocation()));
+            args.SetReturnValue(static_cast<int32_t>(game::GetOutOfGameLocation()));
+            return true;
         });
 }
 

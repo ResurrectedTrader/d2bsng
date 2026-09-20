@@ -19,6 +19,7 @@
 #include <WinInet.h>
 #pragma comment(lib, "wininet.lib")
 
+#include "ArgChecks.h"
 #include "api/classes/io/JSDirectory.h"
 #include "api/classes/scripting/JSScript.h"
 #include "api/core/V8Convert.h"
@@ -137,7 +138,7 @@ static void ConvertToEuc(const v8::FunctionCallbackInfo<v8::Value>& args) {
     args.GetReturnValue().Set(v8_convert::ToV8(isolate, ansi));
 }
 
-void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> global) {
+void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> global, script::Registry& registry) {
     /// @description Prints each argument to the console as its own Info-level message.
     /// @signature print(...args: any)
     /// @param args {any} - zero or more values; each is stringified and emitted separately
@@ -355,6 +356,19 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 ScriptEngine::Instance().StopAllScripts();
                 isolate->TerminateExecution();
             }
+        });
+
+    /// @description Returns a monotonic millisecond timestamp for timing/elapsed measurements.
+    /// @signature getTickCount()
+    /// @returns {number} - a monotonically increasing millisecond counter; only differences are meaningful (not
+    ///                     wall-clock time)
+    registry.Global(
+        "getTickCount", +[](script::Args& args) {
+            // NOTE: reference uses GetTickCount(), we use std::chrono
+            auto elapsed = std::chrono::steady_clock::now().time_since_epoch();
+            args.SetReturnValue(
+                static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count()));
+            return true;
         });
 
     /// @description Sets the speedhack time multiplier affecting the game's perceived clock speed.

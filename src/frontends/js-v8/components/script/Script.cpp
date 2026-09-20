@@ -18,7 +18,6 @@
 #include "api/globals/GameFunctions.h"
 #include "api/globals/HashFunctions.h"
 #include "api/globals/MenuFunctions.h"
-#include "api/globals/PortableFunctions.h"
 #include "components/drawing/Drawable.h"
 #include "components/events/BaseEvent.h"
 #include "components/events/DelayedEvent.h"
@@ -392,19 +391,19 @@ void Script::SetupIsolate() {
     // Register all class constructors (Unit, Room, File, etc.)
     api::classes::RegisterAllClasses(iso, global);
 
+    // Bindings written against the scripting contract register through this; a
+    // file whose Register takes only the registry names no engine at all.
+    js::script::RegistryState registryState{.isolate = iso, .global = global};
+    d2bs::script::Registry registry(&registryState);
+
     // Register all global functions
-    api::globals::RegisterCoreFunctions(iso, global);
-    api::globals::RegisterGameFunctions(iso, global);
-    api::globals::RegisterMenuFunctions(iso, global);
-    api::globals::RegisterHashFunctions(iso, global);
+    api::globals::RegisterCoreFunctions(iso, global, registry);
+    api::globals::RegisterGameFunctions(iso, global, registry);
+    api::globals::RegisterMenuFunctions(registry);
+    api::globals::RegisterHashFunctions(registry);
 
     // Register global constants (FILE_READ, FILE_WRITE, FILE_APPEND)
     api::globals::RegisterConstants(iso, global);
-
-    // Globals that name no engine, registered through the scripting contract.
-    js::script::RegistryState registryState{.isolate = iso, .global = global};
-    d2bs::script::Registry registry(&registryState);
-    api::globals::RegisterPortableFunctions(registry);
 
     // Create context with the configured global template
     auto context = v8::Context::New(iso, nullptr, global);

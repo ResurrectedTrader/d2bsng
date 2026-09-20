@@ -52,6 +52,14 @@ class Args {
     [[nodiscard]] std::optional<bool> Bool(size_t i) const;
     [[nodiscard]] std::optional<std::string> String(size_t i) const;
 
+    // Stringify whatever is there, the way the language's own String() does:
+    // null becomes "null", a number becomes its digits, an object runs its
+    // toString. Distinct from String(), which reports "not a string" - several
+    // bindings deliberately hash or print whatever they are handed, and taking
+    // String() for those would change what they do with null. Returns nullopt
+    // only when converting threw, which a user-defined toString can do.
+    [[nodiscard]] std::optional<std::string> ToString(size_t i) const;
+
     // Read one field off an object argument. The shapes the API accepts are
     // fixed and documented, so a typed field read covers them without exposing
     // the object itself.

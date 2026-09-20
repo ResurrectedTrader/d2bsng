@@ -142,6 +142,17 @@ std::optional<std::string> Args::String(size_t i) const {
 // is deliberate and load-bearing: a string silently coerced through Int32Value
 // corrupts coordinates, which is why the hand-written extractors check
 // IsNumber() first.
+std::optional<std::string> Args::ToString(size_t i) const {
+    auto* isolate = Iso(state_);
+    v8::TryCatch tryCatch(isolate);
+    auto text = api::v8_convert::ToString(isolate, At(state_, i));
+    if (tryCatch.HasCaught()) {
+        tryCatch.ReThrow();
+        return std::nullopt;
+    }
+    return text;
+}
+
 std::optional<int32_t> Args::FieldInt32(size_t i, std::string_view key) const {
     v8::Local<v8::Value> value;
     int32_t out = 0;

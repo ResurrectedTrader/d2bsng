@@ -8,6 +8,7 @@
 
 #include <Windows.h>
 
+#include "ArgChecks.h"
 #include "api/classes/game/JSArea.h"
 #include "api/classes/game/JSControl.h"
 #include "api/classes/game/JSParty.h"
@@ -65,7 +66,7 @@ double Distance(game::Point a, game::Point b) {
 }  // namespace
 
 // NOLINTNEXTLINE(readability-function-size) - registration function, intentionally large
-void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> global) {
+void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> global, script::Registry& registry) {
     /// @description Find the first game unit matching optional type/name/classId/mode/id criteria.
     /// @signature getUnit(special: number)
     /// @param special {number} - 100 = cursor item, 101 = selected unit (falls back to selected inventory item)
@@ -1858,6 +1859,47 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 arr->Set(context, 1, v8_convert::ToV8(isolate, p.y)).Check();
                 args.GetReturnValue().Set(arr);
             }
+        });
+
+    /// @description Convert screen coordinates to automap coordinates.
+    /// @signature screenToAutomap(point: {x:number,y:number})
+    /// @param point {object} - a {x, y} object
+    /// @signature screenToAutomap(x: number, y: number)
+    /// @param x {number} - screen x coordinate
+    /// @param y {number} - screen y coordinate
+    /// @returns {{x:number,y:number}} - converted automap coordinates
+    registry.Global(
+        "screenToAutomap", +[](script::Args& args) {
+            if (args.Count() < 1) {
+                args.Throw(script::ErrorKind::TypeError, "screenToAutomap requires at least 1 argument");
+                return false;
+            }
+
+            // Strict: reject non-numeric input (string->int coercion silently corrupted coords).
+            auto point = game::Point::Zero;
+            if (args.Count() == 1 && args.IsObject(0)) {
+                auto x = args.FieldInt32(0, "x");
+                auto y = args.FieldInt32(0, "y");
+                if (!x || !y) {
+                    // An exception already pending means reading the field ran
+                    // the script's own code and it threw; that is its exception
+                    // to report, not ours to overwrite.
+                    if (args.HasPendingException()) {
+                        return false;
+                    }
+                    args.Throw(script::ErrorKind::TypeError, "Input has an x or y, but they aren't the correct type!");
+                    return false;
+                }
+                point = {.x = *x, .y = *y};
+            } else if (args.Count() >= 2 && args.IsNumber(0) && args.IsNumber(1)) {
+                point = {.x = args.Int32(0).value_or(0), .y = args.Int32(1).value_or(0)};
+            } else {
+                args.Throw(script::ErrorKind::TypeError, "Invalid arguments for screenToAutomap");
+                return false;
+            }
+
+            args.SetReturnValue(game::ScreenToAutomap(point));
+            return true;
         });
 
     /// @description Convert automap coordinates to screen coordinates.

@@ -100,7 +100,6 @@
   <ItemGroup>
     <!-- API Globals -->
     <ClCompile Include="api\globals\Constants.cpp" />
-    <ClCompile Include="api\globals\PortableFunctions.cpp" />
     <ClCompile Include="api\globals\CoreFunctions.cpp" />
     <ClCompile Include="api\globals\GameFunctions.cpp" />
     <ClCompile Include="api\globals\HashFunctions.cpp" />
@@ -187,7 +186,7 @@
     <ClInclude Include="api\core\V8InstanceTracker.h" />
     <!-- API Globals -->
     <ClInclude Include="api\globals\Constants.h" />
-    <ClInclude Include="api\globals\PortableFunctions.h" />
+    <ClInclude Include="api\globals\ArgChecks.h" />
     <ClInclude Include="api\globals\CoreFunctions.h" />
     <ClInclude Include="api\globals\GameFunctions.h" />
     <ClInclude Include="api\globals\HashFunctions.h" />
