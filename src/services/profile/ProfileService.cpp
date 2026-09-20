@@ -3,7 +3,7 @@
 #include "config/AppConfig.h"
 #include "config/ConfigStore.h"
 
-namespace d2bs::profile {
+namespace d2bs::services::profile {
 
 std::optional<config::ProfileData> Load(const std::string& name) {
     auto& cfg = config::GetAppConfig();
@@ -57,4 +57,4 @@ bool Add(const config::ProfileData& profile) {
     return true;
 }
 
-}  // namespace d2bs::profile
+}  // namespace d2bs::services::profile

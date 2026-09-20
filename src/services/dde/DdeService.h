@@ -14,7 +14,7 @@
 
 #include "utils/utils.h"
 
-namespace d2bs::dde {
+namespace d2bs::services::dde {
 
 // DDE transaction kind. Values match the numeric `mode` argument the JS
 // `sendDDE(mode, ...)` global uses (reference/d2bs JSCore.cpp my_sendDDE).
@@ -94,4 +94,4 @@ class DdeService {
     std::shared_ptr<spdlog::logger> logger_ = utils::GetLogger("dde");
 };
 
-}  // namespace d2bs::dde
+}  // namespace d2bs::services::dde

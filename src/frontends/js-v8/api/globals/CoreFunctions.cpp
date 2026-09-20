@@ -575,16 +575,16 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             std::string data = v8_convert::ToString(isolate, args[4]);
 
             // JS `mode` 0/1/2 maps 1:1 to the Transaction enum values.
-            if (mode > static_cast<uint32_t>(dde::Transaction::Evaluate)) {
+            if (mode > static_cast<uint32_t>(services::dde::Transaction::Evaluate)) {
                 return;
             }
-            auto txn = static_cast<dde::Transaction>(mode);
+            auto txn = static_cast<services::dde::Transaction>(mode);
 
             // Matches reference/d2bs JSCore.cpp my_sendDDE: never throws on DDE failure; any failure
             // is logged and the JS return value stays undefined (caller sees no response). Only
             // Request sets a return value, and only on successful payload retrieval.
-            auto result = dde::DdeService::Instance().Send(txn, server, topic, item, data);
-            if (txn == dde::Transaction::Request && result) {
+            auto result = services::dde::DdeService::Instance().Send(txn, server, topic, item, data);
+            if (txn == services::dde::Transaction::Request && result) {
                 args.GetReturnValue().Set(v8_convert::ToV8(isolate, *result));
             }
         });

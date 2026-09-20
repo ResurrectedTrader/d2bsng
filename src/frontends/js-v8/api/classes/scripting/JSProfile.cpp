@@ -78,7 +78,7 @@ void JSProfile::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
             v8_error::ThrowError(isolate, "No active profile!");
             return;
         }
-        auto loaded = profile::Load(name);
+        auto loaded = services::profile::Load(name);
         if (!loaded) {
             v8_error::ThrowError(isolate, "Profile does not exist");
             return;
@@ -90,7 +90,7 @@ void JSProfile::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     // of returning an "ERROR"-filled stub.
     else if (argc == 1 && args[0]->IsString()) {
         std::string name = v8_convert::ToString(isolate, args[0]);
-        auto loaded = profile::Load(name);
+        auto loaded = services::profile::Load(name);
         if (!loaded) {
             v8_error::ThrowError(isolate, "Profile does not exist");
             return;

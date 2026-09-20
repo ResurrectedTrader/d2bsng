@@ -303,7 +303,7 @@ struct TempIniForGameLoop {
 // only writes login-related fields (matching reference); script overrides are
 // read-only INI fields, so tests that need them must write them like a user
 // hand-editing d2bs.ini. Uses WritePrivateProfileStringW so the keys land in
-// the existing [<profileName>] section that profile::Add already created -
+// the existing [<profileName>] section that services::profile::Add already created -
 // GetPrivateProfileStringW reads only the first occurrence of a section, so
 // appending a duplicate section would leave the keys unreachable.
 void WriteScriptOverrides(const std::filesystem::path& ini, const std::string& profileName,
@@ -339,7 +339,7 @@ TEST_CASE_FIXTURE(GameLoopFixture, "Latch cleared via Switch launches starter on
     d2bs::config::ProfileData prof;
     prof.name = "p1";
     prof.type = d2bs::config::ProfileType::SinglePlayer;
-    d2bs::profile::Add(prof);
+    d2bs::services::profile::Add(prof);
 
     auto& s = d2bs::test::State();
     s.clientState = GameState::Menu;
@@ -349,7 +349,7 @@ TEST_CASE_FIXTURE(GameLoopFixture, "Latch cleared via Switch launches starter on
     CHECK(d2bs::ScriptEngine::Instance().StartedScripts().empty());
 
     // Switch clears the latch and sets the name atomically.
-    CHECK(d2bs::profile::Switch("p1") == true);
+    CHECK(d2bs::services::profile::Switch("p1") == true);
 
     // Second tick: latch just cleared -> starter launches exactly once.
     GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
@@ -372,11 +372,11 @@ TEST_CASE_FIXTURE(GameLoopFixture, "CLI launch profile seeds name once - no doub
     d2bs::config::ProfileData prof;
     prof.name = "foo";
     prof.type = d2bs::config::ProfileType::SinglePlayer;
-    d2bs::profile::Add(prof);
+    d2bs::services::profile::Add(prof);
     WriteScriptOverrides(tmp.path, "foo", {.starterScript = "foo_starter.dbj"});
 
     // Emulate CLI -profile foo landing before first tick.
-    CHECK(d2bs::profile::Switch("foo") == true);
+    CHECK(d2bs::services::profile::Switch("foo") == true);
 
     auto& s = d2bs::test::State();
     s.clientState = GameState::Menu;
@@ -405,7 +405,7 @@ TEST_CASE_FIXTURE(GameLoopFixture, "Mid-session /profile bar reloads overrides, 
     d2bs::config::ProfileData bar;
     bar.name = "bar";
     bar.type = d2bs::config::ProfileType::SinglePlayer;
-    d2bs::profile::Add(bar);
+    d2bs::services::profile::Add(bar);
     WriteScriptOverrides(tmp.path, "bar", {.starterScript = "bar_starter.dbj"});
 
     auto& s = d2bs::test::State();
@@ -419,7 +419,7 @@ TEST_CASE_FIXTURE(GameLoopFixture, "Mid-session /profile bar reloads overrides, 
     auto prevStarter = started[0];
 
     // Mid-session switch: name changes to "bar".
-    CHECK(d2bs::profile::Switch("bar") == true);
+    CHECK(d2bs::services::profile::Switch("bar") == true);
 
     GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
     REQUIRE(started.size() == 2);
@@ -440,20 +440,20 @@ TEST_CASE_FIXTURE(GameLoopFixture, "/profile at InGame swaps game script only") 
     d2bs::config::ProfileData profA;
     profA.name = "A";
     profA.type = d2bs::config::ProfileType::SinglePlayer;
-    d2bs::profile::Add(profA);
+    d2bs::services::profile::Add(profA);
     WriteScriptOverrides(tmp.path, "a", {.gameScript = "a_game.dbj"});
 
     d2bs::config::ProfileData profB;
     profB.name = "B";
     profB.type = d2bs::config::ProfileType::SinglePlayer;
-    d2bs::profile::Add(profB);
+    d2bs::services::profile::Add(profB);
     WriteScriptOverrides(tmp.path, "b", {.gameScript = "b_game.dbj"});
 
     auto& s = d2bs::test::State();
     s.clientState = GameState::InGame;
     s.playerId = 1;
 
-    CHECK(d2bs::profile::Switch("A") == true);
+    CHECK(d2bs::services::profile::Switch("A") == true);
     GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
     const auto& started = d2bs::ScriptEngine::Instance().StartedScripts();
     REQUIRE(started.size() == 1);
@@ -461,7 +461,7 @@ TEST_CASE_FIXTURE(GameLoopFixture, "/profile at InGame swaps game script only") 
     CHECK(started[0]->GetPath().filename() == "a_game.dbj");
     auto aScript = started[0];
 
-    CHECK(d2bs::profile::Switch("B") == true);
+    CHECK(d2bs::services::profile::Switch("B") == true);
     GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
     REQUIRE(started.size() == 2);
     CHECK(aScript->IsStopped());
@@ -485,20 +485,20 @@ TEST_CASE_FIXTURE(GameLoopFixture, "Same-profile repeat Switch is a no-op") {
     d2bs::config::ProfileData foo;
     foo.name = "foo";
     foo.type = d2bs::config::ProfileType::SinglePlayer;
-    d2bs::profile::Add(foo);
+    d2bs::services::profile::Add(foo);
     WriteScriptOverrides(tmp.path, "foo", {.starterScript = "foo.dbj"});
 
     auto& s = d2bs::test::State();
     s.clientState = GameState::Menu;
 
-    CHECK(d2bs::profile::Switch("foo") == true);
+    CHECK(d2bs::services::profile::Switch("foo") == true);
     GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
     const auto& started = d2bs::ScriptEngine::Instance().StartedScripts();
     REQUIRE(started.size() == 1);
     CHECK(started[0]->GetPath().filename() == "foo.dbj");
 
     // Switch to foo again - name unchanged => no relaunch.
-    CHECK(d2bs::profile::Switch("foo") == true);
+    CHECK(d2bs::services::profile::Switch("foo") == true);
     GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
     CHECK(started.size() == 1);
 }
@@ -515,20 +515,20 @@ TEST_CASE_FIXTURE(GameLoopFixture, "Same-profile Switch with different case is a
     d2bs::config::ProfileData foo;
     foo.name = "foo";
     foo.type = d2bs::config::ProfileType::SinglePlayer;
-    d2bs::profile::Add(foo);
+    d2bs::services::profile::Add(foo);
     WriteScriptOverrides(tmp.path, "foo", {.starterScript = "foo.dbj"});
 
     auto& s = d2bs::test::State();
     s.clientState = GameState::Menu;
 
-    CHECK(d2bs::profile::Switch("foo") == true);
+    CHECK(d2bs::services::profile::Switch("foo") == true);
     GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
     const auto& started = d2bs::ScriptEngine::Instance().StartedScripts();
     REQUIRE(started.size() == 1);
 
     // Switch to same profile with different case - change detection compares
     // case-insensitively so no relaunch should fire.
-    CHECK(d2bs::profile::Switch("FOO") == true);
+    CHECK(d2bs::services::profile::Switch("FOO") == true);
     CHECK(cfg.GetProfileName() == "FOO");
     GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
     CHECK(started.size() == 1);
@@ -546,26 +546,26 @@ TEST_CASE_FIXTURE(GameLoopFixture, "Sticky overrides revert when switching to pr
     d2bs::config::ProfileData profileA;
     profileA.name = "A";
     profileA.type = d2bs::config::ProfileType::SinglePlayer;
-    d2bs::profile::Add(profileA);
+    d2bs::services::profile::Add(profileA);
     WriteScriptOverrides(tmp.path, "a", {.starterScript = "a_only.dbj"});
 
     // Profile B has no starterScript override - should revert to settings default.
     d2bs::config::ProfileData profileB;
     profileB.name = "B";
     profileB.type = d2bs::config::ProfileType::SinglePlayer;
-    d2bs::profile::Add(profileB);
+    d2bs::services::profile::Add(profileB);
 
     auto& s = d2bs::test::State();
     s.clientState = GameState::Menu;
 
-    CHECK(d2bs::profile::Switch("A") == true);
+    CHECK(d2bs::services::profile::Switch("A") == true);
     GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
     const auto& started = d2bs::ScriptEngine::Instance().StartedScripts();
     REQUIRE(started.size() == 1);
     CHECK(started[0]->GetPath().filename() == "a_only.dbj");
     CHECK(cfg.GetScriptPaths().starterScript == "a_only.dbj");
 
-    CHECK(d2bs::profile::Switch("B") == true);
+    CHECK(d2bs::services::profile::Switch("B") == true);
     GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
     REQUIRE(started.size() == 2);
     // Switching to B (no override) must NOT inherit A's override.
@@ -586,7 +586,7 @@ TEST_CASE_FIXTURE(GameLoopFixture, "startAtMenu=false gates initial Menu starter
     d2bs::config::ProfileData p;
     p.name = "p";
     p.type = d2bs::config::ProfileType::SinglePlayer;
-    d2bs::profile::Add(p);
+    d2bs::services::profile::Add(p);
 
     auto& s = d2bs::test::State();
     s.clientState = GameState::Menu;
@@ -596,7 +596,7 @@ TEST_CASE_FIXTURE(GameLoopFixture, "startAtMenu=false gates initial Menu starter
     CHECK(d2bs::ScriptEngine::Instance().StartedScripts().empty());
 
     // User-requested Switch launches starter even with startAtMenu=false.
-    CHECK(d2bs::profile::Switch("p") == true);
+    CHECK(d2bs::services::profile::Switch("p") == true);
     GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
     const auto& started = d2bs::ScriptEngine::Instance().StartedScripts();
     REQUIRE(started.size() == 1);
@@ -615,7 +615,7 @@ TEST_CASE_FIXTURE(GameLoopFixture, "Console restart observes new paths (BUG A re
     d2bs::config::ProfileData p;
     p.name = "p";
     p.type = d2bs::config::ProfileType::SinglePlayer;
-    d2bs::profile::Add(p);
+    d2bs::services::profile::Add(p);
     WriteScriptOverrides(tmp.path, "p", {.consoleScript = "profile.js"});
 
     auto& s = d2bs::test::State();
@@ -623,7 +623,7 @@ TEST_CASE_FIXTURE(GameLoopFixture, "Console restart observes new paths (BUG A re
     GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
     d2bs::ScriptEngine::Instance().ResetRestartCount();
 
-    CHECK(d2bs::profile::Switch("p") == true);
+    CHECK(d2bs::services::profile::Switch("p") == true);
     GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
 
     CHECK(d2bs::ScriptEngine::Instance().RestartConsoleCount() == 1);
@@ -663,12 +663,12 @@ TEST_CASE_FIXTURE(GameLoopFixture, "Console script restarts only when consoleScr
     same.name = "same";
     same.type = d2bs::config::ProfileType::SinglePlayer;
     // No consoleScript override -> merge leaves AppConfig value intact.
-    d2bs::profile::Add(same);
+    d2bs::services::profile::Add(same);
 
     d2bs::config::ProfileData diff;
     diff.name = "diff";
     diff.type = d2bs::config::ProfileType::SinglePlayer;
-    d2bs::profile::Add(diff);
+    d2bs::services::profile::Add(diff);
     WriteScriptOverrides(tmp.path, "diff", {.consoleScript = "custom_console.js"});
 
     auto& s = d2bs::test::State();
@@ -678,12 +678,12 @@ TEST_CASE_FIXTURE(GameLoopFixture, "Console script restarts only when consoleScr
     d2bs::ScriptEngine::Instance().ResetRestartCount();
 
     // Switch to profile without override -> no console restart.
-    CHECK(d2bs::profile::Switch("same") == true);
+    CHECK(d2bs::services::profile::Switch("same") == true);
     GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
     CHECK(d2bs::ScriptEngine::Instance().RestartConsoleCount() == 0);
 
     // Switch to profile with an override -> console restart fires once.
-    CHECK(d2bs::profile::Switch("diff") == true);
+    CHECK(d2bs::services::profile::Switch("diff") == true);
     GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
     CHECK(d2bs::ScriptEngine::Instance().RestartConsoleCount() == 1);
 }
@@ -694,7 +694,7 @@ TEST_CASE_FIXTURE(GameLoopFixture, "Switch(\"\") is a no-op") {
     cfg.SetProfileName("foo");
     cfg.waitForProfile.store(true);
 
-    CHECK(d2bs::profile::Switch("") == false);
+    CHECK(d2bs::services::profile::Switch("") == false);
     // Name unchanged.
     CHECK(cfg.GetProfileName() == "foo");
     // Latch not cleared.
@@ -707,7 +707,7 @@ TEST_CASE_FIXTURE(GameLoopFixture, "Switch(\"nonexistent\") is a no-op") {
     cfg.SetProfileName("foo");
     cfg.waitForProfile.store(true);
 
-    CHECK(d2bs::profile::Switch("does_not_exist") == false);
+    CHECK(d2bs::services::profile::Switch("does_not_exist") == false);
     CHECK(cfg.GetProfileName() == "foo");
     CHECK(cfg.waitForProfile.load() == true);
 }
@@ -725,7 +725,7 @@ TEST_CASE_FIXTURE(GameLoopFixture, "InGame->Menu->InGame preserves OOG starter")
     d2bs::config::ProfileData p;
     p.name = "p";
     p.type = d2bs::config::ProfileType::SinglePlayer;
-    d2bs::profile::Add(p);
+    d2bs::services::profile::Add(p);
 
     auto& s = d2bs::test::State();
 

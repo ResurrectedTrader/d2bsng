@@ -15,7 +15,7 @@ class logger;
 }  // namespace spdlog
 // NOLINTEND(readability-identifier-naming)
 
-namespace d2bs::analytics {
+namespace d2bs::services::analytics {
 
 // Fire-and-forget anonymous usage analytics. On startup it emits a
 // "session_start" event to Aptabase describing the running build (d2bsng
@@ -97,4 +97,4 @@ class Analytics {
     std::jthread thread_;
 };
 
-}  // namespace d2bs::analytics
+}  // namespace d2bs::services::analytics

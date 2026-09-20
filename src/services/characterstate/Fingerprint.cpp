@@ -7,7 +7,7 @@
 
 #include "characterstate/UnitJson.h"
 
-namespace d2bs::characterstate {
+namespace d2bs::services::characterstate {
 
 namespace {
 
@@ -87,4 +87,4 @@ size_t EmptyUnitHash() {
     return visitor.Result();
 }
 
-}  // namespace d2bs::characterstate
+}  // namespace d2bs::services::characterstate

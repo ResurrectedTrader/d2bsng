@@ -99,7 +99,7 @@ void Host::DoInitialize(HMODULE hModule) {
 
         // Resolve launch-time profile. Reference: reference/d2bs/Helpers.cpp:80-105.
         if (auto launchProfile = game::GetLaunchProfile()) {
-            if (profile::Switch(*launchProfile)) {
+            if (services::profile::Switch(*launchProfile)) {
                 logger_->info("Switched to profile '{}'", *launchProfile);
             } else {
                 logger_->warn("Profile '{}' not found", *launchProfile);
@@ -110,23 +110,23 @@ void Host::DoInitialize(HMODULE hModule) {
 
         // Mirrors reference/d2bs/dde.cpp DdeCallback:
         //   Execute -> ScriptEngine::RunCommand.
-        //   Poke    -> profile::Switch.
-        dde::DdeService::Instance().Start(
-            [](dde::Transaction txn, std::string_view topic, std::string_view item, std::string_view data) {
+        //   Poke    -> services::profile::Switch.
+        services::dde::DdeService::Instance().Start(
+            [](services::dde::Transaction txn, std::string_view topic, std::string_view item, std::string_view data) {
                 switch (txn) {
-                    case dde::Transaction::Evaluate:
+                    case services::dde::Transaction::Evaluate:
                         ScriptEngine::Instance().Evaluate(std::string(data));
                         break;
-                    case dde::Transaction::Poke: {
+                    case services::dde::Transaction::Poke: {
                         auto name = std::string(data);
-                        if (profile::Switch(name)) {
+                        if (services::profile::Switch(name)) {
                             logger_->info("DDE profile switch: '{}'", name);
                         } else {
                             logger_->warn("DDE profile switch failed for '{}' (profile does not exist)", name);
                         }
                         break;
                     }
-                    case dde::Transaction::Request:
+                    case services::dde::Transaction::Request:
                         // Unreachable: XTYP_REQUEST is rejected at the DDE layer by CBF_FAIL_REQUESTS.
                         break;
                 }
@@ -135,12 +135,12 @@ void Host::DoInitialize(HMODULE hModule) {
         // Best-effort background update check (polls GitHub releases every 6h;
         // the game loop surfaces a notice on game entry). Independent of game
         // readiness, so it can start as soon as the framework is up.
-        update::UpdateChecker::Instance().Start();
+        services::update::UpdateChecker::Instance().Start();
 
         // Best-effort anonymous usage analytics: a single startup event to
         // Aptabase, off unless an app key is configured. Independent of game
         // readiness. See docs/analytics.md.
-        analytics::Analytics::Instance().Start();
+        services::analytics::Analytics::Instance().Start();
 
         logger_->info("d2bsng initialized");
     } catch (const std::exception& ex) {
@@ -173,12 +173,12 @@ void Host::Shutdown() {
 
         // Stop the DDE service before tearing down other subsystems so that any
         // in-flight DDE handler call finishes against a still-valid framework.
-        dde::DdeService::Instance().Stop();
+        services::dde::DdeService::Instance().Stop();
 
         // Halt the background update poller (joins its thread) before the rest
         // of teardown so no network work outlives the framework.
-        update::UpdateChecker::Instance().Stop();
-        analytics::Analytics::Instance().Stop();
+        services::update::UpdateChecker::Instance().Stop();
+        services::analytics::Analytics::Instance().Stop();
 
         ScriptEngine::Instance().Shutdown();
         game::RemoveHooks();
@@ -346,14 +346,14 @@ game::GameCallbacks Host::BuildCallbacks() {
     // Unit::Find inside RecordKill resolves lock-free (see game/GameLock.h).
     callbacks.onMonsterDeath = +[](uint32_t unitId) {
         const auto phase = GameLoop::Instance().InPhase(FramePhase::Events);
-        characterstate::CharacterState::Instance().RecordKill(unitId);
+        services::characterstate::CharacterState::Instance().RecordKill(unitId);
     };
 
     // --- IPC ---
     // Reference D2Handlers.cpp:184-196 intercepts two reserved WM_COPYDATA
     // dwData values exclusively (no fall-through to CopyDataEvent):
     //   IpcMode::Evaluate      (0x1337)  - run payload as JS via ScriptEngine.
-    //   IpcMode::SwitchProfile (0x31337) - set active profile via profile::Switch.
+    //   IpcMode::SwitchProfile (0x31337) - set active profile via services::profile::Switch.
     callbacks.onIPC = +[](game::IpcMode mode, const std::string& payload) {
         const auto phase = GameLoop::Instance().InPhase(FramePhase::Events);
         switch (mode) {
@@ -361,7 +361,7 @@ game::GameCallbacks Host::BuildCallbacks() {
                 ScriptEngine::Instance().Evaluate(payload);
                 return;
             case game::IpcMode::SwitchProfile:
-                if (profile::Switch(payload)) {
+                if (services::profile::Switch(payload)) {
                     logger_->info("IPC profile switch: '{}'", payload);
                 } else {
                     logger_->warn("IPC profile switch failed for '{}' (profile does not exist)", payload);

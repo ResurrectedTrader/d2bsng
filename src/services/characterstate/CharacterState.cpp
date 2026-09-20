@@ -23,7 +23,7 @@
 #include "game/Types.h"
 #include "game/Unit.h"
 
-namespace d2bs::characterstate {
+namespace d2bs::services::characterstate {
 
 namespace {
 
@@ -501,4 +501,4 @@ void CharacterState::RecordKill(uint32_t unitId) {
     }
 }
 
-}  // namespace d2bs::characterstate
+}  // namespace d2bs::services::characterstate

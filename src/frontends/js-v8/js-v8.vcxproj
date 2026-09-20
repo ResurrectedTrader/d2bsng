@@ -151,13 +151,8 @@
     <ClCompile Include="components\console\ThreadsPanel.cpp" />
     <!-- Host lifecycle -->
     <ClCompile Include="components\Host.cpp" />
-    <!-- DDE -->
-    <!-- Profile -->
     <!-- GameLoop -->
     <ClCompile Include="components\gameloop\GameLoop.cpp" />
-    <!-- Character state -->
-    <!-- Update checker -->
-    <!-- Analytics -->
   </ItemGroup>
   <ItemGroup>
     <!-- V8 Host -->
@@ -249,12 +244,8 @@
     <ClInclude Include="components\inspector\ScriptInspector.h" />
     <!-- Host lifecycle -->
     <ClInclude Include="components\Host.h" />
-    <!-- DDE -->
     <!-- GameLoop -->
     <ClInclude Include="components\gameloop\GameLoop.h" />
-    <!-- Character state -->
-    <!-- Update checker -->
-    <!-- Analytics -->
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\contract\contract.vcxproj">

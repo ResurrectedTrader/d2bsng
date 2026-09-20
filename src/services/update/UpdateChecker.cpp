@@ -17,7 +17,7 @@
 #include "utils/threadutils.h"
 #include "utils/utils.h"
 
-namespace d2bs::update {
+namespace d2bs::services::update {
 
 namespace {
 
@@ -223,4 +223,4 @@ bool UpdateChecker::CheckOnce() {
     return true;
 }
 
-}  // namespace d2bs::update
+}  // namespace d2bs::services::update

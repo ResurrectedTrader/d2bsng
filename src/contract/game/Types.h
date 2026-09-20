@@ -164,7 +164,7 @@ enum class GameState : uint32_t {
 // CopyDataEvent listener.
 enum class IpcMode : uint32_t {
     Evaluate = 0x1337,        // payload is JS source; runs via ScriptEngine::Evaluate
-    SwitchProfile = 0x31337,  // payload is profile name; runs via profile::Switch
+    SwitchProfile = 0x31337,  // payload is profile name; runs via services::profile::Switch
     // Any value other than the two reserved ones passes through to scripts.
 };
 

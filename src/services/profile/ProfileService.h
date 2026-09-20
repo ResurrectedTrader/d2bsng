@@ -5,7 +5,7 @@
 
 #include "config/ProfileData.h"
 
-namespace d2bs::profile {
+namespace d2bs::services::profile {
 
 // Load the named profile from the active ConfigStore. Returns nullopt if the
 // profile doesn't exist or the store isn't initialised yet.
@@ -35,4 +35,4 @@ bool Switch(const std::string& name);
 // addProfile semantics. Returns true when the profile was written.
 bool Add(const config::ProfileData& profile);
 
-}  // namespace d2bs::profile
+}  // namespace d2bs::services::profile

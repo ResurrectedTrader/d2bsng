@@ -158,7 +158,7 @@ TEST_SUITE("Profile") {
     TEST_CASE("ProfileService::Load returns nullopt for unknown profile") {
         TempIni tmp;
         tmp.Install();
-        auto out = d2bs::profile::Load("nonexistent");
+        auto out = d2bs::services::profile::Load("nonexistent");
         CHECK(!out.has_value());
     }
 
@@ -166,7 +166,7 @@ TEST_SUITE("Profile") {
         TempIni tmp;
         tmp.Install();
         GetAppConfig().SetProfileName("");
-        auto out = d2bs::profile::LoadActive();
+        auto out = d2bs::services::profile::LoadActive();
         CHECK(!out.has_value());
     }
 
@@ -180,15 +180,15 @@ TEST_SUITE("Profile") {
         data.character = "Hero";
         data.difficulty = d2bs::game::Difficulty::Nightmare;
 
-        CHECK(d2bs::profile::Add(data) == true);
+        CHECK(d2bs::services::profile::Add(data) == true);
 
         // Second add is a no-op (returns false, doesn't overwrite)
         ProfileData data2 = data;
         data2.character = "Other";
-        CHECK(d2bs::profile::Add(data2) == false);
+        CHECK(d2bs::services::profile::Add(data2) == false);
 
         // Confirm original is preserved
-        auto loaded = d2bs::profile::Load("added");
+        auto loaded = d2bs::services::profile::Load("added");
         REQUIRE(loaded.has_value());
         // NOLINTNEXTLINE(bugprone-unchecked-optional-access) - REQUIRE above guarantees has_value
         CHECK(loaded->character == "Hero");
@@ -200,7 +200,7 @@ TEST_SUITE("Profile") {
         ProfileData data;
         data.name = "";
         data.type = ProfileType::SinglePlayer;
-        CHECK(d2bs::profile::Add(data) == false);
+        CHECK(d2bs::services::profile::Add(data) == false);
     }
 
     TEST_CASE("ProfileService::ResolveCharacter returns character for existing profile") {
@@ -211,9 +211,9 @@ TEST_SUITE("Profile") {
         data.name = "resolve1";
         data.type = ProfileType::SinglePlayer;
         data.character = "HeroName";
-        d2bs::profile::Add(data);
+        d2bs::services::profile::Add(data);
 
-        auto result = d2bs::profile::ResolveCharacter("resolve1");
+        auto result = d2bs::services::profile::ResolveCharacter("resolve1");
         REQUIRE(result.has_value());
         CHECK(*result == "HeroName");
     }
@@ -221,7 +221,7 @@ TEST_SUITE("Profile") {
     TEST_CASE("ProfileService::ResolveCharacter returns nullopt for unknown profile") {
         TempIni tmp;
         tmp.Install();
-        auto result = d2bs::profile::ResolveCharacter("never_added");
+        auto result = d2bs::services::profile::ResolveCharacter("never_added");
         CHECK(!result.has_value());
     }
 
@@ -233,9 +233,9 @@ TEST_SUITE("Profile") {
         data.name = "empty_char";
         data.type = ProfileType::SinglePlayer;
         data.character = "";
-        d2bs::profile::Add(data);
+        d2bs::services::profile::Add(data);
 
-        auto result = d2bs::profile::ResolveCharacter("empty_char");
+        auto result = d2bs::services::profile::ResolveCharacter("empty_char");
         CHECK(!result.has_value());
     }
 
@@ -246,9 +246,9 @@ TEST_SUITE("Profile") {
         ProfileData data;
         data.name = "sw1";
         data.type = ProfileType::SinglePlayer;
-        d2bs::profile::Add(data);
+        d2bs::services::profile::Add(data);
 
-        CHECK(d2bs::profile::Switch("sw1") == true);
+        CHECK(d2bs::services::profile::Switch("sw1") == true);
         CHECK(GetAppConfig().GetProfileName() == "sw1");
     }
 
@@ -257,7 +257,7 @@ TEST_SUITE("Profile") {
         tmp.Install();
         GetAppConfig().SetProfileName("original");
 
-        CHECK(d2bs::profile::Switch("nonexistent") == false);
+        CHECK(d2bs::services::profile::Switch("nonexistent") == false);
         CHECK(GetAppConfig().GetProfileName() == "original");
     }
 
@@ -268,12 +268,12 @@ TEST_SUITE("Profile") {
         ProfileData data;
         data.name = "foo";
         data.type = ProfileType::SinglePlayer;
-        d2bs::profile::Add(data);
+        d2bs::services::profile::Add(data);
 
         // Win32 INI section lookup is case-insensitive, so Switch("FOO") finds
         // the [foo] section. The stored name preserves the caller's casing;
         // case-insensitive comparison happens at the snapshot-diff layer.
-        CHECK(d2bs::profile::Switch("FOO") == true);
+        CHECK(d2bs::services::profile::Switch("FOO") == true);
         CHECK(GetAppConfig().GetProfileName() == "FOO");
     }
 

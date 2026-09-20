@@ -90,7 +90,7 @@ void ReloadAll() {
     std::this_thread::sleep_for(500ms);  // reference uses Sleep(500) to let things catch up
 
     // Reference Helpers.cpp:243-249 skips the starter-script launch while the
-    // waitForProfile latch is set - the pending profile::Switch will pick
+    // waitForProfile latch is set - the pending services::profile::Switch will pick
     // the per-profile starter, and kicking one off here would race that.
     if (config::GetAppConfig().waitForProfile.load()) {
         return;
@@ -141,7 +141,7 @@ void RunCommand(const std::string& line) {
             return;
         }
         auto nameStr = std::string(args);
-        if (profile::Switch(nameStr)) {
+        if (services::profile::Switch(nameStr)) {
             Log().info("switched to {}", nameStr);
         } else {
             Log().warn(".profile: profile '{}' not found", nameStr);

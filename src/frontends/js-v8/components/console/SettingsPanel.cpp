@@ -125,7 +125,7 @@ void SettingsPanel::Draw() {
     // Reload the active profile only when the name changes - LoadActive reads the INI.
     if (profileName != cachedProfileName_) {
         cachedProfileName_ = profileName;
-        cachedProfile_ = profile::LoadActive();
+        cachedProfile_ = services::profile::LoadActive();
     }
 
     if (ImGui::CollapsingHeader("Profile")) {

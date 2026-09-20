@@ -157,7 +157,7 @@ void GameLoop::OnSleep(std::chrono::milliseconds duration) {
     // held) so reads are consistent; self-throttles and diffs internally.
     {
         const auto phase = frame_.Nest(FramePhase::CharacterState);
-        characterstate::CharacterState::Instance().OnTick(cur.state, !previous_.inSession && cur.inSession);
+        services::characterstate::CharacterState::Instance().OnTick(cur.state, !previous_.inSession && cur.inSession);
     }
     DriveScriptLifecycle(previous_, cur);
 
@@ -309,7 +309,7 @@ void GameLoop::ReloadPathsForProfile(const std::string& name) {
     if (name.empty()) {
         return;
     }
-    auto profile = profile::Load(name);
+    auto profile = services::profile::Load(name);
     if (!profile) {
         return;
     }

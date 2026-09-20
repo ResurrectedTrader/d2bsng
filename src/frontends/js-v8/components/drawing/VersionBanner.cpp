@@ -26,7 +26,7 @@ void DrawVersionBanner() {
     const int32_t baselineY = static_cast<int32_t>(screen.height) - 1;
     const int32_t rightEdge = static_cast<int32_t>(screen.width) - 1;
 
-    const auto available = update::UpdateChecker::Instance().AvailableUpdate();
+    const auto available = services::update::UpdateChecker::Instance().AvailableUpdate();
     if (available) {
         const std::string noticeText =
             fmt::format("({}.{}.{} available)", available->major, available->minor, available->patch);

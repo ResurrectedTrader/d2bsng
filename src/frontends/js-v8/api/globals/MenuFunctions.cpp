@@ -40,7 +40,7 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 }
             }
 
-            auto profile = profile::Load(profileName);
+            auto profile = services::profile::Load(profileName);
             if (!profile) {
                 v8_error::ThrowError(isolate, "Profile does not exist!");
                 return;
@@ -94,7 +94,7 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
 
             std::string profileName = v8_convert::ToString(isolate, args[0]);
-            auto charname = profile::ResolveCharacter(profileName);
+            auto charname = services::profile::ResolveCharacter(profileName);
             if (!charname) {
                 v8_error::ThrowError(isolate, "Invalid profile specified");
                 return;
@@ -368,7 +368,7 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             // Return value discarded; reference sets rval=null regardless of
             // whether the profile already existed.
-            profile::Add(data);
+            services::profile::Add(data);
             args.GetReturnValue().SetNull();
         });
 

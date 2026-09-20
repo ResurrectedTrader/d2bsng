@@ -16,7 +16,7 @@
 #include "game/GameHelpers.h"
 #include "game/Types.h"
 
-namespace d2bs::characterstate {
+namespace d2bs::services::characterstate {
 
 namespace {
 
@@ -293,4 +293,4 @@ json WearerStats(const game::Unit& wearer) {
     return stats;
 }
 
-}  // namespace d2bs::characterstate
+}  // namespace d2bs::services::characterstate

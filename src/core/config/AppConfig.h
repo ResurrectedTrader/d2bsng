@@ -55,7 +55,7 @@ struct AppConfig {
     std::atomic<int32_t> inspectorPort = 0;
 
     // When true at startup, GameLoop suspends the script lifecycle until a
-    // profile::Switch call clears the latch. Mirrors reference's UseProfileScript
+    // services::profile::Switch call clears the latch. Mirrors reference's UseProfileScript
     // setting - lets a launcher defer starter selection until it pokes the right
     // profile in via DDE. Atomic because script threads may read it concurrently.
     std::atomic<bool> waitForProfile = false;

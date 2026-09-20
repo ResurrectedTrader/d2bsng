@@ -32,7 +32,7 @@
 #include "utils/threadutils.h"
 #include "utils/utils.h"
 
-namespace d2bs::analytics {
+namespace d2bs::services::analytics {
 
 namespace {
 
@@ -602,4 +602,4 @@ bool Analytics::SendProfileEvent(const std::string& profileHash) {
                      std::move(props));
 }
 
-}  // namespace d2bs::analytics
+}  // namespace d2bs::services::analytics

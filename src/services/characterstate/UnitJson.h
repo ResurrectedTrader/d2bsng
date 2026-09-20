@@ -8,7 +8,7 @@
 
 #include "game/Unit.h"
 
-namespace d2bs::characterstate {
+namespace d2bs::services::characterstate {
 
 // How much of an item to emit. Structural is a strict subset of Full produced by the same
 // traversal, so hashing it can never miss a field Full would have sent. It drops the
@@ -64,4 +64,4 @@ nlohmann::json UnitToJson(const game::Unit& unit, Detail detail = Detail::Full);
 // fingerprint rather than the unit document's.
 nlohmann::json WearerStats(const game::Unit& wearer);
 
-}  // namespace d2bs::characterstate
+}  // namespace d2bs::services::characterstate
