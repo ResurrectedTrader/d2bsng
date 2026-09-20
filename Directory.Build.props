@@ -50,6 +50,46 @@
     <D2bsProfiling Condition="'$(D2bsProfiling)' == ''">true</D2bsProfiling>
   </PropertyGroup>
 
+  <!-- The published V8 monolith this tree links against. The static libraries
+       are over a gigabyte each, so they are not in the repository; the headers
+       under dependencies/v8/include are, and the two have to be the same V8 or
+       the link fails on missing or changed symbols. Declaring the version here
+       rather than in a CI step or a README instruction is what makes a fresh
+       clone build unattended, and leaves one place to edit for an upgrade.
+
+       V8Toolset is the MSVC toolset the published library was built with, which
+       is part of the asset's name. It is a floor, not a match: any toolset at
+       least that new links it, so this is spelled out rather than resolved
+       through the releases API - a literal name needs no network round-trip, no
+       JSON parsing and no token, and the URL it produces is the same one a
+       human would click. It only changes when the publishing runner's compiler
+       does, which is a V8 upgrade anyway. -->
+  <PropertyGroup>
+    <V8Version Condition="'$(V8Version)' == ''">15.6.8</V8Version>
+    <V8Repo Condition="'$(V8Repo)' == ''">ResurrectedTrader/v8-static-win</V8Repo>
+    <V8ReleaseTag Condition="'$(V8ReleaseTag)' == ''">v8-$(V8Version)</V8ReleaseTag>
+    <V8Toolset Condition="'$(V8Toolset)' == ''">14.44</V8Toolset>
+    <V8LibsRoot Condition="'$(V8LibsRoot)' == ''">$(MSBuildThisFileDirectory)dependencies\v8\libs</V8LibsRoot>
+  </PropertyGroup>
+
+  <!-- Download the monolith the link is about to need, if it is not there yet.
+       Only a project that actually links V8 sets V8MonolithFlavor (d2bs.vcxproj
+       does, per configuration, and it has no x64 configuration at all), so an
+       x64 build of the platform-independent libraries, and the test executable,
+       fetch nothing. The flavor also selects which single archive is fetched -
+       a Release build never pulls the debug monolith, or the other way round.
+
+       Exists() is re-evaluated when the target would run, so a build that
+       already has the library does not even start PowerShell. -->
+  <Target Name="FetchV8Monolith" BeforeTargets="Link" Condition="'$(V8MonolithFlavor)' != ''">
+    <PropertyGroup>
+      <V8MonolithLib>$(V8LibsRoot)\x86-$(V8MonolithFlavor)\v8_monolith.lib</V8MonolithLib>
+      <V8Asset>v8-$(V8Version)-x86-$(V8MonolithFlavor)-msvc$(V8Toolset).zip</V8Asset>
+    </PropertyGroup>
+    <Exec Condition="!Exists('$(V8MonolithLib)')"
+          Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)scripts\fetch_v8.ps1&quot; -Repo &quot;$(V8Repo)&quot; -Tag &quot;$(V8ReleaseTag)&quot; -Asset &quot;$(V8Asset)&quot; -Destination &quot;$(V8MonolithLib)&quot;" />
+  </Target>
+
   <!-- Every project appends to %(PreprocessorDefinitions), so this reaches all of them. -->
   <ItemDefinitionGroup Condition="'$(D2bsProfiling)' == 'true'">
     <ClCompile>

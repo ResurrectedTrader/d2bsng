@@ -127,10 +127,14 @@ partly-out-of-tree dependencies:
   `.claude/worktrees/<name>/...` prefix those paths overflow MAX_PATH and git
   silently aborts the checkout (leaving a half-populated worktree), so
   `core.longpaths` must be enabled first.
-- `dependencies/v8/libs` (the V8 monolith `.lib`s) is gitignored and
-  `dependencies/D2MOO` is a submodule - neither is populated by `git worktree
-  add`. Point both at the main checkout with a directory junction (not a copy or
+- `dependencies/D2MOO` is a submodule and is not populated by `git worktree
+  add`. Point it at the main checkout with a directory junction (not a copy or
   re-fetch).
+- `dependencies/v8/libs` (the V8 monolith `.lib`s) is gitignored, so it is not
+  populated either - but the build downloads what it needs, so a worktree builds
+  without doing anything. Junctioning it to the main checkout is worth it anyway:
+  it reuses a library that is already on disk instead of pulling a few hundred
+  megabytes per worktree.
 
 Recipe (PowerShell, from the main checkout root):
 
@@ -139,7 +143,7 @@ $main = (Get-Location).Path
 $wt   = "$main\.claude\worktrees\<name>"
 git config core.longpaths true                      # else deep v8 headers fail to check out
 git worktree add -b <branch> $wt <base-ref>
-# V8 monolith libs (gitignored) - junction from main
+# V8 monolith libs (gitignored) - junction from main to skip the download
 New-Item -ItemType Junction -Path "$wt\dependencies\v8\libs" -Target "$main\dependencies\v8\libs"
 # D2MOO submodule (empty placeholder) - remove, then junction from main
 # (alternatively: git -C $wt submodule update --init dependencies/D2MOO)
@@ -154,8 +158,10 @@ won't collide with a running game that loaded the main checkout's `d2bs.dll`.
 Removing a worktree - **detach the junctions first**. Any recursive delete that
 follows them (`git worktree remove`, `rm -rf`, `Remove-Item -Recurse`) walks into
 the junction targets and deletes the *main* checkout's V8 libs (gitignored, slow
-to rebuild) and D2MOO submodule contents. A non-recursive delete removes the
-junction itself and leaves the target intact:
+to re-download) and D2MOO submodule contents. A non-recursive delete removes the
+junction itself and leaves the target intact - and fails harmlessly on a
+`dependencies\v8\libs` the worktree's own build populated, which is a real
+directory that goes with the tree:
 
 ```powershell
 $main = (Get-Location).Path
@@ -206,10 +212,10 @@ d2bsng/
 ├── build.ps1               Build entry: build / Debug / format / check-format / lint / fix / test
 ├── vcpkg.json              Single shared vcpkg manifest (all deps)
 ├── dependencies/
-│   ├── v8/                 V8 engine (vendored headers; monolith lib obtained separately)
+│   ├── v8/                 V8 engine (vendored headers; monolith lib fetched at build time)
 │   └── D2MOO/              D2MOO submodule - game struct/function reference
 ├── docs/                   Design docs (coords, thread-safety, window messages, inspector)
-├── scripts/                Maintainer tooling (lint.ps1, API extraction + docs/d.ts/site generators, table generators)
+├── scripts/                Maintainer tooling (lint.ps1, fetch_v8.ps1, API extraction + docs/d.ts/site generators, table generators)
 ├── src/
 │   ├── utils/              utils.lib - standalone utilities (crypto, threading, stackwalker, profiling counters)
 │   ├── contract/           contract.lib - the boundary both frontends and backends compile against
@@ -415,7 +421,7 @@ Single `vcpkg.json` at solution root, shared by all main projects:
 - detours: Microsoft Detours - function hooking
 - imgui (opengl2 + win32 bindings): dev console UI
 
-V8 (JavaScript engine) is not a vcpkg dependency - it is a custom monolithic build in `dependencies/v8/`.
+V8 (JavaScript engine) is not a vcpkg dependency - it is a custom monolithic build in `dependencies/v8/`. The headers are vendored; the `.lib` is downloaded by the `FetchV8Monolith` target in `Directory.Build.props` (which declares the version, repo and asset name) before `d2bs.dll` links - only when it is missing, and only for the configuration being built.
 
 The test project (`tests/frontends/js/`) has its own `vcpkg.json` with just `doctest` (header-only test framework).
 

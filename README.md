@@ -183,7 +183,7 @@ Design notes for contributors live in [`docs/`](docs/):
 - Windows SDK **10.0.26100.0**
 - The 32-bit (Win32) toolchain - the project is x86-only for 1.14d compatibility
 - [vcpkg](https://github.com/microsoft/vcpkg) - dependencies are restored from `vcpkg.json`
-- A monolithic V8 build that you supply (see [V8](#v8))
+- The V8 monolith - the build downloads it for you (see [V8](#v8))
 
 ## Getting the source
 
@@ -201,21 +201,32 @@ git submodule update --init --recursive
 ## V8
 
 The V8 headers are vendored under `dependencies/v8/include` (**V8 15.6.8**), but the prebuilt
-static libraries are **not** - they are over a gigabyte each. Download them from
+static libraries are **not** - they are over a gigabyte each. You do not have to fetch them:
+the first build that needs one downloads it from
 [v8-static-win](https://github.com/ResurrectedTrader/v8-static-win/releases), which builds the
-monolith for 32-bit Windows against the static CRT, and place `v8_monolith.lib` from each
-archive at:
+monolith for 32-bit Windows against the static CRT, and drops it at
+`dependencies/v8/libs/x86-<config>/v8_monolith.lib`.
 
-- `dependencies/v8/libs/x86-release/v8_monolith.lib` (from the `x86-release` archive)
-- `dependencies/v8/libs/x86-debug/v8_monolith.lib` (from the `x86-debug` archive)
+That download is a few hundred megabytes and happens once. Later builds see the library and
+skip it, and only the configuration being built is fetched - a Release build never pulls the
+debug monolith, and an `x64` build (the platform-independent libraries, which link no engine)
+pulls nothing at all.
 
-Take the release matching the vendored headers - the library and the headers have to be the
-same V8, or the link fails on changed symbols. CI fetches exactly these assets; the tag it
-pins is `V8_RELEASE` in `.github/workflows/ci-build.yml`.
+Which V8 that is lives in `Directory.Build.props`, as `V8Version` / `V8Repo` / `V8ReleaseTag` /
+`V8Toolset`. That is the only place it is written down: CI reads the same file for its cache
+key, so the two cannot drift, and upgrading V8 means editing those properties and the vendored
+headers together - the library and the headers have to be the same V8, or the link fails on
+changed symbols.
 
-The `msvc<x.y>` in each filename is the MSVC toolset the library was built with, and it is a
-**floor, not a match**: build with that toolset or newer. An older one fails with undefined
-`__std_*` symbols, because MSVC's STL headers call helpers that ship in its own `libcpmt.lib`.
+`V8Toolset` is the MSVC toolset the published library was built with, which is part of the
+asset's name. It is a **floor, not a match**: build with that toolset or newer. An older one
+fails with undefined `__std_*` symbols, because MSVC's STL headers call helpers that ship in
+its own `libcpmt.lib`.
+
+To supply the library yourself instead - working offline, or testing a particular build -
+download the archive by hand and put `v8_monolith.lib` at
+`dependencies/v8/libs/x86-release/v8_monolith.lib` (and `x86-debug/` for Debug builds). The
+build only fetches what is missing, so anything already there is left alone.
 
 Compile with `/DV8_GN_HEADER` so the public headers pick up the bundled `include/v8-gn.h` and
 lay objects out the way the library does - this is an ABI requirement, not a convenience - and
