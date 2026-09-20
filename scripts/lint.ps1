@@ -118,6 +118,11 @@ function Get-Prop($obj, $name) {
     return $null
 }
 $srcPrefix = Norm ((Join-Path $repoRoot 'src') + '\')
+$testsPrefix = Norm ((Join-Path $repoRoot 'tests') + '\')
+function Test-ProjectHeader([string]$p) {
+    $n = Norm $p
+    return $n.StartsWith($srcPrefix) -or $n.StartsWith($testsPrefix)
+}
 
 # Fingerprint a vendored header tree by path+size+mtime (no content reads, ~150ms
 # for V8+D2MOO). Catches re-vendoring, submodule re-pin, and dirty working-tree edits.
@@ -221,7 +226,7 @@ function Get-DepsForFiles($scanEntries, $scratchDir) {
         $src = $tokens | Where-Object { $_ -match '\.cpp$' } | Select-Object -First 1
         if (-not $src) { continue }
         $hdrs = $tokens |
-            Where-Object { (Norm $_).StartsWith($srcPrefix) -and ($_ -match '\.(h|hpp|hxx|inc)$') } |
+            Where-Object { (Test-ProjectHeader $_) -and ($_ -match '\.(h|hpp|hxx|inc)$') } |
             ForEach-Object { ($_ -replace '/', '\') } | Sort-Object -Unique
         $map[(Norm $src)] = @($hdrs)
     }
