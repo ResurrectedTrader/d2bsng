@@ -357,20 +357,6 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
         });
 
-    /// @description Returns a monotonic millisecond timestamp for timing/elapsed measurements.
-    /// @signature getTickCount()
-    /// @returns {number} - a monotonically increasing millisecond counter; only differences are meaningful (not
-    ///                     wall-clock time)
-    v8_function::Register(
-        isolate, global, "getTickCount", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
-
-            // NOTE: reference uses GetTickCount(), we use std::chrono
-            auto elapsed = std::chrono::steady_clock::now().time_since_epoch();
-            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
-            args.GetReturnValue().Set(v8_convert::ToV8(isolate, static_cast<double>(ms)));
-        });
-
     /// @description Sets the speedhack time multiplier affecting the game's perceived clock speed.
     /// @signature setSpeed(multiplier: number)
     /// @param multiplier {number} - speed multiplier (e.g. 1.0 = normal, 2.0 = double)

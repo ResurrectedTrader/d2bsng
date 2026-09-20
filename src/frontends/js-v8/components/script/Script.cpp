@@ -18,6 +18,7 @@
 #include "api/globals/GameFunctions.h"
 #include "api/globals/HashFunctions.h"
 #include "api/globals/MenuFunctions.h"
+#include "api/globals/PortableFunctions.h"
 #include "components/drawing/Drawable.h"
 #include "components/events/BaseEvent.h"
 #include "components/events/DelayedEvent.h"
@@ -28,6 +29,7 @@
 #include "components/script/NativeCallHook.h"
 #include "components/script/ScriptEngine.h"
 #include "components/script/ScriptRef.h"
+#include "components/script/ScriptingV8.h"
 #include "components/v8/V8Host.h"
 #include "config/AppConfig.h"
 #include "game/GameHelpers.h"
@@ -398,6 +400,11 @@ void Script::SetupIsolate() {
 
     // Register global constants (FILE_READ, FILE_WRITE, FILE_APPEND)
     api::globals::RegisterConstants(iso, global);
+
+    // Globals that name no engine, registered through the scripting contract.
+    js::script::RegistryState registryState{.isolate = iso, .global = global};
+    d2bs::script::Registry registry(&registryState);
+    api::globals::RegisterPortableFunctions(registry);
 
     // Create context with the configured global template
     auto context = v8::Context::New(iso, nullptr, global);

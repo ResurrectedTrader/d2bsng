@@ -100,6 +100,7 @@
   <ItemGroup>
     <!-- API Globals -->
     <ClCompile Include="api\globals\Constants.cpp" />
+    <ClCompile Include="api\globals\PortableFunctions.cpp" />
     <ClCompile Include="api\globals\CoreFunctions.cpp" />
     <ClCompile Include="api\globals\GameFunctions.cpp" />
     <ClCompile Include="api\globals\HashFunctions.cpp" />
@@ -129,6 +130,7 @@
     <ClCompile Include="components\script\CompileSource.cpp" />
     <ClCompile Include="components\script\NativeCallHook.cpp" />
     <ClCompile Include="components\script\Script.cpp" />
+    <ClCompile Include="components\script\ScriptingV8.cpp" />
     <ClCompile Include="components\script\ScriptEngine.cpp" />
     <ClCompile Include="components\script\ScriptRef.cpp" />
     <!-- Inspector (V8 / Chrome DevTools) -->
@@ -185,6 +187,7 @@
     <ClInclude Include="api\core\V8InstanceTracker.h" />
     <!-- API Globals -->
     <ClInclude Include="api\globals\Constants.h" />
+    <ClInclude Include="api\globals\PortableFunctions.h" />
     <ClInclude Include="api\globals\CoreFunctions.h" />
     <ClInclude Include="api\globals\GameFunctions.h" />
     <ClInclude Include="api\globals\HashFunctions.h" />
@@ -237,6 +240,9 @@
     <ClInclude Include="components\script\ScriptEngine.h" />
     <ClInclude Include="components\script\ScriptLogger.h" />
     <ClInclude Include="components\script\ScriptRef.h" />
+    <ClInclude Include="..\..\scripting\Args.h" />
+    <ClInclude Include="..\..\scripting\Registry.h" />
+    <ClInclude Include="components\script\ScriptingV8.h" />
     <ClInclude Include="components\script\ScriptTypes.h" />
     <!-- Inspector (V8 / Chrome DevTools) -->
     <ClInclude Include="components\inspector\InspectorServer.h" />

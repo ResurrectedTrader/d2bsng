@@ -56,26 +56,6 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
         });
 
-    /// @description Enumerates the Battle.net realms the client can connect to: D2's own gateways plus any `-realm`
-    /// additions. Read-only.
-    /// @signature getRealms()
-    /// @returns {Array<{name:string, host:string}>} - one entry per realm; `host` is the server hostname or IP.
-    v8_function::Register(
-        isolate, global, "getRealms", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
-            auto context = isolate->GetCurrentContext();
-            const auto realms = game::GetRealms();
-            auto arr = v8::Array::New(isolate, static_cast<int32_t>(realms.size()));
-            uint32_t i = 0;
-            for (const auto& realm : realms) {
-                auto obj = v8::Object::New(isolate);
-                obj->Set(context, v8_convert::ToV8(isolate, "name"), v8_convert::ToV8(isolate, realm.name)).Check();
-                obj->Set(context, v8_convert::ToV8(isolate, "host"), v8_convert::ToV8(isolate, realm.host)).Check();
-                arr->Set(context, i++, obj).Check();
-            }
-            args.GetReturnValue().Set(arr);
-        });
-
     /// @description Selects a profile's character in the character-selection screen.
     /// @signature selectCharacter(profileName: string)
     /// @param profileName {string} - Name of the stored profile whose character should be selected.

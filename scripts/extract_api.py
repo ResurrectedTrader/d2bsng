@@ -168,6 +168,7 @@ def build_compile_flags():
         REPO_ROOT / "src" / "frontends" / "js-v8",
         REPO_ROOT / "src" / "contract",
         REPO_ROOT / "src" / "core",
+        REPO_ROOT / "src" / "services",
         REPO_ROOT / "src",
     ):
         if d.exists():
@@ -778,8 +779,11 @@ class ApiExtractor:
 
         elif tag == "globals":
             category = ctx[1]
-            if name == "Register":
-                s = nth_arg_string(call, 2)
+            # Two registration forms: the V8 one, v8_function::Register(isolate,
+            # global, "name", fn), and the contract one, registry.Global("name",
+            # fn). They differ only in where the JS-visible name sits.
+            if name in ("Register", "Global"):
+                s = nth_arg_string(call, 2 if name == "Register" else 0)
                 if s:
                     entry = {"name": s, "category": category, **loc}
                     if doc:

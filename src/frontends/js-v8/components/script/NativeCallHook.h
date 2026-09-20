@@ -7,6 +7,7 @@
 
 #include <v8.h>
 
+#include "scripting/Args.h"
 #include "utils/Profiling.h"
 
 // Trampolines between V8 and the native callbacks registered through V8Class / V8Function. Each
@@ -25,9 +26,16 @@ void OnNativeCall(v8::Isolate* isolate);
 
 struct NativeBinding {
     NativeBinding(std::string name, v8::FunctionCallback callback) : name(std::move(name)), callback(callback) {}
+    NativeBinding(std::string name, d2bs::script::Native contractFn) : name(std::move(name)), contractFn(contractFn) {}
 
     std::string name;
-    v8::FunctionCallback callback;
+    // Exactly one is set. A binding written against the scripting contract
+    // arrives as contractFn and is handed an Args; one written against V8
+    // directly arrives as callback. Both route through MethodTrampoline so
+    // the profiling counters and the console's stack capture see every call
+    // the same way.
+    v8::FunctionCallback callback = nullptr;
+    d2bs::script::Native contractFn = nullptr;
     profiling::NativeStats stats;
 };
 
@@ -47,6 +55,7 @@ struct PropertyAccessors {
 // returned pointer is stable. Keyed on the name too, so two properties sharing one generic accessor
 // pair keep separate stats.
 NativeBinding* InternFunction(const std::string& name, v8::FunctionCallback callback);
+NativeBinding* InternContractFunction(const std::string& name, d2bs::script::Native fn);
 PropertyAccessors* InternAccessors(const std::string& name, v8::AccessorNameGetterCallback getter,
                                    v8::AccessorNameSetterCallbackV2 setter);
 

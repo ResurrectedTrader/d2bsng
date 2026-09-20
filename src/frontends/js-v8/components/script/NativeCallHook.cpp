@@ -5,6 +5,7 @@
 
 #include "components/script/Script.h"
 #include "components/script/ScriptEngine.h"
+#include "components/script/ScriptingV8.h"
 
 namespace d2bs::js::script {
 
@@ -53,6 +54,11 @@ NativeBinding* InternFunction(const std::string& name, v8::FunctionCallback call
     return Intern(
         GetTables().functions, [&](const NativeBinding& e) { return e.callback == callback && e.name == name; }, name,
         callback);
+}
+
+NativeBinding* InternContractFunction(const std::string& name, d2bs::script::Native fn) {
+    return Intern(
+        GetTables().functions, [&](const NativeBinding& e) { return e.contractFn == fn && e.name == name; }, name, fn);
 }
 
 PropertyAccessors* InternAccessors(const std::string& name, v8::AccessorNameGetterCallback getter,
@@ -119,11 +125,19 @@ void MethodTrampoline(const v8::FunctionCallbackInfo<v8::Value>& args) {
     OnNativeCall(args.GetIsolate());
     auto* binding =
         static_cast<NativeBinding*>(args.DataV2().As<v8::External>()->Value(v8::kExternalPointerTypeTagDefault));
-    if (binding == nullptr || binding->callback == nullptr) {
+    if (binding == nullptr) {
         return;
     }
     const profiling::ScopedNativeCall timing(profiling::NativeCall::Function, binding->stats);
-    binding->callback(args);
+    if (binding->contractFn != nullptr) {
+        CallState state(args);
+        d2bs::script::Args callArgs(&state);
+        binding->contractFn(callArgs);
+        return;
+    }
+    if (binding->callback != nullptr) {
+        binding->callback(args);
+    }
 }
 
 void PropertyGetterTrampoline(v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {

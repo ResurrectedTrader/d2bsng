@@ -1860,43 +1860,6 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
         });
 
-    /// @description Convert screen coordinates to automap coordinates.
-    /// @signature screenToAutomap(point: {x:number,y:number})
-    /// @param point {object} - a {x, y} object
-    /// @signature screenToAutomap(x: number, y: number)
-    /// @param x {number} - screen x coordinate
-    /// @param y {number} - screen y coordinate
-    /// @returns {{x:number,y:number}} - converted automap coordinates
-    v8_function::Register(
-        isolate, global, "screenToAutomap", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
-
-            if (args.Length() < 1) {
-                v8_error::ThrowTypeError(isolate, "screenToAutomap requires at least 1 argument");
-                return;
-            }
-
-            // Strict: reject non-numeric input (string->int coercion silently corrupted coords).
-            auto p = game::Point::Zero;
-            if (args.Length() == 1 && args[0]->IsObject()) {
-                auto extracted = v8_extract::Point(isolate, args[0]);
-                if (!extracted) {
-                    v8_error::ThrowTypeError(isolate, "Input has an x or y, but they aren't the correct type!");
-                    return;
-                }
-                p = *extracted;
-            } else if (args.Length() >= 2 && args[0]->IsNumber() && args[1]->IsNumber()) {
-                p = v8_extract::Point(args, 0).value_or(p);
-            } else {
-                v8_error::ThrowTypeError(isolate, "Invalid arguments for screenToAutomap");
-                return;
-            }
-
-            p = d2bs::game::ScreenToAutomap(p);
-
-            args.GetReturnValue().Set(v8_convert::ToV8(isolate, p));
-        });
-
     /// @description Convert automap coordinates to screen coordinates.
     /// @signature automapToScreen(point: {x:number,y:number})
     /// @param point {object} - a {x, y} object
