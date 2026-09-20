@@ -120,31 +120,27 @@ git config core.hooksPath .githooks
 
 ## Worktrees
 
-Creating a git worktree needs two extra steps because of the heavy,
-partly-out-of-tree dependencies:
+Creating a git worktree needs a couple of extra steps because of the heavy,
+out-of-tree dependencies:
 
-- `dependencies/v8/include/**` is tracked but deeply nested. Under the long
-  `.claude/worktrees/<name>/...` prefix those paths overflow MAX_PATH and git
-  silently aborts the checkout (leaving a half-populated worktree), so
-  `core.longpaths` must be enabled first.
 - `dependencies/D2MOO` is a submodule and is not populated by `git worktree
   add`. Point it at the main checkout with a directory junction (not a copy or
   re-fetch).
-- `dependencies/v8/libs` (the V8 monolith `.lib`s) is gitignored, so it is not
-  populated either - but the build downloads what it needs, so a worktree builds
-  without doing anything. Junctioning it to the main checkout is worth it anyway:
-  it reuses a library that is already on disk instead of pulling a few hundred
-  megabytes per worktree.
+- `dependencies/v8/<version>/` (the V8 headers and monolith) is gitignored, so
+  it is not populated either - but the build downloads what it needs, so a
+  worktree builds without doing anything. Junctioning `dependencies/v8` to the
+  main checkout is worth it anyway: it reuses archives that are already on disk
+  instead of pulling a few hundred megabytes per worktree.
 
 Recipe (PowerShell, from the main checkout root):
 
 ```powershell
 $main = (Get-Location).Path
 $wt   = "$main\.claude\worktrees\<name>"
-git config core.longpaths true                      # else deep v8 headers fail to check out
 git worktree add -b <branch> $wt <base-ref>
-# V8 monolith libs (gitignored) - junction from main to skip the download
-New-Item -ItemType Junction -Path "$wt\dependencies\v8\libs" -Target "$main\dependencies\v8\libs"
+$v8ver = ([xml](Get-Content "$main\Directory.Build.props")).SelectSingleNode('//V8Version').InnerText.Trim()
+# V8 headers + monolith (gitignored) - junction from main to skip the download
+New-Item -ItemType Junction -Path "$wt\dependencies\v8\$v8ver" -Target "$main\dependencies\v8\$v8ver"
 # D2MOO submodule (empty placeholder) - remove, then junction from main
 # (alternatively: git -C $wt submodule update --init dependencies/D2MOO)
 [System.IO.Directory]::Delete("$wt\dependencies\D2MOO", $false)
@@ -157,17 +153,17 @@ won't collide with a running game that loaded the main checkout's `d2bs.dll`.
 
 Removing a worktree - **detach the junctions first**. Any recursive delete that
 follows them (`git worktree remove`, `rm -rf`, `Remove-Item -Recurse`) walks into
-the junction targets and deletes the *main* checkout's V8 libs (gitignored, slow
+the junction targets and deletes the *main* checkout's V8 tree (gitignored, slow
 to re-download) and D2MOO submodule contents. A non-recursive delete removes the
 junction itself and leaves the target intact - and fails harmlessly on a
-`dependencies\v8\libs` the worktree's own build populated, which is a real
+`dependencies\v8\<version>` the worktree's own build populated, which is a real
 directory that goes with the tree:
 
 ```powershell
 $main = (Get-Location).Path
 $wt   = "$main\.claude\worktrees\<name>"
 # Detach the junctions BEFORE deleting anything - the target stays intact.
-[System.IO.Directory]::Delete("$wt\dependencies\v8\libs", $false)
+[System.IO.Directory]::Delete("$wt\dependencies\v8\$v8ver", $false)
 [System.IO.Directory]::Delete("$wt\dependencies\D2MOO", $false)
 git worktree remove $wt        # --force if the tree has uncommitted changes
 # git branch -D <branch>       # optional: also drop the worktree's branch
@@ -177,8 +173,8 @@ If `git worktree remove` refuses with "'.git' is not a .git file" - a worktree
 whose internal links were written by Cygwin git (`/cygdrive/...` paths that
 Git-for-Windows can't parse) - detach the junctions as above, then remove the
 tree and its admin entry by hand and prune. Delete from a Cygwin / Git-Bash
-shell (`rm -rf "$wt"`) if the deep `v8/include` paths overflow MAX_PATH for
-`Remove-Item`:
+shell (`rm -rf "$wt"`) if the fetched V8 headers - deeply nested under an
+already-long worktree prefix - overflow MAX_PATH for `Remove-Item`:
 
 ```powershell
 Remove-Item -Recurse -Force $wt
@@ -186,8 +182,8 @@ Remove-Item -Recurse -Force "$main\.git\worktrees\<name>"
 git worktree prune
 ```
 
-Either way, confirm `dependencies\v8\libs` and `dependencies\D2MOO` in the main
-checkout still hold their files afterward.
+Either way, confirm `dependencies\v8\<version>` and `dependencies\D2MOO` in the
+main checkout still hold their files afterward.
 
 ## Git
 
@@ -212,7 +208,7 @@ d2bsng/
 ├── build.ps1               Build entry: build / Debug / format / check-format / lint / fix / test
 ├── vcpkg.json              Single shared vcpkg manifest (all deps)
 ├── dependencies/
-│   ├── v8/                 V8 engine (vendored headers; monolith lib fetched at build time)
+│   ├── v8/                 V8 engine (headers + monolith, fetched per version at build time)
 │   └── D2MOO/              D2MOO submodule - game struct/function reference
 ├── docs/                   Design docs (coords, thread-safety, window messages, inspector)
 ├── scripts/                Maintainer tooling (lint.ps1, fetch_v8.ps1, API extraction + docs/d.ts/site generators, table generators)
@@ -421,7 +417,7 @@ Single `vcpkg.json` at solution root, shared by all main projects:
 - detours: Microsoft Detours - function hooking
 - imgui (opengl2 + win32 bindings): dev console UI
 
-V8 (JavaScript engine) is not a vcpkg dependency - it is a custom monolithic build in `dependencies/v8/`. The headers are vendored; the `.lib` is downloaded by the `FetchV8Monolith` target in `Directory.Build.props` (which declares the version, repo and asset name) before `d2bs.dll` links - only when it is missing, and only for the configuration being built.
+V8 (JavaScript engine) is not a vcpkg dependency, and none of it is in the repository. The `FetchV8` target in `Directory.Build.props` (which declares the version, repo and asset name) downloads one published archive and unpacks its headers *and* monolith into `dependencies/v8/$(V8Version)/x86-$(V8Flavor)/`, before anything compiles against them - only when they are missing, and only for the configuration being built. Both the include path and the library path are derived from `$(V8Version)`, so a version bump repoints every path and re-fetches rather than silently reusing the old library. Projects opt in with `<V8Required>true</V8Required>` (js, lod114d, d2bs); `js_tests` does not, so it fetches nothing. `build.ps1 deps` runs just that target.
 
 The test project (`tests/frontends/js/`) has its own `vcpkg.json` with just `doctest` (header-only test framework).
 

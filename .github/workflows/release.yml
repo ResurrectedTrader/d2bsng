@@ -101,12 +101,14 @@ jobs:
           & "$vcpkgDir\vcpkg.exe" integrate install
           if ($LASTEXITCODE -ne 0) { throw "vcpkg integrate failed" }
           "VCPKG_ROOT=$vcpkgDir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-      # The build fetches the V8 monolith itself (Directory.Build.props declares
-      # the version; scripts/fetch_v8.ps1 downloads it before the link), so there
-      # is nothing to download here. All this does is stop a runner from pulling
-      # over a gigabyte on every run - so it reads the version out of the build
-      # rather than restating it, and the key can never drift from what the
-      # build actually wants.
+      # The build fetches V8 itself - headers and monolith, out of one archive,
+      # into dependencies/v8/<version>/ (Directory.Build.props declares the
+      # version; scripts/fetch_v8.ps1 unpacks it before anything compiles). So
+      # there is nothing to download here. All this does is stop a runner from
+      # pulling over a gigabyte on every run, and it reads the version out of
+      # the build rather than restating it, so the key cannot drift from what
+      # the build actually wants - and a version bump is a new key and a new
+      # directory rather than a stale hit.
       - name: Resolve V8 version
         id: v8
         shell: pwsh
@@ -115,11 +117,11 @@ jobs:
           $node = $props.SelectSingleNode('//V8Version')
           if (-not $node) { throw "V8Version not found in Directory.Build.props" }
           "version=$($node.InnerText.Trim())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-      - name: Cache V8 monolith libs
+      - name: Cache V8
         uses: actions/cache@v4
         with:
-          path: dependencies/v8/libs
-          key: v8-libs-${{ runner.os }}-${{ steps.v8.outputs.version }}
+          path: dependencies/v8/${{ steps.v8.outputs.version }}
+          key: v8-${{ runner.os }}-${{ steps.v8.outputs.version }}
       - name: Build (Release)
         shell: pwsh
         env:

@@ -54,6 +54,11 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <!-- This project compiles against V8, so the FetchV8 target in
+       Directory.Build.props unpacks the archive before it builds. -->
+  <PropertyGroup>
+    <V8Required>true</V8Required>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
@@ -65,11 +70,11 @@
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src;$(SolutionDir)dependencies\v8\include\v8;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <ExternalIncludeDirectories>$(SolutionDir)dependencies\v8\include\v8;%(ExternalIncludeDirectories)</ExternalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src;$(V8IncludeDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ExternalIncludeDirectories>$(V8IncludeDir);%(ExternalIncludeDirectories)</ExternalIncludeDirectories>
       <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
       <TreatAngleIncludeAsExternal>true</TreatAngleIncludeAsExternal>
-      <ClangTidyAdditionalOptions>-DNOMINMAX --extra-arg=-isystem$(SolutionDir)dependencies\v8\include\v8</ClangTidyAdditionalOptions>
+      <ClangTidyAdditionalOptions>-DNOMINMAX --extra-arg=-isystem$(V8IncludeDir)</ClangTidyAdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
@@ -85,11 +90,11 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src;$(SolutionDir)dependencies\v8\include\v8;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <ExternalIncludeDirectories>$(SolutionDir)dependencies\v8\include\v8;%(ExternalIncludeDirectories)</ExternalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src;$(V8IncludeDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ExternalIncludeDirectories>$(V8IncludeDir);%(ExternalIncludeDirectories)</ExternalIncludeDirectories>
       <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
       <TreatAngleIncludeAsExternal>true</TreatAngleIncludeAsExternal>
-      <ClangTidyAdditionalOptions>-DNOMINMAX --extra-arg=-isystem$(SolutionDir)dependencies\v8\include\v8</ClangTidyAdditionalOptions>
+      <ClangTidyAdditionalOptions>-DNOMINMAX --extra-arg=-isystem$(V8IncludeDir)</ClangTidyAdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
   <!-- Bake the build-time version into the D2BS_VERSION macro (see

@@ -5,8 +5,9 @@
 # vcpkg (match in any subdirectory)
 **/vcpkg_installed/
 
-# V8 dependencies (download separately)
-/dependencies/v8/libs
+# V8 headers + monolith, downloaded by the build into a per-version directory
+# (dependencies/v8/<version>/x86-<config>/). Only LICENSE is tracked here.
+/dependencies/v8/*/
 
 # Reference implementation (not part of the project)
 /reference/

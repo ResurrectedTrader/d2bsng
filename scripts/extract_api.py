@@ -25,6 +25,7 @@ import subprocess
 import sys
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
+from xml.etree import ElementTree
 
 try:
     from clang.cindex import Index, CursorKind, TranslationUnit
@@ -32,6 +33,32 @@ except ImportError:
     sys.exit("Required: pip install libclang")
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def v8_include_dir():
+    """Where the build unpacks the V8 headers.
+
+    They are not in the repository: the build downloads them per version into
+    dependencies/v8/<version>/x86-<flavor>/include. The version comes from the
+    same property the build and the CI cache key read, so this cannot drift from
+    what was actually unpacked. Returns None if V8 has not been fetched yet, in
+    which case the caller carries on without the headers.
+    """
+    props = REPO_ROOT / "Directory.Build.props"
+    try:
+        node = ElementTree.parse(props).getroot().find(".//V8Version")
+    except (OSError, ElementTree.ParseError):
+        return None
+    if node is None or not (node.text or "").strip():
+        return None
+    root = REPO_ROOT / "dependencies" / "v8" / node.text.strip()
+    # Release is what a normal build leaves behind; fall back to whichever
+    # flavor is present so a tree that has only ever built Debug still works.
+    for flavor in ("x86-release", "x86-debug"):
+        d = root / flavor / "include"
+        if (d / "v8.h").exists():
+            return d
+    return None
 
 
 # ── Compile flags ───────────────────────────────────────────────────
@@ -105,11 +132,8 @@ def build_compile_flags():
         / "x86-windows-static"
         / "include"
     )
-    for d in (
-        REPO_ROOT / "dependencies" / "v8" / "include" / "v8",
-        vcpkg_inc,
-    ):
-        if d.exists():
+    for d in (v8_include_dir(), vcpkg_inc):
+        if d and d.exists():
             flags += ["-isystem", str(d)]
     for d in find_system_includes():
         flags += ["-isystem", str(d)]

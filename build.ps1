@@ -12,6 +12,9 @@
 #   lint              clang-tidy analysis (delegates to scripts\lint.ps1)
 #   fix               clang-tidy --fix
 #   test              build and run the test suite (js_tests.exe)
+#   deps              download the V8 headers + monolith without building anything,
+#                     so an editor can resolve includes in a fresh clone. Fetches the
+#                     Release archive; `build.ps1 Debug` fetches the debug one.
 #
 # Switches:
 #   -Version          version baked into the DLL (CI passes the release version; build only)
@@ -50,7 +53,7 @@ param(
 # checked explicitly via $LASTEXITCODE instead.
 Set-Location $PSScriptRoot
 
-$modes = @('format', 'check-format', 'lint', 'fix', 'test')
+$modes = @('format', 'check-format', 'lint', 'fix', 'test', 'deps')
 if ($modes -contains $Target.ToLower()) {
     $mode = $Target.ToLower()
     $config = 'Release'
@@ -207,6 +210,12 @@ switch ($mode) {
         }
         Write-Host 'Done.'
         exit 0
+    }
+    'deps' {
+        # Runs only the FetchV8 target, on the project that needs the headers
+        # earliest. Nothing compiles, so this does not need vcpkg restored.
+        & $msbuild 'src\frontends\js\js.vcxproj' '-t:FetchV8' '-p:Configuration=Release' "-p:Platform=$Platform" '-v:m' '-nologo'
+        exit $LASTEXITCODE
     }
     'test' {
         $testArgs = @('-m', '-p:Configuration=Release', '-p:Platform=Win32', '-t:js_tests')

@@ -46,15 +46,10 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <!-- This is the only project that links the V8 monolith, so it is the only
-       one that names a flavor - which both points the linker at the right
-       library directory and tells Directory.Build.props' FetchV8Monolith target
-       which single archive to download if it is missing. -->
-  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
-    <V8MonolithFlavor>debug</V8MonolithFlavor>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)'=='Release'">
-    <V8MonolithFlavor>release</V8MonolithFlavor>
+  <!-- This project links the V8 monolith, so the FetchV8 target in
+       Directory.Build.props unpacks the archive before it builds. -->
+  <PropertyGroup>
+    <V8Required>true</V8Required>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -72,7 +67,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(V8LibsRoot)\x86-$(V8MonolithFlavor);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(V8Dir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>v8_monolith.lib;ntdll.lib;userenv.lib;bcrypt.lib;fmtd.lib;spdlogd.lib;sqlite3.lib;StackWalker.lib;detours.lib;imguid.lib;ixwebsocket.lib;zsd.lib;winmm.lib;dbghelp.lib;opengl32.lib;psapi.lib;shell32.lib;ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -96,7 +91,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(V8LibsRoot)\x86-$(V8MonolithFlavor);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(V8Dir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>v8_monolith.lib;ntdll.lib;userenv.lib;bcrypt.lib;fmt.lib;spdlog.lib;sqlite3.lib;StackWalker.lib;detours.lib;imgui.lib;ixwebsocket.lib;zs.lib;winmm.lib;dbghelp.lib;opengl32.lib;psapi.lib;shell32.lib;ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>

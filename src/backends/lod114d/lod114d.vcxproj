@@ -46,6 +46,11 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <!-- This project compiles against V8, so the FetchV8 target in
+       Directory.Build.props unpacks the archive before it builds. -->
+  <PropertyGroup>
+    <V8Required>true</V8Required>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
@@ -57,11 +62,11 @@
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src;$(ProjectDir);$(ProjectDir)game;$(SolutionDir)dependencies\v8\include\v8;$(SolutionDir)dependencies\D2MOO\source\D2CommonDefinitions\include;$(SolutionDir)dependencies\D2MOO\source\D2Common\include;$(SolutionDir)dependencies\D2MOO\source\D2Game\include;$(SolutionDir)dependencies\D2MOO\source\D2Gfx\include;$(SolutionDir)dependencies\D2MOO\source\D2Win\include;$(SolutionDir)dependencies\D2MOO\source\D2Net\include;$(SolutionDir)dependencies\D2MOO\source\D2Lang\include;$(SolutionDir)dependencies\D2MOO\source\D2CMP\include;$(SolutionDir)dependencies\D2MOO\source\D2Hell\include;$(SolutionDir)dependencies\D2MOO\source\Storm\include;$(SolutionDir)dependencies\D2MOO\source\Fog\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <ExternalIncludeDirectories>$(SolutionDir)dependencies\v8\include\v8;$(SolutionDir)dependencies\D2MOO\source\D2CommonDefinitions\include;$(SolutionDir)dependencies\D2MOO\source\D2Common\include;$(SolutionDir)dependencies\D2MOO\source\D2Game\include;$(SolutionDir)dependencies\D2MOO\source\D2Gfx\include;$(SolutionDir)dependencies\D2MOO\source\D2Win\include;$(SolutionDir)dependencies\D2MOO\source\D2Net\include;$(SolutionDir)dependencies\D2MOO\source\D2Lang\include;$(SolutionDir)dependencies\D2MOO\source\D2CMP\include;$(SolutionDir)dependencies\D2MOO\source\D2Hell\include;$(SolutionDir)dependencies\D2MOO\source\Storm\include;$(SolutionDir)dependencies\D2MOO\source\Fog\include;%(ExternalIncludeDirectories)</ExternalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src;$(ProjectDir);$(ProjectDir)game;$(V8IncludeDir);$(SolutionDir)dependencies\D2MOO\source\D2CommonDefinitions\include;$(SolutionDir)dependencies\D2MOO\source\D2Common\include;$(SolutionDir)dependencies\D2MOO\source\D2Game\include;$(SolutionDir)dependencies\D2MOO\source\D2Gfx\include;$(SolutionDir)dependencies\D2MOO\source\D2Win\include;$(SolutionDir)dependencies\D2MOO\source\D2Net\include;$(SolutionDir)dependencies\D2MOO\source\D2Lang\include;$(SolutionDir)dependencies\D2MOO\source\D2CMP\include;$(SolutionDir)dependencies\D2MOO\source\D2Hell\include;$(SolutionDir)dependencies\D2MOO\source\Storm\include;$(SolutionDir)dependencies\D2MOO\source\Fog\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ExternalIncludeDirectories>$(V8IncludeDir);$(SolutionDir)dependencies\D2MOO\source\D2CommonDefinitions\include;$(SolutionDir)dependencies\D2MOO\source\D2Common\include;$(SolutionDir)dependencies\D2MOO\source\D2Game\include;$(SolutionDir)dependencies\D2MOO\source\D2Gfx\include;$(SolutionDir)dependencies\D2MOO\source\D2Win\include;$(SolutionDir)dependencies\D2MOO\source\D2Net\include;$(SolutionDir)dependencies\D2MOO\source\D2Lang\include;$(SolutionDir)dependencies\D2MOO\source\D2CMP\include;$(SolutionDir)dependencies\D2MOO\source\D2Hell\include;$(SolutionDir)dependencies\D2MOO\source\Storm\include;$(SolutionDir)dependencies\D2MOO\source\Fog\include;%(ExternalIncludeDirectories)</ExternalIncludeDirectories>
       <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
       <TreatAngleIncludeAsExternal>true</TreatAngleIncludeAsExternal>
-      <ClangTidyAdditionalOptions>-D_X86_ -DNOMINMAX --extra-arg=-isystem$(SolutionDir)dependencies\v8\include\v8</ClangTidyAdditionalOptions>
+      <ClangTidyAdditionalOptions>-D_X86_ -DNOMINMAX --extra-arg=-isystem$(V8IncludeDir)</ClangTidyAdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -77,11 +82,11 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src;$(ProjectDir);$(ProjectDir)game;$(SolutionDir)dependencies\v8\include\v8;$(SolutionDir)dependencies\D2MOO\source\D2CommonDefinitions\include;$(SolutionDir)dependencies\D2MOO\source\D2Common\include;$(SolutionDir)dependencies\D2MOO\source\D2Game\include;$(SolutionDir)dependencies\D2MOO\source\D2Gfx\include;$(SolutionDir)dependencies\D2MOO\source\D2Win\include;$(SolutionDir)dependencies\D2MOO\source\D2Net\include;$(SolutionDir)dependencies\D2MOO\source\D2Lang\include;$(SolutionDir)dependencies\D2MOO\source\D2CMP\include;$(SolutionDir)dependencies\D2MOO\source\D2Hell\include;$(SolutionDir)dependencies\D2MOO\source\Storm\include;$(SolutionDir)dependencies\D2MOO\source\Fog\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <ExternalIncludeDirectories>$(SolutionDir)dependencies\v8\include\v8;$(SolutionDir)dependencies\D2MOO\source\D2CommonDefinitions\include;$(SolutionDir)dependencies\D2MOO\source\D2Common\include;$(SolutionDir)dependencies\D2MOO\source\D2Game\include;$(SolutionDir)dependencies\D2MOO\source\D2Gfx\include;$(SolutionDir)dependencies\D2MOO\source\D2Win\include;$(SolutionDir)dependencies\D2MOO\source\D2Net\include;$(SolutionDir)dependencies\D2MOO\source\D2Lang\include;$(SolutionDir)dependencies\D2MOO\source\D2CMP\include;$(SolutionDir)dependencies\D2MOO\source\D2Hell\include;$(SolutionDir)dependencies\D2MOO\source\Storm\include;$(SolutionDir)dependencies\D2MOO\source\Fog\include;%(ExternalIncludeDirectories)</ExternalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src;$(ProjectDir);$(ProjectDir)game;$(V8IncludeDir);$(SolutionDir)dependencies\D2MOO\source\D2CommonDefinitions\include;$(SolutionDir)dependencies\D2MOO\source\D2Common\include;$(SolutionDir)dependencies\D2MOO\source\D2Game\include;$(SolutionDir)dependencies\D2MOO\source\D2Gfx\include;$(SolutionDir)dependencies\D2MOO\source\D2Win\include;$(SolutionDir)dependencies\D2MOO\source\D2Net\include;$(SolutionDir)dependencies\D2MOO\source\D2Lang\include;$(SolutionDir)dependencies\D2MOO\source\D2CMP\include;$(SolutionDir)dependencies\D2MOO\source\D2Hell\include;$(SolutionDir)dependencies\D2MOO\source\Storm\include;$(SolutionDir)dependencies\D2MOO\source\Fog\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ExternalIncludeDirectories>$(V8IncludeDir);$(SolutionDir)dependencies\D2MOO\source\D2CommonDefinitions\include;$(SolutionDir)dependencies\D2MOO\source\D2Common\include;$(SolutionDir)dependencies\D2MOO\source\D2Game\include;$(SolutionDir)dependencies\D2MOO\source\D2Gfx\include;$(SolutionDir)dependencies\D2MOO\source\D2Win\include;$(SolutionDir)dependencies\D2MOO\source\D2Net\include;$(SolutionDir)dependencies\D2MOO\source\D2Lang\include;$(SolutionDir)dependencies\D2MOO\source\D2CMP\include;$(SolutionDir)dependencies\D2MOO\source\D2Hell\include;$(SolutionDir)dependencies\D2MOO\source\Storm\include;$(SolutionDir)dependencies\D2MOO\source\Fog\include;%(ExternalIncludeDirectories)</ExternalIncludeDirectories>
       <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
       <TreatAngleIncludeAsExternal>true</TreatAngleIncludeAsExternal>
-      <ClangTidyAdditionalOptions>-D_X86_ -DNOMINMAX --extra-arg=-isystem$(SolutionDir)dependencies\v8\include\v8</ClangTidyAdditionalOptions>
+      <ClangTidyAdditionalOptions>-D_X86_ -DNOMINMAX --extra-arg=-isystem$(V8IncludeDir)</ClangTidyAdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
