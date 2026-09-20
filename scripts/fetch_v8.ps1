@@ -25,54 +25,56 @@ param(
     [Parameter(Mandatory = $true)][string]$Tag,
     # Asset file name within that release.
     [Parameter(Mandatory = $true)][string]$Asset,
-    # Directory the archive is unpacked into: it ends up holding include\ and
-    # v8_monolith.lib.
+    # Directory the archive is installed as: it ends up holding include\ and
+    # v8_monolith.lib. It appears in one move, so its existence means a complete
+    # install of this version and flavor.
     [Parameter(Mandatory = $true)][string]$Destination
 )
 
 $ErrorActionPreference = 'Stop'
 
-$libPath = Join-Path $Destination 'v8_monolith.lib'
-$incPath = Join-Path $Destination 'include'
-# v8.h rather than the directory: an interrupted install could leave a partial
-# include\, and a directory that exists is not a directory that is usable.
-$incMarker = Join-Path $incPath 'v8.h'
+# The directory IS the unit. Everything is extracted elsewhere and renamed into
+# place once, so this never sees a half-populated tree - which a check for one
+# file inside it could not tell apart from a complete one.
+if (Test-Path -LiteralPath $Destination -PathType Container) { exit 0 }
 
-function Test-Installed { (Test-Path -LiteralPath $libPath) -and (Test-Path -LiteralPath $incMarker) }
+$parent = Split-Path -Parent $Destination
+$leaf = Split-Path -Leaf $Destination
 
-# Present already - a hand-unpacked archive, a previous build, or a CI cache
-# restore. Never re-download: this is a multi-hundred-megabyte archive and a
-# no-op build has to stay a no-op.
-if (Test-Installed) { exit 0 }
-
-# js and lod114d build concurrently (MSBuild -m) and both compile V8 headers, so
-# without this they would race into two downloads of the same archive and then
-# fight over the same destination. The loser of the race waits, re-checks, and
-# finds the work already done.
+# js and lod114d build concurrently (MSBuild -m) and both compile V8 headers.
+# The rename below is what makes concurrent installs *correct*; this mutex is
+# what makes them *cheap*, by stopping the second one from downloading a few
+# hundred megabytes it is only going to throw away.
 $mutexName = 'Global\d2bsng-fetch-v8-' + ($Destination.ToLowerInvariant() -replace '[^a-z0-9]', '-')
 $mutex = New-Object System.Threading.Mutex($false, $mutexName)
 try { $null = $mutex.WaitOne() } catch [System.Threading.AbandonedMutexException] { }
 
 try {
-    if (Test-Installed) { exit 0 }
+    if (Test-Path -LiteralPath $Destination -PathType Container) { exit 0 }
+
+    New-Item -ItemType Directory -Force -Path $parent | Out-Null
+
+    # A previous run that was killed outright (Ctrl+C, a closed console, a
+    # reboot) cannot have run its cleanup, so sweep those leftovers now. Safe
+    # under the mutex: no other instance is mid-install for this destination,
+    # and staging is never what the build reads anyway.
+    Get-ChildItem -LiteralPath $parent -Directory -Filter "$leaf.staging-*" -ErrorAction SilentlyContinue |
+        ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
 
     $url = "https://github.com/$Repo/releases/download/$Tag/$Asset"
-
-    # Stage in a sibling of the destination, so the final Move-Item calls are
-    # renames on the same volume rather than cross-volume copies. A download or
-    # extraction that dies partway leaves its wreckage in here, under a name no
-    # build looks at, instead of a truncated .lib or a half-written include\
-    # that the next build would accept as present.
-    $work = Join-Path (Split-Path -Parent $Destination) ".fetch-$PID"
+    # Staging sits beside the destination so the final move is a rename on the
+    # same volume - atomic - rather than a cross-volume copy. The GUID keeps two
+    # concurrent installs from sharing one staging tree.
+    $staging = Join-Path $parent ("$leaf.staging-" + [guid]::NewGuid().ToString('N').Substring(0, 12))
+    $payload = Join-Path $staging 'payload'
 
     Write-Host "V8: $Asset not installed at $Destination - fetching from $Repo $Tag."
     Write-Host "V8: one-time download of a few hundred MB, expanding to over a gigabyte. Subsequent builds reuse it."
 
     try {
-        if (Test-Path -LiteralPath $work) { Remove-Item -LiteralPath $work -Recurse -Force }
-        New-Item -ItemType Directory -Force -Path $work | Out-Null
+        New-Item -ItemType Directory -Force -Path $staging | Out-Null
 
-        $zip = Join-Path $work $Asset
+        $zip = Join-Path $staging $Asset
         $curl = Join-Path $env:SystemRoot 'System32\curl.exe'
         if (Test-Path -LiteralPath $curl) {
             # -f so an HTTP error page is a failure rather than a "successfully"
@@ -88,42 +90,48 @@ try {
 
         # ExtractToDirectory rather than Expand-Archive: far faster on an archive
         # this size, and it validates every entry's CRC, so a truncated or
-        # corrupt download throws here instead of producing a half-written
-        # library or header tree.
+        # corrupt download throws here - while everything is still in staging.
         Add-Type -AssemblyName System.IO.Compression.FileSystem
-        $pkg = Join-Path $work 'pkg'
-        [System.IO.Compression.ZipFile]::ExtractToDirectory($zip, $pkg)
+        [System.IO.Compression.ZipFile]::ExtractToDirectory($zip, $payload)
         Remove-Item -LiteralPath $zip -Force
 
-        $stagedLib = Join-Path $pkg 'v8_monolith.lib'
-        $stagedInc = Join-Path $pkg 'include'
-        if (-not (Test-Path -LiteralPath $stagedLib)) { throw "$Asset does not contain v8_monolith.lib" }
-        if (-not (Test-Path -LiteralPath (Join-Path $stagedInc 'v8.h'))) { throw "$Asset does not contain include/v8.h" }
-
-        New-Item -ItemType Directory -Force -Path $Destination | Out-Null
-        if (-not (Test-Path -LiteralPath $incMarker)) {
-            if (Test-Path -LiteralPath $incPath) { Remove-Item -LiteralPath $incPath -Recurse -Force }
-            Move-Item -LiteralPath $stagedInc -Destination $incPath
+        if (-not (Test-Path -LiteralPath (Join-Path $payload 'v8_monolith.lib'))) {
+            throw "$Asset does not contain v8_monolith.lib"
         }
-        if (-not (Test-Path -LiteralPath $libPath)) {
-            Move-Item -LiteralPath $stagedLib -Destination $libPath
+        if (-not (Test-Path -LiteralPath (Join-Path $payload 'include\v8.h'))) {
+            throw "$Asset does not contain include/v8.h"
+        }
+
+        $toolsetFile = Join-Path $payload 'toolset.txt'
+        $toolset = if (Test-Path -LiteralPath $toolsetFile) { (Get-Content -LiteralPath $toolsetFile -Raw).Trim() } else { '' }
+        $sizeMb = [math]::Round((Get-Item -LiteralPath (Join-Path $payload 'v8_monolith.lib')).Length / 1MB)
+        $headers = (Get-ChildItem -Recurse -File -LiteralPath (Join-Path $payload 'include')).Count
+
+        # The install. Directory.Move, not Move-Item: PowerShell would move the
+        # payload *inside* an existing destination, while this fails - which is
+        # what lets two concurrent installs sort themselves out. Whoever renames
+        # first wins; the other finds the destination complete and drops its copy.
+        try {
+            [System.IO.Directory]::Move($payload, $Destination)
+        } catch [System.IO.IOException] {
+            if (Test-Path -LiteralPath $Destination -PathType Container) {
+                Write-Host "V8: $Destination was installed concurrently - keeping that copy."
+                exit 0
+            }
+            throw
         }
 
         # The archive records the MSVC toolset it was built with. That is a
         # floor, not a match - an older toolset fails the link on undefined
         # __std_* symbols - so surface it here rather than leaving that to be
         # diagnosed at link time.
-        $toolsetFile = Join-Path $pkg 'toolset.txt'
-        $toolset = if (Test-Path -LiteralPath $toolsetFile) { (Get-Content -LiteralPath $toolsetFile -Raw).Trim() } else { '' }
-        $sizeMb = [math]::Round((Get-Item -LiteralPath $libPath).Length / 1MB)
-        $headers = (Get-ChildItem -Recurse -File -LiteralPath $incPath).Count
         if ($toolset) {
             Write-Host "V8: $Destination ready - $headers headers, v8_monolith.lib $sizeMb MB; needs MSVC $toolset or newer."
         } else {
             Write-Host "V8: $Destination ready - $headers headers, v8_monolith.lib $sizeMb MB."
         }
     } finally {
-        if (Test-Path -LiteralPath $work) { Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue }
+        if (Test-Path -LiteralPath $staging) { Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue }
     }
 } finally {
     $mutex.ReleaseMutex()

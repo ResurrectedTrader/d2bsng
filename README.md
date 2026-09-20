@@ -245,9 +245,11 @@ Bumping `V8Version` leaves the old directory alone. They are over a gigabyte eac
 `dependencies/v8/<old version>` by hand once nothing builds against it.
 
 To supply the archive yourself instead - working offline, or testing a particular build -
-download it by hand and unpack its `include/` and `v8_monolith.lib` into
-`dependencies/v8/<version>/x86-<config>/`. The build only fetches when both are missing, so
-anything already there is left alone.
+download it by hand and unpack it into `dependencies/v8/<version>/x86-<config>/`. That
+directory existing is what the build takes as "installed", so unpack it somewhere else and
+move it into place when it is complete; a directory that appears half-written will be trusted
+and fail later as a much stranger error. That is why the fetch extracts to a staging directory
+beside it and renames the finished tree in one move.
 
 Compile with `/DV8_GN_HEADER` so the public headers pick up the archive's `include/v8-gn.h` and
 lay objects out the way the library does - this is an ABI requirement, not a convenience - and

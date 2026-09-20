@@ -41,8 +41,10 @@ def v8_include_dir():
     They are not in the repository: the build downloads them per version into
     dependencies/v8/<version>/x86-<flavor>/include. The version comes from the
     same property the build and the CI cache key read, so this cannot drift from
-    what was actually unpacked. Returns None if V8 has not been fetched yet, in
-    which case the caller carries on without the headers.
+    what was actually unpacked.
+
+    Returns the path whether or not it exists, so a caller can name the
+    directory that was missing; None only if Directory.Build.props was unreadable.
     """
     props = REPO_ROOT / "Directory.Build.props"
     try:
@@ -58,7 +60,53 @@ def v8_include_dir():
         d = root / flavor / "include"
         if (d / "v8.h").exists():
             return d
-    return None
+    return root / "x86-release" / "include"
+
+
+def require_v8_headers():
+    """Stop before parsing anything if the V8 headers are not unpacked.
+
+    libclang does not need them to produce *an* answer: it reports the missing
+    include, carries on, and hands back a fraction of the AST. That would write
+    an api.json with a handful of classes in it, which becomes the docs site and
+    d2bsng.d.ts. So this is a precondition rather than a warning - and since an
+    un-built clone is its normal cause, it gets a sentence, not a traceback.
+    """
+    inc = v8_include_dir()
+    if inc is None:
+        sys.exit(
+            "error: could not read V8Version from Directory.Build.props;"
+            " that property is what says which V8 to look for."
+        )
+    if not (inc / "v8.h").exists():
+        sys.exit(
+            f"error: V8 headers not found at {inc}\n"
+            "       They are not in the repository - the build downloads them.\n"
+            "       Run `build.ps1 deps` (or any build) first, then re-run this."
+        )
+    return inc
+
+
+# libclang severities: 0 Ignored, 1 Note, 2 Warning, 3 Error, 4 Fatal. Only
+# Fatal means "this translation unit did not parse at all" - a missing include
+# being the usual cause - which is exactly when libclang yields a partial AST.
+# A healthy parse of these sources reports nothing at any severity, so keying on
+# Fatal catches real breakage without turning style noise into a failure.
+FATAL_SEVERITY = 4
+
+# Fatal diagnostics from parses that run in this process (the auxiliary
+# extractors below). Per-file parses happen in worker processes and return
+# theirs through _extract_one - a module global does not cross a process.
+_AUX_FATALS = []
+
+
+def fatal_diagnostics(tu, path):
+    """(file, message) for every Fatal diagnostic *tu* produced."""
+    try:
+        rel = str(Path(path).relative_to(REPO_ROOT)).replace("\\", "/")
+    except ValueError:
+        rel = str(path)
+    return [(rel, str(d)) for d in tu.diagnostics if d.severity >= FATAL_SEVERITY]
 
 
 # ── Compile flags ───────────────────────────────────────────────────
@@ -599,6 +647,7 @@ class ApiExtractor:
         self._ctor = {}  # cpp_class -> {file, line, doc} for the documented New
         self._extends = {}  # cpp_class -> base js name (shared-property inheritance)
         self._class_js = {}  # cpp_class -> ClassName (JS-visible name), for consistent keying
+        self.fatals = []  # (file, diagnostic) for translation units that did not parse
 
     def process(self, index, path, flags):
         tu = index.parse(
@@ -614,6 +663,7 @@ class ApiExtractor:
                     print(f"    diag: {e}", file=sys.stderr)
                 if len(errors) > 3:
                     print(f"    ... +{len(errors) - 3} more", file=sys.stderr)
+        self.fatals += fatal_diagnostics(tu, path)
         self._walk(tu.cursor, path, ctx=None)
 
     # ── recursive walk ─────────────────────────────────────────────
@@ -874,10 +924,11 @@ def _init_worker(flags):
 
 
 def _extract_one(path_str):
-    """Parse a single file in a worker and return its partial API dict."""
+    """Parse a single file in a worker; return its partial API dict together
+    with any Fatal diagnostics, which the parent turns into a hard failure."""
     extractor = ApiExtractor()
     extractor.process(_worker_index, Path(path_str), _worker_flags)
-    return extractor.to_dict()
+    return extractor.to_dict(), extractor.fatals
 
 
 def merge_partials(partials):
@@ -1134,10 +1185,14 @@ def extract_enums(result, flags):
     defs = {}
     for path in ENUM_SOURCES:
         if path.exists():
-            defs.update(_parse_enum_defs(index.parse(str(path), args=flags, options=opts), path))
+            tu = index.parse(str(path), args=flags, options=opts)
+            _AUX_FATALS.extend(fatal_diagnostics(tu, path))
+            defs.update(_parse_enum_defs(tu, path))
 
     if COMPAT_FLAGS_SOURCE.exists():
-        rows = _parse_compat_flag_rows(index.parse(str(COMPAT_FLAGS_SOURCE), args=flags, options=opts))
+        tu = index.parse(str(COMPAT_FLAGS_SOURCE), args=flags, options=opts)
+        _AUX_FATALS.extend(fatal_diagnostics(tu, COMPAT_FLAGS_SOURCE))
+        rows = _parse_compat_flag_rows(tu)
         if rows:
             defs["CompatibilityFlag"] = {"name": "CompatibilityFlag", "kind": "flags", "rows": rows}
 
@@ -1199,9 +1254,10 @@ def extract_launch_options(flags, path=LAUNCH_OPTIONS_SOURCE):
             args=args,
             options=TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD | TranslationUnit.PARSE_INCOMPLETE,
         )
-    except Exception:  # noqa: BLE001 - parse failure -> no options, not fatal
-        print(f"warning: could not parse launch options from {rel}", file=sys.stderr)
+    except Exception as exc:  # noqa: BLE001 - recorded, then failed on in main
+        _AUX_FATALS.append((rel, f"libclang could not parse this file: {exc}"))
         return []
+    _AUX_FATALS.extend(fatal_diagnostics(tu, path))
     rows = _parse_launch_option_rows(tu, rel)
     if not rows:
         print(f"warning: no launch options parsed from {rel} (option registry renamed?)", file=sys.stderr)
@@ -1342,8 +1398,10 @@ def extract_events(events_path=EVENTS_FILE):
             options=TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD
             | TranslationUnit.PARSE_INCOMPLETE,
         )
-    except Exception:  # noqa: BLE001 - parse failure -> no events, not fatal
+    except Exception as exc:  # noqa: BLE001 - recorded, then failed on in main
+        _AUX_FATALS.append((rel, f"libclang could not parse this file: {exc}"))
         return []
+    _AUX_FATALS.extend(fatal_diagnostics(tu, events_path))
     events = []
     _walk_events(tu.cursor, events_path, rel, events, set())
     return events
@@ -1417,6 +1475,8 @@ def main():
             except ValueError:
                 jobs = None
 
+    require_v8_headers()
+
     flags = build_compile_flags()
     if verbose:
         print(f"Flags: {' '.join(flags)}", file=sys.stderr)
@@ -1437,12 +1497,14 @@ def main():
                 print(f"  {src.relative_to(REPO_ROOT)}", file=sys.stderr)
             extractor.process(index, src, flags)
         result = extractor.to_dict()
+        fatals = list(extractor.fatals)
     else:
         with ProcessPoolExecutor(
             max_workers=jobs, initializer=_init_worker, initargs=(flags,)
         ) as pool:
-            partials = list(pool.map(_extract_one, [str(s) for s in sources]))
-        result = merge_partials(partials)
+            returned = list(pool.map(_extract_one, [str(s) for s in sources]))
+        result = merge_partials([partial for partial, _ in returned])
+        fatals = [f for _, per_file in returned for f in per_file]
 
     result["events"] = extract_events()
 
@@ -1486,6 +1548,19 @@ def main():
         f"{nev} events, {nen} enums, {nlo} launch options",
         file=sys.stderr,
     )
+
+    fatals += _AUX_FATALS
+    if fatals:
+        print(
+            f"error: {len(fatals)} translation unit(s) did not parse. The counts above are"
+            " therefore incomplete, so no output was written.",
+            file=sys.stderr,
+        )
+        for rel, message in fatals[:20]:
+            print(f"  {rel}: {message}", file=sys.stderr)
+        if len(fatals) > 20:
+            print(f"  ... and {len(fatals) - 20} more", file=sys.stderr)
+        sys.exit(1)
 
     if output_path:
         with open(output_path, "w", encoding="utf-8") as f:

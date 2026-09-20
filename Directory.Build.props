@@ -103,10 +103,15 @@
        come out of the same download - discarding the library an x64 build
        cannot link would only force the next Win32 build to fetch it again.
 
+       The test is the directory, not a file in it: fetch_v8.ps1 extracts
+       elsewhere and renames the finished tree into place in one move, so
+       $(V8Dir) either does not exist or is a complete install. A file inside it
+       would only say that much of an install got as far as that file.
+
        Exists() is re-evaluated when the target would run, so a build that
        already has the archive unpacked does not even start PowerShell. -->
   <Target Name="FetchV8" BeforeTargets="ClCompile;ResourceCompile;Link" Condition="'$(V8Required)' == 'true'">
-    <Exec Condition="!Exists('$(V8IncludeDir)\v8.h') Or !Exists('$(V8MonolithLib)')"
+    <Exec Condition="!Exists('$(V8Dir)')"
           Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)scripts\fetch_v8.ps1&quot; -Repo &quot;$(V8Repo)&quot; -Tag &quot;$(V8ReleaseTag)&quot; -Asset &quot;$(V8Asset)&quot; -Destination &quot;$(V8Dir)&quot;" />
   </Target>
 
