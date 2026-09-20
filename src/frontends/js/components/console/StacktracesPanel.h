@@ -4,10 +4,6 @@
 
 #include "components/console/Panel.h"
 
-namespace v8 {
-class Isolate;
-}  // namespace v8
-
 namespace d2bs {
 class Script;
 }  // namespace d2bs

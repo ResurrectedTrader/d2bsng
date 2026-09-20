@@ -587,8 +587,8 @@ bool Analytics::SendStartupEvent() {
     if (appConfig.enableUnsupported.load()) {
         features.emplace_back("unsupported");
     }
-    if (appConfig.v8SingleThreadedPlatform) {
-        features.emplace_back("v8SingleThreaded");
+    if (appConfig.engineSingleThreaded) {
+        features.emplace_back("engineSingleThreaded");
     }
     std::ranges::sort(features);
     props["features"] = Join(features, ',');

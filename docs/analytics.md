@@ -71,7 +71,7 @@ them. A tag only ever names a feature, never the value behind it. Current tags:
 | `speedhack` | non-1.0 game speed at session start | framework |
 | `waitForProfile` | `UseProfileScript` - script start deferred until a profile is poked in | framework |
 | `unsupported` | `enableUnsupported` set | framework |
-| `v8SingleThreaded` | `V8SingleThreadedPlatform` - no V8 worker pool | framework |
+| `engineSingleThreaded` | `EngineSingleThreaded` - the engine runs without a worker pool | framework |
 | `multiInstance` | launched with `-multi` | backend |
 | `proxy` | launched with `-proxy` (address never sent) | backend |
 | `realm` | launched with a custom `-realm` (host never sent) | backend |

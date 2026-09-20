@@ -45,7 +45,7 @@ constexpr uint64_t PRUNE_AFTER_BYTES = 32ULL * 1024 * 1024;
 constexpr size_t BYTES_PER_MB = 1024 * 1024;
 
 // CachedDataVersionTag covers the V8 version and the *effective* flag set -
-// including flags V8 derives by implication, which a hash of our own V8Flags
+// including flags V8 derives by implication, which a hash of our own EngineFlags
 // string would miss (V8Host appends --expose-gc and, conditionally,
 // --single-threaded). Reading it requires V8's flags to already be applied, so
 // depend on V8Host explicitly rather than on the caller having gone first.

@@ -63,11 +63,13 @@ void IniConfigStore::LoadSettings(AppConfig& config) {
     config.inspectorPort.store(inspectorPort);
     config.gameReadyTimeout = std::chrono::milliseconds{ReadInt("settings", "GameReadyTimeout", 5) * 1000};
     config.memoryLimit = static_cast<size_t>(ReadInt("settings", "MemoryLimit", 100)) * 1024 * 1024;
-    // Extra V8 flags for SetFlagsFromString (e.g. "--max-old-space-size=512").
-    config.v8Flags = ReadString("settings", "V8Flags", "");
-    // V8 default-platform worker pool size; 0 = auto, clamped to [0, 64].
-    config.v8ThreadPoolSize = std::clamp(ReadInt("settings", "V8ThreadPoolSize", 0), 0, 64);
-    config.v8SingleThreadedPlatform = ReadBool("settings", "V8SingleThreadedPlatform", false);
+    // Engine tuning. EngineFlags is an opaque string handed to whichever engine
+    // this build runs ("--max-old-space-size=512" for V8, which parses it). The
+    // thread settings are a worker-thread budget any engine can honour: 0 = auto,
+    // clamped to [0, 64], and EngineSingleThreaded drops the pool entirely.
+    config.engineFlags = ReadString("settings", "EngineFlags", "");
+    config.engineThreadPoolSize = std::clamp(ReadInt("settings", "EngineThreadPoolSize", 0), 0, 64);
+    config.engineSingleThreaded = ReadBool("settings", "EngineSingleThreaded", false);
     // Compiled-script code cache. CodeCachePath is joined to the install dir
     // when relative (like ScriptPath) and replaces it when absolute; empty
     // leaves the disk tier off.

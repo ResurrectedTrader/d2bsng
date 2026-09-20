@@ -79,18 +79,20 @@ struct AppConfig {
     std::chrono::milliseconds gameReadyTimeout{5000};  // for WaitForGameReady (INI value is seconds)
     size_t memoryLimit = size_t{100} * 1024 * 1024;    // bytes, V8 heap limit (INI value is MB)
 
-    // Extra V8 flags (INI [settings]/V8Flags) applied via SetFlagsFromString at
-    // engine init. Read once in V8Host's constructor.
-    std::string v8Flags;
+    // A tuning string for whichever engine this build runs (INI
+    // [settings]/EngineFlags), opaque to everything but that engine and applied
+    // once at its init: V8 hands it to SetFlagsFromString, another engine may map
+    // it onto its own prefs or make nothing of it. There is no shared syntax.
+    std::string engineFlags;
 
-    // V8 default-platform worker pool size (INI [settings]/V8ThreadPoolSize, 0 =
-    // auto from CPU count, clamped [0, 64]). Ignored when v8SingleThreadedPlatform.
-    int32_t v8ThreadPoolSize = 0;
-
-    // Use V8's single-threaded platform (no worker pool) instead of the default
-    // (INI [settings]/V8SingleThreadedPlatform). Forces the --single-threaded V8
-    // flag that platform requires.
-    bool v8SingleThreadedPlatform = false;
+    // The engine's worker-thread budget (INI [settings]/EngineThreadPoolSize, 0 =
+    // auto from CPU count, clamped [0, 64]), and whether it runs with no worker
+    // pool at all (INI [settings]/EngineSingleThreaded, which makes the count
+    // moot). Who owns the pool differs - V8 sizes the default platform it creates,
+    // an engine whose embedder supplies the threads is told the count - but how
+    // many threads the engine may use is the same setting either way.
+    int32_t engineThreadPoolSize = 0;
+    bool engineSingleThreaded = false;
 
     // Compiled-script code cache (frontends/js/components/script/CodeCache.h).
     // The in-memory tier is always on, bounded by codeCacheMemoryLimit. The

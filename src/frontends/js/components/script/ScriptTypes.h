@@ -5,6 +5,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <string_view>
 
 namespace d2bs {
 
@@ -38,6 +39,16 @@ struct HeapStats {
     std::optional<uint64_t> peakMalloced;
     std::optional<uint64_t> usedHandles;
     std::optional<uint64_t> totalHandles;
+};
+
+// What the engine behind this frontend is, and what it can do. The console asks
+// instead of assuming: it names the engine it is actually running on, and draws
+// a section for a capability only where the engine reports it. Fixed for the
+// life of the process.
+struct EngineInfo {
+    std::string_view name;  // as a user should see it, e.g. "V8"
+    std::string version;
+    bool inspector = false;  // attach a remote debugger (Chrome DevTools)
 };
 
 // Live native wrapper objects owned by one script, keyed by script-visible

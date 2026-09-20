@@ -6,6 +6,7 @@
 #include <shared_mutex>
 #include <vector>
 #include "Script.h"
+#include "ScriptTypes.h"
 #include "utils/utils.h"
 
 namespace d2bs {
@@ -18,6 +19,12 @@ class ScriptEngine {
     void Initialize();
     void Shutdown();
     bool IsInitialized() const { return initialized_.load(); }
+
+    // Which engine this is and what it supports, for UI that would otherwise
+    // have to assume. Static and constant: a panel may ask before the engine is
+    // initialized, and the answer describes the frontend as built rather than a
+    // running engine.
+    [[nodiscard]] static EngineInfo GetEngineInfo();
 
     // Script management
     std::shared_ptr<Script> StartScript(const std::filesystem::path& path, ScriptMode mode,

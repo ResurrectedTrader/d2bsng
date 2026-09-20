@@ -37,7 +37,7 @@ void DrawStackTable(const std::vector<StackFrame>& frames) {
     // the "active" one - putting it at the bottom of the table keeps the
     // stable outer frames pinned at the top so the eye doesn't have to
     // chase shifting rows as call depth fluctuates. The "#" column still
-    // shows V8's native frame index (0 = innermost / current), so the
+    // shows the engine's native frame index (0 = innermost / current), so the
     // index -> meaning convention is preserved.
     for (size_t k = 0; k < frames.size(); ++k) {
         const size_t i = frames.size() - 1 - k;

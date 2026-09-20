@@ -46,12 +46,12 @@ class V8Host {
         v8::SandboxHardwareSupport::InitializeBeforeThreadCreation();
         v8::V8::InitializeICU();
 
-        // One SetFlagsFromString call: user flags (INI [settings]/V8Flags) first,
-        // then our mandatory flags so a conflicting user flag can't drop them (V8
-        // applies repeated flags in order, last wins). Must run before
+        // One SetFlagsFromString call: user flags (INI [settings]/EngineFlags)
+        // first, then our mandatory flags so a conflicting user flag can't drop
+        // them (V8 applies repeated flags in order, last wins). Must run before
         // v8::V8::Initialize(); the config is already loaded by this point.
         const auto &cfg = d2bs::config::GetAppConfig();
-        std::string v8Flags = cfg.v8Flags;
+        std::string v8Flags = cfg.engineFlags;
         if (!v8Flags.empty()) {
             Log().info("Applying user V8 flags: {}", v8Flags);
             v8Flags += ' ';
@@ -59,17 +59,18 @@ class V8Host {
         v8Flags += "--expose-gc";
         // The single-threaded platform has no worker pool, so V8 requires
         // --single-threaded to stop it posting background tasks that never run.
-        if (cfg.v8SingleThreadedPlatform) {
+        if (cfg.engineSingleThreaded) {
             v8Flags += " --single-threaded";
         }
         v8::V8::SetFlagsFromString(v8Flags.c_str());
 
-        if (cfg.v8SingleThreadedPlatform) {
+        if (cfg.engineSingleThreaded) {
             platform_ = v8::platform::NewSingleThreadedDefaultPlatform(v8::platform::IdleTaskSupport::kDisabled,
                                                                        v8::platform::InProcessStackDumping::kEnabled);
         } else {
-            platform_ = v8::platform::NewDefaultPlatform(cfg.v8ThreadPoolSize, v8::platform::IdleTaskSupport::kDisabled,
-                                                         v8::platform::InProcessStackDumping::kEnabled);
+            platform_ =
+                v8::platform::NewDefaultPlatform(cfg.engineThreadPoolSize, v8::platform::IdleTaskSupport::kDisabled,
+                                                 v8::platform::InProcessStackDumping::kEnabled);
         }
 
         v8::V8::InitializePlatform(platform_.get());

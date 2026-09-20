@@ -186,20 +186,66 @@ two sets only partly overlap: `external`, `peak malloced`, `physical` and
 So every field is `std::optional`, and the panel renders what is present rather
 than a zero that looks like a measurement. A frontend that cannot answer says so.
 
-### `script::Capabilities` - so panels ask instead of assume
+### `script::EngineInfo` - so panels ask instead of assume
+
+The SpiderMonkey port had to *delete* the settings panel's whole "Debugging (V8
+inspector)" section, and could not have kept the rest of the panel anyway: it
+called `v8::V8::GetVersion()` directly. Both are the same mistake - the panel
+knowing which engine it is drawing - and the same fix.
+
+The engine reports itself, from `components/script/ScriptTypes.h` next to
+`HeapStats` (the engine-free types header the panels already reach through, in a
+directory a second frontend reimplements). `ScriptEngine::GetEngineInfo()` is the
+answer:
 
 ```cpp
-struct Capabilities {
-    bool inspector;         // Chrome DevTools attach
-    bool codeCache;         // compiled-code reuse across runs
-    bool perBindingProfiling;
-    bool heapSnapshots;
+struct EngineInfo {
+    std::string_view name;  // as a user should see it, e.g. "V8"
+    std::string version;
+    bool inspector;         // attach a remote debugger (Chrome DevTools)
 };
 ```
 
-The SpiderMonkey port had to *delete* the settings panel's whole "Debugging (V8
-inspector)" section. With a capability it would have greyed out instead, which
-is the honest presentation and needs no fork.
+Identity and capability travel together because the panel needs both in the same
+breath: the inspector section is headed with the engine's name and gated on
+whether it has one. With the name and version reported, `components/console/`
+contains no V8 API call at all - the settings rows read "Engine flags", "Engine
+threads" and "Engine", and the last shows "V8 15.6.8" because the engine said so.
+
+One capability, because one is all that differs. The inspector is a Chrome
+DevTools endpoint and SpiderMonkey has none short of a CDP shim over its
+`Debugger` object. Everything else the console offers, both engines do: the
+SpiderMonkey port has the binding trampolines (`DefineFunctionWithReserved`) that
+feed the Profiling panel's per-binding attribution and the stack capture
+(`JS::CaptureCurrentStack`) behind the Stacktraces panel, so a flag for either
+would have no `false` case and gate a branch nobody takes. The earlier sketch also
+proposed a code-cache flag and a heap-snapshot flag: the cache is transparent and
+nothing in the UI reads it, and heap figures are already answered at a finer grain
+- every `HeapStats` field is `std::optional`, so an engine says per figure what it
+cannot report and the panel renders the absence.
+
+Absent, not disabled. A control can be greyed out when it is *temporarily*
+unavailable - something the user could switch on - but an engine without a
+debugger will never have one, and a permanently dead section with an explanatory
+tooltip is clutter that never becomes useful. So the section is drawn only where
+the capability is reported, which is the presentation the SpiderMonkey port
+arrived at by hand; the difference is that it costs a condition rather than a
+fork.
+
+The engine's tuning settings are neutral for the same reason: `AppConfig` carries
+`engineFlags` / `engineThreadPoolSize` / `engineSingleThreaded`, read from
+`[settings]/EngineFlags`, `/EngineThreadPoolSize` and `/EngineSingleThreaded`.
+The `V8*` keys those replace are not read at all - a clean break, so an INI
+carrying them falls back to the defaults.
+
+The thread settings are portable in substance, not just in name: "how many worker
+threads may the engine use" is a question both engines answer, even though V8
+sizes the default platform it creates and SpiderMonkey is told a count for the
+pool its embedder supplies (`js::SetHelperThreadTaskCallback`, `JSGC_MAX_HELPER_THREADS`).
+The flags string is not: V8 parses it with `SetFlagsFromString`, SpiderMonkey has
+no string parser at all (typed prefs in `js/Prefs.h`). So the value is opaque and
+belongs to whichever engine is built - the neutral *name* says which setting it
+is, not that its contents travel.
 
 ### `script::Frontend` - the plug
 

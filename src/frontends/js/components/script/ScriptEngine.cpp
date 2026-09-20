@@ -15,6 +15,10 @@ ScriptEngine& ScriptEngine::Instance() {
     return instance;
 }
 
+EngineInfo ScriptEngine::GetEngineInfo() {
+    return {.name = "V8", .version = v8::V8::GetVersion(), .inspector = true};
+}
+
 void ScriptEngine::Initialize() {
     if (initialized_)
         return;

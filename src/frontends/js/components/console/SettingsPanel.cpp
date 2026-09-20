@@ -1,5 +1,6 @@
 #include "components/console/SettingsPanel.h"
 
+#include <fmt/format.h>
 #include <imgui.h>
 #include <magic_enum/magic_enum.hpp>
 
@@ -107,6 +108,7 @@ void EnumRow(const char* label, E value) {
 
 void SettingsPanel::Draw() {
     auto& config = config::GetAppConfig();
+    const auto engine = ScriptEngine::GetEngineInfo();
 
     // Scroll this panel's body in its own child so the console tab bar stays
     // pinned as the collapsing sections expand. Other panels are short enough not
@@ -184,7 +186,11 @@ void SettingsPanel::Draw() {
         }
     }
 
-    if (ImGui::CollapsingHeader("Debugging (V8 inspector)")) {
+    // Only where the engine has a debugger to attach - a section for something an
+    // engine will never have is clutter, not information. The "###" id keeps the
+    // section's open state across a differing engine name.
+    if (engine.inspector &&
+        ImGui::CollapsingHeader(fmt::format("Debugging ({} inspector)###inspector", engine.name).c_str())) {
         if (ImGui::BeginTable("##inspector", 2, TABLE_FLAGS)) {
             ImGui::TableSetupColumn("##label", ImGuiTableColumnFlags_WidthFixed, 200.0F);
             ImGui::TableSetupColumn("##value", ImGuiTableColumnFlags_WidthStretch);
@@ -271,15 +277,16 @@ void SettingsPanel::Draw() {
             DisplayRow("Game-ready timeout", "%lld ms", static_cast<long long>(config.gameReadyTimeout.count()));
             DisplayRow("Memory limit", "%zu MB", config.memoryLimit / (1024UL * 1024UL));
             DisplayRow("Idle sleep interval", "%lld ms", static_cast<long long>(config.idleSleepInterval.count()));
-            DisplayRow("V8 flags", "%s", config.v8Flags.empty() ? "(none)" : config.v8Flags.c_str());
-            if (config.v8SingleThreadedPlatform) {
-                DisplayRow("V8 platform", "%s", "single-threaded (no pool)");
-            } else if (config.v8ThreadPoolSize == 0) {
-                DisplayRow("V8 platform", "%s", "default, auto thread pool");
+            DisplayRow("Engine flags", "%s", config.engineFlags.empty() ? "(none)" : config.engineFlags.c_str());
+            if (config.engineSingleThreaded) {
+                DisplayRow("Engine threads", "%s", "single-threaded (no pool)");
+            } else if (config.engineThreadPoolSize == 0) {
+                DisplayRow("Engine threads", "%s", "default, auto thread pool");
             } else {
-                DisplayRow("V8 platform", "default, %d thread(s)", config.v8ThreadPoolSize);
+                DisplayRow("Engine threads", "default, %d thread(s)", config.engineThreadPoolSize);
             }
-            DisplayRow("V8 version", "%s", v8::V8::GetVersion());
+            DisplayRow("Engine", "%.*s %s", static_cast<int>(engine.name.size()), engine.name.data(),
+                       engine.version.c_str());
             const auto paths = config.GetScriptPaths();
             DisplayRow("Script base", "%s", paths.basePath.string().c_str());
             DisplayRow("Game script", "%s", paths.gameScript.c_str());
