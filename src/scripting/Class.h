@@ -3,7 +3,8 @@
 #include <string_view>
 
 #include "Args.h"
-#include "Instance.h"
+#include "State.h"
+#include "Value.h"
 
 namespace d2bs::script {
 
@@ -12,7 +13,7 @@ namespace d2bs::script {
 // is the runtime's business, not an engine's.
 class ClassDecl {
    public:
-    explicit ClassDecl(void* state) : state_(state) {}
+    explicit ClassDecl(ClassRecord* state) : state_(state) {}
 
     [[nodiscard]] ClassKey Key() const;
 
@@ -30,7 +31,7 @@ class ClassDecl {
     ClassDecl& StaticMethod(std::string_view name, Native fn);
 
    private:
-    void* state_;
+    ClassRecord* state_;
 };
 
 // A named object with properties but no class - what `me` is. Its getters read
@@ -38,7 +39,7 @@ class ClassDecl {
 // machinery a class does.
 class ObjectDecl {
    public:
-    explicit ObjectDecl(void* state) : state_(state) {}
+    explicit ObjectDecl(ObjectRecord* state) : state_(state) {}
 
     // The object is an instance of this class, and what is declared here sits
     // on top of the class's own members. `make` produces the native it wraps,
@@ -52,7 +53,7 @@ class ObjectDecl {
     ObjectDecl& Constant(std::string_view name, double value);
 
    private:
-    void* state_;
+    ObjectRecord* state_;
 };
 
 }  // namespace d2bs::script

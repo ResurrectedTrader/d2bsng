@@ -4,6 +4,7 @@
 
 #include "Args.h"
 #include "Class.h"
+#include "State.h"
 
 namespace d2bs::script {
 
@@ -31,7 +32,7 @@ namespace d2bs::script {
 //     restricted finalizers does not.
 class Registry {
    public:
-    explicit Registry(void* state) : state_(state) {}
+    explicit Registry(RegistryState* state) : state_(state) {}
 
     void Global(std::string_view name, Native fn);
     void Constant(std::string_view name, double value);
@@ -47,10 +48,10 @@ class Registry {
     // What the frontend is registering into, handed back. V8 records into
     // process-wide declarations and never reads this; an engine that registers
     // into something of its own has it here.
-    [[nodiscard]] void* State() const { return state_; }
+    [[nodiscard]] RegistryState* State() const { return state_; }
 
    private:
-    void* state_;
+    RegistryState* state_;
 };
 
 }  // namespace d2bs::script

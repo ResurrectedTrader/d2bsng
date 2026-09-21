@@ -2,6 +2,8 @@
 
 #include <thread>
 
+#include "State.h"
+
 namespace d2bs::script {
 
 // Report a reference released off its owning thread. Out of line because the
@@ -28,7 +30,7 @@ class Persistent {
 
     // Adopts frontend-owned state. Only a frontend calls this; a binding
     // receives a Persistent from its arguments and never builds one.
-    explicit Persistent(void* state) : state_(state), owner_(std::this_thread::get_id()) {}
+    explicit Persistent(PersistentState* state) : state_(state), owner_(std::this_thread::get_id()) {}
 
     Persistent(const Persistent&) = delete;
     Persistent& operator=(const Persistent&) = delete;
@@ -72,13 +74,13 @@ class Persistent {
     }
 
     // For the frontend that defines the operations above. Not for bindings.
-    [[nodiscard]] void* State() const { return state_; }
+    [[nodiscard]] PersistentState* State() const { return state_; }
 
    private:
     // Frees whatever state_ points at. Defined by the frontend.
-    static void Release(void* state);
+    static void Release(PersistentState* state);
 
-    void* state_ = nullptr;
+    PersistentState* state_ = nullptr;
     std::thread::id owner_;
 };
 

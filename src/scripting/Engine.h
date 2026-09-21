@@ -39,10 +39,10 @@ class Engine {
     // --- the runtime's own object ----------------------------------------
 
     // The runtime attaches its per-script object here, and every binding
-    // running in this engine gets it back through Args::Internal(). The engine
+    // running in this engine gets it back through Binding::Owner(). The engine
     // never looks at it. This is the whole of what the contract knows about a
     // script: that the runtime has one, and that it is a pointer.
-    virtual void SetInternal(void* internal) = 0;
+    virtual void SetOwner(void* owner) = 0;
 
     // --- running source ---------------------------------------------------
 
