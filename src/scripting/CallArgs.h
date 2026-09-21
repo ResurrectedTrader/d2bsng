@@ -7,6 +7,8 @@
 #include <variant>
 #include <vector>
 
+#include "Instance.h"
+
 namespace d2bs::script {
 
 // Raw bytes a script receives as a byte array.
@@ -24,10 +26,16 @@ struct Serialized {
     std::span<const uint8_t> data;
 };
 
-// One argument an event hands to a script, named rather than built. Numbers
-// keep the width they were written with, because that is what the engine turns
-// into an integer or a double.
-using Argument = std::variant<bool, int32_t, uint32_t, double, std::string_view, Bytes, Serialized>;
+// One argument a call hands to a script, named rather than built. Numbers keep
+// the width they were written with, because that is what the engine turns into
+// an integer or a double.
+//
+// A Slot is the exception: an object or an array the binding built in its own
+// call frame, for the callbacks that are handed a structure rather than a
+// scalar. Only a binding can name one, and only for the length of its own call,
+// which is exactly the reach of Value::Call - an event is assembled outside any
+// call frame and has nothing that could make one.
+using Argument = std::variant<bool, int32_t, uint32_t, double, std::string_view, Bytes, Serialized, Slot>;
 
 // The arguments one call into a script will receive. The strings and spans are
 // views into storage the event owns; the list is filled and converted inside a

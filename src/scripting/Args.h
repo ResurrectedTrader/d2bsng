@@ -4,11 +4,13 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
+#include "CallArgs.h"
 #include "Instance.h"
-#include "Ref.h"
+#include "Persistent.h"
 
 namespace d2bs::script {
 
@@ -56,6 +58,7 @@ class Value {
     [[nodiscard]] bool IsString() const;
     [[nodiscard]] bool IsBoolean() const;
     [[nodiscard]] bool IsObject() const;
+    [[nodiscard]] bool IsArray() const;
     [[nodiscard]] bool IsFunction() const;
     [[nodiscard]] bool IsNullOrUndefined() const;
     // Undefined but not null - the two are different answers, and a binding
@@ -89,8 +92,14 @@ class Value {
     // and an engine that cannot expose its buffer without copying may copy.
     [[nodiscard]] std::optional<std::span<const uint8_t>> Bytes() const;
 
-    // Hold this argument for later, if it is a function.
-    [[nodiscard]] Ref Function() const;
+    // Hold this value past the end of the call: a callback a binding will
+    // invoke later, an object it will hand back a second time.
+    //
+    // It holds whatever is there. Whether a value that is not a function is
+    // worth holding is the binding's question - the ones that only want a
+    // callback ask IsFunction() first, which is also where refusing anything
+    // else is legible.
+    [[nodiscard]] Persistent Persist() const;
 
     // Structured-clone it to opaque bytes, for a value crossing between
     // scripts. Only the engine that wrote one reads it back, so nothing
@@ -117,18 +126,52 @@ class Value {
     // is where that decision is legible.
     [[nodiscard]] Value Field(std::string_view key) const;
 
-    // An object-valued field read as a map of strings, in the order the engine
-    // enumerates it. Nothing when the field is not an object; an entry whose
-    // value is neither a string nor a number carries nothing, so the caller can
-    // name the one that was wrong rather than the object it was in.
-    [[nodiscard]] std::optional<std::vector<std::pair<std::string, std::optional<std::string>>>> FieldStringMap(
-        std::string_view key) const;
-    // The keys themselves, for an object whose shape is the script's to choose.
-    // Enumerating is the one thing a field read cannot stand in for, because it
-    // needs the object rather than a name.
-    [[nodiscard]] std::vector<std::string> FieldNames() const;
+    // Its own keys, in the order the engine enumerates them, for an object whose
+    // shape is the script's to choose. Empty when this is not an object.
+    [[nodiscard]] std::vector<std::string> Names() const;
+
+    // How many elements an array value has. Zero for anything that is not one -
+    // and for an empty array, which IsArray tells apart, and which a callback
+    // answering with one means something by.
+    [[nodiscard]] size_t Length() const;
+
+    // One element of it, read as a value of its own exactly as a field is, and
+    // asked what it is the same way. Undefined when this is not an array or the
+    // index is past its end.
+    [[nodiscard]] Value At(size_t index) const;
+
+    // Call this value as a function, with `this` undefined - a plain call, which
+    // is what every callback this API hands out is. A receiver belongs here the
+    // day a binding needs to name one, and not before.
+    //
+    // The result reaches `onResult` rather than being returned, because it is a
+    // value of the engine's own frame: it, everything read out of it, and
+    // everything built inside that callback are released when the callback
+    // returns. That is what lets a binding call a script in a loop. A result
+    // that outlived the call would leave the frame one value heavier per
+    // iteration, and an engine that roots exactly would hold one more root per
+    // iteration with it - which is the whole reason the call is shaped this way
+    // rather than handing back something to keep.
+    //
+    // `onResult` does not run at all when this is not a function, or when the
+    // call threw or was terminated; what a callback that answered nothing means
+    // is the caller's own business, and every one of them already has to decide
+    // it. An exception is caught here rather than left pending, because the next
+    // iteration has to be able to re-enter the engine.
+    //
+    // Reports whether the call produced a result, for a caller that would rather
+    // ask than set a flag from inside the callback.
+    template <typename F>
+    bool Call(std::span<const Argument> args, F&& onResult) const {
+        using Callback = std::decay_t<F>;
+        Callback callback(std::forward<F>(onResult));
+        return CallWith(
+            args, &callback, +[](void* context, Value result) { (*static_cast<Callback*>(context))(result); });
+    }
 
    private:
+    bool CallWith(std::span<const Argument> args, void* context, void (*onResult)(void*, Value)) const;
+
     void* state_;
     size_t index_;
 };
@@ -198,7 +241,7 @@ class Read : public Binding {
     // Hand back a value the script gave us earlier, or one a binding retained.
     // The engine made the reference, so it is the one thing it can turn back
     // into a value.
-    void SetReturnValue(const Ref& value) const;
+    void SetReturnValue(const Persistent& value) const;
     // Whatever this call built - an object, an array, a wrapper.
     void SetReturnValue(const Slot& value) const;
     // Sixteen-bit elements, not bytes: a collision grid is read a cell at a
@@ -303,7 +346,7 @@ class ObjectBuilder : public Slot {
     // two reads, or hanging a property of its own on what it got, sees the
     // difference between the same object twice and two equal ones - so a
     // binding that caches a result caches the object rather than rebuilding it.
-    [[nodiscard]] Ref Retain() const;
+    [[nodiscard]] Persistent Persist() const;
 };
 
 class ArrayBuilder : public Slot {

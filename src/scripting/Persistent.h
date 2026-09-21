@@ -22,20 +22,20 @@ void ReportOffThreadRelease();
 // The rules are the stricter engine's, not V8's: created, reset and destroyed
 // on its owning script's thread and nowhere else, and move-only, because a copy
 // would be a second GC root.
-class Ref {
+class Persistent {
    public:
-    Ref() = default;
+    Persistent() = default;
 
     // Adopts frontend-owned state. Only a frontend calls this; a binding
-    // receives a Ref from its arguments and never builds one.
-    explicit Ref(void* state) : state_(state), owner_(std::this_thread::get_id()) {}
+    // receives a Persistent from its arguments and never builds one.
+    explicit Persistent(void* state) : state_(state), owner_(std::this_thread::get_id()) {}
 
-    Ref(const Ref&) = delete;
-    Ref& operator=(const Ref&) = delete;
+    Persistent(const Persistent&) = delete;
+    Persistent& operator=(const Persistent&) = delete;
 
-    Ref(Ref&& other) noexcept : state_(other.state_), owner_(other.owner_) { other.state_ = nullptr; }
+    Persistent(Persistent&& other) noexcept : state_(other.state_), owner_(other.owner_) { other.state_ = nullptr; }
 
-    Ref& operator=(Ref&& other) noexcept {
+    Persistent& operator=(Persistent&& other) noexcept {
         if (this != &other) {
             Reset();
             state_ = other.state_;
@@ -45,13 +45,13 @@ class Ref {
         return *this;
     }
 
-    ~Ref() { Reset(); }
+    ~Persistent() { Reset(); }
 
     [[nodiscard]] bool IsEmpty() const { return state_ == nullptr; }
 
     // Whether two references name the same function. removeEventListener needs
     // it, and function identity is the engine's answer to give, not ours.
-    [[nodiscard]] bool SameFunction(const Ref& other) const;
+    [[nodiscard]] bool SameFunction(const Persistent& other) const;
 
     // Drop the reference. Owning thread only, as for the destructor.
     //

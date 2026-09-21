@@ -6,7 +6,7 @@
 #include <string_view>
 
 #include "CallArgs.h"
-#include "Ref.h"
+#include "Persistent.h"
 #include "Types.h"
 
 namespace d2bs::script {
@@ -67,7 +67,7 @@ class Engine {
     // rather than handed over as engine objects, so the caller never holds
     // anything collectable. Reports whether the call voted to block, which is
     // what the event layer asks of a handler.
-    virtual bool Call(const Ref& function, const CallArgs& args) = 0;
+    virtual bool Call(const Persistent& function, const CallArgs& args) = 0;
 
     // Call a global function by name, if the script defined one. Nothing when
     // it did not - which is how the runtime tells "no entry point" from "the
