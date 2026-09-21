@@ -86,7 +86,10 @@ class Read : public Binding {
     // are separate steps, so a value can be built, nested inside another, and
     // returned - or not returned at all.
     [[nodiscard]] ObjectBuilder NewObject();
-    [[nodiscard]] ArrayBuilder NewArray(size_t length);
+    // Sized where the count is known up front. A call that filters while it
+    // fills asks for no length and sets what it keeps, which is what the
+    // default is for.
+    [[nodiscard]] ArrayBuilder NewArray(size_t length = 0);
 
     void SetReturnValue(int32_t value) const;
     void SetReturnValue(uint32_t value) const;
@@ -144,9 +147,6 @@ class Args : public Read {
     // naming the index twice. Out-of-range reads as undefined rather than out
     // of range, so a binding can ask about args[3] of a one-argument call.
     [[nodiscard]] Value operator[](size_t i) const { return {state_, i}; }
-
-    [[nodiscard]] void* Instance(size_t i, ClassKey of) const { return (*this)[i].Instance(of); }
-    [[nodiscard]] bool IsInstance(size_t i, ClassKey of) const { return (*this)[i].IsInstance(of); }
 
     // Sever the receiver from its native, leaving a wrapper that resolves to
     // nothing. What removing a drawable does.
@@ -227,6 +227,7 @@ class ArrayBuilder : public Value {
         return Set(index, value != nullptr ? std::string_view(value) : std::string_view{});
     }
     ArrayBuilder& Set(size_t index, const Value& value);
+    ArrayBuilder& SetNull(size_t index);
 };
 
 // What a binding is, one kind per shape the language calls it in. Engine-free
