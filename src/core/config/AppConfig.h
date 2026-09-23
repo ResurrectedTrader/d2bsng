@@ -94,7 +94,7 @@ struct AppConfig {
     int32_t engineThreadPoolSize = 0;
     bool engineSingleThreaded = false;
 
-    // Compiled-script code cache (frontends/js-v8/components/script/CodeCache.h).
+    // Compiled-script code cache (frontends/runtime/components/script/CodeCache.h).
     // The in-memory tier is always on, bounded by codeCacheMemoryLimit. The
     // on-disk tier is opt-in: codeCachePath (INI [settings]/CodeCachePath,
     // joined to the install dir when relative, empty = memory only) names a

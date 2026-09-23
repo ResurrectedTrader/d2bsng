@@ -1,7 +1,7 @@
 # lint.ps1 - Parallel clang-tidy runner with dependency-aware per-file caching
 # Usage: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\lint.ps1 [-Jobs N] [-NoCache]
 #
-# Cache is stored next to the compile databases (src/*/Release/lint_cache/, tests/frontends/js-v8/Release/lint_cache/).
+# Cache is stored next to the compile databases (src/*/Release/lint_cache/, tests/frontends/runtime/Release/lint_cache/).
 # A translation unit is re-linted only when its own content, one of its included
 # *project* headers' content, or its compile command changes (clang-scan-deps
 # discovers the headers). Toolchain / config / dependency changes invalidate
@@ -58,10 +58,10 @@ $dbContract = 'src\contract\Release\contract.ClangTidy'
 $dbCore = 'src\core\Release\core.ClangTidy'
 $dbNavigation = 'src\navigation\Release\navigation.ClangTidy'
 $dbServices = 'src\services\Release\services.ClangTidy'
-$dbJs = 'src\frontends\js-v8\Release\js-v8.ClangTidy'
+$dbJs = 'src\frontends\runtime\Release\runtime.ClangTidy'
 $dbLod114d = 'src\backends\lod114d\Release\lod114d.ClangTidy'
 $dbGlue = 'src\glue\js-v8-lod114d\Release\d2bs.ClangTidy'
-$dbTests = 'tests\frontends\js-v8\Release\js_tests.ClangTidy'
+$dbTests = 'tests\frontends\runtime\Release\js_tests.ClangTidy'
 
 # Auto-regenerate if .vcxproj is newer than the compile DB
 function Maybe-RegenDb($dbPath, $vcxproj) {
@@ -70,7 +70,7 @@ function Maybe-RegenDb($dbPath, $vcxproj) {
     return (Get-Item $vcxproj).LastWriteTime -gt (Get-Item $dbPath).LastWriteTime
 }
 
-$needRegen = (Maybe-RegenDb $dbUtils 'src\utils\utils.vcxproj') -or (Maybe-RegenDb $dbContract 'src\contract\contract.vcxproj') -or (Maybe-RegenDb $dbCore 'src\core\core.vcxproj') -or (Maybe-RegenDb $dbNavigation 'src\navigation\navigation.vcxproj') -or (Maybe-RegenDb $dbServices 'src\services\services.vcxproj') -or (Maybe-RegenDb $dbJs 'src\frontends\js-v8\js-v8.vcxproj') -or (Maybe-RegenDb $dbLod114d 'src\backends\lod114d\lod114d.vcxproj') -or (Maybe-RegenDb $dbGlue 'src\glue\js-v8-lod114d\d2bs.vcxproj') -or (Maybe-RegenDb $dbTests 'tests\frontends\js-v8\js_tests.vcxproj')
+$needRegen = (Maybe-RegenDb $dbUtils 'src\utils\utils.vcxproj') -or (Maybe-RegenDb $dbContract 'src\contract\contract.vcxproj') -or (Maybe-RegenDb $dbCore 'src\core\core.vcxproj') -or (Maybe-RegenDb $dbNavigation 'src\navigation\navigation.vcxproj') -or (Maybe-RegenDb $dbServices 'src\services\services.vcxproj') -or (Maybe-RegenDb $dbJs 'src\frontends\runtime\runtime.vcxproj') -or (Maybe-RegenDb $dbLod114d 'src\backends\lod114d\lod114d.vcxproj') -or (Maybe-RegenDb $dbGlue 'src\glue\js-v8-lod114d\d2bs.vcxproj') -or (Maybe-RegenDb $dbTests 'tests\frontends\runtime\js_tests.vcxproj')
 if ($needRegen) {
     Write-Host 'Compile database missing or stale - regenerating...' -ForegroundColor Yellow
     $msbuild = $null
@@ -145,7 +145,7 @@ function Get-TreeFingerprint($dir) {
 function Get-EnvToken {
     $parts = New-Object System.Collections.Generic.List[string]
     try { $parts.Add(((& $clangTidy --version 2>$null) -join ' ')) } catch { $parts.Add($clangTidy) }
-    foreach ($cfg in @('.clang-tidy', 'tests\frontends\js-v8\.clang-tidy', 'tests\frontends\js-v8\pathfinding\reference\.clang-tidy', 'vcpkg.json')) {
+    foreach ($cfg in @('.clang-tidy', 'tests\frontends\runtime\.clang-tidy', 'tests\frontends\runtime\pathfinding\reference\.clang-tidy', 'vcpkg.json')) {
         if (Test-Path $cfg) { $parts.Add($cfg + '=' + (Get-FileContentHash (Resolve-Path $cfg).Path)) }
     }
     $parts.Add('v8=' + (Get-TreeFingerprint 'dependencies\v8\include'))
@@ -261,8 +261,8 @@ Get-ChildItem -Recurse 'src\navigation' -Filter '*.cpp' | ForEach-Object {
 Get-ChildItem -Recurse 'src\services' -Filter '*.cpp' | ForEach-Object {
     $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbServicesFull; CacheDir = 'src\services\Release\lint_cache' }
 }
-Get-ChildItem -Recurse 'src\frontends\js-v8' -Filter '*.cpp' | ForEach-Object {
-    $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbJsFull; CacheDir = 'src\frontends\js-v8\Release\lint_cache' }
+Get-ChildItem -Recurse 'src\frontends\runtime' -Filter '*.cpp' | ForEach-Object {
+    $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbJsFull; CacheDir = 'src\frontends\runtime\Release\lint_cache' }
 }
 Get-ChildItem -Recurse 'src\backends\lod114d' -Filter '*.cpp' | ForEach-Object {
     $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbLod114dFull; CacheDir = 'src\backends\lod114d\Release\lint_cache' }
@@ -273,7 +273,7 @@ Get-ChildItem -Recurse 'src\glue\js-v8-lod114d' -Filter '*.cpp' | ForEach-Object
 if (Test-Path $dbTests) {
     $dbTestsFull = (Resolve-Path $dbTests).Path
     Get-ChildItem -Recurse 'tests' -Filter '*.cpp' | ForEach-Object {
-        $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbTestsFull; CacheDir = 'tests\frontends\js-v8\Release\lint_cache' }
+        $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbTestsFull; CacheDir = 'tests\frontends\runtime\Release\lint_cache' }
     }
 }
 

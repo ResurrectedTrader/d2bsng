@@ -22,7 +22,7 @@ and it splits three ways.
 
 ### Essential - the engine itself
 
-`components/script/` (9 files) and `components/v8/`. Contexts, compilation,
+`components/script/` (9 files) and `components/engine/`. Contexts, compilation,
 evaluation, termination, the job queue. This *is* the engine; it cannot be
 abstracted away, only implemented again. `components/inspector/` (4 files) is
 V8-only outright - SpiderMonkey has no equivalent short of a CDP shim over its

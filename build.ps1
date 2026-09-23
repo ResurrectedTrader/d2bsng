@@ -190,7 +190,7 @@ switch ($mode) {
             exit 1
         }
         $dbByDir = [ordered]@{
-            'src\frontends\js-v8'    = 'src\frontends\js-v8\Release\js-v8.ClangTidy'
+            'src\frontends\runtime'    = 'src\frontends\runtime\Release\runtime.ClangTidy'
             'src\backends\lod114d'   = 'src\backends\lod114d\Release\lod114d.ClangTidy'
             'src\glue\js-v8-lod114d' = 'src\glue\js-v8-lod114d\Release\d2bs.ClangTidy'
             'src\contract'           = 'src\contract\Release\contract.ClangTidy'
@@ -217,7 +217,7 @@ switch ($mode) {
     'deps' {
         # Runs only the FetchV8 target, on the project that needs the headers
         # earliest. Nothing compiles, so this does not need vcpkg restored.
-        & $msbuild 'src\frontends\js-v8\js-v8.vcxproj' '-t:FetchV8' '-p:Configuration=Release' "-p:Platform=$Platform" '-v:m' '-nologo'
+        & $msbuild 'src\frontends\runtime\runtime.vcxproj' '-t:FetchV8' '-p:Configuration=Release' "-p:Platform=$Platform" '-v:m' '-nologo'
         exit $LASTEXITCODE
     }
     'test' {
