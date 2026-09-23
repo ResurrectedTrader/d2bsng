@@ -7,7 +7,7 @@
 #include <variant>
 #include <vector>
 
-namespace d2bs::js::script {
+namespace d2bs::runtime::script {
 
 // Raw bytes a script receives as a byte array.
 struct Bytes {
@@ -40,4 +40,4 @@ class CallArgs {
     std::vector<Value> values_;
 };
 
-}  // namespace d2bs::js::script
+}  // namespace d2bs::runtime::script

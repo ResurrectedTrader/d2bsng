@@ -20,10 +20,10 @@ namespace d2bs::api::globals {
 // TXT_TABLE_NAMES. nullopt when the arg is the wrong type or the index is out of range.
 inline std::optional<std::string> ResolveTableArg(v8::Isolate* isolate, v8::Local<v8::Value> arg) {
     if (arg->IsString()) {
-        return v8_convert::ToString(isolate, arg);
+        return convert::ToString(isolate, arg);
     }
     if (arg->IsNumber()) {
-        if (auto resolved = ResolveTxtTable(v8_convert::ToUint32(isolate, arg))) {
+        if (auto resolved = ResolveTxtTable(convert::ToUint32(isolate, arg))) {
             return std::string(*resolved);
         }
     }
@@ -32,14 +32,14 @@ inline std::optional<std::string> ResolveTableArg(v8::Isolate* isolate, v8::Loca
 
 // Convert one resolved cell to a JS value. Returns an empty handle for an empty
 // / unsupported cell (monostate) so callers can map it to undefined or omit it.
-inline v8::Local<v8::Value> TxtValueToV8(v8::Isolate* isolate, const game::TxtValue& value) {
+inline v8::Local<v8::Value> TxtValueToJS(v8::Isolate* isolate, const game::TxtValue& value) {
     static_assert(std::variant_size_v<game::TxtValue> == 3,
                   "TxtValue alternatives changed - update the conversion below");
     if (const auto* n = std::get_if<int64_t>(&value)) {
-        return v8_convert::ToV8(isolate, static_cast<double>(*n));
+        return convert::ToJS(isolate, static_cast<double>(*n));
     }
     if (const auto* s = std::get_if<std::string>(&value)) {
-        return v8_convert::ToV8(isolate, *s);
+        return convert::ToJS(isolate, *s);
     }
     return {};
 }
@@ -51,9 +51,9 @@ inline v8::Local<v8::Value> ResolveTxtCell(v8::Isolate* isolate, const std::stri
                                            v8::Local<v8::Value> columnArg) {
     std::string columnName;
     if (columnArg->IsString()) {
-        columnName = v8_convert::ToString(isolate, columnArg);
+        columnName = convert::ToString(isolate, columnArg);
     } else if (columnArg->IsNumber()) {
-        auto resolved = ResolveTxtColumn(tableName, v8_convert::ToUint32(isolate, columnArg));
+        auto resolved = ResolveTxtColumn(tableName, convert::ToUint32(isolate, columnArg));
         if (!resolved) {
             return v8::Undefined(isolate);
         }
@@ -61,7 +61,7 @@ inline v8::Local<v8::Value> ResolveTxtCell(v8::Isolate* isolate, const std::stri
     } else {
         return v8::Undefined(isolate);
     }
-    auto cell = TxtValueToV8(isolate, game::GetTxtValue(tableName, row, columnName));
+    auto cell = TxtValueToJS(isolate, game::GetTxtValue(tableName, row, columnName));
     return cell.IsEmpty() ? v8::Local<v8::Value>(v8::Undefined(isolate)) : cell;
 }
 
@@ -81,9 +81,9 @@ inline v8::Local<v8::Value> BuildTxtRow(v8::Isolate* isolate, v8::Local<v8::Cont
     }
     auto obj = v8::Object::New(isolate);
     for (const auto& column : *columns) {
-        auto cell = TxtValueToV8(isolate, game::GetTxtValue(tableName, row, column));
+        auto cell = TxtValueToJS(isolate, game::GetTxtValue(tableName, row, column));
         if (!cell.IsEmpty()) {
-            obj->Set(context, v8_convert::ToV8(isolate, column), cell).Check();
+            obj->Set(context, convert::ToJS(isolate, column), cell).Check();
         }
     }
     return obj;

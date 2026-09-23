@@ -28,7 +28,7 @@ struct DirectoryData {
 };
 
 // JSDirectory - V8 wrapper for directory operations
-class JSDirectory : public V8ClassBase<JSDirectory, DirectoryData> {
+class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
    public:
     static constexpr std::string_view ClassName = "Folder";
 
@@ -52,7 +52,7 @@ class JSDirectory : public V8ClassBase<JSDirectory, DirectoryData> {
                     return;
                 }
 
-                info.GetReturnValue().Set(v8_convert::ToV8(isolate, data->path.string()));
+                info.GetReturnValue().Set(convert::ToJS(isolate, data->path.string()));
             });
 
         /// @description Creates a subdirectory under this directory.
@@ -70,30 +70,30 @@ class JSDirectory : public V8ClassBase<JSDirectory, DirectoryData> {
                 auto* data = Unwrap(self);
 
                 if (!data) {
-                    v8_error::ThrowError(isolate, "Invalid directory object");
+                    error::ThrowError(isolate, "Invalid directory object");
                     return;
                 }
 
-                if (!v8_error::CheckArgCount(args, 1, "Directory.create")) {
+                if (!error::CheckArgCount(args, 1, "Directory.create")) {
                     return;
                 }
 
                 if (!args[0]->IsString()) {
-                    v8_error::ThrowTypeError(isolate, "No path passed to dir.create()");
+                    error::ThrowTypeError(isolate, "No path passed to dir.create()");
                     return;
                 }
 
-                std::string name = v8_convert::ToString(isolate, args[0]);
+                std::string name = convert::ToString(isolate, args[0]);
 
                 if (name.empty()) {
-                    v8_error::ThrowError(isolate, "Invalid directory name");
+                    error::ThrowError(isolate, "Invalid directory name");
                     return;
                 }
 
                 auto relativePath = (data->path / name).string();
                 auto fullPath = config::GetPathRelScript(relativePath);
                 if (fullPath.empty()) {
-                    v8_error::ThrowError(isolate, "Invalid directory path");
+                    error::ThrowError(isolate, "Invalid directory path");
                     return;
                 }
 
@@ -101,7 +101,7 @@ class JSDirectory : public V8ClassBase<JSDirectory, DirectoryData> {
                 std::filesystem::create_directory(fullPath, ec);
                 if (ec) {
                     auto msg = "Couldn't create directory " + name + ", path '" + fullPath.string() + "' not found";
-                    v8_error::ThrowError(isolate, msg);
+                    error::ThrowError(isolate, msg);
                     return;
                 }
 
@@ -128,13 +128,13 @@ class JSDirectory : public V8ClassBase<JSDirectory, DirectoryData> {
                 auto* data = Unwrap(self);
 
                 if (!data) {
-                    v8_error::ThrowError(isolate, "Invalid directory object");
+                    error::ThrowError(isolate, "Invalid directory object");
                     return;
                 }
 
                 auto fullPath = config::GetPathRelScript(data->path.string());
                 if (fullPath.empty()) {
-                    v8_error::ThrowError(isolate, "Invalid directory path");
+                    error::ThrowError(isolate, "Invalid directory path");
                     return;
                 }
 
@@ -142,21 +142,21 @@ class JSDirectory : public V8ClassBase<JSDirectory, DirectoryData> {
                 bool removed = std::filesystem::remove(fullPath, ec);
                 if (ec) {
                     if (ec == std::errc::directory_not_empty) {
-                        v8_error::ThrowError(
+                        error::ThrowError(
                             isolate,
                             "Tried to delete directory, but it is not empty or is the current working directory");
                     } else {
                         auto msg = "Failed to remove directory: " + ec.message();
-                        v8_error::ThrowError(isolate, msg);
+                        error::ThrowError(isolate, msg);
                     }
                     return;
                 }
                 if (!removed) {
-                    v8_error::ThrowError(isolate, "Path not found");
+                    error::ThrowError(isolate, "Path not found");
                     return;
                 }
 
-                args.GetReturnValue().Set(v8_convert::ToV8(isolate, true));
+                args.GetReturnValue().Set(convert::ToJS(isolate, true));
             });
 
         /// @description Lists file names in this directory matching a glob pattern.
@@ -182,7 +182,7 @@ class JSDirectory : public V8ClassBase<JSDirectory, DirectoryData> {
                 // Default pattern matches reference behavior (PathMatchSpecW)
                 std::string pattern = "*.*";
                 if (args.Length() > 0) {
-                    pattern = v8_convert::ToString(isolate, args[0]);
+                    pattern = convert::ToString(isolate, args[0]);
                 }
 
                 auto fullPath = config::GetPathRelScript(data->path.string());
@@ -195,7 +195,7 @@ class JSDirectory : public V8ClassBase<JSDirectory, DirectoryData> {
 
                 auto arr = v8::Array::New(isolate, static_cast<int32_t>(files.size()));
                 for (uint32_t i = 0; i < files.size(); ++i) {
-                    arr->Set(context, i, v8_convert::ToV8(isolate, files[i])).Check();
+                    arr->Set(context, i, convert::ToJS(isolate, files[i])).Check();
                 }
                 args.GetReturnValue().Set(arr);
             });
@@ -223,7 +223,7 @@ class JSDirectory : public V8ClassBase<JSDirectory, DirectoryData> {
                 // Default pattern matches reference behavior (PathMatchSpecW)
                 std::string pattern = "*.*";
                 if (args.Length() > 0) {
-                    pattern = v8_convert::ToString(isolate, args[0]);
+                    pattern = convert::ToString(isolate, args[0]);
                 }
 
                 auto fullPath = config::GetPathRelScript(data->path.string());
@@ -236,7 +236,7 @@ class JSDirectory : public V8ClassBase<JSDirectory, DirectoryData> {
 
                 auto arr = v8::Array::New(isolate, static_cast<int32_t>(folders.size()));
                 for (uint32_t i = 0; i < folders.size(); ++i) {
-                    arr->Set(context, i, v8_convert::ToV8(isolate, folders[i])).Check();
+                    arr->Set(context, i, convert::ToJS(isolate, folders[i])).Check();
                 }
                 args.GetReturnValue().Set(arr);
             });

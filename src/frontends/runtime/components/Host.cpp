@@ -37,7 +37,7 @@
 #include "utils/threadutils.h"
 #include "utils/utils.h"
 
-namespace d2bs::js {
+namespace d2bs::runtime {
 
 void Host::Initialize(HMODULE hModule) {
     // Claim the logger before SetupLogging so a failure on the way there is still
@@ -247,7 +247,7 @@ void Host::SetupLogging() {
     // loggers the backend created during Bridge::Init - which runs at DLL
     // attach, before this - start writing here too rather than staying
     // attached to whatever the default logger was at the time.
-    utils::AddLogSink(std::make_shared<js::console::ConsoleSink>());
+    utils::AddLogSink(std::make_shared<runtime::console::ConsoleSink>());
 
     std::string logFile;
     std::string openError;
@@ -308,14 +308,14 @@ game::GameCallbacks Host::BuildCallbacks() {
 
     callbacks.onMouseClick = +[](game::ClickButton button, game::Position pos, game::KeyState state) -> bool {
         const auto phase = GameLoop::Instance().InPhase(FramePhase::Events);
-        bool blocked = js::drawing::Drawable::OnClick(button, pos.ToPoint(), game::GetGameState());
+        bool blocked = runtime::drawing::Drawable::OnClick(button, pos.ToPoint(), game::GetGameState());
         MouseClickEventDispatch(button, pos, state);
         return blocked;
     };
 
     callbacks.onMouseMove = +[](game::Position pos) {
         const auto phase = GameLoop::Instance().InPhase(FramePhase::Events);
-        js::drawing::Drawable::OnMouseMove(pos.ToPoint(), game::GetGameState());
+        runtime::drawing::Drawable::OnMouseMove(pos.ToPoint(), game::GetGameState());
         MouseMoveEventDispatch(pos);
     };
 
@@ -325,12 +325,12 @@ game::GameCallbacks Host::BuildCallbacks() {
     callbacks.onWhisper = &EventHook<&WhisperEventDispatch>;
 
     // Overlay/terminal Enter -> RunCommand dispatch. Fire-and-forget.
-    callbacks.onConsoleInput = &js::script::RunCommand;
+    callbacks.onConsoleInput = &runtime::script::RunCommand;
 
     // Console output sink + per-frame UI render: lets the port console host feed
     // and draw the frontend console without a direct dependency on it.
-    callbacks.onConsoleMessage = &js::console::OnMessage;
-    callbacks.onConsoleDrawFrame = &js::console::DrawFrame;
+    callbacks.onConsoleMessage = &runtime::console::OnMessage;
+    callbacks.onConsoleDrawFrame = &runtime::console::DrawFrame;
 
     // --- Packets (blockable) ---
     callbacks.onGamePacketReceived = &EventHook<&GamePacketEventDispatch>;
@@ -391,4 +391,4 @@ game::GameCallbacks Host::BuildCallbacks() {
     return callbacks;
 }
 
-}  // namespace d2bs::js
+}  // namespace d2bs::runtime

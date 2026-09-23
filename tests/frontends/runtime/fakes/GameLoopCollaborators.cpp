@@ -37,7 +37,7 @@ void PlayerAssignEventDispatch(uint32_t unitId) {
 }  // namespace d2bs
 
 // === Drawable (shim) ===
-namespace d2bs::js::drawing {
+namespace d2bs::runtime::drawing {
 
 void Drawable::DrawAll(game::GameState state) {
     auto& s = test::State();
@@ -49,7 +49,7 @@ void Drawable::DrawAll(game::GameState state) {
 // in the game text/draw layer, so the test stubs it out.
 void DrawVersionBanner() {}
 
-}  // namespace d2bs::js::drawing
+}  // namespace d2bs::runtime::drawing
 
 // === ScriptEngine (shim) ===
 namespace d2bs {

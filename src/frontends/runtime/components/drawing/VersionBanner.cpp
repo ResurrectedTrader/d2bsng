@@ -11,7 +11,7 @@
 #include "game/Types.h"
 #include "update/UpdateChecker.h"
 
-namespace d2bs::js::drawing {
+namespace d2bs::runtime::drawing {
 
 void DrawVersionBanner() {
     constexpr uint32_t BANNER_FONT = 0;
@@ -44,4 +44,4 @@ void DrawVersionBanner() {
     game::DrawGameText(bannerText, bannerPos, BANNER_COLOR, BANNER_FONT);
 }
 
-}  // namespace d2bs::js::drawing
+}  // namespace d2bs::runtime::drawing

@@ -24,7 +24,7 @@ struct ScriptHandle {
 // - getNext returns true if moved to next script, undefined if at end
 // - All methods return null on success (matching JSVAL_NULL)
 // - If script is not found, properties return undefined, methods return null
-class JSScript : public V8ClassBase<JSScript, ScriptHandle> {
+class JSScript : public ClassBase<JSScript, ScriptHandle> {
    public:
     static constexpr std::string_view ClassName = "D2BSScript";
 

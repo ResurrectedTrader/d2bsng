@@ -3,7 +3,7 @@
 Extract the JavaScript API surface from d2bsng V8 bindings.
 
 Parses C++ source files using libclang to walk the AST and find V8
-registration calls (Method, Property, v8_function::Register, etc.),
+registration calls (Method, Property, function::Register, etc.),
 then outputs a structured JSON description of the entire JS API.
 
 Structured ``/// @tag`` comments immediately above a registration call

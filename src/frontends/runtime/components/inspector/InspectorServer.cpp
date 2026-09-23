@@ -20,7 +20,7 @@
 #include "components/inspector/InspectorTarget.h"
 #include "utils/utils.h"
 
-namespace d2bs::js::inspector {
+namespace d2bs::runtime::inspector {
 
 namespace {
 
@@ -327,4 +327,4 @@ std::string InspectorServer::BuildListJson() const {
     return list.dump();
 }
 
-}  // namespace d2bs::js::inspector
+}  // namespace d2bs::runtime::inspector

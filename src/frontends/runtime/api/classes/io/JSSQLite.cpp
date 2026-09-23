@@ -64,10 +64,10 @@ void JSSQLite::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     // SQLite(path) or SQLite(path, autoOpen)
     if (argc > 0) {
         if (!args[0]->IsString()) {
-            v8_error::ThrowTypeError(isolate, "Invalid parameters in SQLite constructor");
+            error::ThrowTypeError(isolate, "Invalid parameters in SQLite constructor");
             return;
         }
-        auto pathStr = v8_convert::ToString(isolate, args[0]);
+        auto pathStr = convert::ToString(isolate, args[0]);
 
         // Empty string in SQLite creates a temp file in the system temp directory,
         // which would bypass the script sandbox. Treat it as :memory: instead.
@@ -77,7 +77,7 @@ void JSSQLite::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
             // Regular file path - must pass sandbox validation
             auto sandboxed = config::GetPathRelScript(pathStr);
             if (sandboxed.empty()) {
-                v8_error::ThrowError(isolate, "Invalid file path");
+                error::ThrowError(isolate, "Invalid file path");
                 return;
             }
             path = sandboxed;
@@ -101,7 +101,7 @@ void JSSQLite::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
             std::string msg = "Could not open database: ";
             msg += sqlite3_errmsg(data->handle);
             sqlite3_close(data->handle);
-            v8_error::ThrowError(isolate, msg);
+            error::ThrowError(isolate, msg);
             return;
         }
         data->isOpen = true;
@@ -128,7 +128,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 return;
             }
 
-            info.GetReturnValue().Set(v8_convert::ToV8(isolate, PathToUtf8(data->path)));
+            info.GetReturnValue().Set(convert::ToJS(isolate, PathToUtf8(data->path)));
         });
 
     /// @description The currently-open DBStatement objects belonging to this database.
@@ -153,7 +153,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             // from being GC'd while any statement wrapper is still reachable.
             auto array = v8::Array::New(isolate, static_cast<int32_t>(data->statements.size()));
             auto stmtTpl = JSDBStatement::GetTemplate(isolate);
-            auto parentKey = v8::Private::ForApi(isolate, v8_convert::ToV8(isolate, "d2bs::DBStatement#parentDb"));
+            auto parentKey = v8::Private::ForApi(isolate, convert::ToJS(isolate, "d2bs::DBStatement#parentDb"));
             uint32_t idx = 0;
             for (auto* stmt : data->statements) {
                 if (!stmt->isOpen) {
@@ -185,7 +185,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 return;
             }
 
-            info.GetReturnValue().Set(v8_convert::ToV8(isolate, data->isOpen));
+            info.GetReturnValue().Set(convert::ToJS(isolate, data->isOpen));
         });
 
     /// @description The rowid of the most recently inserted row on this connection.
@@ -202,7 +202,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             }
 
             auto rowId = sqlite3_last_insert_rowid(data->handle);
-            info.GetReturnValue().Set(v8_convert::ToV8(isolate, static_cast<double>(rowId)));
+            info.GetReturnValue().Set(convert::ToJS(isolate, static_cast<double>(rowId)));
         });
 
     /// @description The number of rows changed by the most recent statement on this connection.
@@ -218,7 +218,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 return;
             }
 
-            info.GetReturnValue().Set(v8_convert::ToV8(isolate, sqlite3_changes(data->handle)));
+            info.GetReturnValue().Set(convert::ToJS(isolate, sqlite3_changes(data->handle)));
         });
 
     // Instance Methods
@@ -233,33 +233,33 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             auto* isolate = args.GetIsolate();
             auto self = args.This();
 
-            if (!v8_error::CheckArgCount(args, 1, "execute")) {
+            if (!error::CheckArgCount(args, 1, "execute")) {
                 return;
             }
 
             if (!args[0]->IsString()) {
-                v8_error::ThrowTypeError(isolate, "execute() requires a SQL string argument");
+                error::ThrowTypeError(isolate, "execute() requires a SQL string argument");
                 return;
             }
 
             auto data = Unwrap(self);
             if (!data) {
-                v8_error::ThrowError(isolate, "Invalid SQLite object");
+                error::ThrowError(isolate, "Invalid SQLite object");
                 return;
             }
 
             if (!data->isOpen) {
-                v8_error::ThrowError(isolate, "Database must first be opened!");
+                error::ThrowError(isolate, "Database must first be opened!");
                 return;
             }
 
-            std::string sql = v8_convert::ToString(isolate, args[0]);
+            std::string sql = convert::ToString(isolate, args[0]);
             char* errMsg = nullptr;
 
             if (SQLITE_OK != sqlite3_exec(data->handle, sql.c_str(), nullptr, nullptr, &errMsg)) {
                 std::string msg = errMsg ? errMsg : "Unknown error";
                 sqlite3_free(errMsg);
-                v8_error::ThrowError(isolate, msg);
+                error::ThrowError(isolate, msg);
                 return;
             }
 
@@ -280,38 +280,38 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             auto self = args.This();
             auto context = isolate->GetCurrentContext();
 
-            if (!v8_error::CheckArgCount(args, 1, "query")) {
+            if (!error::CheckArgCount(args, 1, "query")) {
                 return;
             }
 
             if (!args[0]->IsString()) {
-                v8_error::ThrowTypeError(isolate, "query() requires a SQL string argument");
+                error::ThrowTypeError(isolate, "query() requires a SQL string argument");
                 return;
             }
 
             auto data = Unwrap(self);
             if (!data) {
-                v8_error::ThrowError(isolate, "Invalid SQLite object");
+                error::ThrowError(isolate, "Invalid SQLite object");
                 return;
             }
 
             if (!data->isOpen) {
-                v8_error::ThrowError(isolate, "Database must first be opened!");
+                error::ThrowError(isolate, "Database must first be opened!");
                 return;
             }
 
-            std::string sql = v8_convert::ToString(isolate, args[0]);
+            std::string sql = convert::ToString(isolate, args[0]);
 
             // Prepare statement
             sqlite3_stmt* stmtHandle = nullptr;
             if (SQLITE_OK !=
                 sqlite3_prepare_v2(data->handle, sql.c_str(), static_cast<int>(sql.length()), &stmtHandle, nullptr)) {
-                v8_error::ThrowError(isolate, sqlite3_errmsg(data->handle));
+                error::ThrowError(isolate, sqlite3_errmsg(data->handle));
                 return;
             }
 
             if (!stmtHandle) {
-                v8_error::ThrowError(isolate, "Statement has no effect");
+                error::ThrowError(isolate, "Statement has no effect");
                 return;
             }
 
@@ -321,7 +321,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 if (!BindValue(isolate, args[i], stmtHandle, i)) {
                     sqlite3_finalize(stmtHandle);
                     std::string msg = "Invalid bound parameter " + std::to_string(i);
-                    v8_error::ThrowError(isolate, msg);
+                    error::ThrowError(isolate, msg);
                     return;
                 }
             }
@@ -357,7 +357,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
 
             auto data = Unwrap(self);
             if (!data) {
-                v8_error::ThrowError(isolate, "Invalid SQLite object");
+                error::ThrowError(isolate, "Invalid SQLite object");
                 return;
             }
 
@@ -368,7 +368,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                     msg += sqlite3_errmsg(data->handle);
                     sqlite3_close(data->handle);
                     data->handle = nullptr;
-                    v8_error::ThrowError(isolate, msg);
+                    error::ThrowError(isolate, msg);
                     return;
                 }
                 data->isOpen = true;
@@ -388,7 +388,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
 
             auto data = Unwrap(self);
             if (!data) {
-                v8_error::ThrowError(isolate, "Invalid SQLite object");
+                error::ThrowError(isolate, "Invalid SQLite object");
                 return;
             }
 
@@ -406,7 +406,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 if (rc != SQLITE_OK) {
                     std::string msg = "Could not close database: ";
                     msg += sqlite3_errmsg(data->handle);
-                    v8_error::ThrowError(isolate, msg);
+                    error::ThrowError(isolate, msg);
                     // sqlite3_close_v2 marks the connection for deferred close,
                     // so we still clear our state to avoid double-close
                 }
@@ -424,7 +424,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
     StaticMethod(
         isolate, tpl, "version", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            args.GetReturnValue().Set(v8_convert::ToV8(isolate, sqlite3_version));
+            args.GetReturnValue().Set(convert::ToJS(isolate, sqlite3_version));
         });
 
     /// @description Returns the number of bytes of memory currently in use by the SQLite library.
@@ -433,7 +433,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
     StaticMethod(
         isolate, tpl, "memoryUsage", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            args.GetReturnValue().Set(v8_convert::ToV8(isolate, static_cast<double>(sqlite3_memory_used())));
+            args.GetReturnValue().Set(convert::ToJS(isolate, static_cast<double>(sqlite3_memory_used())));
         });
 }
 

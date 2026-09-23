@@ -6,7 +6,7 @@
 
 #include "components/inspector/ScriptInspector.h"
 
-namespace d2bs::js::inspector {
+namespace d2bs::runtime::inspector {
 
 InspectorTarget::InspectorTarget(std::string id, std::string title, std::string url, std::weak_ptr<v8::Isolate> isolate)
     : id_(std::move(id)), title_(std::move(title)), url_(std::move(url)), isolate_(std::move(isolate)) {}
@@ -58,4 +58,4 @@ void InspectorTarget::WaitForEvents(const std::stop_token& stop, std::chrono::mi
     cv_.wait_for(lock, timeout, [&] { return !queue_.empty() || stop.stop_requested(); });
 }
 
-}  // namespace d2bs::js::inspector
+}  // namespace d2bs::runtime::inspector

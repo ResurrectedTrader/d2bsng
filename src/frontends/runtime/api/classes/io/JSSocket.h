@@ -22,7 +22,7 @@ struct SocketData {
 // Properties: readable, writeable
 // Instance methods: read, send, close
 // Static methods: open
-class JSSocket : public V8ClassBase<JSSocket, SocketData> {
+class JSSocket : public ClassBase<JSSocket, SocketData> {
    public:
     static constexpr std::string_view ClassName = "Socket";
 

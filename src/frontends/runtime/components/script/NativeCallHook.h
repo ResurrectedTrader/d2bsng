@@ -9,12 +9,12 @@
 
 #include "utils/Profiling.h"
 
-// Trampolines between V8 and the native callbacks registered through V8Class / V8Function. Each
+// Trampolines between V8 and the native callbacks registered through ClassBase / function::Register. Each
 // one runs OnNativeCall first (console stack capture), then times the callback for the Profiling
 // panel. V8's single `data` slot carries a pointer to the interned NativeBinding / PropertyAccessors
 // entry, which holds the callback(s), the name, and the cumulative stats.
 
-namespace d2bs::js::script {
+namespace d2bs::runtime::script {
 
 // Process-wide count of scripts in StackCaptureMode::OnEveryCall. While zero, OnNativeCall
 // short-circuits on this one relaxed load. Maintained by Script::SetStackCaptureMode.
@@ -72,4 +72,4 @@ void ResetNativeBindings();
 
 #endif  // D2BS_PROFILING
 
-}  // namespace d2bs::js::script
+}  // namespace d2bs::runtime::script

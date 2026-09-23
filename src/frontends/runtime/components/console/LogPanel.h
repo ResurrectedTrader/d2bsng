@@ -11,7 +11,7 @@
 #include "components/console/RowSelection.h"
 #include "game/Console.h"
 
-namespace d2bs::js::console {
+namespace d2bs::runtime::console {
 
 // Read-only log viewer. Receives Print + Log source messages (EvaluateResult
 // is routed to ConsolePanel). Filters: source toggles, min level, per-script
@@ -70,4 +70,4 @@ class LogPanel : public Panel {
     static constexpr size_t MAX_SCROLLBACK = 5000;
 };
 
-}  // namespace d2bs::js::console
+}  // namespace d2bs::runtime::console

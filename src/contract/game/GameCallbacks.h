@@ -44,7 +44,7 @@ struct GameCallbacks {
     // Called when the user submits a line to a port-provided console UI
     // (overlay Enter, ImGui InputText enter, terminal stdin line, etc.).
     // Frontend dispatches built-ins + JS-eval fallback via
-    // js::console::OnCommand. Fire-and-forget.
+    // runtime::console::OnCommand. Fire-and-forget.
     void (*onConsoleInput)(const std::string& line) = nullptr;
 
     // --- Console ---

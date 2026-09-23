@@ -30,21 +30,21 @@ class JSImage : public JSDrawableBase<JSImage, ImageDrawable> {
 
         auto* script = ScriptEngine::Instance().GetScript(isolate);
         if (!script) {
-            v8_error::ThrowError(isolate, "Image: no owning script");
+            error::ThrowError(isolate, "Image: no owning script");
             return;
         }
 
         auto drawable = std::make_shared<ImageDrawable>();
 
         if (args.Length() > 0 && args[0]->IsString()) {
-            drawable->SetPath(v8_convert::ToString(isolate, args[0]));
+            drawable->SetPath(convert::ToString(isolate, args[0]));
         }
-        v8_extract::PointInto(args, 1, drawable->pos);
+        extract::PointInto(args, 1, drawable->pos);
         if (args.Length() > 3 && args[3]->IsNumber()) {
-            drawable->color.store(v8_convert::ToUint32(isolate, args[3]));
+            drawable->color.store(convert::ToUint32(isolate, args[3]));
         }
         if (args.Length() > 4 && args[4]->IsNumber()) {
-            drawable->align.store(static_cast<Align>(v8_convert::ToInt32(isolate, args[4])));
+            drawable->align.store(static_cast<Align>(convert::ToInt32(isolate, args[4])));
         }
         if (args.Length() > 5 && args[5]->IsBoolean()) {
             drawable->isAutomap.store(args[5]->BooleanValue(isolate));
@@ -78,7 +78,7 @@ class JSImage : public JSDrawableBase<JSImage, ImageDrawable> {
                 auto* drawable = Unwrap(info.Holder());
                 if (!drawable)
                     return;
-                info.GetReturnValue().Set(v8_convert::ToV8(info.GetIsolate(), drawable->GetPath()));
+                info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), drawable->GetPath()));
             },
             +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
                 auto* drawable = Unwrap(info.Holder());
@@ -86,7 +86,7 @@ class JSImage : public JSDrawableBase<JSImage, ImageDrawable> {
                     return;
                 if (!value->IsString())
                     return;
-                drawable->SetPath(v8_convert::ToString(info.GetIsolate(), value));
+                drawable->SetPath(convert::ToString(info.GetIsolate(), value));
             });
     }
 };

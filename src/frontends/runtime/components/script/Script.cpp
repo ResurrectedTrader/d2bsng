@@ -215,7 +215,7 @@ void Script::AttachInspector() {
     // install path stays out of DevTools and the URLs are stable across machines.
     std::string url =
         isConsole ? std::string("d2bs://console") : config::GetAppConfig().GetScriptPaths().FileUrl(path_);
-    inspector_ = std::make_unique<js::inspector::ScriptInspector>(this, std::move(title), std::move(url));
+    inspector_ = std::make_unique<runtime::inspector::ScriptInspector>(this, std::move(title), std::move(url));
 }
 
 void Script::ThreadMain(const std::stop_token& stopToken) {
@@ -280,12 +280,10 @@ bool InstallConsoleRouting(v8::Isolate* iso, v8::Local<v8::Context> context) {
     auto evaluating = v8::Function::New(
                           context,
                           +[](const v8::FunctionCallbackInfo<v8::Value>& info) {
-                              info.GetReturnValue().Set(js::inspector::ScriptInspector::IsEvaluating());
+                              info.GetReturnValue().Set(runtime::inspector::ScriptInspector::IsEvaluating());
                           })
                           .ToLocalChecked();
-    if (context->Global()
-            ->Set(context, api::v8_convert::ToV8(iso, "__d2bsInspectorEvaluating"), evaluating)
-            .IsNothing()) {
+    if (context->Global()->Set(context, api::convert::ToJS(iso, "__d2bsInspectorEvaluating"), evaluating).IsNothing()) {
         return false;
     }
     // Stash V8's built-in (inspector-wired) console, then redefine `console` as
@@ -309,7 +307,7 @@ bool InstallConsoleRouting(v8::Isolate* iso, v8::Local<v8::Context> context) {
 })();
 )JS";
     v8::Local<v8::Script> shim;
-    if (!v8::Script::Compile(context, api::v8_convert::ToV8(iso, CONSOLE_SHIM).As<v8::String>()).ToLocal(&shim)) {
+    if (!v8::Script::Compile(context, api::convert::ToJS(iso, CONSOLE_SHIM).As<v8::String>()).ToLocal(&shim)) {
         return false;
     }
     return !shim->Run(context).IsEmpty();
@@ -319,7 +317,7 @@ bool InstallConsoleRouting(v8::Isolate* iso, v8::Local<v8::Context> context) {
 
 void Script::SetupIsolate() {
     // Ensure V8 platform is initialized (singleton)
-    (void)V8Host::GetPlatform();
+    (void)Engine::GetPlatform();
 
     auto allocator = std::shared_ptr<v8::ArrayBuffer::Allocator>(v8::ArrayBuffer::Allocator::NewDefaultAllocator());
 
@@ -356,7 +354,7 @@ void Script::SetupIsolate() {
     // Cross-thread callers (Stop, PostEvent) load their own shared_ptr copy,
     // which prevents Dispose from running until they're done.
     //
-    // The deleter also performs the V8InstanceTracker leak check.  The check
+    // The deleter also performs the InstanceTracker leak check.  The check
     // must run *after* Dispose because the JS heap's roots - compilation
     // cache, microtask queue, queued tasks - are only fully released by
     // Dispose; pre-Dispose checks see those objects as alive even though V8
@@ -368,11 +366,11 @@ void Script::SetupIsolate() {
     // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) - false positive: allocator captured by shared_ptr deleter
     isolate_.store(
         std::shared_ptr<v8::Isolate>(iso, [alloc = std::move(allocator), threadId, logger](v8::Isolate* ptr) {
-            v8::platform::NotifyIsolateShutdown(V8Host::GetPlatform(), ptr);
+            v8::platform::NotifyIsolateShutdown(Engine::GetPlatform(), ptr);
             ptr->Dispose();
             // alloc destroyed here - allocator guaranteed to outlive Dispose()
 
-            auto& tracker = api::V8InstanceTracker::Instance();
+            auto& tracker = api::InstanceTracker::Instance();
             auto remaining = tracker.Snapshot(threadId);
             for (const auto& [name, count] : remaining) {
                 logger->error("Instance leak: {} {} instance(s) not freed", count, name);
@@ -438,8 +436,8 @@ void Script::SetupIsolate() {
             logger_->error("Failed to create 'me' global object");
             return;
         }
-        context->Global()->Set(context, api::v8_convert::ToV8(iso, "me"), me).Check();
-        js::script::ApplyCompatibilityPrelude(iso, context);
+        context->Global()->Set(context, api::convert::ToJS(iso, "me"), me).Check();
+        runtime::script::ApplyCompatibilityPrelude(iso, context);
     }
 }
 
@@ -518,7 +516,7 @@ void Script::RunScript() {
     if (mode_ == ScriptMode::Console && path_.empty()) {
         auto src = "function main() { print('D2BS :: Started Console'); while(true) { delay(10000); } }";
         v8::Local<v8::Script> script;
-        if (js::script::CompileSource(iso, context, src, "Console").ToLocal(&script)) {
+        if (runtime::script::CompileSource(iso, context, src, "Console").ToLocal(&script)) {
             v8::Local<v8::Value> dummy;
             (void)script->Run(context).ToLocal(&dummy);
         }
@@ -538,7 +536,7 @@ void Script::RunScript() {
         // segment of the install path. The base-relative form
         // (ScriptPaths::RelativeScriptPath) is only the display name / URL.
         v8::Local<v8::Script> script;
-        if (!js::script::CompileSource(iso, context, std::move(source), path_.string()).ToLocal(&script)) {
+        if (!runtime::script::CompileSource(iso, context, std::move(source), path_.string()).ToLocal(&script)) {
             if (tryCatch.HasCaught() && !tryCatch.HasTerminated()) {
                 ReportException(tryCatch);
             }
@@ -559,7 +557,7 @@ void Script::RunScript() {
     }
 
     // Call main() if it exists
-    auto mainStr = api::v8_convert::ToV8(iso, "main");
+    auto mainStr = api::convert::ToJS(iso, "main");
     v8::Local<v8::Value> mainVal;
     if (context->Global()->Get(context, mainStr).ToLocal(&mainVal) && mainVal->IsFunction()) {
         auto mainFn = mainVal.As<v8::Function>();
@@ -676,7 +674,7 @@ std::optional<HeapStats> Script::GetHeapStats() const {
 }
 
 ObjectCounts Script::GetObjectCounts() const {
-    return api::V8InstanceTracker::Instance().Snapshot(GetThreadId());
+    return api::InstanceTracker::Instance().Snapshot(GetThreadId());
 }
 
 void Script::SetStackCaptureMode(StackCaptureMode mode) {
@@ -687,9 +685,9 @@ void Script::SetStackCaptureMode(StackCaptureMode mode) {
     // Keep the process-wide OnEveryCall tally in sync so OnNativeCall's fast path
     // (skip the per-call script lookup) engages whenever no script is capturing.
     if (mode == StackCaptureMode::OnEveryCall) {
-        js::script::onEveryCallCaptureCount.fetch_add(1, std::memory_order_relaxed);
+        runtime::script::onEveryCallCaptureCount.fetch_add(1, std::memory_order_relaxed);
     } else if (prev == StackCaptureMode::OnEveryCall) {
-        js::script::onEveryCallCaptureCount.fetch_sub(1, std::memory_order_relaxed);
+        runtime::script::onEveryCallCaptureCount.fetch_sub(1, std::memory_order_relaxed);
     }
 }
 
@@ -873,7 +871,7 @@ void Script::ExecuteEvents(std::chrono::milliseconds duration) {
     auto* iso = isolate_.load().get();
     if (!iso)
         return;
-    auto* platform = V8Host::GetPlatform();
+    auto* platform = Engine::GetPlatform();
     auto stopToken = thread_.get_stop_token();
 
     // Idle-wait granularity (INI IdleSleepIntervalMs): wall-ms slept per idle pass.
@@ -960,7 +958,7 @@ bool Script::ExecuteEvent(const std::shared_ptr<BaseEvent>& event) {
             // Pumped from inside delay(): the handler is the script's work, not delay's.
             const auto phase = idle_.Nest(IdlePhase::Handlers);
             const profiling::ScopedNativeExclusion handlerIsJs;
-            js::script::Invocation call(*this, iso, fns);
+            runtime::script::Invocation call(*this, iso, fns);
             event->Execute(call);
         }
 
@@ -996,7 +994,7 @@ bool Script::PostEvent(const std::shared_ptr<BaseEvent>& event, uint32_t delayMs
         return false;
     }
 
-    auto* platform = V8Host::GetPlatform();
+    auto* platform = Engine::GetPlatform();
     auto runner = platform->GetForegroundTaskRunner(iso.get());
     // Ensures BlockableEvent::remaining_ is decremented even if the task is dropped or the isolate tears down
     // mid-dispatch.
@@ -1046,7 +1044,7 @@ bool Script::Include(const std::filesystem::path& absolutePath) {
 
     // Match RunScript: absolute path so kolbot's require.js stack-trace regex finds the d2bs\ segment.
     v8::Local<v8::Script> script;
-    if (!js::script::CompileSource(iso, context, std::move(source), absolutePath.string()).ToLocal(&script)) {
+    if (!runtime::script::CompileSource(iso, context, std::move(source), absolutePath.string()).ToLocal(&script)) {
         logger_->warn("Failed to compile include: {}", absolutePath.string());
         if (tryCatch.HasCaught() && !tryCatch.HasTerminated()) {
             ReportException(tryCatch);
@@ -1079,7 +1077,7 @@ bool Script::Include(const std::filesystem::path& absolutePath) {
 // Drawables (screen hooks)
 // ============================================================================
 
-void Script::AddDrawable(std::shared_ptr<js::drawing::Drawable> drawable) {
+void Script::AddDrawable(std::shared_ptr<runtime::drawing::Drawable> drawable) {
     if (!drawable) {
         return;
     }
@@ -1087,12 +1085,12 @@ void Script::AddDrawable(std::shared_ptr<js::drawing::Drawable> drawable) {
     drawables_.push_back(std::move(drawable));
 }
 
-void Script::RemoveDrawable(const std::shared_ptr<js::drawing::Drawable>& drawable, bool fireLeaveEvent) {
+void Script::RemoveDrawable(const std::shared_ptr<runtime::drawing::Drawable>& drawable, bool fireLeaveEvent) {
     if (!drawable) {
         return;
     }
 
-    // Run onDestroy on the script thread - that keeps the V8InstanceTracker
+    // Run onDestroy on the script thread - that keeps the InstanceTracker
     // bucket aligned with the Increment thread. Dispatch the leave event after
     // releasing the lock so a JS callback can safely re-enter
     // Add/RemoveDrawable without self-deadlock, and drop the handler entry only
@@ -1125,12 +1123,12 @@ void Script::RemoveDrawable(const std::shared_ptr<js::drawing::Drawable>& drawab
     drawableHandlers_.erase(drawable.get());
 }
 
-std::vector<std::shared_ptr<js::drawing::Drawable>> Script::GetDrawables() {
+std::vector<std::shared_ptr<runtime::drawing::Drawable>> Script::GetDrawables() {
     std::shared_lock lock(drawablesMutex_);
     return drawables_;
 }
 
-void Script::SetDrawableHandler(js::drawing::Drawable& drawable, DrawableHandler which,
+void Script::SetDrawableHandler(runtime::drawing::Drawable& drawable, DrawableHandler which,
                                 v8::Local<v8::Function> handler) {
     std::unique_lock lock(drawablesMutex_);
     auto iso = isolate_.load();
@@ -1144,7 +1142,8 @@ void Script::SetDrawableHandler(js::drawing::Drawable& drawable, DrawableHandler
     (which == DrawableHandler::Click ? drawable.hasClick : drawable.hasHover).store(isInstalled);
 }
 
-v8::MaybeLocal<v8::Function> Script::GetDrawableHandler(const js::drawing::Drawable& drawable, DrawableHandler which) {
+v8::MaybeLocal<v8::Function> Script::GetDrawableHandler(const runtime::drawing::Drawable& drawable,
+                                                        DrawableHandler which) {
     std::shared_lock lock(drawablesMutex_);
     auto it = drawableHandlers_.find(&drawable);
     auto iso = isolate_.load();
@@ -1158,7 +1157,7 @@ v8::MaybeLocal<v8::Function> Script::GetDrawableHandler(const js::drawing::Drawa
     return slot.Get(iso.get());
 }
 
-bool Script::DispatchDrawableClick(std::shared_ptr<const js::drawing::Drawable> drawable, game::ClickButton button,
+bool Script::DispatchDrawableClick(std::shared_ptr<const runtime::drawing::Drawable> drawable, game::ClickButton button,
                                    game::Point pos) {
     if (!drawable || !drawable->hasClick.load() || !IsAlive()) {
         return false;
@@ -1175,7 +1174,7 @@ bool Script::DispatchDrawableClick(std::shared_ptr<const js::drawing::Drawable> 
     return evt->IsBlocked(std::chrono::seconds(3)).value_or(false);
 }
 
-void Script::DispatchDrawableHover(std::shared_ptr<const js::drawing::Drawable> drawable, game::Point pos,
+void Script::DispatchDrawableHover(std::shared_ptr<const runtime::drawing::Drawable> drawable, game::Point pos,
                                    bool entered) {
     if (!drawable || !drawable->hasHover.load() || !IsAlive()) {
         return;

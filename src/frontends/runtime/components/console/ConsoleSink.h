@@ -3,12 +3,12 @@
 #include <spdlog/sinks/base_sink.h>
 #include <mutex>
 
-namespace d2bs::js::console {
+namespace d2bs::runtime::console {
 
 // spdlog sink that forwards each log entry to game::console::OnMessage with
 // source=Log and the raw payload (no pattern formatting, no color parsing).
 //
-// Added to the fan-out sink every named logger shares (js::Host::SetupLogging
+// Added to the fan-out sink every named logger shares (runtime::Host::SetupLogging
 // -> utils::AddLogSink), so framework-internal entries from any logger - even
 // one created before SetupLogging ran - reach the port's OnMessage alongside
 // the file sink.
@@ -21,4 +21,4 @@ class ConsoleSink : public spdlog::sinks::base_sink<std::mutex> {
     void flush_() override {}
 };
 
-}  // namespace d2bs::js::console
+}  // namespace d2bs::runtime::console

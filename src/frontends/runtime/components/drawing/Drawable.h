@@ -11,7 +11,7 @@
 #include "game/Sprite.h"
 #include "game/Types.h"
 
-namespace d2bs::js::drawing {
+namespace d2bs::runtime::drawing {
 
 enum class Align : uint8_t { Left, Right, Center };
 
@@ -146,4 +146,4 @@ struct ImageDrawable final : Drawable {
     mutable std::mutex spriteMutex_;
 };
 
-}  // namespace d2bs::js::drawing
+}  // namespace d2bs::runtime::drawing

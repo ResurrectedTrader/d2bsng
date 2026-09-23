@@ -10,7 +10,7 @@
 #include "speedhack/Speedhack.h"
 #include "utils/utils.h"
 
-namespace d2bs::js::inspector {
+namespace d2bs::runtime::inspector {
 
 namespace {
 
@@ -247,4 +247,4 @@ v8::Local<v8::Context> ScriptInspector::Context() const {
     return script_->GetContext();
 }
 
-}  // namespace d2bs::js::inspector
+}  // namespace d2bs::runtime::inspector

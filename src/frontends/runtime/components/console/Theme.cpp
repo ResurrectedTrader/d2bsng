@@ -6,7 +6,7 @@
 #include <ctime>
 #include <string_view>
 
-namespace d2bs::js::console::theme {
+namespace d2bs::runtime::console::theme {
 
 using game::console::ColorCode;
 using game::console::MessageLevel;
@@ -138,4 +138,4 @@ std::string FormatBytes(uint64_t bytes) {
     return fmt::format("{:.2f} {}", v, UNITS[unit]);
 }
 
-}  // namespace d2bs::js::console::theme
+}  // namespace d2bs::runtime::console::theme

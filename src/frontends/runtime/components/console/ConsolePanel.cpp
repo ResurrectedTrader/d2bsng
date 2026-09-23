@@ -12,7 +12,7 @@
 #include "components/script/Commands.h"
 #include "game/Console.h"
 
-namespace d2bs::js::console {
+namespace d2bs::runtime::console {
 
 namespace {
 
@@ -316,4 +316,4 @@ void ConsolePanel::Draw() {
     DrawInputLine();
 }
 
-}  // namespace d2bs::js::console
+}  // namespace d2bs::runtime::console

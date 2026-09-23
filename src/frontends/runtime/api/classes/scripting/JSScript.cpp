@@ -31,7 +31,7 @@ void JSScript::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             auto script = GetScript(info);
             if (!script)
                 return;
-            info.GetReturnValue().Set(v8_convert::ToV8(info.GetIsolate(), script->GetName()));
+            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), script->GetName()));
         });
 
     /// @description true for an out-of-game script (menu/console), false for an in-game script.
@@ -153,7 +153,7 @@ void JSScript::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             if (script) {
                 // Prevent self-join deadlock
                 if (script->GetThreadId() == std::this_thread::get_id()) {
-                    v8_error::ThrowError(args.GetIsolate(), "Cannot join a script from its own thread");
+                    error::ThrowError(args.GetIsolate(), "Cannot join a script from its own thread");
                     return;
                 }
                 script->Join();
@@ -193,7 +193,7 @@ void JSScript::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 return;
             }
 
-            auto evt = std::make_shared<BroadcastEvent>(js::script::SerializeArgs(args));
+            auto evt = std::make_shared<BroadcastEvent>(runtime::script::SerializeArgs(args));
             script->ExecuteEvent(evt);
         });
 }

@@ -20,7 +20,7 @@
 // flags are therefore advisory - a script may clear one between the test and
 // the dispatch, and the dispatch then simply does nothing.
 
-namespace d2bs::js::drawing {
+namespace d2bs::runtime::drawing {
 
 namespace {
 
@@ -312,4 +312,4 @@ bool ImageDrawable::Contains(game::Point p) const {
     return p.x >= left && p.x < left + w && p.y >= top && p.y < top + h;
 }
 
-}  // namespace d2bs::js::drawing
+}  // namespace d2bs::runtime::drawing

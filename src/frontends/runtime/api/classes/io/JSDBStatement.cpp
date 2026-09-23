@@ -42,9 +42,9 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
             // Get SQL from statement - sqlite3_sql returns the original SQL
             const char* sql = sqlite3_sql(data->handle);
             if (sql) {
-                info.GetReturnValue().Set(v8_convert::ToV8(isolate, sql));
+                info.GetReturnValue().Set(convert::ToJS(isolate, sql));
             } else {
-                info.GetReturnValue().Set(v8_convert::ToV8(isolate, data->sql));
+                info.GetReturnValue().Set(convert::ToJS(isolate, data->sql));
             }
         });
 
@@ -61,7 +61,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
                 return;
             }
 
-            info.GetReturnValue().Set(v8_convert::ToV8(isolate, data->hasRow));
+            info.GetReturnValue().Set(convert::ToJS(isolate, data->hasRow));
         });
 
     // Methods
@@ -107,18 +107,18 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
                 switch (sqlite3_column_type(data->handle, i)) {
                     case SQLITE_INTEGER:
                         // Use double for 64-bit integers to preserve precision
-                        val = v8_convert::ToV8(isolate, static_cast<double>(sqlite3_column_int64(data->handle, i)));
+                        val = convert::ToJS(isolate, static_cast<double>(sqlite3_column_int64(data->handle, i)));
                         break;
                     case SQLITE_FLOAT:
-                        val = v8_convert::ToV8(isolate, sqlite3_column_double(data->handle, i));
+                        val = convert::ToJS(isolate, sqlite3_column_double(data->handle, i));
                         break;
                     case SQLITE_TEXT: {
                         const char* text = reinterpret_cast<const char*>(sqlite3_column_text(data->handle, i));
-                        val = v8_convert::ToV8(isolate, text ? text : "");
+                        val = convert::ToJS(isolate, text ? text : "");
                         break;
                     }
                     case SQLITE_BLOB:
-                        v8_error::ThrowError(isolate, "Blob type not supported (yet)");
+                        error::ThrowError(isolate, "Blob type not supported (yet)");
                         return;
                     case SQLITE_NULL:
                     default:
@@ -126,7 +126,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
                         break;
                 }
 
-                obj->Set(context, v8_convert::ToV8(isolate, colName), val).Check();
+                obj->Set(context, convert::ToJS(isolate, colName), val).Check();
             }
 
             data->cachedRow.Reset(isolate, obj);
@@ -144,11 +144,11 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
 
             auto data = Unwrap(self);
             if (!data || !data->hasRow) {
-                v8_error::ThrowError(isolate, "Statement is not ready");
+                error::ThrowError(isolate, "Statement is not ready");
                 return;
             }
 
-            args.GetReturnValue().Set(v8_convert::ToV8(isolate, sqlite3_column_count(data->handle)));
+            args.GetReturnValue().Set(convert::ToJS(isolate, sqlite3_column_count(data->handle)));
         });
 
     /// @description The name of the column at the given index in the current row.
@@ -162,29 +162,29 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
             auto* isolate = args.GetIsolate();
             auto self = args.This();
 
-            if (!v8_error::CheckArgCount(args, 1, "getColumnName")) {
+            if (!error::CheckArgCount(args, 1, "getColumnName")) {
                 return;
             }
 
             if (!args[0]->IsNumber()) {
-                v8_error::ThrowTypeError(isolate, "getColumnName() requires column index");
+                error::ThrowTypeError(isolate, "getColumnName() requires column index");
                 return;
             }
 
             auto data = Unwrap(self);
             if (!data || !data->hasRow) {
-                v8_error::ThrowError(isolate, "Statement is not ready");
+                error::ThrowError(isolate, "Statement is not ready");
                 return;
             }
 
-            int32_t index = v8_convert::ToInt32(isolate, args[0]);
+            int32_t index = convert::ToInt32(isolate, args[0]);
             if (index < 0 || index >= sqlite3_column_count(data->handle)) {
-                v8_error::ThrowRangeError(isolate, "Column index out of range");
+                error::ThrowRangeError(isolate, "Column index out of range");
                 return;
             }
             const char* name = sqlite3_column_name(data->handle, index);
 
-            args.GetReturnValue().Set(v8_convert::ToV8(isolate, name ? name : ""));
+            args.GetReturnValue().Set(convert::ToJS(isolate, name ? name : ""));
         });
 
     /// @description The value of the column at the given index in the current row.
@@ -199,42 +199,42 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
             auto* isolate = args.GetIsolate();
             auto self = args.This();
 
-            if (!v8_error::CheckArgCount(args, 1, "getColumnValue")) {
+            if (!error::CheckArgCount(args, 1, "getColumnValue")) {
                 return;
             }
 
             if (!args[0]->IsNumber()) {
-                v8_error::ThrowTypeError(isolate, "getColumnValue() requires column index");
+                error::ThrowTypeError(isolate, "getColumnValue() requires column index");
                 return;
             }
 
             auto data = Unwrap(self);
             if (!data || !data->hasRow) {
-                v8_error::ThrowError(isolate, "Statement is not ready");
+                error::ThrowError(isolate, "Statement is not ready");
                 return;
             }
 
-            int32_t index = v8_convert::ToInt32(isolate, args[0]);
+            int32_t index = convert::ToInt32(isolate, args[0]);
             if (index < 0 || index >= sqlite3_column_count(data->handle)) {
-                v8_error::ThrowRangeError(isolate, "Column index out of range");
+                error::ThrowRangeError(isolate, "Column index out of range");
                 return;
             }
 
             switch (sqlite3_column_type(data->handle, index)) {
                 case SQLITE_INTEGER:
                     args.GetReturnValue().Set(
-                        v8_convert::ToV8(isolate, static_cast<double>(sqlite3_column_int64(data->handle, index))));
+                        convert::ToJS(isolate, static_cast<double>(sqlite3_column_int64(data->handle, index))));
                     break;
                 case SQLITE_FLOAT:
-                    args.GetReturnValue().Set(v8_convert::ToV8(isolate, sqlite3_column_double(data->handle, index)));
+                    args.GetReturnValue().Set(convert::ToJS(isolate, sqlite3_column_double(data->handle, index)));
                     break;
                 case SQLITE_TEXT: {
                     const char* text = reinterpret_cast<const char*>(sqlite3_column_text(data->handle, index));
-                    args.GetReturnValue().Set(v8_convert::ToV8(isolate, text ? text : ""));
+                    args.GetReturnValue().Set(convert::ToJS(isolate, text ? text : ""));
                     break;
                 }
                 case SQLITE_BLOB:
-                    v8_error::ThrowError(isolate, "Blob type not supported (yet)");
+                    error::ThrowError(isolate, "Blob type not supported (yet)");
                     return;
                 case SQLITE_NULL:
                 default:
@@ -254,7 +254,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
 
             auto data = Unwrap(self);
             if (!data || !data->handle) {
-                v8_error::ThrowError(isolate, "Invalid or finalized statement object");
+                error::ThrowError(isolate, "Invalid or finalized statement object");
                 return;
             }
 
@@ -262,9 +262,9 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
 
             if (res != SQLITE_ROW && res != SQLITE_DONE) {
                 if (data->parent && data->parent->handle) {
-                    v8_error::ThrowError(isolate, sqlite3_errmsg(data->parent->handle));
+                    error::ThrowError(isolate, sqlite3_errmsg(data->parent->handle));
                 } else {
-                    v8_error::ThrowError(isolate, "SQLite error");
+                    error::ThrowError(isolate, "SQLite error");
                 }
                 return;
             }
@@ -286,7 +286,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
 
             auto data = Unwrap(self);
             if (!data || !data->handle) {
-                v8_error::ThrowError(isolate, "Invalid or finalized statement object");
+                error::ThrowError(isolate, "Invalid or finalized statement object");
                 return;
             }
 
@@ -294,9 +294,9 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
 
             if (res != SQLITE_ROW && res != SQLITE_DONE) {
                 if (data->parent && data->parent->handle) {
-                    v8_error::ThrowError(isolate, sqlite3_errmsg(data->parent->handle));
+                    error::ThrowError(isolate, sqlite3_errmsg(data->parent->handle));
                 } else {
-                    v8_error::ThrowError(isolate, "SQLite error");
+                    error::ThrowError(isolate, "SQLite error");
                 }
                 return;
             }
@@ -319,22 +319,22 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
             auto* isolate = args.GetIsolate();
             auto self = args.This();
 
-            if (!v8_error::CheckArgCount(args, 1, "skip")) {
+            if (!error::CheckArgCount(args, 1, "skip")) {
                 return;
             }
 
             if (!args[0]->IsNumber()) {
-                v8_error::ThrowTypeError(isolate, "skip() requires a count argument");
+                error::ThrowTypeError(isolate, "skip() requires a count argument");
                 return;
             }
 
             auto data = Unwrap(self);
             if (!data || !data->handle) {
-                v8_error::ThrowError(isolate, "Invalid or finalized statement object");
+                error::ThrowError(isolate, "Invalid or finalized statement object");
                 return;
             }
 
-            int32_t count = v8_convert::ToInt32(isolate, args[0]);
+            int32_t count = convert::ToInt32(isolate, args[0]);
             int32_t skipped = 0;
 
             for (int32_t i = 0; i < count; i++) {
@@ -347,9 +347,9 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
                     break;
                 } else {
                     if (data->parent && data->parent->handle) {
-                        v8_error::ThrowError(isolate, sqlite3_errmsg(data->parent->handle));
+                        error::ThrowError(isolate, sqlite3_errmsg(data->parent->handle));
                     } else {
-                        v8_error::ThrowError(isolate, "SQLite error");
+                        error::ThrowError(isolate, "SQLite error");
                     }
                     return;
                 }
@@ -358,7 +358,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
             // Clear cached row (stale after skipping)
             data->cachedRow.Reset();
 
-            args.GetReturnValue().Set(v8_convert::ToV8(isolate, skipped));
+            args.GetReturnValue().Set(convert::ToJS(isolate, skipped));
         });
 
     /// @description Resets the statement to its initial state for re-stepping, preserving bound parameters.
@@ -372,15 +372,15 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
 
             auto data = Unwrap(self);
             if (!data || !data->handle) {
-                v8_error::ThrowError(isolate, "Invalid or finalized statement object");
+                error::ThrowError(isolate, "Invalid or finalized statement object");
                 return;
             }
 
             if (SQLITE_OK != sqlite3_reset(data->handle)) {
                 if (data->parent && data->parent->handle) {
-                    v8_error::ThrowError(isolate, sqlite3_errmsg(data->parent->handle));
+                    error::ThrowError(isolate, sqlite3_errmsg(data->parent->handle));
                 } else {
-                    v8_error::ThrowError(isolate, "SQLite error");
+                    error::ThrowError(isolate, "SQLite error");
                 }
                 return;
             }
@@ -424,13 +424,13 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
             auto* isolate = args.GetIsolate();
             auto self = args.This();
 
-            if (!v8_error::CheckArgCount(args, 2, "bind")) {
+            if (!error::CheckArgCount(args, 2, "bind")) {
                 return;
             }
 
             auto data = Unwrap(self);
             if (!data || !data->handle) {
-                v8_error::ThrowError(isolate, "Invalid statement object");
+                error::ThrowError(isolate, "Invalid statement object");
                 return;
             }
 
@@ -438,23 +438,23 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
             int32_t colNum = -1;
 
             if (args[0]->IsNumber()) {
-                colNum = v8_convert::ToInt32(isolate, args[0]);
+                colNum = convert::ToInt32(isolate, args[0]);
             } else if (args[0]->IsString()) {
-                std::string paramName = v8_convert::ToString(isolate, args[0]);
+                std::string paramName = convert::ToString(isolate, args[0]);
                 colNum = sqlite3_bind_parameter_index(data->handle, paramName.c_str());
             } else {
-                v8_error::ThrowTypeError(isolate, "bind() requires index or parameter name");
+                error::ThrowTypeError(isolate, "bind() requires index or parameter name");
                 return;
             }
 
             if (colNum == 0) {
-                v8_error::ThrowError(isolate, "Invalid parameter number, parameters start at 1");
+                error::ThrowError(isolate, "Invalid parameter number, parameters start at 1");
                 return;
             }
 
             // Bind based on value type
             if (!BindValue(isolate, args[1], data->handle, colNum)) {
-                v8_error::ThrowTypeError(isolate, "Invalid bound parameter type");
+                error::ThrowTypeError(isolate, "Invalid bound parameter type");
                 return;
             }
 

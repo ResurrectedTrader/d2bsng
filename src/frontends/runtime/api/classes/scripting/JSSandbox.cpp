@@ -47,16 +47,16 @@ void JSSandbox::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
         isolate, proto, "evaluate", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
-            if (!v8_error::CheckArgCount(args, 1, "evaluate"))
+            if (!error::CheckArgCount(args, 1, "evaluate"))
                 return;
             if (!args[0]->IsString()) {
-                v8_error::ThrowTypeError(isolate, "evaluate() requires a string argument");
+                error::ThrowTypeError(isolate, "evaluate() requires a string argument");
                 return;
             }
 
             auto data = Unwrap(args.This());
             if (!data || data->context.IsEmpty()) {
-                v8_error::ThrowError(isolate, "Invalid sandbox object");
+                error::ThrowError(isolate, "Invalid sandbox object");
                 return;
             }
 
@@ -64,10 +64,10 @@ void JSSandbox::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
             auto sandboxContext = data->context.Get(isolate);
             v8::Context::Scope contextScope(sandboxContext);
 
-            std::string source = v8_convert::ToString(isolate, args[0]);
+            std::string source = convert::ToString(isolate, args[0]);
 
             v8::Local<v8::Script> script;
-            if (!js::script::CompileSource(isolate, sandboxContext, std::move(source), "sandbox").ToLocal(&script))
+            if (!runtime::script::CompileSource(isolate, sandboxContext, std::move(source), "sandbox").ToLocal(&script))
                 return;
 
             v8::Local<v8::Value> result;
@@ -85,21 +85,21 @@ void JSSandbox::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
         isolate, proto, "include", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
-            if (!v8_error::CheckArgCount(args, 1, "include"))
+            if (!error::CheckArgCount(args, 1, "include"))
                 return;
             if (!args[0]->IsString()) {
-                v8_error::ThrowTypeError(isolate, "include() requires a string argument");
+                error::ThrowTypeError(isolate, "include() requires a string argument");
                 return;
             }
 
             auto data = Unwrap(args.This());
             if (!data || data->context.IsEmpty()) {
-                v8_error::ThrowError(isolate, "Invalid sandbox object");
+                error::ThrowError(isolate, "Invalid sandbox object");
                 return;
             }
 
             // Normalize for case-insensitive dedup on Windows (matches Script::Include).
-            std::string filename = utils::ToLower(v8_convert::ToString(isolate, args[0]));
+            std::string filename = utils::ToLower(convert::ToString(isolate, args[0]));
 
             // Check if already included
             if (data->includedFiles.contains(filename)) {
@@ -128,7 +128,8 @@ void JSSandbox::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
             v8::Context::Scope contextScope(sandboxContext);
 
             v8::Local<v8::Script> script;
-            if (!js::script::CompileSource(isolate, sandboxContext, std::move(source), filename).ToLocal(&script)) {
+            if (!runtime::script::CompileSource(isolate, sandboxContext, std::move(source), filename)
+                     .ToLocal(&script)) {
                 args.GetReturnValue().SetFalse();
                 return;
             }
@@ -150,10 +151,10 @@ void JSSandbox::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
         isolate, proto, "isIncluded", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
-            if (!v8_error::CheckArgCount(args, 1, "isIncluded"))
+            if (!error::CheckArgCount(args, 1, "isIncluded"))
                 return;
             if (!args[0]->IsString()) {
-                v8_error::ThrowTypeError(isolate, "isIncluded() requires a string argument");
+                error::ThrowTypeError(isolate, "isIncluded() requires a string argument");
                 return;
             }
 
@@ -163,7 +164,7 @@ void JSSandbox::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
                 return;
             }
 
-            std::string filename = utils::ToLower(v8_convert::ToString(isolate, args[0]));
+            std::string filename = utils::ToLower(convert::ToString(isolate, args[0]));
             args.GetReturnValue().Set(data->includedFiles.contains(filename));
         });
 

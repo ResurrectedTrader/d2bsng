@@ -31,25 +31,25 @@ class JSText : public JSDrawableBase<JSText, TextDrawable> {
 
         auto* script = ScriptEngine::Instance().GetScript(isolate);
         if (!script) {
-            v8_error::ThrowError(isolate, "Text: no owning script");
+            error::ThrowError(isolate, "Text: no owning script");
             return;
         }
 
         auto drawable = std::make_shared<TextDrawable>();
 
         if (args.Length() > 0 && args[0]->IsString()) {
-            drawable->SetText(v8_convert::ToString(isolate, args[0]));
+            drawable->SetText(convert::ToString(isolate, args[0]));
         }
-        v8_extract::PointInto(args, 1, drawable->pos);
+        extract::PointInto(args, 1, drawable->pos);
 
         if (args.Length() > 3 && args[3]->IsNumber()) {
-            drawable->color.store(v8_convert::ToUint32(isolate, args[3]));
+            drawable->color.store(convert::ToUint32(isolate, args[3]));
         }
         if (args.Length() > 4 && args[4]->IsNumber()) {
-            drawable->font.store(v8_convert::ToInt32(isolate, args[4]));
+            drawable->font.store(convert::ToInt32(isolate, args[4]));
         }
         if (args.Length() > 5 && args[5]->IsNumber()) {
-            drawable->align.store(static_cast<Align>(v8_convert::ToInt32(isolate, args[5])));
+            drawable->align.store(static_cast<Align>(convert::ToInt32(isolate, args[5])));
         }
         if (args.Length() > 6 && args[6]->IsBoolean()) {
             drawable->isAutomap.store(args[6]->BooleanValue(isolate));
@@ -83,7 +83,7 @@ class JSText : public JSDrawableBase<JSText, TextDrawable> {
                 auto* drawable = Unwrap(info.Holder());
                 if (!drawable)
                     return;
-                info.GetReturnValue().Set(v8_convert::ToV8(info.GetIsolate(), drawable->GetText()));
+                info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), drawable->GetText()));
             },
             +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
                 auto* drawable = Unwrap(info.Holder());
@@ -91,7 +91,7 @@ class JSText : public JSDrawableBase<JSText, TextDrawable> {
                     return;
                 if (!value->IsString())
                     return;
-                drawable->SetText(v8_convert::ToString(info.GetIsolate(), value));
+                drawable->SetText(convert::ToString(info.GetIsolate(), value));
             });
 
         /// @description The text color as a game color index.
@@ -110,7 +110,7 @@ class JSText : public JSDrawableBase<JSText, TextDrawable> {
                     return;
                 if (!value->IsNumber())
                     return;
-                drawable->color.store(v8_convert::ToUint32(info.GetIsolate(), value));
+                drawable->color.store(convert::ToUint32(info.GetIsolate(), value));
             });
 
         /// @description The font index used to render the text.
@@ -129,7 +129,7 @@ class JSText : public JSDrawableBase<JSText, TextDrawable> {
                     return;
                 if (!value->IsNumber())
                     return;
-                drawable->font.store(v8_convert::ToInt32(info.GetIsolate(), value));
+                drawable->font.store(convert::ToInt32(info.GetIsolate(), value));
             });
     }
 };

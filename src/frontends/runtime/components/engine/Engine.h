@@ -12,12 +12,12 @@
 #include "utils/threadutils.h"
 #include "utils/utils.h"
 
-// V8Host is a function-local static singleton that owns the V8 platform and engine lifecycle.
+// Engine is a function-local static singleton that owns the V8 platform and engine lifecycle.
 // Its destructor calls v8::V8::Dispose() and v8::V8::DisposePlatform().
 //
 // DESTRUCTION ORDER DEPENDENCY: Multiple other function-local statics hold v8::Global handles
-// whose destructors call into V8 (notably the TemplateCache inside each V8ClassBase<T>
-// instantiation). If V8Host is destroyed before those caches, the v8::Global destructors
+// whose destructors call into V8 (notably the TemplateCache inside each ClassBase<T>
+// instantiation). If Engine is destroyed before those caches, the v8::Global destructors
 // will call v8::V8::DisposeGlobal() on a disposed engine, causing a crash.
 //
 // This is mitigated by the explicit shutdown sequence: ScriptEngine::Shutdown() joins all
@@ -25,16 +25,16 @@
 // draining every TemplateCache before static destruction begins. Callers MUST ensure
 // ScriptEngine::Shutdown() completes before process/DLL teardown reaches static destructors
 // (i.e., before atexit / DLL_PROCESS_DETACH finalization).
-class V8Host {
+class Engine {
    public:
     // Explicitly expose the platform if other isolates need it
     static v8::Platform *GetPlatform() {
-        static V8Host instance;
+        static Engine instance;
         return instance.platform_.get();
     }
 
-    V8Host(const V8Host &) = delete;
-    V8Host &operator=(const V8Host &) = delete;
+    Engine(const Engine &) = delete;
+    Engine &operator=(const Engine &) = delete;
 
    private:
     static spdlog::logger &Log() {
@@ -42,7 +42,7 @@ class V8Host {
         return *LOGGER;
     }
 
-    V8Host() {
+    Engine() {
         v8::SandboxHardwareSupport::InitializeBeforeThreadCreation();
         v8::V8::InitializeICU();
 
@@ -123,7 +123,7 @@ class V8Host {
         });
     }
 
-    ~V8Host() {
+    ~Engine() {
         // Intentionally do NOT call V8::Dispose / V8::DisposePlatform here.
         //
         // This destructor runs from the CRT atexit chain on DLL_PROCESS_DETACH.

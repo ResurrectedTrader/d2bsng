@@ -2,7 +2,7 @@
 
 #include "game/Console.h"
 
-namespace d2bs::js::console {
+namespace d2bs::runtime::console {
 
 namespace {
 
@@ -44,4 +44,4 @@ void ConsoleSink::sink_it_(const spdlog::details::log_msg& msg) {
     });
 }
 
-}  // namespace d2bs::js::console
+}  // namespace d2bs::runtime::console

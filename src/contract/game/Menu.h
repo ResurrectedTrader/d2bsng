@@ -103,7 +103,7 @@ static_assert(static_cast<uint32_t>(OutOfGameLocation::UnableToConnectTcpIp) == 
 // Drive the OutOfGame login state machine for the given profile. Reference:
 // reference/d2bs/Profile.cpp:97-296. Returns a LoginResult with Success,
 // Timeout, or Error; errorMessage is non-empty on non-Success so callers can
-// pass it directly to v8_error::ThrowError.
+// pass it directly to error::ThrowError.
 LoginResult Login(const config::ProfileData& profile);
 
 // Open the BattleNet gateway dropdown and click the entry whose label matches

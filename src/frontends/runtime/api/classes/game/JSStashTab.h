@@ -19,7 +19,7 @@ namespace d2bs::api::classes {
 
 // V8 binding for game::StashTab (docs/plugy_stash.md). Obtained from getStashTabs()
 // and Unit.stashTab; never constructed by scripts.
-class JSStashTab : public V8ClassBase<JSStashTab, game::StashTab> {
+class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
    public:
     static constexpr std::string_view ClassName = "StashTab";
 
@@ -55,7 +55,7 @@ class JSStashTab : public V8ClassBase<JSStashTab, game::StashTab> {
         Property(
             isolate, inst, "name", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 auto lock = game::Bridge::Lock();
-                info.GetReturnValue().Set(v8_convert::ToV8(info.GetIsolate(), Unwrap(info.Holder())->Name()));
+                info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), Unwrap(info.Holder())->Name()));
             });
 
         /// @description Gold stored on the tab. Where the game keeps one gold figure per stash rather than per tab,
@@ -81,7 +81,7 @@ class JSStashTab : public V8ClassBase<JSStashTab, game::StashTab> {
                 for (const auto& item : items) {
                     auto obj = JSUnit::CreateInstance(isolate, context, std::make_unique<game::Unit>(item));
                     if (obj.IsEmpty()) {
-                        v8_error::ThrowError(isolate, "Failed to build item array");
+                        error::ThrowError(isolate, "Failed to build item array");
                         return;
                     }
                     arr->Set(context, i++, obj).Check();
@@ -104,15 +104,15 @@ class JSStashTab : public V8ClassBase<JSStashTab, game::StashTab> {
             isolate, proto, "click", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
                 if (args.Length() < 2 || !args[0]->IsNumber() || !args[1]->IsNumber()) {
-                    v8_error::ThrowTypeError(isolate, "StashTab.click(x, y) expects two numbers");
+                    error::ThrowTypeError(isolate, "StashTab.click(x, y) expects two numbers");
                     return;
                 }
                 if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                    v8_error::WarnAndReturnFalse(args, "Game not ready");
+                    error::WarnAndReturnFalse(args, "Game not ready");
                     return;
                 }
-                const game::Position cell{.x = v8_convert::ToUint32(isolate, args[0]),
-                                          .y = v8_convert::ToUint32(isolate, args[1])};
+                const game::Position cell{.x = convert::ToUint32(isolate, args[0]),
+                                          .y = convert::ToUint32(isolate, args[1])};
                 args.GetReturnValue().Set(Unwrap(args.This())->Click(cell) == game::ClickResult::Dispatched);
             });
 
@@ -151,14 +151,14 @@ class JSStashTab : public V8ClassBase<JSStashTab, game::StashTab> {
     static std::optional<uint32_t> GoldAmount(const v8::FunctionCallbackInfo<v8::Value>& args) {
         auto* isolate = args.GetIsolate();
         if (args.Length() < 1 || !args[0]->IsNumber()) {
-            v8_error::ThrowTypeError(isolate, "StashTab gold moves expect an amount");
+            error::ThrowTypeError(isolate, "StashTab gold moves expect an amount");
             return std::nullopt;
         }
         if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-            v8_error::WarnAndReturnFalse(args, "Game not ready");
+            error::WarnAndReturnFalse(args, "Game not ready");
             return std::nullopt;
         }
-        return v8_convert::ToUint32(isolate, args[0]);
+        return convert::ToUint32(isolate, args[0]);
     }
 };
 

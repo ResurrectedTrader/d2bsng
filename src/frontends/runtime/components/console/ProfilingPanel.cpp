@@ -19,7 +19,7 @@
 
 #ifdef D2BS_PROFILING
 
-namespace d2bs::js::console {
+namespace d2bs::runtime::console {
 
 namespace {
 
@@ -771,6 +771,6 @@ void ProfilingPanel::DrawThreads() {
     ImGui::EndTable();
 }
 
-}  // namespace d2bs::js::console
+}  // namespace d2bs::runtime::console
 
 #endif  // D2BS_PROFILING

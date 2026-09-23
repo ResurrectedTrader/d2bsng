@@ -12,22 +12,22 @@
 namespace d2bs::api::classes {
 
 // Import drawing types used by all drawing JS class headers
-using js::drawing::Align;
-using js::drawing::BoxDrawable;
-using js::drawing::Drawable;
-using js::drawing::FrameDrawable;
-using js::drawing::ImageDrawable;
-using js::drawing::LineDrawable;
-using js::drawing::TextDrawable;
+using runtime::drawing::Align;
+using runtime::drawing::BoxDrawable;
+using runtime::drawing::Drawable;
+using runtime::drawing::FrameDrawable;
+using runtime::drawing::ImageDrawable;
+using runtime::drawing::LineDrawable;
+using runtime::drawing::TextDrawable;
 
-// v8_extract is a sibling namespace - alias so all drawing JS headers can write
-// v8_extract::PointInto / SizeInto without fully qualifying.
-namespace v8_extract = v8_extract;
+// extract is a sibling namespace - alias so all drawing JS headers can write
+// extract::PointInto / SizeInto without fully qualifying.
+namespace extract = extract;
 
 template <typename Derived, typename DrawableType>
-class JSDrawableBase : public V8ClassBase<Derived, DrawableType> {
+class JSDrawableBase : public ClassBase<Derived, DrawableType> {
    protected:
-    using Base = V8ClassBase<Derived, DrawableType>;
+    using Base = ClassBase<Derived, DrawableType>;
 
     // Set up instance tracking for a drawable before Wrap().
     // Increments the per-thread count now and installs an onDestroy hook that
@@ -37,9 +37,9 @@ class JSDrawableBase : public V8ClassBase<Derived, DrawableType> {
         // Carries the row rather than re-resolving one in the hook: ~Drawable runs the hook and
         // can itself run on the game thread, which only RemoveDrawable clearing onDestroy first
         // keeps it from reaching.
-        auto* row = &V8InstanceTracker::Instance().Increment(classId);
+        auto* row = &InstanceTracker::Instance().Increment(classId);
         drawable->onDestroy = [classId, row] {
-            V8InstanceTracker::Instance().Decrement(*row, classId);
+            InstanceTracker::Instance().Decrement(*row, classId);
         };
     }
 
@@ -90,7 +90,7 @@ class JSDrawableBase : public V8ClassBase<Derived, DrawableType> {
                 if (!value->IsNumber())
                     return;
                 auto cur = drawable->pos.load();
-                cur.x = v8_convert::ToInt32(info.GetIsolate(), value);
+                cur.x = convert::ToInt32(info.GetIsolate(), value);
                 drawable->pos.store(cur);
             });
 
@@ -112,7 +112,7 @@ class JSDrawableBase : public V8ClassBase<Derived, DrawableType> {
                 if (!value->IsNumber())
                     return;
                 auto cur = drawable->pos.load();
-                cur.y = v8_convert::ToInt32(info.GetIsolate(), value);
+                cur.y = convert::ToInt32(info.GetIsolate(), value);
                 drawable->pos.store(cur);
             });
 
@@ -153,7 +153,7 @@ class JSDrawableBase : public V8ClassBase<Derived, DrawableType> {
                     return;
                 if (!value->IsNumber())
                     return;
-                drawable->zorder.store(v8_convert::ToInt32(info.GetIsolate(), value));
+                drawable->zorder.store(convert::ToInt32(info.GetIsolate(), value));
             });
 
         // align property
@@ -173,7 +173,7 @@ class JSDrawableBase : public V8ClassBase<Derived, DrawableType> {
                     return;
                 if (!value->IsNumber())
                     return;
-                auto raw = v8_convert::ToInt32(info.GetIsolate(), value);
+                auto raw = convert::ToInt32(info.GetIsolate(), value);
                 if (raw >= 0 && raw <= 2) {
                     drawable->align.store(static_cast<Align>(raw));
                 }

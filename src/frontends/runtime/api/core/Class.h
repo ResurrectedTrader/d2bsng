@@ -16,7 +16,7 @@ namespace d2bs::api {
 
 namespace detail {
 
-// Seeds each class's type tag (see V8ClassBase::typeTag_). ClassRegistry uses it to assert at
+// Seeds each class's type tag (see ClassBase::typeTag_). ClassRegistry uses it to assert at
 // compile time that no two classes hash alike.
 constexpr uint32_t Fnv1a(std::string_view text) {
     uint32_t hash = 2166136261U;
@@ -36,7 +36,7 @@ constexpr uint32_t Fnv1a(std::string_view text) {
 //   - static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl)
 
 template <typename Derived, typename NativeType>
-class V8ClassBase {
+class ClassBase {
     struct TemplateCache {
         std::unordered_map<v8::Isolate*, v8::Global<v8::FunctionTemplate>> templates;
         std::mutex mutex;
@@ -69,12 +69,11 @@ class V8ClassBase {
     // pass callbacks to the foreground task runner and TeardownIsolate forces a synchronous drain
     // before disposal - Isolate::Dispose itself drains nothing, so a callback still queued there
     // is dropped rather than run late. Recording the row keeps none of that load-bearing.
-    static void MakeWeak(v8::Isolate* isolate, v8::Local<v8::Object> obj, NativeType* ptr,
-                         V8InstanceTracker::Row& row) {
+    static void MakeWeak(v8::Isolate* isolate, v8::Local<v8::Object> obj, NativeType* ptr, InstanceTracker::Row& row) {
         struct WeakCallbackData {
             v8::Global<v8::Object> handle;
             NativeType* native;
-            V8InstanceTracker::Row* row;
+            InstanceTracker::Row* row;
         };
 
         auto* data = new WeakCallbackData{v8::Global<v8::Object>(isolate, obj), ptr, &row};
@@ -88,7 +87,7 @@ class V8ClassBase {
                     auto& owningRow = *d->row;
                     delete d->native;
                     delete d;
-                    V8InstanceTracker::Instance().Decrement(owningRow, InstanceClassId());
+                    InstanceTracker::Instance().Decrement(owningRow, InstanceClassId());
                 });
             },
             v8::WeakCallbackType::kParameter);
@@ -102,7 +101,7 @@ class V8ClassBase {
     // Instance-tracker row for this class, resolved once. ClassId takes a lock and scans the name
     // table, which must not happen per object - this is on the construction path of every wrapper.
     static int32_t InstanceClassId() {
-        static const int32_t ID = V8InstanceTracker::ClassId(Derived::ClassName);
+        static const int32_t ID = InstanceTracker::ClassId(Derived::ClassName);
         return ID;
     }
 
@@ -113,7 +112,7 @@ class V8ClassBase {
         auto it = cache.templates.find(isolate);
         if (it == cache.templates.end()) {
             auto tpl = v8::FunctionTemplate::New(isolate, Derived::New);
-            tpl->SetClassName(v8_convert::ToV8(isolate, Derived::ClassName));
+            tpl->SetClassName(convert::ToJS(isolate, Derived::ClassName));
             tpl->InstanceTemplate()->SetInternalFieldCount(INTERNAL_FIELD_COUNT);
             Derived::ConfigureTemplate(isolate, tpl);
             it = cache.templates.emplace(isolate, v8::Global<v8::FunctionTemplate>(isolate, tpl)).first;
@@ -169,7 +168,7 @@ class V8ClassBase {
 
     // Initialize a V8 object with native data and weak GC callback (constructor path).
     static void InitInstance(v8::Isolate* isolate, v8::Local<v8::Object> obj, std::unique_ptr<NativeType> data) {
-        auto& row = V8InstanceTracker::Instance().Increment(InstanceClassId());
+        auto& row = InstanceTracker::Instance().Increment(InstanceClassId());
         auto* raw = data.release();
         Wrap(obj, raw);
         MakeWeak(isolate, obj, raw, row);
@@ -196,8 +195,8 @@ class V8ClassBase {
     static void InstanceProperty(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Local<v8::Object> obj,
                                  const char* name, Getter getter) {
         const v8::AccessorNameGetterCallback getterFn = +getter;
-        auto* accessors = js::script::InternAccessors(BindingName(name), getterFn, nullptr);
-        obj->SetNativeDataProperty(context, v8_convert::ToV8(isolate, name), &js::script::PropertyGetterTrampoline,
+        auto* accessors = runtime::script::InternAccessors(BindingName(name), getterFn, nullptr);
+        obj->SetNativeDataProperty(context, convert::ToJS(isolate, name), &runtime::script::PropertyGetterTrampoline,
                                    nullptr, v8::External::New(isolate, accessors, v8::kExternalPointerTypeTagDefault),
                                    v8::PropertyAttribute::ReadOnly)
             .Check();
@@ -208,9 +207,9 @@ class V8ClassBase {
                                  const char* name, Getter getter, Setter setter) {
         const v8::AccessorNameGetterCallback getterFn = +getter;
         const v8::AccessorNameSetterCallbackV2 setterFn = +setter;
-        auto* accessors = js::script::InternAccessors(BindingName(name), getterFn, setterFn);
-        obj->SetNativeDataProperty(context, v8_convert::ToV8(isolate, name), &js::script::PropertyGetterTrampoline,
-                                   &js::script::PropertySetterTrampoline,
+        auto* accessors = runtime::script::InternAccessors(BindingName(name), getterFn, setterFn);
+        obj->SetNativeDataProperty(context, convert::ToJS(isolate, name), &runtime::script::PropertyGetterTrampoline,
+                                   &runtime::script::PropertySetterTrampoline,
                                    v8::External::New(isolate, accessors, v8::kExternalPointerTypeTagDefault))
             .Check();
     }
@@ -232,8 +231,8 @@ class V8ClassBase {
     template <typename Getter>
     static void Property(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> inst, const char* name, Getter getter) {
         const v8::AccessorNameGetterCallback getterFn = +getter;
-        auto* accessors = js::script::InternAccessors(BindingName(name), getterFn, nullptr);
-        inst->SetNativeDataProperty(v8_convert::ToV8(isolate, name), &js::script::PropertyGetterTrampoline, nullptr,
+        auto* accessors = runtime::script::InternAccessors(BindingName(name), getterFn, nullptr);
+        inst->SetNativeDataProperty(convert::ToJS(isolate, name), &runtime::script::PropertyGetterTrampoline, nullptr,
                                     v8::External::New(isolate, accessors, v8::kExternalPointerTypeTagDefault));
     }
 
@@ -243,9 +242,9 @@ class V8ClassBase {
                          Setter setter) {
         const v8::AccessorNameGetterCallback getterFn = +getter;
         const v8::AccessorNameSetterCallbackV2 setterFn = +setter;
-        auto* accessors = js::script::InternAccessors(BindingName(name), getterFn, setterFn);
-        inst->SetNativeDataProperty(v8_convert::ToV8(isolate, name), &js::script::PropertyGetterTrampoline,
-                                    &js::script::PropertySetterTrampoline,
+        auto* accessors = runtime::script::InternAccessors(BindingName(name), getterFn, setterFn);
+        inst->SetNativeDataProperty(convert::ToJS(isolate, name), &runtime::script::PropertyGetterTrampoline,
+                                    &runtime::script::PropertySetterTrampoline,
                                     v8::External::New(isolate, accessors, v8::kExternalPointerTypeTagDefault));
     }
 
@@ -254,9 +253,9 @@ class V8ClassBase {
     template <typename Func>
     static void Method(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> proto, const char* name, Func func) {
         const v8::FunctionCallback fnPtr = +func;
-        auto data = v8::External::New(isolate, js::script::InternFunction(BindingName(name), fnPtr),
+        auto data = v8::External::New(isolate, runtime::script::InternFunction(BindingName(name), fnPtr),
                                       v8::kExternalPointerTypeTagDefault);
-        proto->Set(isolate, name, v8::FunctionTemplate::New(isolate, &js::script::MethodTrampoline, data),
+        proto->Set(isolate, name, v8::FunctionTemplate::New(isolate, &runtime::script::MethodTrampoline, data),
                    v8::DontEnum);
     }
 
@@ -264,28 +263,29 @@ class V8ClassBase {
     template <typename Func>
     static void StaticMethod(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl, const char* name, Func func) {
         const v8::FunctionCallback fnPtr = +func;
-        auto data = v8::External::New(isolate, js::script::InternFunction(BindingName(name), fnPtr),
+        auto data = v8::External::New(isolate, runtime::script::InternFunction(BindingName(name), fnPtr),
                                       v8::kExternalPointerTypeTagDefault);
-        tpl->Set(isolate, name, v8::FunctionTemplate::New(isolate, &js::script::MethodTrampoline, data), v8::DontEnum);
+        tpl->Set(isolate, name, v8::FunctionTemplate::New(isolate, &runtime::script::MethodTrampoline, data),
+                 v8::DontEnum);
     }
 };
 
 // Helper macro for common constructor pattern
-// Uses the ClassName constexpr from V8ClassBase<Derived, NativeType>
-#define V8_CLASS_CTOR_PROLOGUE                                                                                 \
-    auto* isolate = args.GetIsolate();                                                                         \
-    if (!args.IsConstructCall()) {                                                                             \
-        v8_error::ThrowTypeError(isolate, std::string(ClassName) + " must be called with 'new'"); /* NOLINT */ \
-        return;                                                                                                \
+// Uses the ClassName constexpr from ClassBase<Derived, NativeType>
+#define V8_CLASS_CTOR_PROLOGUE                                                                              \
+    auto* isolate = args.GetIsolate();                                                                      \
+    if (!args.IsConstructCall()) {                                                                          \
+        error::ThrowTypeError(isolate, std::string(ClassName) + " must be called with 'new'"); /* NOLINT */ \
+        return;                                                                                             \
     }
 
 // Helper macro for classes that should not be directly constructed
 // These classes are obtained via global functions (e.g., getUnit(), getArea())
-#define V8_CLASS_NOT_CONSTRUCTABLE                                                                    \
-    static void New(const v8::FunctionCallbackInfo<v8::Value>& args) {                                \
-        auto* isolate = args.GetIsolate();                                                            \
-        v8_error::ThrowError(isolate, std::string(ClassName) + " is not constructable"); /* NOLINT */ \
-        return;                                                                                       \
+#define V8_CLASS_NOT_CONSTRUCTABLE                                                                 \
+    static void New(const v8::FunctionCallbackInfo<v8::Value>& args) {                             \
+        auto* isolate = args.GetIsolate();                                                         \
+        error::ThrowError(isolate, std::string(ClassName) + " is not constructable"); /* NOLINT */ \
+        return;                                                                                    \
     }
 
 }  // namespace d2bs::api

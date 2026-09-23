@@ -15,7 +15,7 @@ namespace d2bs::api::classes {
 
 // Native payload for the Compatibility class. The class is a pure static
 // namespace (never instantiated); this carries no state and exists only to
-// satisfy the V8ClassBase NativeType parameter.
+// satisfy the ClassBase NativeType parameter.
 struct CompatibilityData {};
 
 // `Compatibility`: a non-constructable namespace object for inspecting and
@@ -26,7 +26,7 @@ struct CompatibilityData {};
 // `Compatibility.enabled()`, etc. The available flag names are in
 // the API docs (the CompatibilityFlag set); the store lives in
 // d2bs::config::CompatibilityFlags.
-class JSCompatibility : public V8ClassBase<JSCompatibility, CompatibilityData> {
+class JSCompatibility : public ClassBase<JSCompatibility, CompatibilityData> {
    public:
     static constexpr std::string_view ClassName = "Compatibility";
     V8_CLASS_NOT_CONSTRUCTABLE
@@ -48,7 +48,7 @@ class JSCompatibility : public V8ClassBase<JSCompatibility, CompatibilityData> {
                 auto arr = v8::Array::New(isolate, static_cast<int32_t>(names.size()));
                 uint32_t i = 0;
                 for (const auto& name : names) {
-                    arr->Set(context, i++, v8_convert::ToV8(isolate, name)).Check();
+                    arr->Set(context, i++, convert::ToJS(isolate, name)).Check();
                 }
                 args.GetReturnValue().Set(arr);
             });
@@ -84,9 +84,9 @@ class JSCompatibility : public V8ClassBase<JSCompatibility, CompatibilityData> {
                         if (!keys->Get(context, i).ToLocal(&key)) {
                             return;
                         }
-                        auto name = v8_convert::ToString(isolate, key);
+                        auto name = convert::ToString(isolate, key);
                         if (!registry.Has(name)) {
-                            v8_error::ThrowTypeError(isolate, "Unknown compatibility flag: " + name);
+                            error::ThrowTypeError(isolate, "Unknown compatibility flag: " + name);
                             return;
                         }
                         v8::Local<v8::Value> value;
@@ -103,15 +103,14 @@ class JSCompatibility : public V8ClassBase<JSCompatibility, CompatibilityData> {
 
                 // Pair form: set(flag, enabled).
                 if (args.Length() >= 2 && args[0]->IsString()) {
-                    auto name = v8_convert::ToString(isolate, args[0]);
+                    auto name = convert::ToString(isolate, args[0]);
                     if (!registry.SetEnabled(name, args[1]->BooleanValue(isolate))) {
-                        v8_error::ThrowTypeError(isolate, "Unknown compatibility flag: " + name);
+                        error::ThrowTypeError(isolate, "Unknown compatibility flag: " + name);
                     }
                     return;
                 }
 
-                v8_error::ThrowTypeError(isolate,
-                                         "Compatibility.set requires (flag, enabled) or ({flag: enabled, ...})");
+                error::ThrowTypeError(isolate, "Compatibility.set requires (flag, enabled) or ({flag: enabled, ...})");
             });
 
         /// @description Restore every flag to its default state (all enabled).

@@ -12,7 +12,7 @@ namespace d2bs::api::classes {
 
 // Area class - represents a game area/level
 // Areas contain rooms and provide information about level layout
-class JSArea : public V8ClassBase<JSArea, game::Level> {
+class JSArea : public ClassBase<JSArea, game::Level> {
    public:
     static constexpr std::string_view ClassName = "Area";
 
@@ -41,7 +41,7 @@ class JSArea : public V8ClassBase<JSArea, game::Level> {
                     auto exitObj =
                         JSExit::CreateInstance(isolate, context, std::make_unique<navigation::ExitInfo>(exits[i]));
                     if (exitObj.IsEmpty()) {
-                        v8_error::ThrowError(isolate, "Failed to build exit array");
+                        error::ThrowError(isolate, "Failed to build exit array");
                         return;
                     }
                     array->Set(context, i, exitObj).Check();
@@ -72,7 +72,7 @@ class JSArea : public V8ClassBase<JSArea, game::Level> {
                     info.GetReturnValue().SetEmptyString();
                     return;
                 }
-                info.GetReturnValue().Set(v8_convert::ToV8(isolate, data->Name()));
+                info.GetReturnValue().Set(convert::ToJS(isolate, data->Name()));
             });
 
         // reference d2bs parity: area.x/y/xsize/ysize are exposed as subtiles; Level::Bounds() returns game-coords (see

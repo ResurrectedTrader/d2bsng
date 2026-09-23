@@ -9,7 +9,7 @@ namespace d2bs::api::classes {
 
 // Exit class - represents an exit point from one area to another
 // Exits are obtained from Area.exits property
-class JSExit : public V8ClassBase<JSExit, navigation::ExitInfo> {
+class JSExit : public ClassBase<JSExit, navigation::ExitInfo> {
    public:
     static constexpr std::string_view ClassName = "Exit";
 

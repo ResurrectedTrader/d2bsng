@@ -12,7 +12,7 @@ namespace d2bs::api::classes {
 
 // Party class - represents a player in the party roster
 // Used to track other players in the game
-class JSParty : public V8ClassBase<JSParty, game::Party> {
+class JSParty : public ClassBase<JSParty, game::Party> {
    public:
     static constexpr std::string_view ClassName = "Party";
 
@@ -64,7 +64,7 @@ class JSParty : public V8ClassBase<JSParty, game::Party> {
                 if (!*data) {
                     return;
                 }
-                info.GetReturnValue().Set(v8_convert::ToV8(info.GetIsolate(), static_cast<double>(data->Id())));
+                info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), static_cast<double>(data->Id())));
             });
 
         /// @description The party member's current life value.
@@ -108,7 +108,7 @@ class JSParty : public V8ClassBase<JSParty, game::Party> {
                 if (!*data) {
                     return;
                 }
-                info.GetReturnValue().Set(v8_convert::ToV8(info.GetIsolate(), data->Name()));
+                info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), data->Name()));
             });
 
         /// @description The party member's character class ID (0-6, e.g. Amazon/Sorceress/etc.).
@@ -142,7 +142,7 @@ class JSParty : public V8ClassBase<JSParty, game::Party> {
         Method(
             isolate, proto, "getNext", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                    v8_error::WarnAndReturnFalse(args, "Game not ready");
+                    error::WarnAndReturnFalse(args, "Game not ready");
                     return;
                 }
                 auto* data = Unwrap(args.This());

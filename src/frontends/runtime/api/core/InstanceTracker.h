@@ -28,7 +28,7 @@ using ClassCountMap = std::map<std::string, int32_t, std::less<>>;
 //
 // Counting sits on every wrapper object's construction and destruction, so the hot path is a
 // relaxed increment on a per-thread row with no lock and no lookup.
-class V8InstanceTracker {
+class InstanceTracker {
    public:
     // A fixed-size array of atomics is never restructured, which is what lets a reader and the
     // owning thread touch the same row concurrently.
@@ -94,12 +94,12 @@ class V8InstanceTracker {
     }
 
    public:
-    static V8InstanceTracker& Instance() {
-        static V8InstanceTracker tracker;
+    static InstanceTracker& Instance() {
+        static InstanceTracker tracker;
         return tracker;
     }
 
-    // Row index for a class name. Takes the lock, so callers cache the result - V8ClassBase does so
+    // Row index for a class name. Takes the lock, so callers cache the result - ClassBase does so
     // in a static, making it once per class rather than once per object.
     static int32_t ClassId(std::string_view className) {
         auto& registry = GetRegistry();
@@ -112,7 +112,7 @@ class V8InstanceTracker {
         if (registry.classNames.size() >= MAX_CLASSES) {
             // Uncounted rather than out of bounds, but say so: the failure is a leak check that
             // reports clean for a class that is leaking, which is silent in the wrong direction.
-            Log().error("V8InstanceTracker: more than {} classes, '{}' will not be counted", MAX_CLASSES, className);
+            Log().error("InstanceTracker: more than {} classes, '{}' will not be counted", MAX_CLASSES, className);
             return -1;
         }
         registry.classNames.emplace_back(className);
@@ -188,7 +188,7 @@ class V8InstanceTracker {
     }
 
    private:
-    V8InstanceTracker() = default;
+    InstanceTracker() = default;
 };
 
 }  // namespace d2bs::api

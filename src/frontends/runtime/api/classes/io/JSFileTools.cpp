@@ -18,7 +18,7 @@ std::mutex fileMutex;
 std::filesystem::path ResolveScriptPath(v8::Isolate* isolate, const std::string& relativePath, const char* errorMsg) {
     auto fullPath = config::GetPathRelScript(relativePath);
     if (fullPath.empty()) {
-        v8_error::ThrowError(isolate, errorMsg);
+        error::ThrowError(isolate, errorMsg);
     }
     return fullPath;
 }
@@ -26,12 +26,12 @@ std::filesystem::path ResolveScriptPath(v8::Isolate* isolate, const std::string&
 FILE* FileOpenRelScript(v8::Isolate* isolate, const std::string& relativePath, const wchar_t* mode) {
     auto fullPath = config::GetPathRelScript(relativePath);
     if (fullPath.empty()) {
-        v8_error::ThrowError(isolate, "Invalid file name");
+        error::ThrowError(isolate, "Invalid file name");
         return nullptr;
     }
     FILE* fp = nullptr;
     if (_wfopen_s(&fp, fullPath.c_str(), mode) != 0 || fp == nullptr) {
-        v8_error::ThrowError(isolate, "Couldn't open file");
+        error::ThrowError(isolate, "Couldn't open file");
         return nullptr;
     }
     return fp;
@@ -54,7 +54,7 @@ std::string ValueToString(v8::Isolate* isolate, v8::Local<v8::Value> value) {
     auto context = isolate->GetCurrentContext();
     v8::Local<v8::String> str;
     if (value->ToString(context).ToLocal(&str)) {
-        return v8_convert::ToString(isolate, str);
+        return convert::ToString(isolate, str);
     }
     return {};
 }

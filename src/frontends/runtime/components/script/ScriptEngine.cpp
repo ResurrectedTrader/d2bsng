@@ -25,13 +25,13 @@ void ScriptEngine::Initialize() {
 
     logger_->info("Initializing ScriptEngine");
 
-    (void)V8Host::GetPlatform();
+    (void)Engine::GetPlatform();
 
     // Start the V8 inspector server when enabled (inspectorPort > 0), before any
     // script registers a target. Every script isolate attaches a target
     // regardless; the server just exposes them when running.
     if (const int32_t port = config::GetAppConfig().inspectorPort.load(); port > 0) {
-        if (js::inspector::InspectorServer::Instance().Start(static_cast<uint16_t>(port))) {
+        if (runtime::inspector::InspectorServer::Instance().Start(static_cast<uint16_t>(port))) {
             logger_->info("V8 inspector listening on http://127.0.0.1:{} - open chrome://inspect", port);
         } else {
             logger_->error("V8 inspector failed to bind port {}", port);
@@ -88,9 +88,9 @@ void ScriptEngine::Shutdown() {
         scripts_.clear();
     }
 
-    js::inspector::InspectorServer::Instance().Stop();
+    runtime::inspector::InspectorServer::Instance().Stop();
 
-    // V8 platform shutdown is handled by V8Host singleton destructor
+    // V8 platform shutdown is handled by Engine singleton destructor
     initialized_ = false;
     logger_->info("ScriptEngine shutdown complete");
 }
@@ -220,7 +220,7 @@ void ScriptEngine::SetInspector(bool enabled, int32_t port) {
     // Reconcile the server to the new state. Stop unconditionally first so a port
     // change while enabled rebinds; targets survive a stop (scripts keep their
     // ScriptInspectors), so they reappear as soon as the server is back up.
-    auto& server = js::inspector::InspectorServer::Instance();
+    auto& server = runtime::inspector::InspectorServer::Instance();
     server.Stop();
     bool listening = false;
     if (enabled) {

@@ -13,12 +13,12 @@
 #include "components/console/RowSelection.h"
 #include "game/Console.h"
 
-namespace d2bs::js::console {
+namespace d2bs::runtime::console {
 
 // REPL panel. Receives only EvaluateResult-source messages (Console
 // routes other sources to LogPanel). The user types into the input field;
 // on Enter the panel both appends a "> input" entry and forwards the line
-// to js::script::RunCommand for evaluation in the console isolate.
+// to runtime::script::RunCommand for evaluation in the console isolate.
 //
 // History navigation (bash-style):
 //   Up   / Down       - walk every entry, newest first
@@ -87,4 +87,4 @@ class ConsolePanel : public Panel {
     static constexpr size_t MAX_HISTORY = 200;
 };
 
-}  // namespace d2bs::js::console
+}  // namespace d2bs::runtime::console

@@ -14,7 +14,7 @@ namespace v8 {
 class Isolate;
 }  // namespace v8
 
-namespace d2bs::js::inspector {
+namespace d2bs::runtime::inspector {
 
 // A single debuggable script target registered with the InspectorServer.
 //
@@ -70,4 +70,4 @@ class InspectorTarget {
     std::atomic<bool> interruptScheduled_{false};
 };
 
-}  // namespace d2bs::js::inspector
+}  // namespace d2bs::runtime::inspector

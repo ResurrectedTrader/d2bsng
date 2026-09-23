@@ -16,7 +16,7 @@
 #include "components/events/BaseEvent.h"
 #include "game/Console.h"
 
-namespace d2bs::js::script {
+namespace d2bs::runtime::script {
 
 void ReportOffThreadRelease() {
     // No isolate: a reference can outlive the one it came from, and reading a
@@ -54,7 +54,7 @@ v8::Local<v8::Value> ToEngineValue(v8::Isolate* isolate, const Value& value) {
                 }
                 return deserialized;
             } else {
-                return api::v8_convert::ToV8(isolate, held);
+                return api::convert::ToJS(isolate, held);
             }
         },
         value);
@@ -184,9 +184,9 @@ void Invocation::Evaluate(std::string_view code) {
     v8::TryCatch tryCatch(isolate_);
 
     auto context = isolate_->GetCurrentContext();
-    auto source = api::v8_convert::ToV8(isolate_, code);
+    auto source = api::convert::ToJS(isolate_, code);
 
-    v8::ScriptOrigin origin(api::v8_convert::ToV8(isolate_, COMMAND_LINE_NAME));
+    v8::ScriptOrigin origin(api::convert::ToJS(isolate_, COMMAND_LINE_NAME));
     v8::Local<v8::Script> snippet;
     v8::Local<v8::Value> result;
     if (v8::Script::Compile(context, source, &origin).ToLocal(&snippet) && snippet->Run(context).ToLocal(&result)) {
@@ -202,4 +202,4 @@ void Invocation::Evaluate(std::string_view code) {
     }
 }
 
-}  // namespace d2bs::js::script
+}  // namespace d2bs::runtime::script

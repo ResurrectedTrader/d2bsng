@@ -160,7 +160,7 @@ bool ChatInputEventDispatch(const std::string& message) {
     // stay consumed (they fall through to the JS-eval path inside OnCommand,
     // which logs any ReferenceError via the EvaluateEvent path).
     if (!message.empty() && message[0] == '.') {
-        js::script::RunCommand(message.substr(1));
+        runtime::script::RunCommand(message.substr(1));
         return /* block packet */ true;
     }
 

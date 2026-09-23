@@ -243,7 +243,7 @@ carrying them falls back to the defaults.
 The thread settings are portable in substance, not just in name: "how many worker
 threads may the engine use" is a question both engines answer, even though V8
 sizes the default platform it creates and SpiderMonkey is told a count for the
-pool its embedder supplies (`js::SetHelperThreadTaskCallback`, `JSGC_MAX_HELPER_THREADS`).
+pool its embedder supplies (`runtime::SetHelperThreadTaskCallback`, `JSGC_MAX_HELPER_THREADS`).
 The flags string is not: V8 parses it with `SetFlagsFromString`, SpiderMonkey has
 no string parser at all (typed prefs in `js/Prefs.h`). So the value is opaque and
 belongs to whichever engine is built - the neutral *name* says which setting it

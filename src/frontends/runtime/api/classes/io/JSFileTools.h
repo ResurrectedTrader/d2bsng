@@ -28,7 +28,7 @@ struct FileToolsData {};
 
 // JSFileTools - V8 wrapper for static file utility operations
 // This class only has static methods, no instances are created
-class JSFileTools : public V8ClassBase<JSFileTools, FileToolsData> {
+class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
    public:
     static constexpr std::string_view ClassName = "FileTools";
 
@@ -43,15 +43,15 @@ class JSFileTools : public V8ClassBase<JSFileTools, FileToolsData> {
         StaticMethod(
             isolate, tpl, "remove", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
-                if (!v8_error::CheckArgCount(args, 1, "FileTools.remove")) {
+                if (!error::CheckArgCount(args, 1, "FileTools.remove")) {
                     return;
                 }
                 if (!args[0]->IsString()) {
-                    v8_error::ThrowTypeError(isolate, "You must supply a file name");
+                    error::ThrowTypeError(isolate, "You must supply a file name");
                     return;
                 }
 
-                std::string path = v8_convert::ToString(isolate, args[0]);
+                std::string path = convert::ToString(isolate, args[0]);
                 auto fullPath = filetools_detail::ResolveScriptPath(isolate, path, "Invalid file name");
                 if (fullPath.empty()) {
                     return;
@@ -71,20 +71,20 @@ class JSFileTools : public V8ClassBase<JSFileTools, FileToolsData> {
         StaticMethod(
             isolate, tpl, "rename", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
-                if (!v8_error::CheckArgCount(args, 2, "FileTools.rename")) {
+                if (!error::CheckArgCount(args, 2, "FileTools.rename")) {
                     return;
                 }
                 if (!args[0]->IsString()) {
-                    v8_error::ThrowTypeError(isolate, "You must supply an original file name");
+                    error::ThrowTypeError(isolate, "You must supply an original file name");
                     return;
                 }
                 if (!args[1]->IsString()) {
-                    v8_error::ThrowTypeError(isolate, "You must supply a new file name");
+                    error::ThrowTypeError(isolate, "You must supply a new file name");
                     return;
                 }
 
-                std::string oldName = v8_convert::ToString(isolate, args[0]);
-                std::string newName = v8_convert::ToString(isolate, args[1]);
+                std::string oldName = convert::ToString(isolate, args[0]);
+                std::string newName = convert::ToString(isolate, args[1]);
 
                 auto oldPath = filetools_detail::ResolveScriptPath(isolate, oldName, "Invalid original file name");
                 if (oldPath.empty()) {
@@ -111,21 +111,21 @@ class JSFileTools : public V8ClassBase<JSFileTools, FileToolsData> {
         StaticMethod(
             isolate, tpl, "copy", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
-                if (!v8_error::CheckArgCount(args, 2, "FileTools.copy")) {
+                if (!error::CheckArgCount(args, 2, "FileTools.copy")) {
                     return;
                 }
                 if (!args[0]->IsString()) {
-                    v8_error::ThrowTypeError(isolate, "You must supply an original file name");
+                    error::ThrowTypeError(isolate, "You must supply an original file name");
                     return;
                 }
                 if (!args[1]->IsString()) {
-                    v8_error::ThrowTypeError(isolate, "You must supply a new file name");
+                    error::ThrowTypeError(isolate, "You must supply a new file name");
                     return;
                 }
 
-                std::string original = v8_convert::ToString(isolate, args[0]);
-                std::string copyName = v8_convert::ToString(isolate, args[1]);
-                bool skipIfExists = v8_convert::ToBool(isolate, args.Length() > 2 ? args[2] : v8::Local<v8::Value>());
+                std::string original = convert::ToString(isolate, args[0]);
+                std::string copyName = convert::ToString(isolate, args[1]);
+                bool skipIfExists = convert::ToBool(isolate, args.Length() > 2 ? args[2] : v8::Local<v8::Value>());
 
                 auto dstPath = filetools_detail::ResolveScriptPath(isolate, copyName, "Invalid new file name");
                 if (dstPath.empty()) {
@@ -172,7 +172,7 @@ class JSFileTools : public V8ClassBase<JSFileTools, FileToolsData> {
                 if (!success) {
                     std::error_code removeEc;
                     std::filesystem::remove(dstPath, removeEc);
-                    v8_error::ThrowError(isolate, "File copy failed");
+                    error::ThrowError(isolate, "File copy failed");
                     return;
                 }
             });
@@ -185,15 +185,15 @@ class JSFileTools : public V8ClassBase<JSFileTools, FileToolsData> {
         StaticMethod(
             isolate, tpl, "exists", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
-                if (!v8_error::CheckArgCount(args, 1, "FileTools.exists")) {
+                if (!error::CheckArgCount(args, 1, "FileTools.exists")) {
                     return;
                 }
                 if (!args[0]->IsString()) {
-                    v8_error::ThrowTypeError(isolate, "Invalid file name");
+                    error::ThrowTypeError(isolate, "Invalid file name");
                     return;
                 }
 
-                std::string path = v8_convert::ToString(isolate, args[0]);
+                std::string path = convert::ToString(isolate, args[0]);
                 auto fullPath = filetools_detail::ResolveScriptPath(isolate, path, "Invalid file name");
                 if (fullPath.empty()) {
                     return;
@@ -213,15 +213,15 @@ class JSFileTools : public V8ClassBase<JSFileTools, FileToolsData> {
         StaticMethod(
             isolate, tpl, "readText", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
-                if (!v8_error::CheckArgCount(args, 1, "FileTools.readText")) {
+                if (!error::CheckArgCount(args, 1, "FileTools.readText")) {
                     return;
                 }
                 if (!args[0]->IsString()) {
-                    v8_error::ThrowTypeError(isolate, "You must supply a file name");
+                    error::ThrowTypeError(isolate, "You must supply a file name");
                     return;
                 }
 
-                std::string path = v8_convert::ToString(isolate, args[0]);
+                std::string path = convert::ToString(isolate, args[0]);
                 FILE* fp = filetools_detail::FileOpenRelScript(isolate, path, L"r");
                 if (fp == nullptr) {
                     return;
@@ -232,7 +232,7 @@ class JSFileTools : public V8ClassBase<JSFileTools, FileToolsData> {
                 auto pos = ftell(fp);
                 if (pos < 0) {
                     fclose(fp);
-                    v8_error::ThrowError(isolate, "Read failed");
+                    error::ThrowError(isolate, "Read failed");
                     return;
                 }
                 auto size = static_cast<size_t>(pos);
@@ -243,7 +243,7 @@ class JSFileTools : public V8ClassBase<JSFileTools, FileToolsData> {
 
                 if (ferror(fp)) {
                     fclose(fp);
-                    v8_error::ThrowError(isolate, "Read failed");
+                    error::ThrowError(isolate, "Read failed");
                     return;
                 }
                 fclose(fp);
@@ -255,7 +255,7 @@ class JSFileTools : public V8ClassBase<JSFileTools, FileToolsData> {
                     contents.erase(0, 3);
                 }
 
-                args.GetReturnValue().Set(v8_convert::ToV8(isolate, contents));
+                args.GetReturnValue().Set(convert::ToJS(isolate, contents));
             });
 
         /// @description Write one or more values to a file, overwriting existing contents.
@@ -269,15 +269,15 @@ class JSFileTools : public V8ClassBase<JSFileTools, FileToolsData> {
         StaticMethod(
             isolate, tpl, "writeText", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
-                if (!v8_error::CheckArgCount(args, 2, "FileTools.writeText")) {
+                if (!error::CheckArgCount(args, 2, "FileTools.writeText")) {
                     return;
                 }
                 if (!args[0]->IsString()) {
-                    v8_error::ThrowTypeError(isolate, "You must supply a file name");
+                    error::ThrowTypeError(isolate, "You must supply a file name");
                     return;
                 }
 
-                std::string path = v8_convert::ToString(isolate, args[0]);
+                std::string path = convert::ToString(isolate, args[0]);
 
                 std::scoped_lock lock(filetools_detail::fileMutex);
 
@@ -313,15 +313,15 @@ class JSFileTools : public V8ClassBase<JSFileTools, FileToolsData> {
         StaticMethod(
             isolate, tpl, "appendText", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
-                if (!v8_error::CheckArgCount(args, 2, "FileTools.appendText")) {
+                if (!error::CheckArgCount(args, 2, "FileTools.appendText")) {
                     return;
                 }
                 if (!args[0]->IsString()) {
-                    v8_error::ThrowTypeError(isolate, "You must supply a file name");
+                    error::ThrowTypeError(isolate, "You must supply a file name");
                     return;
                 }
 
-                std::string path = v8_convert::ToString(isolate, args[0]);
+                std::string path = convert::ToString(isolate, args[0]);
 
                 std::scoped_lock lock(filetools_detail::fileMutex);
 

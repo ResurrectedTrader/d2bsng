@@ -22,7 +22,7 @@ using config::ProfileType;
 //   Profile(ProfileType.openBattleNet, account, pass, charname, gateway)
 //   Profile(ProfileType.tcpIpHost, charname, diff)
 //   Profile(ProfileType.tcpIpJoin, charname, ip)
-class JSProfile : public V8ClassBase<JSProfile, ProfileData> {
+class JSProfile : public ClassBase<JSProfile, ProfileData> {
    public:
     static constexpr std::string_view ClassName = "Profile";
 

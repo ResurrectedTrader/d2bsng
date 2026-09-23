@@ -32,7 +32,7 @@ struct SQLiteData {
 //   SQLite() - creates in-memory database (:memory:)
 //   SQLite(path) - creates/opens database at path
 //   SQLite(path, autoOpen) - creates database, optionally auto-open
-class JSSQLite : public V8ClassBase<JSSQLite, SQLiteData> {
+class JSSQLite : public ClassBase<JSSQLite, SQLiteData> {
    public:
     static constexpr std::string_view ClassName = "SQLite";
 

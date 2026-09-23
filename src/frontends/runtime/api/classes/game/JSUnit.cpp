@@ -17,7 +17,7 @@
 
 namespace d2bs::api::classes {
 
-namespace v8_extract = v8_extract;
+namespace extract = extract;
 
 using game::UnitType;
 
@@ -66,7 +66,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             auto* isolate = info.GetIsolate();
-            info.GetReturnValue().Set(v8_convert::ToV8(isolate, data->Name()));
+            info.GetReturnValue().Set(convert::ToJS(isolate, data->Name()));
         });
 
     /// @description Act the unit is currently in (1-5).
@@ -97,7 +97,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
         isolate, inst, "gid", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             auto* data = Unwrap(info.Holder());
             // No *data check as unit id is usually cached
-            info.GetReturnValue().Set(v8_convert::ToV8(info.GetIsolate(), static_cast<double>(data->Id())));
+            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), static_cast<double>(data->Id())));
         });
 
     /// @description Unit X position in world subtile coordinates.
@@ -264,7 +264,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             }
             auto owner = data->GetOwner();
             int32_t value = owner ? static_cast<int32_t>(owner->Id()) : -1;
-            info.GetReturnValue().Set(v8_convert::ToV8(info.GetIsolate(), value));
+            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), value));
         });
 
     // Emitted as int32_t so the "no owner" sentinel reaches JS as literal -1.
@@ -278,7 +278,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             }
             auto owner = data->GetOwner();
             int32_t value = owner ? static_cast<int32_t>(owner->Type()) : -1;
-            info.GetReturnValue().Set(v8_convert::ToV8(info.GetIsolate(), value));
+            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), value));
         });
 
     // Reference lines 280-297: only Monsters have pMonsterData; other types return undefined.
@@ -329,7 +329,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             if (code.empty()) {
                 code = "Unknown";
             }
-            info.GetReturnValue().Set(v8_convert::ToV8(isolate, code));
+            info.GetReturnValue().Set(convert::ToJS(isolate, code));
         });
 
     /// @description Localized name of the item's primary magic prefix (Item units only; empty if none).
@@ -341,7 +341,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             auto* isolate = info.GetIsolate();
-            info.GetReturnValue().Set(v8_convert::ToV8(isolate, data->Prefix()));
+            info.GetReturnValue().Set(convert::ToJS(isolate, data->Prefix()));
         });
 
     /// @description Localized name of the item's primary magic suffix (Item units only; empty if none).
@@ -353,7 +353,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             auto* isolate = info.GetIsolate();
-            info.GetReturnValue().Set(v8_convert::ToV8(isolate, data->Suffix()));
+            info.GetReturnValue().Set(convert::ToJS(isolate, data->Suffix()));
         });
 
     /// @description Numeric ID of the item's primary magic prefix (Item units only; 0 if none).
@@ -424,7 +424,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by prefixes.size()
             for (uint32_t i = 0; i < prefixes.size(); ++i) {
                 if (prefixes[i].has_value()) {
-                    arr->Set(context, i, v8_convert::ToV8(isolate, *prefixes[i])).Check();
+                    arr->Set(context, i, convert::ToJS(isolate, *prefixes[i])).Check();
                 }
             }
             // NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
@@ -448,7 +448,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by suffixes.size()
             for (uint32_t i = 0; i < suffixes.size(); ++i) {
                 if (suffixes[i].has_value()) {
-                    arr->Set(context, i, v8_convert::ToV8(isolate, *suffixes[i])).Check();
+                    arr->Set(context, i, convert::ToJS(isolate, *suffixes[i])).Check();
                 }
             }
             // NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
@@ -472,7 +472,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by nums.size()
             for (uint32_t i = 0; i < nums.size(); ++i) {
                 if (nums[i] != 0) {
-                    arr->Set(context, i, v8_convert::ToV8(isolate, nums[i])).Check();
+                    arr->Set(context, i, convert::ToJS(isolate, nums[i])).Check();
                 }
             }
             // NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
@@ -496,7 +496,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by nums.size()
             for (uint32_t i = 0; i < nums.size(); ++i) {
                 if (nums[i] != 0) {
-                    arr->Set(context, i, v8_convert::ToV8(isolate, nums[i])).Check();
+                    arr->Set(context, i, convert::ToJS(isolate, nums[i])).Check();
                 }
             }
             // NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
@@ -513,7 +513,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             auto* isolate = info.GetIsolate();
-            info.GetReturnValue().Set(v8_convert::ToV8(isolate, data->ItemFullName()));
+            info.GetReturnValue().Set(convert::ToJS(isolate, data->ItemFullName()));
         });
 
     /// @description Item quality; Item units only.
@@ -614,7 +614,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             }
             auto* isolate = info.GetIsolate();
             auto lock = game::Bridge::Lock();
-            info.GetReturnValue().Set(v8_convert::ToV8(isolate, data->Description()));
+            info.GetReturnValue().Set(convert::ToJS(isolate, data->Description()));
         });
 
     /// @description Equipment slot (body location) the item is worn in; Item units only.
@@ -705,7 +705,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
-            info.GetReturnValue().Set(v8_convert::ToV8(info.GetIsolate(), data->ItemPlayerName()));
+            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), data->ItemPlayerName()));
         });
 
     // =========================================================================
@@ -800,13 +800,13 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
 
             // IsUint32 rejects -1 ("no filter") while IsNumber would coerce it to 0xFFFFFFFF.
             if (args.Length() > 0 && args[0]->IsString()) {
-                data->Cursor().name = v8_convert::ToString(isolate, args[0]);
+                data->Cursor().name = convert::ToString(isolate, args[0]);
             }
             if (args.Length() > 0 && args[0]->IsUint32()) {
-                data->Cursor().classId = v8_convert::ToUint32(isolate, args[0]);
+                data->Cursor().classId = convert::ToUint32(isolate, args[0]);
             }
             if (args.Length() > 1 && args[1]->IsUint32()) {
-                data->Cursor().mode = v8_convert::ToUint32(isolate, args[1]);
+                data->Cursor().mode = convert::ToUint32(isolate, args[1]);
             }
 
             if (data->Kind() == game::UnitKind::InventoryItem) {
@@ -839,12 +839,12 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
         isolate, proto, "cancel", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
             auto mode = static_cast<game::CancelMode>(-1);  // -1 = auto-detect
             if (args.Length() > 0 && args[0]->IsNumber()) {
-                mode = static_cast<game::CancelMode>(v8_convert::ToInt32(isolate, args[0]));
+                mode = static_cast<game::CancelMode>(convert::ToInt32(isolate, args[0]));
             }
             d2bs::game::Cancel(mode);
             args.GetReturnValue().Set(true);
@@ -881,7 +881,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             auto* isolate = args.GetIsolate();
-            uint32_t menuId = v8_convert::ToUint32(isolate, args[0]);
+            uint32_t menuId = convert::ToUint32(isolate, args[0]);
             args.GetReturnValue().Set(data->UseMenu(menuId));
         });
 
@@ -899,7 +899,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Method(
         isolate, proto, "interact", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
             args.GetReturnValue().SetFalse();
@@ -915,7 +915,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             // Reference line 854: waypoint path requires UNIT_OBJECT and exactly 1 argument
             if (data->Type() == UnitType::Object && args.Length() == 1 && args[0]->IsNumber()) {
                 auto* isolate = args.GetIsolate();
-                uint32_t waypointId = v8_convert::ToUint32(isolate, args[0]);
+                uint32_t waypointId = convert::ToUint32(isolate, args[0]);
                 args.GetReturnValue().Set(data->TakeWaypoint(waypointId));
             } else {
                 args.GetReturnValue().Set(data->Interact());
@@ -941,7 +941,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
         isolate, proto, "getItem", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
             auto* data = Unwrap(args.This());
@@ -951,15 +951,15 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
 
             game::UnitCursorState cursor;
             if (args.Length() > 0 && args[0]->IsString()) {
-                cursor.name = v8_convert::ToString(isolate, args[0]);
+                cursor.name = convert::ToString(isolate, args[0]);
             } else if (args.Length() > 0 && args[0]->IsUint32()) {
-                cursor.classId = v8_convert::ToUint32(isolate, args[0]);
+                cursor.classId = convert::ToUint32(isolate, args[0]);
             }
             if (args.Length() > 1 && args[1]->IsUint32()) {
-                cursor.mode = v8_convert::ToUint32(isolate, args[1]);
+                cursor.mode = convert::ToUint32(isolate, args[1]);
             }
             if (args.Length() > 2 && args[2]->IsUint32()) {
-                cursor.unitId = v8_convert::ToUint32(isolate, args[2]);
+                cursor.unitId = convert::ToUint32(isolate, args[2]);
             }
 
             auto lock = game::Bridge::Lock();
@@ -979,7 +979,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
         isolate, proto, "getItems", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
             auto* data = Unwrap(args.This());
@@ -999,7 +999,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 auto& item = items.at(i);
                 auto obj = CreateInstance(isolate, context, std::make_unique<game::Unit>(item));
                 if (obj.IsEmpty()) {
-                    v8_error::ThrowError(isolate, "Failed to build item array");
+                    error::ThrowError(isolate, "Failed to build item array");
                     return;
                 }
                 arr->Set(context, i, obj).Check();
@@ -1024,7 +1024,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
         isolate, proto, "getSkill", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
@@ -1043,7 +1043,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
 
-            uint16_t nSkillId = static_cast<uint16_t>(v8_convert::ToUint32(isolate, args[0]));
+            uint16_t nSkillId = static_cast<uint16_t>(convert::ToUint32(isolate, args[0]));
 
             if (args.Length() == 1) {
                 // Mode switch: 0=right skill name, 1=left skill name, 2=right skill id,
@@ -1051,7 +1051,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 switch (nSkillId) {
                     case 0:
                     case 1:
-                        args.GetReturnValue().Set(v8_convert::ToV8(
+                        args.GetReturnValue().Set(convert::ToJS(
                             isolate, data->GetSkillName(nSkillId > 0 ? game::Hand::Left : game::Hand::Right)));
                         break;
                     case 2:
@@ -1066,9 +1066,9 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                         for (uint32_t i = 0; i < skills.size(); ++i) {
                             auto& skill = skills[i];
                             auto skillArr = v8::Array::New(isolate, 3);
-                            skillArr->Set(context, 0, v8_convert::ToV8(isolate, skill.skillId)).Check();
-                            skillArr->Set(context, 1, v8_convert::ToV8(isolate, skill.baseLevel)).Check();
-                            skillArr->Set(context, 2, v8_convert::ToV8(isolate, skill.totalLevel)).Check();
+                            skillArr->Set(context, 0, convert::ToJS(isolate, skill.skillId)).Check();
+                            skillArr->Set(context, 1, convert::ToJS(isolate, skill.baseLevel)).Check();
+                            skillArr->Set(context, 2, convert::ToJS(isolate, skill.totalLevel)).Check();
                             arr->Set(context, i, skillArr).Check();
                         }
                         args.GetReturnValue().Set(arr);
@@ -1079,10 +1079,10 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                         break;
                 }
             } else if (args[1]->IsNumber()) {
-                bool includeExtraLevels = v8_convert::ToBool(isolate, args[1]);
+                bool includeExtraLevels = convert::ToBool(isolate, args[1]);
                 std::optional charge = false;
                 if (args.Length() >= 3) {
-                    if (v8_convert::ToBool(isolate, args[2])) {
+                    if (convert::ToBool(isolate, args[2])) {
                         charge = true;
                     } else {
                         charge = std::nullopt;
@@ -1109,7 +1109,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Method(
         isolate, proto, "getParent", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
             auto* data = Unwrap(args.This());
@@ -1120,7 +1120,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
 
             if (data->Type() == UnitType::Object) {
                 auto ownerName = data->GetParentName();
-                args.GetReturnValue().Set(v8_convert::ToV8(isolate, ownerName));
+                args.GetReturnValue().Set(convert::ToJS(isolate, ownerName));
                 return;
             }
 
@@ -1139,7 +1139,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Method(
         isolate, proto, "getMerc", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
             args.GetReturnValue().SetNull();
@@ -1169,7 +1169,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Method(
         isolate, proto, "getMercHP", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
             // Reference: lpUnit ? FindUnit(lpUnit) : GetPlayerUnit()
@@ -1202,7 +1202,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Method(
         isolate, proto, "getEnchant", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
             if (args.Length() < 1 || !args[0]->IsNumber()) {
@@ -1217,7 +1217,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             auto* isolate = args.GetIsolate();
-            uint32_t enchantId = v8_convert::ToUint32(isolate, args[0]);
+            uint32_t enchantId = convert::ToUint32(isolate, args[0]);
             // Returns INT 0 when not found, BOOLEAN true when found
             if (data->HasEnchant(enchantId)) {
                 args.GetReturnValue().Set(true);
@@ -1236,15 +1236,15 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Method(
         isolate, proto, "getQuest", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
             if (args.Length() < 2 || !args[0]->IsNumber() || !args[1]->IsNumber()) {
                 return;
             }
             auto* isolate = args.GetIsolate();
-            uint32_t nQuest = v8_convert::ToUint32(isolate, args[0]);
-            uint32_t nFlag = v8_convert::ToUint32(isolate, args[1]);
+            uint32_t nQuest = convert::ToUint32(isolate, args[0]);
+            uint32_t nFlag = convert::ToUint32(isolate, args[1]);
             args.GetReturnValue().Set(game::GetQuestFlag(nQuest, nFlag));
         });
 
@@ -1256,14 +1256,14 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
         isolate, proto, "getState", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
             if (args.Length() < 1 || !args[0]->IsNumber()) {
                 args.GetReturnValue().SetFalse();
                 return;
             }
-            int32_t nState = v8_convert::ToInt32(isolate, args[0]);
+            int32_t nState = convert::ToInt32(isolate, args[0]);
             // No max state check, as mods might add new stats.
             if (nState < 0) {
                 args.GetReturnValue().SetFalse();
@@ -1292,7 +1292,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
         isolate, proto, "getStat", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
@@ -1307,11 +1307,11 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
 
-            int32_t statId = v8_convert::ToInt32(isolate, args[0]);
+            int32_t statId = convert::ToInt32(isolate, args[0]);
 
             uint32_t subIndex = 0;
             if (args.Length() > 1) {
-                subIndex = v8_convert::ToInt32(isolate, args[1]);
+                subIndex = convert::ToInt32(isolate, args[1]);
             }
 
             if (statId == -1) {
@@ -1323,9 +1323,9 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 for (uint32_t i = 0; i < allStats.size(); ++i) {
                     auto& entry = allStats[i];
                     auto statArr = v8::Array::New(isolate, 3);
-                    statArr->Set(context, 0, v8_convert::ToV8(isolate, entry.statId)).Check();
-                    statArr->Set(context, 1, v8_convert::ToV8(isolate, entry.subIndex)).Check();
-                    statArr->Set(context, 2, v8_convert::ToV8(isolate, entry.value)).Check();
+                    statArr->Set(context, 0, convert::ToJS(isolate, entry.statId)).Check();
+                    statArr->Set(context, 1, convert::ToJS(isolate, entry.subIndex)).Check();
+                    statArr->Set(context, 2, convert::ToJS(isolate, entry.value)).Check();
                     arr->Set(context, i, statArr).Check();
                 }
                 args.GetReturnValue().Set(arr);
@@ -1353,13 +1353,12 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                             maxcharges = entry.value >> 8;
                         }
                         auto obj = v8::Object::New(isolate);
-                        obj->Set(context, v8_convert::ToV8(isolate, "skill"), v8_convert::ToV8(isolate, skill)).Check();
-                        obj->Set(context, v8_convert::ToV8(isolate, "level"), v8_convert::ToV8(isolate, level)).Check();
+                        obj->Set(context, convert::ToJS(isolate, "skill"), convert::ToJS(isolate, skill)).Check();
+                        obj->Set(context, convert::ToJS(isolate, "level"), convert::ToJS(isolate, level)).Check();
                         if (maxcharges > 0) {
-                            obj->Set(context, v8_convert::ToV8(isolate, "charges"), v8_convert::ToV8(isolate, charges))
+                            obj->Set(context, convert::ToJS(isolate, "charges"), convert::ToJS(isolate, charges))
                                 .Check();
-                            obj->Set(context, v8_convert::ToV8(isolate, "maxcharges"),
-                                     v8_convert::ToV8(isolate, maxcharges))
+                            obj->Set(context, convert::ToJS(isolate, "maxcharges"), convert::ToJS(isolate, maxcharges))
                                 .Check();
                         }
                         // Place at arr[statId]; if already exists, wrap in array
@@ -1390,7 +1389,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                         }
                         if (existing->IsArray()) {
                             existing.As<v8::Array>()
-                                ->Set(context, entry.subIndex, v8_convert::ToV8(isolate, value))
+                                ->Set(context, entry.subIndex, convert::ToJS(isolate, value))
                                 .Check();
                         }
                     }
@@ -1411,7 +1410,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                         statId == static_cast<int32_t>(game::STAT_LASTEXP) ||
                         statId == static_cast<int32_t>(game::STAT_NEXTEXP)) {
                         args.GetReturnValue().Set(
-                            v8_convert::ToV8(isolate, static_cast<double>(static_cast<uint32_t>(value))));
+                            convert::ToJS(isolate, static_cast<double>(static_cast<uint32_t>(value))));
                         return;
                     }
                     args.GetReturnValue().Set(value);
@@ -1431,7 +1430,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
         isolate, proto, "getStatLists", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
             auto* data = Unwrap(args.This());
@@ -1444,7 +1443,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             auto context = isolate->GetCurrentContext();
             auto arr = v8::Array::New(isolate, static_cast<int32_t>(lists.size()));
             for (uint32_t i = 0; i < lists.size(); ++i) {
-                arr->Set(context, i, v8_convert::ToV8(isolate, lists[i])).Check();
+                arr->Set(context, i, convert::ToJS(isolate, lists[i])).Check();
             }
             args.GetReturnValue().Set(arr);
         });
@@ -1456,7 +1455,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Method(
         isolate, proto, "getFlags", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
             auto* data = Unwrap(args.This());
@@ -1478,7 +1477,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Method(
         isolate, proto, "getFlag", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
             if (args.Length() < 1 || !args[0]->IsNumber()) {
@@ -1493,7 +1492,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             auto* isolate = args.GetIsolate();
-            uint32_t flag = v8_convert::ToUint32(isolate, args[0]);
+            uint32_t flag = convert::ToUint32(isolate, args[0]);
             args.GetReturnValue().Set((data->ItemFlags() & flag) > 0);
         });
 
@@ -1512,7 +1511,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
         isolate, proto, "getItemCost", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
             if (args.Length() < 1 || !args[0]->IsNumber()) {
@@ -1526,7 +1525,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             if (data->Type() != UnitType::Item) {
                 return;
             }
-            auto mode = static_cast<game::ItemCostMode>(v8_convert::ToInt32(isolate, args[0]));
+            auto mode = static_cast<game::ItemCostMode>(convert::ToInt32(isolate, args[0]));
             // Reference line 1277-1287: only modes Buy(0), Sell(1), Repair(2) are valid
             if (mode < game::ItemCostMode::Buy || mode > game::ItemCostMode::Repair) {
                 return;
@@ -1543,11 +1542,11 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                         npcClassId = npcUnit->ClassId();
                     }
                 } else if (args[1]->IsNumber()) {
-                    npcClassId = v8_convert::ToUint32(isolate, args[1]);
+                    npcClassId = convert::ToUint32(isolate, args[1]);
                 }
             }
             if (args.Length() > 2 && args[2]->IsNumber()) {
-                difficulty = static_cast<game::Difficulty>(v8_convert::ToInt32(isolate, args[2]));
+                difficulty = static_cast<game::Difficulty>(convert::ToInt32(isolate, args[2]));
             }
             args.GetReturnValue().Set(data->ItemCost(mode, npcClassId, difficulty));
         });
@@ -1567,7 +1566,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
         isolate, proto, "setSkill", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
             if (args.Length() < 1) {
@@ -1582,7 +1581,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
 
             uint16_t skillId = 0;
             if (args[0]->IsString()) {
-                std::string skillName = v8_convert::ToString(isolate, args[0]);
+                std::string skillName = convert::ToString(isolate, args[0]);
                 auto resolved = game::GetSkillByName(skillName);
                 if (!resolved.has_value()) {
                     args.GetReturnValue().SetFalse();
@@ -1590,7 +1589,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 }
                 skillId = resolved.value();
             } else if (args[0]->IsNumber()) {
-                skillId = static_cast<uint16_t>(v8_convert::ToInt32(isolate, args[0]));
+                skillId = static_cast<uint16_t>(convert::ToInt32(isolate, args[0]));
             } else {
                 args.GetReturnValue().SetFalse();
                 return;
@@ -1601,7 +1600,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             // JS arg is numeric 0/1 (truthy->leftHand). Preserve that at the binding boundary.
-            game::Hand hand = v8_convert::ToBool(isolate, args[1]) ? game::Hand::Left : game::Hand::Right;
+            game::Hand hand = convert::ToBool(isolate, args[1]) ? game::Hand::Left : game::Hand::Right;
             std::optional<uint32_t> itemId;
             if (args.Length() == 3 && args[2]->IsObject()) {
                 auto* itemUnit = Unwrap(args[2].As<v8::Object>());
@@ -1644,7 +1643,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Method(
         isolate, proto, "move", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
             auto* data = Unwrap(args.This());
@@ -1665,7 +1664,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             // Explicit IsNumber gate preserves legacy behavior: non-numeric args (e.g. `move("foo","bar")`)
             // must be treated as "no target given" rather than coercing to 0.
             auto target = (args.Length() >= 2 && args[0]->IsNumber() && args[1]->IsNumber())
-                              ? v8_extract::Position(args, 0).value_or(data->Pos())
+                              ? extract::Position(args, 0).value_or(data->Pos())
                               : data->Pos();
             data->Move(target);
         });
@@ -1677,7 +1676,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Method(
         isolate, proto, "overhead", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
             args.GetReturnValue().SetFalse();
@@ -1687,7 +1686,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                     return;
                 }
                 auto* isolate = args.GetIsolate();
-                std::string text = v8_convert::ToString(isolate, args[0]);
+                std::string text = convert::ToString(isolate, args[0]);
                 if (!text.empty()) {
                     data->Overhead(text);
                 }
@@ -1701,7 +1700,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Method(
         isolate, proto, "revive", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
             auto* data = Unwrap(args.This());
@@ -1720,7 +1719,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
         isolate, proto, "shop", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
             if (args.Length() < 1) {
@@ -1739,7 +1738,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             }
             // Reference reads mode from argv[argc-1] (last argument)
             int32_t lastIdx = args.Length() - 1;
-            auto mode = static_cast<game::ShopMode>(v8_convert::ToInt32(isolate, args[lastIdx]));
+            auto mode = static_cast<game::ShopMode>(convert::ToInt32(isolate, args[lastIdx]));
             if (mode != game::ShopMode::Sell && mode != game::ShopMode::Buy && mode != game::ShopMode::BuyFill) {
                 args.GetReturnValue().SetFalse();
                 return;
@@ -1757,7 +1756,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Method(
         isolate, proto, "getMinionCount", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
             if (args.Length() < 1 || !args[0]->IsNumber()) {
@@ -1772,7 +1771,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             auto* isolate = args.GetIsolate();
-            int32_t nType = v8_convert::ToInt32(isolate, args[0]);
+            int32_t nType = convert::ToInt32(isolate, args[0]);
             args.GetReturnValue().Set(data->GetMinionCount(nType));
         });
 
@@ -1785,7 +1784,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
         isolate, proto, "getRepairCost", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
             // Reference line 1978: always uses D2CLIENT_GetPlayerUnit(), not `this`
@@ -1799,7 +1798,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             int32_t npcClassId =
                 npc ? static_cast<int32_t>(npc->ClassId()) : static_cast<int32_t>(game::NPC_CHARSI_CLASS_ID);
             if (args.Length() > 0 && args[0]->IsNumber()) {
-                npcClassId = v8_convert::ToInt32(isolate, args[0]);
+                npcClassId = convert::ToInt32(isolate, args[0]);
             }
             args.GetReturnValue().Set(player.GetRepairCost(npcClassId));
         });
@@ -1818,8 +1817,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             auto pos = data->Pos();
 
             std::array<v8::Local<v8::Value>, 2> elements = {
-                v8_convert::ToV8(isolate, pos.x),
-                v8_convert::ToV8(isolate, pos.y),
+                convert::ToJS(isolate, pos.x),
+                convert::ToJS(isolate, pos.y),
             };
             auto arr = v8::Array::New(isolate, elements.data(), elements.size());
 

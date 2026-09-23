@@ -5,7 +5,7 @@
 #include <string>
 #include <string_view>
 
-namespace d2bs::js::script {
+namespace d2bs::runtime::script {
 
 // Compile a JavaScript source string into a v8::Script, applying source-level
 // kolbot compatibility transforms. Used by the per-script execution path and
@@ -33,4 +33,4 @@ v8::MaybeLocal<v8::Script> CompileSource(v8::Isolate* isolate, v8::Local<v8::Con
 // script runs. Failure is non-fatal - the prelude is best-effort.
 void ApplyCompatibilityPrelude(v8::Isolate* isolate, v8::Local<v8::Context> context);
 
-}  // namespace d2bs::js::script
+}  // namespace d2bs::runtime::script

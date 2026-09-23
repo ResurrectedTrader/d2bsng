@@ -14,14 +14,14 @@ namespace d2bs::api::classes {
 
 // Native payload for the TxtTables class. The class is a pure static namespace
 // (never instantiated), so this carries no state - it exists only to satisfy
-// the V8ClassBase NativeType parameter.
+// the ClassBase NativeType parameter.
 struct TxtTablesData {};
 
 // `TxtTables`: a non-constructable namespace class exposing the Diablo II data
 // (.txt) tables through static methods - the same machinery as the global
 // getBaseStat, with method names that don't stutter. Used from scripts as
 // `TxtTables.names()`, `TxtTables.row("runes", 42)`, etc.
-class JSTxtTables : public V8ClassBase<JSTxtTables, TxtTablesData> {
+class JSTxtTables : public ClassBase<JSTxtTables, TxtTablesData> {
    public:
     static constexpr std::string_view ClassName = "TxtTables";
     V8_CLASS_NOT_CONSTRUCTABLE
@@ -39,7 +39,7 @@ class JSTxtTables : public V8ClassBase<JSTxtTables, TxtTablesData> {
                 auto arr = v8::Array::New(isolate, game::TXT_TABLE_NAMES.size());
                 uint32_t i = 0;
                 for (const auto& name : game::TXT_TABLE_NAMES) {
-                    arr->Set(context, i++, v8_convert::ToV8(isolate, name)).Check();
+                    arr->Set(context, i++, convert::ToJS(isolate, name)).Check();
                 }
                 args.GetReturnValue().Set(arr);
             });
@@ -59,7 +59,7 @@ class JSTxtTables : public V8ClassBase<JSTxtTables, TxtTablesData> {
                     return;
                 }
                 if (auto count = game::GetTxtTableRowCount(*table)) {
-                    args.GetReturnValue().Set(v8_convert::ToV8(isolate, *count));
+                    args.GetReturnValue().Set(convert::ToJS(isolate, *count));
                 }
             });
 
@@ -85,7 +85,7 @@ class JSTxtTables : public V8ClassBase<JSTxtTables, TxtTablesData> {
                 auto arr = v8::Array::New(isolate, static_cast<int32_t>(columns->size()));
                 uint32_t i = 0;
                 for (const auto& column : *columns) {
-                    arr->Set(context, i++, v8_convert::ToV8(isolate, column)).Check();
+                    arr->Set(context, i++, convert::ToJS(isolate, column)).Check();
                 }
                 args.GetReturnValue().Set(arr);
             });
@@ -106,7 +106,7 @@ class JSTxtTables : public V8ClassBase<JSTxtTables, TxtTablesData> {
                 if (!table) {
                     return;
                 }
-                uint32_t row = v8_convert::ToUint32(isolate, args[1]);
+                uint32_t row = convert::ToUint32(isolate, args[1]);
                 args.GetReturnValue().Set(BuildTxtRow(isolate, isolate->GetCurrentContext(), *table, row));
             });
 
@@ -126,7 +126,7 @@ class JSTxtTables : public V8ClassBase<JSTxtTables, TxtTablesData> {
                 if (!table) {
                     return;
                 }
-                uint32_t row = v8_convert::ToUint32(isolate, args[1]);
+                uint32_t row = convert::ToUint32(isolate, args[1]);
                 args.GetReturnValue().Set(ResolveTxtCell(isolate, *table, row, args[2]));
             });
     }

@@ -3,7 +3,7 @@
 #include <string>
 #include <string_view>
 
-namespace d2bs::js::script {
+namespace d2bs::runtime::script {
 
 // V8 origin name for console/chat commands - affects stack trace reporting. Matches reference.
 inline constexpr std::string_view COMMAND_LINE_NAME = "Command Line";
@@ -30,4 +30,4 @@ void RunCommand(const std::string& line);
 // configured starter (or no-op when waitForProfile is set). Exposed for tests.
 void ReloadAll();
 
-}  // namespace d2bs::js::script
+}  // namespace d2bs::runtime::script

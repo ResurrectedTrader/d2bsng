@@ -44,12 +44,12 @@ using namespace d2bs::api::classes;
 namespace {
 
 // Emit a JS array of {x, y} objects from a span of pathfinding positions.
-v8::Local<v8::Array> PositionsToV8(v8::Isolate* isolate, v8::Local<v8::Context> context,
+v8::Local<v8::Array> PositionsToJS(v8::Isolate* isolate, v8::Local<v8::Context> context,
                                    std::span<const navigation::Position> points) {
     auto arr = v8::Array::New(isolate, static_cast<int32_t>(points.size()));
     for (size_t i = 0; i < points.size(); ++i) {
         v8::HandleScope innerScope(isolate);
-        arr->Set(context, i, v8_convert::ToV8(isolate, points[i])).Check();
+        arr->Set(context, i, convert::ToJS(isolate, points[i])).Check();
     }
     return arr;
 }
@@ -81,13 +81,13 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature getUnit(type: number, classId?: number, mode?: number, unitId?: number)
     /// @param classId {number} - class id filter (mutually exclusive with name). Pass -1 (or omit) for no filter.
     /// @returns {Unit|undefined} - matching unit, or undefined if not found
-    v8_function::Register(
+    function::Register(
         isolate, global, "getUnit", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             auto context = isolate->GetCurrentContext();
 
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
@@ -100,7 +100,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             // cursor item, 101 = selected unit. Remaining args are ignored on these paths
             // (matches reference).
             if (args[0]->IsNumber()) {
-                uint32_t type = v8_convert::ToUint32(isolate, args[0]);
+                uint32_t type = convert::ToUint32(isolate, args[0]);
                 if (type == game::ITEM_LOCATION_MODE_OFFSET) {
                     auto unit = game::Unit::CursorItem();
                     if (!unit) {
@@ -131,7 +131,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             // nullopt. IsNumber would accept -1 and store 0xFFFFFFFF as engaged.
             game::UnitCursorState cursor;
             if (args[0]->IsUint32()) {
-                auto rawType = v8_convert::ToUint32(isolate, args[0]);
+                auto rawType = convert::ToUint32(isolate, args[0]);
                 // Valid unit types are 0-5. Values outside this range trigger "search all types."
                 if (rawType <= static_cast<uint32_t>(game::UnitType::Tile)) {
                     cursor.type = static_cast<game::UnitType>(rawType);
@@ -140,16 +140,16 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             if (args.Length() >= 2) {
                 // arg[1] is string (name) OR uint32 (classId) - mutually exclusive.
                 if (args[1]->IsString()) {
-                    cursor.name = v8_convert::ToString(isolate, args[1]);
+                    cursor.name = convert::ToString(isolate, args[1]);
                 } else if (args[1]->IsUint32()) {
-                    cursor.classId = v8_convert::ToUint32(isolate, args[1]);
+                    cursor.classId = convert::ToUint32(isolate, args[1]);
                 }
             }
             if (args.Length() >= 3 && args[2]->IsUint32()) {
-                cursor.mode = v8_convert::ToUint32(isolate, args[2]);
+                cursor.mode = convert::ToUint32(isolate, args[2]);
             }
             if (args.Length() >= 4 && args[3]->IsUint32()) {
-                cursor.unitId = v8_convert::ToUint32(isolate, args[3]);
+                cursor.unitId = convert::ToUint32(isolate, args[3]);
             }
 
             // Reference calls GetUnit(szName, nClassId, nType, nMode, nUnitId) which searches
@@ -187,46 +187,46 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @throws {Error} - area is 0 (invalid level)
     /// @throws {RangeError} - reductionType is outside 0-3
     /// @throws {Error} - reductionType is 3 but reject/reduce/mutate functions are missing
-    v8_function::Register(
+    function::Register(
         isolate, global, "getPath", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             // Delegates to d2bs::pathfinding::FindPath after parsing and validating args.
             auto* isolate = args.GetIsolate();
 
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
             if (args.Length() < 5) {
-                v8_error::ThrowTypeError(isolate, "getPath requires at least 5 arguments");
+                error::ThrowTypeError(isolate, "getPath requires at least 5 arguments");
                 return;
             }
 
-            uint32_t area = v8_convert::ToUint32(isolate, args[0]);
-            auto src = v8_extract::Position(args, 1).value_or(game::Position::Zero);
-            auto dst = v8_extract::Position(args, 3).value_or(game::Position::Zero);
+            uint32_t area = convert::ToUint32(isolate, args[0]);
+            auto src = extract::Position(args, 1).value_or(game::Position::Zero);
+            auto dst = extract::Position(args, 3).value_or(game::Position::Zero);
             uint32_t reductionType = 0;
             uint32_t radius = 20;
             if (args.Length() > 5) {
-                reductionType = v8_convert::ToUint32(isolate, args[5]);
+                reductionType = convert::ToUint32(isolate, args[5]);
             }
             if (args.Length() > 6) {
-                radius = v8_convert::ToUint32(isolate, args[6]);
+                radius = convert::ToUint32(isolate, args[6]);
             }
 
             if (area == 0) {
-                v8_error::ThrowError(isolate, "Invalid level passed to getPath");
+                error::ThrowError(isolate, "Invalid level passed to getPath");
                 return;
             }
 
             if (reductionType > static_cast<uint32_t>(navigation::ReductionType::JSCallback)) {
-                v8_error::ThrowRangeError(isolate, "reductionType must be 0-3");
+                error::ThrowRangeError(isolate, "reductionType must be 0-3");
                 return;
             }
 
             if (reductionType == static_cast<uint32_t>(navigation::ReductionType::JSCallback) &&
                 (args.Length() < 10 || !args[7]->IsFunction() || !args[8]->IsFunction() || !args[9]->IsFunction())) {
-                v8_error::ThrowError(isolate, "Invalid function values for reduction type");
+                error::ThrowError(isolate, "Invalid function values for reduction type");
                 return;
             }
 
@@ -250,8 +250,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 request.jsReject = [isolate, context, rejectFunc](navigation::Position p) -> bool {
                     v8::HandleScope scope(isolate);
                     v8::TryCatch tryCatch(isolate);
-                    std::array<v8::Local<v8::Value>, 2> argv = {v8_convert::ToV8(isolate, p.x),
-                                                                v8_convert::ToV8(isolate, p.y)};
+                    std::array<v8::Local<v8::Value>, 2> argv = {convert::ToJS(isolate, p.x),
+                                                                convert::ToJS(isolate, p.y)};
                     auto result = rejectFunc->Call(context, v8::Undefined(isolate), argv.size(), argv.data());
                     if (tryCatch.HasCaught() || result.IsEmpty())
                         return false;
@@ -264,7 +264,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     v8::HandleScope scope(isolate);
                     v8::TryCatch tryCatch(isolate);
 
-                    auto pathArr = PositionsToV8(isolate, context, path);
+                    auto pathArr = PositionsToJS(isolate, context, path);
 
                     std::array<v8::Local<v8::Value>, 1> argv = {pathArr};
                     auto callResult = reduceFunc->Call(context, v8::Undefined(isolate), argv.size(), argv.data());
@@ -277,7 +277,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     reduced.reserve(resultArr->Length());
                     for (uint32_t i = 0; i < resultArr->Length(); i++) {
                         auto elem = resultArr->Get(context, i).ToLocalChecked();
-                        if (auto pt = v8_extract::Position(isolate, elem))
+                        if (auto pt = extract::Position(isolate, elem))
                             reduced.push_back(*pt);
                     }
                     return reduced;
@@ -286,8 +286,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 request.jsMutate = [isolate, context, mutateFunc](navigation::Position p) -> navigation::Position {
                     v8::HandleScope scope(isolate);
                     v8::TryCatch tryCatch(isolate);
-                    std::array<v8::Local<v8::Value>, 2> argv = {v8_convert::ToV8(isolate, p.x),
-                                                                v8_convert::ToV8(isolate, p.y)};
+                    std::array<v8::Local<v8::Value>, 2> argv = {convert::ToJS(isolate, p.x),
+                                                                convert::ToJS(isolate, p.y)};
                     auto result = mutateFunc->Call(context, v8::Undefined(isolate), argv.size(), argv.data());
                     if (tryCatch.HasCaught() || result.IsEmpty() || !result.ToLocalChecked()->IsArray())
                         return p;
@@ -296,14 +296,14 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     auto ryMaybe = arr->Get(context, 1);
                     if (rxMaybe.IsEmpty() || ryMaybe.IsEmpty())
                         return p;
-                    auto rx = v8_convert::ToUint32(isolate, rxMaybe.ToLocalChecked());
-                    auto ry = v8_convert::ToUint32(isolate, ryMaybe.ToLocalChecked());
+                    auto rx = convert::ToUint32(isolate, rxMaybe.ToLocalChecked());
+                    auto ry = convert::ToUint32(isolate, ryMaybe.ToLocalChecked());
                     return {.x = rx, .y = ry};
                 };
             }
 
             auto path = d2bs::navigation::FindPath(request);
-            args.GetReturnValue().Set(PositionsToV8(isolate, context, path));
+            args.GetReturnValue().Set(PositionsToJS(isolate, context, path));
         });
 
     /// @description Read the collision flag at a world coordinate on a level.
@@ -313,28 +313,28 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param y {number} - world y coordinate
     /// @returns {number} - collision flag at the cell, or 0 if no room contains the position
     /// @throws {Error} - the level is not loaded
-    v8_function::Register(
+    function::Register(
         isolate, global, "getCollision", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
             if (args.Length() < 3 || !args[0]->IsUint32() || !args[1]->IsUint32() || !args[2]->IsUint32()) {
-                v8_error::ThrowTypeError(isolate, "Invalid arguments.");
+                error::ThrowTypeError(isolate, "Invalid arguments.");
                 return;
             }
 
-            uint32_t levelId = v8_convert::ToUint32(isolate, args[0]);
-            auto pos = v8_extract::Position(args, 1).value();  // strict IsUint32 above guarantees this
+            uint32_t levelId = convert::ToUint32(isolate, args[0]);
+            auto pos = extract::Position(args, 1).value();  // strict IsUint32 above guarantees this
 
             auto lock = game::Bridge::Lock();
 
             auto level = game::Level::Get(levelId);
             if (!level) {
-                v8_error::ThrowError(isolate, "Level not loaded");
+                error::ThrowError(isolate, "Level not loaded");
                 return;
             }
 
@@ -349,10 +349,10 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description Get the player's mercenary HP as a percentage (0-100).
     /// @signature getMercHP()
     /// @returns {number} - Merc HP as a percent (0-100); undefined if there is no player or merc.
-    v8_function::Register(
+    function::Register(
         isolate, global, "getMercHP", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
             // Reference: global version always uses player unit
@@ -374,13 +374,13 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature getCursorType(mode?: number)
     /// @param mode {number} - 1 = shop cursor, otherwise regular cursor (default 0)
     /// @returns {number} - cursor type id
-    v8_function::Register(
+    function::Register(
         isolate, global, "getCursorType", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
             int32_t type = 0;
             if (args.Length() > 0) {
-                type = v8_convert::ToInt32(isolate, args[0]);
+                type = convert::ToInt32(isolate, args[0]);
             }
 
             // type 1 = shop mode (check for shop-specific cursor), 0 = regular cursor
@@ -392,7 +392,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature getSkillByName(name: string)
     /// @param name {string} - skill name
     /// @returns {number|undefined} - skill id, or undefined if not found
-    v8_function::Register(
+    function::Register(
         isolate, global, "getSkillByName", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
@@ -400,7 +400,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            std::string name = v8_convert::ToString(isolate, args[0]);
+            std::string name = convert::ToString(isolate, args[0]);
             auto skillId = game::GetSkillByName(name);
             if (!skillId) {
                 return;
@@ -412,16 +412,16 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature getSkillById(skillId: number)
     /// @param skillId {number} - skill id
     /// @returns {string} - localized skill name, or "Unknown" on lookup failure
-    v8_function::Register(
+    function::Register(
         isolate, global, "getSkillById", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
             if (args.Length() < 1 || !args[0]->IsNumber()) {
-                args.GetReturnValue().Set(v8_convert::ToV8(isolate, "Unknown"));
+                args.GetReturnValue().Set(convert::ToJS(isolate, "Unknown"));
                 return;
             }
 
-            int32_t skillId = v8_convert::ToInt32(isolate, args[0]);
+            int32_t skillId = convert::ToInt32(isolate, args[0]);
 
             // Chain: skills table -> skilldesc row -> locale string ID -> localized name
             static_assert(std::variant_size_v<game::TxtValue> == 3,
@@ -432,20 +432,20 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 if (auto* strId = std::get_if<int64_t>(&strCell); strId != nullptr && *strId > 0) {
                     auto name = game::GetLocaleString(static_cast<uint16_t>(*strId));
                     if (!name.empty()) {
-                        args.GetReturnValue().Set(v8_convert::ToV8(isolate, name));
+                        args.GetReturnValue().Set(convert::ToJS(isolate, name));
                         return;
                     }
                 }
             }
             // Fallback: return "Unknown" (matching reference behavior)
-            args.GetReturnValue().Set(v8_convert::ToV8(isolate, "Unknown"));
+            args.GetReturnValue().Set(convert::ToJS(isolate, "Unknown"));
         });
 
     /// @description Get a localized game string by its numeric locale string id.
     /// @signature getLocaleString(localeId: number)
     /// @param localeId {number} - locale string id (lower 16 bits used)
     /// @returns {string|undefined} - the localized string (may be empty), or undefined if missing arg
-    v8_function::Register(
+    function::Register(
         isolate, global, "getLocaleString", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
@@ -454,9 +454,9 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint16_t localeId = static_cast<uint16_t>(v8_convert::ToUint32(isolate, args[0]));
+            uint16_t localeId = static_cast<uint16_t>(convert::ToUint32(isolate, args[0]));
             std::string text = game::GetLocaleString(localeId);
-            args.GetReturnValue().Set(v8_convert::ToV8(isolate, text));
+            args.GetReturnValue().Set(convert::ToJS(isolate, text));
         });
 
     /// @description Measure the pixel size of a text string in a given game font.
@@ -465,13 +465,13 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param font {number} - game font id
     /// @param asObject {boolean} - true returns {width, height}, false/omitted returns [width, height]
     /// @returns {Array<number>|{width:number,height:number}|false} - size as array or object, false on bad arg types
-    v8_function::Register(
+    function::Register(
         isolate, global, "getTextSize", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             auto context = isolate->GetCurrentContext();
 
             if (args.Length() < 2) {
-                v8_error::ThrowTypeError(isolate, "getTextSize requires at least 2 arguments");
+                error::ThrowTypeError(isolate, "getTextSize requires at least 2 arguments");
                 return;
             }
 
@@ -480,8 +480,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            std::string text = v8_convert::ToString(isolate, args[0]);
-            uint32_t font = v8_convert::ToUint32(isolate, args[1]);
+            std::string text = convert::ToString(isolate, args[0]);
+            uint32_t font = convert::ToUint32(isolate, args[1]);
 
             bool asObject = false;
             if (args.Length() > 2 && args[2]->IsBoolean()) {
@@ -491,11 +491,11 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             auto size = game::GetTextSize(text, font);
 
             if (asObject) {
-                args.GetReturnValue().Set(v8_convert::ToV8(isolate, size));
+                args.GetReturnValue().Set(convert::ToJS(isolate, size));
             } else {
                 auto arr = v8::Array::New(isolate, 2);
-                arr->Set(context, 0, v8_convert::ToV8(isolate, static_cast<int32_t>(size.width))).Check();
-                arr->Set(context, 1, v8_convert::ToV8(isolate, static_cast<int32_t>(size.height))).Check();
+                arr->Set(context, 0, convert::ToJS(isolate, static_cast<int32_t>(size.width))).Check();
+                arr->Set(context, 1, convert::ToJS(isolate, static_cast<int32_t>(size.height))).Check();
                 args.GetReturnValue().Set(arr);
             }
         });
@@ -504,7 +504,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature getUIFlag(flag: number)
     /// @param flag {number} - UI flag id
     /// @returns {boolean|undefined} - true if the flag is set, undefined if missing arg
-    v8_function::Register(
+    function::Register(
         isolate, global, "getUIFlag", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
@@ -513,11 +513,11 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
 
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
-            uint32_t flag = v8_convert::ToUint32(isolate, args[0]);
+            uint32_t flag = convert::ToUint32(isolate, args[0]);
             args.GetReturnValue().Set(game::GetUIFlag(flag) != 0);
         });
 
@@ -525,7 +525,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature getTradeInfo(mode: number)
     /// @param mode {number} - 0 = recent trade id, 1 = recent trade name, 2 = recent trade id (alt)
     /// @returns {number|string|null|false} - id for modes 0/2, name-or-null for mode 1, false otherwise
-    v8_function::Register(
+    function::Register(
         isolate, global, "getTradeInfo", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             args.GetReturnValue().SetFalse();
@@ -535,7 +535,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
 
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
@@ -544,7 +544,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto mode = static_cast<game::TradeInfoMode>(v8_convert::ToInt32(isolate, args[0]));
+            auto mode = static_cast<game::TradeInfoMode>(convert::ToInt32(isolate, args[0]));
             switch (mode) {
                 case game::TradeInfoMode::RecentTradeId:
                     // Reference: INT_TO_JSVAL(*p_D2CLIENT_RecentTradeId)
@@ -554,7 +554,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     // Reference: returns name string or null
                     auto info = d2bs::game::GetTradeInfo(game::TradeInfoMode::RecentTradeName);
                     if (info) {
-                        args.GetReturnValue().Set(v8_convert::ToV8(isolate, *info));
+                        args.GetReturnValue().Set(convert::ToJS(isolate, *info));
                     } else {
                         args.GetReturnValue().SetNull();
                     }
@@ -573,7 +573,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature getWaypoint(waypointId: number)
     /// @param waypointId {number} - waypoint id (values > 40 are clamped to 0)
     /// @returns {boolean} - true if the waypoint is set
-    v8_function::Register(
+    function::Register(
         isolate, global, "getWaypoint", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
@@ -583,11 +583,11 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
 
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
-            uint32_t waypointId = v8_convert::ToUint32(isolate, args[0]);
+            uint32_t waypointId = convert::ToUint32(isolate, args[0]);
             // Clamp waypointId > MAX_WAYPOINT_ID to 0 (matching reference behavior)
             if (waypointId > game::MAX_WAYPOINT_ID) {
                 waypointId = 0;
@@ -605,13 +605,13 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature getRoom(levelId: number, x: number, y: number)
     /// @returns {Room|undefined} - the matching Room; falls back to the level's first room if no coordinate match
     /// @throws {Error} - the game is not ready
-    v8_function::Register(
+    function::Register(
         isolate, global, "getRoom", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             auto context = isolate->GetCurrentContext();
 
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::ThrowError(isolate, "Game not ready");
+                error::ThrowError(isolate, "Game not ready");
                 return;
             }
 
@@ -636,7 +636,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 room = level.GetFirstRoom();
             } else if (args.Length() == 1 && args[0]->IsNumber()) {
                 // getRoom(levelId): get first room of the level, or player's room if 0
-                uint32_t levelId = v8_convert::ToUint32(isolate, args[0]);
+                uint32_t levelId = convert::ToUint32(isolate, args[0]);
                 if (levelId == 0) {
                     // Reference: levelId==0 returns player's current room
                     auto player = game::Unit::Player();
@@ -658,15 +658,15 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
                 if (args.Length() >= 3 && args[0]->IsNumber() && args[1]->IsNumber() && args[2]->IsNumber()) {
                     // getRoom(levelId, x, y)
-                    uint32_t levelId = v8_convert::ToUint32(isolate, args[0]);
-                    pos = v8_extract::Position(args, 1).value_or(game::Position::Zero);
+                    uint32_t levelId = convert::ToUint32(isolate, args[0]);
+                    pos = extract::Position(args, 1).value_or(game::Position::Zero);
                     level = game::Level::Get(levelId);
                     if (!level) {
                         return;
                     }
                 } else {
                     // getRoom(x, y): search from player's room
-                    pos = v8_extract::Position(args, 0).value_or(game::Position::Zero);
+                    pos = extract::Position(args, 0).value_or(game::Position::Zero);
                     auto player = game::Unit::Player();
                     if (!player) {
                         return;
@@ -713,13 +713,13 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature getParty(unit: Unit)
     /// @param unit {Unit} - a Unit object; matched by its unit id
     /// @returns {Party|undefined} - the matching Party member, or undefined if not found
-    v8_function::Register(
+    function::Register(
         isolate, global, "getParty", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             auto context = isolate->GetCurrentContext();
 
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
@@ -741,10 +741,10 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             // Search by name (string arg) or unit ID (number arg)
             std::optional<game::Party> found;
             if (args[0]->IsString()) {
-                std::string name = v8_convert::ToString(isolate, args[0]);
+                std::string name = convert::ToString(isolate, args[0]);
                 found = game::Party::FindByName(name);
             } else if (args[0]->IsNumber()) {
-                uint32_t unitId = v8_convert::ToUint32(isolate, args[0]);
+                uint32_t unitId = convert::ToUint32(isolate, args[0]);
                 found = game::Party::FindById(unitId);
             } else if (args[0]->IsObject()) {
                 // If a unit object is passed, match by its unit ID
@@ -754,7 +754,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     if (unitData && *unitData) {
                         found = game::Party::FindById(unitData->Id());
                     } else {
-                        v8_error::ThrowError(isolate, "Unable to get Unit");
+                        error::ThrowError(isolate, "Unable to get Unit");
                         return;
                     }
                 }
@@ -776,13 +776,13 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param classId {number} - unit class id to match; pass -1 or omit to match any class.
     /// @returns {PresetUnit|false} - the first matching preset unit, or false if none
     /// @throws {Error} - the level cannot be accessed
-    v8_function::Register(
+    function::Register(
         isolate, global, "getPresetUnit", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             auto context = isolate->GetCurrentContext();
 
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
@@ -793,19 +793,19 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t areaId = v8_convert::ToUint32(isolate, args[0]);
+            uint32_t areaId = convert::ToUint32(isolate, args[0]);
             std::optional<uint32_t> nType;
             std::optional<uint32_t> nClassId;
             if (args.Length() > 1 && args[1]->IsUint32()) {
-                nType = v8_convert::ToUint32(isolate, args[1]);
+                nType = convert::ToUint32(isolate, args[1]);
             }
             if (args.Length() > 2 && args[2]->IsUint32()) {
-                nClassId = v8_convert::ToUint32(isolate, args[2]);
+                nClassId = convert::ToUint32(isolate, args[2]);
             }
 
             auto level = game::Level::Get(areaId);
             if (!level) {
-                v8_error::ThrowError(isolate, "getPresetUnit failed, couldn't access the level!");
+                error::ThrowError(isolate, "getPresetUnit failed, couldn't access the level!");
                 return;
             }
 
@@ -818,7 +818,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             auto data = std::make_unique<game::PresetUnitInfo>(*match);
             auto obj = JSPresetUnit::CreateInstance(isolate, context, std::move(data));
             if (obj.IsEmpty()) {
-                v8_error::ThrowError(isolate, "Failed to create PresetUnit object");
+                error::ThrowError(isolate, "Failed to create PresetUnit object");
                 return;
             }
             args.GetReturnValue().Set(obj);
@@ -831,13 +831,13 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param classId {number} - unit class id to match; pass -1 or omit to match any class.
     /// @returns {Array<PresetUnit>|false} - array of matching preset units (possibly empty), or false if no args
     /// @throws {Error} - the level cannot be accessed
-    v8_function::Register(
+    function::Register(
         isolate, global, "getPresetUnits", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             auto context = isolate->GetCurrentContext();
 
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
@@ -848,19 +848,19 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t areaId = v8_convert::ToUint32(isolate, args[0]);
+            uint32_t areaId = convert::ToUint32(isolate, args[0]);
             std::optional<uint32_t> nType;
             std::optional<uint32_t> nClassId;
             if (args.Length() > 1 && args[1]->IsUint32()) {
-                nType = v8_convert::ToUint32(isolate, args[1]);
+                nType = convert::ToUint32(isolate, args[1]);
             }
             if (args.Length() > 2 && args[2]->IsUint32()) {
-                nClassId = v8_convert::ToUint32(isolate, args[2]);
+                nClassId = convert::ToUint32(isolate, args[2]);
             }
 
             auto level = game::Level::Get(areaId);
             if (!level) {
-                v8_error::ThrowError(isolate, "getPresetUnits failed, couldn't access the level!");
+                error::ThrowError(isolate, "getPresetUnits failed, couldn't access the level!");
                 return;
             }
 
@@ -870,7 +870,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 auto data = std::make_unique<game::PresetUnitInfo>(allPresets[i]);
                 auto obj = JSPresetUnit::CreateInstance(isolate, context, std::move(data));
                 if (obj.IsEmpty()) {
-                    v8_error::ThrowError(isolate, "Failed to build preset unit object");
+                    error::ThrowError(isolate, "Failed to build preset unit object");
                     return;
                 }
                 array->Set(context, i, obj).Check();
@@ -885,25 +885,25 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @returns {Area|false|undefined} - the Area object, false if the level is not loaded, undefined if no player
     /// @throws {Error} - the game is not ready
     /// @throws {Error} - areaId is negative
-    v8_function::Register(
+    function::Register(
         isolate, global, "getArea", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             auto context = isolate->GetCurrentContext();
 
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::ThrowError(isolate, "Game not ready");
+                error::ThrowError(isolate, "Game not ready");
                 return;
             }
 
             uint32_t areaId = 0;
             if (args.Length() >= 1) {
                 if (!args[0]->IsNumber()) {
-                    v8_error::ThrowError(isolate, "Invalid parameter passed to getArea!");
+                    error::ThrowError(isolate, "Invalid parameter passed to getArea!");
                     return;
                 }
-                int32_t signedId = v8_convert::ToInt32(isolate, args[0]);
+                int32_t signedId = convert::ToInt32(isolate, args[0]);
                 if (signedId < 0) {
-                    v8_error::ThrowError(isolate, "Invalid parameter passed to getArea!");
+                    error::ThrowError(isolate, "Invalid parameter passed to getArea!");
                     return;
                 }
                 areaId = static_cast<uint32_t>(signedId);
@@ -937,7 +937,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param column {string|number} - column name, or index into the resolved table's columns; omit for the whole row
     /// @returns {number|string|object|undefined} - the cell value; a {column: value} object when column is omitted;
     /// undefined if unresolved, the row is out of range, or the cell is empty
-    v8_function::Register(
+    function::Register(
         isolate, global, "getBaseStat", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             if (args.Length() < 2) {
@@ -947,7 +947,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             if (!table) {
                 return;
             }
-            uint32_t row = v8_convert::ToUint32(isolate, args[1]);
+            uint32_t row = convert::ToUint32(isolate, args[1]);
             // No column arg (or explicit undefined) -> whole-row object.
             if (args.Length() < 3 || args[2]->IsUndefined()) {
                 args.GetReturnValue().Set(BuildTxtRow(isolate, isolate->GetCurrentContext(), *table, row));
@@ -961,7 +961,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// `getItem()` only ever see the tab that is shown; the other tabs are reached through `StashTab.items`.
     /// @signature getStashTabs()
     /// @returns {StashTab[]} - one entry per tab; empty when not in a game
-    v8_function::Register(
+    function::Register(
         isolate, global, "getStashTabs", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             auto context = isolate->GetCurrentContext();
@@ -972,7 +972,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             for (const auto& tab : tabs) {
                 auto obj = JSStashTab::CreateInstance(isolate, context, std::make_unique<game::StashTab>(tab));
                 if (obj.IsEmpty()) {
-                    v8_error::ThrowError(isolate, "Failed to build stash tab array");
+                    error::ThrowError(isolate, "Failed to build stash tab array");
                     return;
                 }
                 arr->Set(context, i++, obj).Check();
@@ -988,7 +988,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param xsize {number} - width filter
     /// @param ysize {number} - height filter
     /// @returns {Control|undefined} - the matching control, or undefined if not in menu state / no match
-    v8_function::Register(
+    function::Register(
         isolate, global, "getControl", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             // Reference JSControl.cpp line 295: controls only exist in menu state
             if (game::GetGameState() != game::GameState::Menu) {
@@ -1005,19 +1005,19 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             std::optional<uint32_t> ysize;
 
             if (args.Length() > 0 && args[0]->IsUint32()) {
-                type = static_cast<game::ControlType>(v8_convert::ToUint32(isolate, args[0]));
+                type = static_cast<game::ControlType>(convert::ToUint32(isolate, args[0]));
             }
             if (args.Length() > 1 && args[1]->IsUint32()) {
-                x = v8_convert::ToUint32(isolate, args[1]);
+                x = convert::ToUint32(isolate, args[1]);
             }
             if (args.Length() > 2 && args[2]->IsUint32()) {
-                y = v8_convert::ToUint32(isolate, args[2]);
+                y = convert::ToUint32(isolate, args[2]);
             }
             if (args.Length() > 3 && args[3]->IsUint32()) {
-                xsize = v8_convert::ToUint32(isolate, args[3]);
+                xsize = convert::ToUint32(isolate, args[3]);
             }
             if (args.Length() > 4 && args[4]->IsUint32()) {
-                ysize = v8_convert::ToUint32(isolate, args[4]);
+                ysize = convert::ToUint32(isolate, args[4]);
             }
 
             auto ctrl = game::Control::Find(type, x, y, xsize, ysize);
@@ -1034,7 +1034,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description Get all current UI controls as an array; menu state only.
     /// @signature getControls()
     /// @returns {Array<Control>|undefined} - all controls (possibly empty), or undefined if not in menu state
-    v8_function::Register(
+    function::Register(
         isolate, global, "getControls", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             // Reference JSControl.cpp line 328: controls only exist in menu state
             if (game::GetGameState() != game::GameState::Menu) {
@@ -1069,12 +1069,12 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param unitId2 {number} - second unit id
     /// @param flag {number} - PvP flag mask to test
     /// @returns {boolean|undefined} - flag test result, false if a unit is unresolved, undefined on bad args
-    v8_function::Register(
+    function::Register(
         isolate, global, "getPlayerFlag", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
@@ -1086,9 +1086,9 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t unitId1 = v8_convert::ToUint32(isolate, args[0]);
-            uint32_t unitId2 = v8_convert::ToUint32(isolate, args[1]);
-            uint32_t flag = v8_convert::ToUint32(isolate, args[2]);
+            uint32_t unitId1 = convert::ToUint32(isolate, args[0]);
+            uint32_t unitId2 = convert::ToUint32(isolate, args[1]);
+            uint32_t flag = convert::ToUint32(isolate, args[2]);
 
             // Resolve both unit IDs to Unit handles. TestPvpFlag takes const Unit& and re-resolves
             // by id internally.
@@ -1104,13 +1104,13 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description Get the NPC the player is currently interacting with.
     /// @signature getInteractedNPC()
     /// @returns {Unit|false} - the interacting NPC, or false if none
-    v8_function::Register(
+    function::Register(
         isolate, global, "getInteractedNPC", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             auto context = isolate->GetCurrentContext();
 
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
@@ -1126,10 +1126,10 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description Check whether NPC dialog text is currently scrolling/displaying.
     /// @signature getIsTalkingNPC()
     /// @returns {boolean} - true if dialog text is scrolling
-    v8_function::Register(
+    function::Register(
         isolate, global, "getIsTalkingNPC", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
@@ -1142,7 +1142,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @returns {Array<{text:string,selectable:boolean,handler:function}>|undefined} - dialog lines, or undefined if
     /// none
     /// @throws {Error} - a line's handler() is invoked but that dialog line is no longer clickable
-    v8_function::Register(
+    function::Register(
         isolate, global, "getDialogLines", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             auto context = isolate->GetCurrentContext();
@@ -1167,21 +1167,20 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                         // churn - a different dialog opened in the meantime won't accept
                         // the click unless it has a line with the same text.
                         auto* iso = handlerArgs.GetIsolate();
-                        const std::string text = v8_convert::ToString(iso, handlerArgs.DataV2().As<v8::Value>());
+                        const std::string text = convert::ToString(iso, handlerArgs.DataV2().As<v8::Value>());
                         if (!game::SelectDialogLineByText(text)) {
                             // Reference parallel: my_clickDialog at JSGame.cpp:223.
-                            v8_error::ThrowError(iso, "That dialog is not currently clickable.");
+                            error::ThrowError(iso, "That dialog is not currently clickable.");
                         }
                     },
-                    v8_convert::ToV8(isolate, lines[i].text));
+                    convert::ToJS(isolate, lines[i].text));
                 auto handlerFunc = handlerTpl->GetFunction(context).ToLocalChecked();
 
                 auto obj = v8::Object::New(isolate);
-                obj->Set(context, v8_convert::ToV8(isolate, "text"), v8_convert::ToV8(isolate, lines[i].text)).Check();
-                obj->Set(context, v8_convert::ToV8(isolate, "selectable"),
-                         v8_convert::ToV8(isolate, lines[i].isSelectable))
+                obj->Set(context, convert::ToJS(isolate, "text"), convert::ToJS(isolate, lines[i].text)).Check();
+                obj->Set(context, convert::ToJS(isolate, "selectable"), convert::ToJS(isolate, lines[i].isSelectable))
                     .Check();
-                obj->Set(context, v8_convert::ToV8(isolate, "handler"), handlerFunc).Check();
+                obj->Set(context, convert::ToJS(isolate, "handler"), handlerFunc).Check();
                 array->Set(context, i, obj).Check();
             }
 
@@ -1197,12 +1196,12 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param x {number} - target x coordinate
     /// @param y {number} - target y coordinate
     /// @returns {boolean} - true if the click dispatched, false on bad args / invalid target
-    v8_function::Register(
+    function::Register(
         isolate, global, "clickMap", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
@@ -1213,10 +1212,10 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t clickType = v8_convert::ToUint32(isolate, args[0]);
+            uint32_t clickType = convert::ToUint32(isolate, args[0]);
             bool shift = false;
             if (args[1]->IsNumber() || args[1]->IsBoolean()) {
-                shift = v8_convert::ToBool(isolate, args[1]);
+                shift = convert::ToBool(isolate, args[1]);
             }
 
             // Unit object overload: clickMap(clickType, shift, unitObj)
@@ -1238,7 +1237,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             // Coordinate overload: clickMap(clickType, shift, x, y)
             if (args.Length() >= 4 && args[2]->IsNumber() && args[3]->IsNumber()) {
-                auto pos = v8_extract::Point(args, 2).value_or(game::Point::Zero);
+                auto pos = extract::Point(args, 2).value_or(game::Point::Zero);
                 args.GetReturnValue().Set(d2bs::game::ClickMapAt(clickType, shift, pos));
                 return;
             }
@@ -1262,12 +1261,12 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @returns {boolean|null} - true/null/false per shape (false while a trade is open); throws "Object is not an
     /// item!" for item-by-handle on a non-item
     /// @throws {Error} - item-by-handle shape is used on a unit that is not an item
-    v8_function::Register(
+    function::Register(
         isolate, global, "clickItem", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
@@ -1308,7 +1307,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 // Ref only acts on clickType 0 (player body) and 4 (merc body). Other
                 // values (1, 2, 3, 5+) fall through to ref's generic rval=true path --
                 // route them to Unrecognized so we don't dispatch a spurious body click.
-                uint32_t clickType = v8_convert::ToUint32(isolate, args[0]);
+                uint32_t clickType = convert::ToUint32(isolate, args[0]);
                 if (clickType == 0) {
                     shape = Shape::PlayerBodySlot;
                 } else if (clickType == 4) {
@@ -1350,12 +1349,12 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     break;
                 }
                 case Shape::PlayerBodySlot: {
-                    auto slot = static_cast<game::BodyLocation>(v8_convert::ToUint32(isolate, args[1]));
+                    auto slot = static_cast<game::BodyLocation>(convert::ToUint32(isolate, args[1]));
                     result = d2bs::game::ClickBodyLocation(slot, game::InventoryOwner::Player);
                     break;
                 }
                 case Shape::MercBodySlot: {
-                    auto slot = static_cast<game::BodyLocation>(v8_convert::ToUint32(isolate, args[1]));
+                    auto slot = static_cast<game::BodyLocation>(convert::ToUint32(isolate, args[1]));
                     result = d2bs::game::ClickBodyLocation(slot, game::InventoryOwner::Mercenary);
                     break;
                 }
@@ -1369,17 +1368,17 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     auto* data = JSUnit::Unwrap(obj);
                     if (!data || !*data) {
                         // Ref case C line 467-470: findUnit-fail / dwType-mismatch throws.
-                        v8_error::ThrowError(isolate, "Object is not an item!");
+                        error::ThrowError(isolate, "Object is not an item!");
                         return;
                     }
-                    auto button = static_cast<game::ClickButton>(v8_convert::ToUint32(isolate, args[0]));
+                    auto button = static_cast<game::ClickButton>(convert::ToUint32(isolate, args[0]));
                     result = d2bs::game::ClickItem(button, *data);
                     break;
                 }
                 case Shape::ContainerGrid: {
-                    auto button = static_cast<game::ClickButton>(v8_convert::ToUint32(isolate, args[0]));
-                    auto gridPos = v8_extract::Position(args, 1).value_or(game::Position::Zero);
-                    auto location = static_cast<game::ItemLocation>(v8_convert::ToUint32(isolate, args[3]));
+                    auto button = static_cast<game::ClickButton>(convert::ToUint32(isolate, args[0]));
+                    auto gridPos = extract::Position(args, 1).value_or(game::Position::Zero);
+                    auto location = static_cast<game::ItemLocation>(convert::ToUint32(isolate, args[3]));
                     result = d2bs::game::ClickContainerSlot(button, gridPos, location);
                     break;
                 }
@@ -1415,7 +1414,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 case Shape::ItemByHandle:
                     // ref case C line 469: THROW_ERROR for non-items.
                     if (result == ClickResult::NotAnItem) {
-                        v8_error::ThrowError(isolate, "Object is not an item!");
+                        error::ThrowError(isolate, "Object is not an item!");
                         return;
                     }
                     if (result == ClickResult::Dispatched) {
@@ -1435,12 +1434,12 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param mode {number} - party action mode: 0 = allow loot, 1 = unhostile, 2 = invite, 3 = leave, 4 = hostile, 5 =
     /// hostile (alt)
     /// @returns {boolean} - true if the action dispatched, false on bad args or no-op conditions
-    v8_function::Register(
+    function::Register(
         isolate, global, "clickParty", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
@@ -1465,7 +1464,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto mode = static_cast<game::PartyMode>(v8_convert::ToUint32(isolate, args[1]));
+            auto mode = static_cast<game::PartyMode>(convert::ToUint32(isolate, args[1]));
 
             // Mode range check (reference supports modes 0-5)
             if (mode > game::PartyMode::HostileAlt) {
@@ -1521,7 +1520,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param messages {any} - zero or more values; each is stringified and sent as a chat line (null/undefined values
     /// skipped)
     /// @returns {boolean} - always true
-    v8_function::Register(
+    function::Register(
         isolate, global, "say", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
@@ -1529,7 +1528,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             for (int32_t i = 0; i < args.Length(); ++i) {
                 if (args[i]->IsNullOrUndefined())
                     continue;
-                std::string text = v8_convert::ToString(isolate, args[i]);
+                std::string text = convert::ToString(isolate, args[i]);
                 game::Say(text);
             }
             args.GetReturnValue().Set(true);
@@ -1541,7 +1540,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param text {string} - the text to display (coerced to a string)
     /// @param color {number} - optional D2 message color code (default 0)
     /// @returns {boolean} - true if a message was printed; false if no text argument was provided
-    v8_function::Register(
+    function::Register(
         isolate, global, "printGameString", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
@@ -1549,8 +1548,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 args.GetReturnValue().Set(false);
                 return;
             }
-            std::string text = v8_convert::ToString(isolate, args[0]);
-            int32_t color = args.Length() > 1 ? v8_convert::ToInt32(isolate, args[1]) : 0;
+            std::string text = convert::ToString(isolate, args[0]);
+            int32_t color = args.Length() > 1 ? convert::ToInt32(isolate, args[1]) : 0;
             game::PrintGameString(text, color);
             args.GetReturnValue().Set(true);
         });
@@ -1559,7 +1558,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature playSound(soundId: number)
     /// @param soundId {number} - game sound id
     /// @returns {boolean} - true if played, false if missing/non-numeric arg
-    v8_function::Register(
+    function::Register(
         isolate, global, "playSound", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
@@ -1568,7 +1567,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t soundId = v8_convert::ToUint32(isolate, args[0]);
+            uint32_t soundId = convert::ToUint32(isolate, args[0]);
             game::PlayGameSound(soundId);
             args.GetReturnValue().Set(true);
         });
@@ -1576,7 +1575,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description Exit the current game back to the menu (does not terminate the process).
     /// @signature quit()
     /// @returns {boolean} - always false
-    v8_function::Register(
+    function::Register(
         isolate, global, "quit", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             // Reference line 1022: JS_SET_RVAL(cx, vp, JSVAL_FALSE)
             if (game::IsInGame()) {
@@ -1588,7 +1587,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description Exit the current game and then terminate the entire process immediately.
     /// @signature quitGame()
     /// @returns {boolean} - false (unreachable; process terminates first)
-    v8_function::Register(
+    function::Register(
         isolate, global, "quitGame", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             // Reference line 1010: JS_SET_RVAL(cx, vp, JSVAL_FALSE)
             if (game::IsInGame()) {
@@ -1601,10 +1600,10 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description Trigger the Horadric Cube transmute action.
     /// @signature transmute()
     /// @returns {null} - null
-    v8_function::Register(
+    function::Register(
         isolate, global, "transmute", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
@@ -1616,18 +1615,18 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature weaponSwitch(query?: number)
     /// @param query {number} - 0/omitted performs the swap, non-zero returns the current switch state
     /// @returns {boolean|number} - true if swapped (false in classic D2), or the current switch state when querying
-    v8_function::Register(
+    function::Register(
         isolate, global, "weaponSwitch", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
             int32_t nParameter = 0;
             if (args.Length() > 0) {
-                nParameter = v8_convert::ToInt32(isolate, args[0]);
+                nParameter = convert::ToInt32(isolate, args[0]);
             }
 
             if (nParameter != 0) {
@@ -1649,24 +1648,24 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param stat {number} - stat/attribute id
     /// @param count {number} - number of points to spend (default 1)
     /// @returns {undefined} - no return value
-    v8_function::Register(
+    function::Register(
         isolate, global, "useStatPoint", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
             if (args.Length() < 1) {
-                v8_error::ThrowTypeError(isolate, "useStatPoint requires at least 1 argument");
+                error::ThrowTypeError(isolate, "useStatPoint requires at least 1 argument");
                 return;
             }
 
-            uint32_t stat = v8_convert::ToUint32(isolate, args[0]);
+            uint32_t stat = convert::ToUint32(isolate, args[0]);
             int32_t count = 1;
             if (args.Length() > 1) {
-                count = v8_convert::ToInt32(isolate, args[1]);
+                count = convert::ToInt32(isolate, args[1]);
             }
             game::UseStatPoint(stat, count);
         });
@@ -1676,24 +1675,24 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param skill {number} - skill id
     /// @param count {number} - number of points to spend (default 1)
     /// @returns {undefined} - no return value
-    v8_function::Register(
+    function::Register(
         isolate, global, "useSkillPoint", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
             if (args.Length() < 1) {
-                v8_error::ThrowTypeError(isolate, "useSkillPoint requires at least 1 argument");
+                error::ThrowTypeError(isolate, "useSkillPoint requires at least 1 argument");
                 return;
             }
 
-            uint32_t skill = v8_convert::ToUint32(isolate, args[0]);
+            uint32_t skill = convert::ToUint32(isolate, args[0]);
             int32_t count = 1;
             if (args.Length() > 1) {
-                count = v8_convert::ToInt32(isolate, args[1]);
+                count = convert::ToInt32(isolate, args[1]);
             }
             game::UseSkillPoint(skill, count);
         });
@@ -1701,7 +1700,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description Capture a screenshot of the game.
     /// @signature takeScreenshot()
     /// @returns {undefined} - no return value
-    v8_function::Register(
+    function::Register(
         isolate, global, "takeScreenshot",
         +[](const v8::FunctionCallbackInfo<v8::Value>& args) { game::TakeScreenshot(); });
 
@@ -1709,16 +1708,16 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature copy(text: string)
     /// @param text {string} - text to place on the clipboard (any value is stringified)
     /// @returns {undefined} - no return value
-    v8_function::Register(
+    function::Register(
         isolate, global, "copy", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
             if (args.Length() < 1) {
-                v8_error::ThrowTypeError(isolate, "copy requires 1 argument");
+                error::ThrowTypeError(isolate, "copy requires 1 argument");
                 return;
             }
 
-            std::string text = v8_convert::ToString(isolate, args[0]);
+            std::string text = convert::ToString(isolate, args[0]);
 
             HGLOBAL hText = GlobalAlloc(GMEM_DDESHARE | GMEM_MOVEABLE, text.size() + 1);
             if (hText) {
@@ -1743,7 +1742,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature paste()
     /// @returns {string|undefined} - clipboard text, empty string if no text data, or undefined if clipboard
     /// unavailable
-    v8_function::Register(
+    function::Register(
         isolate, global, "paste", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
@@ -1757,12 +1756,12 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     std::string text(pText);
                     GlobalUnlock(hData);
                     CloseClipboard();
-                    args.GetReturnValue().Set(v8_convert::ToV8(isolate, text));
+                    args.GetReturnValue().Set(convert::ToJS(isolate, text));
                     return;
                 }
             }
             CloseClipboard();
-            args.GetReturnValue().Set(v8_convert::ToV8(isolate, ""));
+            args.GetReturnValue().Set(convert::ToJS(isolate, ""));
         });
 
     /// @description Send an inter-process WM_COPYDATA message to another window/game instance.
@@ -1772,7 +1771,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param mode {number} - IPC mode id
     /// @param data {string} - data payload (empty unless a string is passed)
     /// @returns {boolean} - true if the IPC send succeeded, false otherwise
-    v8_function::Register(
+    function::Register(
         isolate, global, "sendCopyData", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
@@ -1784,7 +1783,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             // arg0: window class name (string or null)
             std::string windowClassName;
             if (!args[0]->IsNullOrUndefined() && args[0]->IsString()) {
-                windowClassName = v8_convert::ToString(isolate, args[0]);
+                windowClassName = convert::ToString(isolate, args[0]);
             }
 
             // arg1: HWND (number) or window name (string)
@@ -1792,16 +1791,16 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             std::string windowName;
             if (args[1]->IsNumber()) {
                 // Handles are pointer-sized: read as double to avoid truncation on x64.
-                hwnd = static_cast<uintptr_t>(v8_convert::ToDouble(isolate, args[1]));
+                hwnd = static_cast<uintptr_t>(convert::ToDouble(isolate, args[1]));
             } else if (args[1]->IsString()) {
-                windowName = v8_convert::ToString(isolate, args[1]);
+                windowName = convert::ToString(isolate, args[1]);
             }
 
             // arg2: mode ID, arg3: data
-            uint32_t modeId = v8_convert::ToUint32(isolate, args[2]);
+            uint32_t modeId = convert::ToUint32(isolate, args[2]);
             std::string data;
             if (args[3]->IsString()) {
-                data = v8_convert::ToString(isolate, args[3]);
+                data = convert::ToString(isolate, args[3]);
             }
 
             args.GetReturnValue().Set(game::SendIPC(modeId, data, hwnd, windowClassName, windowName));
@@ -1811,7 +1810,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature keystate(vk: number)
     /// @param vk {number} - Windows virtual-key code
     /// @returns {boolean} - true if the key is currently pressed
-    v8_function::Register(
+    function::Register(
         isolate, global, "keystate", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
@@ -1820,7 +1819,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            int32_t vk = v8_convert::ToInt32(isolate, args[0]);
+            int32_t vk = convert::ToInt32(isolate, args[0]);
             args.GetReturnValue().Set(!!GetAsyncKeyState(vk));
         });
 
@@ -1829,18 +1828,18 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param toWorld {boolean} - true converts screen coords to world coords (default false)
     /// @param asObject {boolean} - true returns {x, y}, false/omitted returns [x, y] (default false)
     /// @returns {Array<number>|{x:number,y:number}} - mouse coords as array or object
-    v8_function::Register(
+    function::Register(
         isolate, global, "getMouseCoords", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             auto context = isolate->GetCurrentContext();
 
             bool toWorld = false;
             if (args.Length() > 0) {
-                toWorld = v8_convert::ToBool(isolate, args[0]);
+                toWorld = convert::ToBool(isolate, args[0]);
             }
             bool asObject = false;
             if (args.Length() > 1) {
-                asObject = v8_convert::ToBool(isolate, args[1]);
+                asObject = convert::ToBool(isolate, args[1]);
             }
 
             auto mouse = game::GetMousePos();
@@ -1851,11 +1850,11 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
 
             if (asObject) {
-                args.GetReturnValue().Set(v8_convert::ToV8(isolate, p));
+                args.GetReturnValue().Set(convert::ToJS(isolate, p));
             } else {
                 auto arr = v8::Array::New(isolate, 2);
-                arr->Set(context, 0, v8_convert::ToV8(isolate, p.x)).Check();
-                arr->Set(context, 1, v8_convert::ToV8(isolate, p.y)).Check();
+                arr->Set(context, 0, convert::ToJS(isolate, p.x)).Check();
+                arr->Set(context, 1, convert::ToJS(isolate, p.y)).Check();
                 args.GetReturnValue().Set(arr);
             }
         });
@@ -1867,34 +1866,34 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param x {number} - screen x coordinate
     /// @param y {number} - screen y coordinate
     /// @returns {{x:number,y:number}} - converted automap coordinates
-    v8_function::Register(
+    function::Register(
         isolate, global, "screenToAutomap", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
             if (args.Length() < 1) {
-                v8_error::ThrowTypeError(isolate, "screenToAutomap requires at least 1 argument");
+                error::ThrowTypeError(isolate, "screenToAutomap requires at least 1 argument");
                 return;
             }
 
             // Strict: reject non-numeric input (string->int coercion silently corrupted coords).
             auto p = game::Point::Zero;
             if (args.Length() == 1 && args[0]->IsObject()) {
-                auto extracted = v8_extract::Point(isolate, args[0]);
+                auto extracted = extract::Point(isolate, args[0]);
                 if (!extracted) {
-                    v8_error::ThrowTypeError(isolate, "Input has an x or y, but they aren't the correct type!");
+                    error::ThrowTypeError(isolate, "Input has an x or y, but they aren't the correct type!");
                     return;
                 }
                 p = *extracted;
             } else if (args.Length() >= 2 && args[0]->IsNumber() && args[1]->IsNumber()) {
-                p = v8_extract::Point(args, 0).value_or(p);
+                p = extract::Point(args, 0).value_or(p);
             } else {
-                v8_error::ThrowTypeError(isolate, "Invalid arguments for screenToAutomap");
+                error::ThrowTypeError(isolate, "Invalid arguments for screenToAutomap");
                 return;
             }
 
             p = d2bs::game::ScreenToAutomap(p);
 
-            args.GetReturnValue().Set(v8_convert::ToV8(isolate, p));
+            args.GetReturnValue().Set(convert::ToJS(isolate, p));
         });
 
     /// @description Convert automap coordinates to screen coordinates.
@@ -1904,34 +1903,34 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param x {number} - automap x coordinate
     /// @param y {number} - automap y coordinate
     /// @returns {{x:number,y:number}} - converted screen coordinates
-    v8_function::Register(
+    function::Register(
         isolate, global, "automapToScreen", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
             if (args.Length() < 1) {
-                v8_error::ThrowTypeError(isolate, "automapToScreen requires at least 1 argument");
+                error::ThrowTypeError(isolate, "automapToScreen requires at least 1 argument");
                 return;
             }
 
             // Strict: reject non-numeric input (string->int coercion silently corrupted coords).
             auto p = game::Point::Zero;
             if (args.Length() == 1 && args[0]->IsObject()) {
-                auto extracted = v8_extract::Point(isolate, args[0]);
+                auto extracted = extract::Point(isolate, args[0]);
                 if (!extracted) {
-                    v8_error::ThrowTypeError(isolate, "Input has an x or y, but they aren't the correct type!");
+                    error::ThrowTypeError(isolate, "Input has an x or y, but they aren't the correct type!");
                     return;
                 }
                 p = *extracted;
             } else if (args.Length() >= 2 && args[0]->IsNumber() && args[1]->IsNumber()) {
-                p = v8_extract::Point(args, 0).value_or(p);
+                p = extract::Point(args, 0).value_or(p);
             } else {
-                v8_error::ThrowTypeError(isolate, "Invalid arguments for automapToScreen");
+                error::ThrowTypeError(isolate, "Invalid arguments for automapToScreen");
                 return;
             }
 
             p = d2bs::game::AutomapToScreen(p);
 
-            args.GetReturnValue().Set(v8_convert::ToV8(isolate, p));
+            args.GetReturnValue().Set(convert::ToJS(isolate, p));
         });
 
     /// @description Compute the Euclidean distance between two points, units, or the player and a target.
@@ -1951,12 +1950,12 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature getDistance(obj: Unit|{x:number,y:number}, x: number, y: number)
     /// @signature getDistance(x: number, y: number, obj: Unit|{x:number,y:number})
     /// @returns {number} - the distance, or 0 if no args / a point is unresolved
-    v8_function::Register(
+    function::Register(
         isolate, global, "getDistance", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
@@ -1975,14 +1974,14 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     }
                     return unitData->Pos().ToPoint();
                 }
-                return v8_extract::Point(isolate, obj);
+                return extract::Point(isolate, obj);
             };
 
             // (x1, y1, x2, y2) -- pure coordinate distance
             if (args.Length() == 4 && args[0]->IsNumber() && args[1]->IsNumber() && args[2]->IsNumber() &&
                 args[3]->IsNumber()) {
-                auto p1 = v8_extract::Point(args, 0).value_or(game::Point::Zero);
-                auto p2 = v8_extract::Point(args, 2).value_or(game::Point::Zero);
+                auto p1 = extract::Point(args, 0).value_or(game::Point::Zero);
+                auto p2 = extract::Point(args, 2).value_or(game::Point::Zero);
                 args.GetReturnValue().Set(Distance(p1, p2));
                 return;
             }
@@ -2014,7 +2013,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                         return;
                     }
                     auto p1 = player.Pos().ToPoint();
-                    auto p2 = v8_extract::Point(args, 0).value_or(game::Point::Zero);
+                    auto p2 = extract::Point(args, 0).value_or(game::Point::Zero);
                     args.GetReturnValue().Set(Distance(p1, p2));
                     return;
                 }
@@ -2034,7 +2033,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 if (args[0]->IsObject() && args[1]->IsNumber() && args[2]->IsNumber()) {
                     auto p1 = getObjectPoint(args[0].As<v8::Object>());
                     if (p1) {
-                        auto p2 = v8_extract::Point(args, 1).value_or(game::Point::Zero);
+                        auto p2 = extract::Point(args, 1).value_or(game::Point::Zero);
                         args.GetReturnValue().Set(Distance(*p1, p2));
                         return;
                     }
@@ -2043,7 +2042,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 if (args[0]->IsNumber() && args[1]->IsNumber() && args[2]->IsObject()) {
                     auto p2 = getObjectPoint(args[2].As<v8::Object>());
                     if (p2) {
-                        auto p1 = v8_extract::Point(args, 0).value_or(game::Point::Zero);
+                        auto p1 = extract::Point(args, 0).value_or(game::Point::Zero);
                         args.GetReturnValue().Set(Distance(p1, *p2));
                         return;
                     }
@@ -2058,22 +2057,22 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param mode {number} - 1 = drop, 2 = inventory to trade, 3 = deposit into the stash, 4 = withdraw from the stash
     /// (default 1, drop, as in the reference)
     /// @returns {undefined} - no return value
-    v8_function::Register(
+    function::Register(
         isolate, global, "gold", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
             int32_t nGold = 0;
             auto nMode = game::GoldActionMode::Drop;
             if (args.Length() > 0 && args[0]->IsNumber()) {
-                nGold = v8_convert::ToInt32(isolate, args[0]);
+                nGold = convert::ToInt32(isolate, args[0]);
             }
             if (args.Length() > 1 && args[1]->IsNumber()) {
-                nMode = static_cast<game::GoldActionMode>(v8_convert::ToInt32(isolate, args[1]));
+                nMode = static_cast<game::GoldActionMode>(convert::ToInt32(isolate, args[1]));
             }
             d2bs::game::GoldAction(nMode, nGold);
         });
@@ -2082,11 +2081,11 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature beep(beepId?: number)
     /// @param beepId {number} - MessageBeep type id (default 0)
     /// @returns {boolean} - always true
-    v8_function::Register(
+    function::Register(
         isolate, global, "beep", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             int32_t beepId = 0;
             if (args.Length() > 0 && args[0]->IsNumber()) {
-                beepId = v8_convert::ToInt32(args.GetIsolate(), args[0]);
+                beepId = convert::ToInt32(args.GetIsolate(), args[0]);
             }
             MessageBeep(static_cast<UINT>(beepId));
             args.GetReturnValue().Set(true);
@@ -2095,10 +2094,10 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description Submit the item currently held on the cursor (e.g. to an NPC for socketing or imbue).
     /// @signature submitItem()
     /// @returns {boolean} - true if the item was submitted, false if no cursor item
-    v8_function::Register(
+    function::Register(
         isolate, global, "submitItem", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
@@ -2115,12 +2114,12 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature copyUnit(unit: Unit)
     /// @param unit {Unit} - the Unit object to copy
     /// @returns {Unit|undefined} - a new Unit handle, or undefined if the arg is not a valid Unit
-    v8_function::Register(
+    function::Register(
         isolate, global, "copyUnit", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             auto context = isolate->GetCurrentContext();
 
-            if (!v8_error::CheckArgCount(args, 1, "copyUnit")) {
+            if (!error::CheckArgCount(args, 1, "copyUnit")) {
                 return;
             }
 
@@ -2145,18 +2144,18 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature acceptTrade(mode?: number)
     /// @param mode {number} - query: 1 = is accepted, 2 = recent trade id, 3 = is blocked; omit/other to accept
     /// @returns {boolean|number} - query result (bool or id) for query modes, else the accept result (bool)
-    v8_function::Register(
+    function::Register(
         isolate, global, "acceptTrade", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
             auto lock = game::Bridge::Lock();
             if (args.Length() > 0) {
-                auto mode = static_cast<game::AcceptTradeQueryMode>(v8_convert::ToInt32(isolate, args[0]));
+                auto mode = static_cast<game::AcceptTradeQueryMode>(convert::ToInt32(isolate, args[0]));
                 if (mode == game::AcceptTradeQueryMode::IsAccepted) {
                     // Reference: BOOLEAN_TO_JSVAL(*p_D2CLIENT_bTradeAccepted)
                     args.GetReturnValue().Set(game::IsTradeAccepted());
@@ -2181,18 +2180,18 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature tradeOk()
     /// @returns {undefined} - no return value; throws Error if not in a state to click OK
     /// @throws {Error} - not in a proper state to click OK in the trade window
-    v8_function::Register(
+    function::Register(
         isolate, global, "tradeOk", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
             auto lock = game::Bridge::Lock();
             if (!game::TradeOK()) {
-                v8_error::ThrowError(isolate, "Not in proper state to click ok to trade.");
+                error::ThrowError(isolate, "Not in proper state to click ok to trade.");
             }
         });
 
@@ -2202,12 +2201,12 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param unit2 {Unit} - second unit object
     /// @param mask {number} - collision mask
     /// @returns {number|undefined} - collision result, or undefined on invalid args / unresolved units
-    v8_function::Register(
+    function::Register(
         isolate, global, "checkCollision", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
@@ -2232,7 +2231,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t mask = v8_convert::ToUint32(isolate, args[2]);
+            uint32_t mask = convert::ToUint32(isolate, args[2]);
             args.GetReturnValue().Set(d2bs::game::CheckUnitCollision(*unitData1, *unitData2, mask));
         });
 
@@ -2243,33 +2242,33 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param y {number} - destination y coordinate
     /// @returns {undefined} - no return value; throws Error on a non-monster unit or bad args
     /// @throws {Error} - the unit is not a monster type
-    v8_function::Register(
+    function::Register(
         isolate, global, "moveNPC", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
             if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
-                v8_error::WarnAndReturnFalse(args, "Game not ready");
+                error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
             if (!config::GetAppConfig().enableUnsupported.load()) {
-                v8_error::WarnAndReturnFalse(args, "moveNPC requires enableUnsupported = true in config");
+                error::WarnAndReturnFalse(args, "moveNPC requires enableUnsupported = true in config");
                 return;
             }
 
             if (args.Length() < 3) {
-                v8_error::ThrowError(isolate, "moveNPC requires 3 arguments");
+                error::ThrowError(isolate, "moveNPC requires 3 arguments");
                 return;
             }
 
             if (!args[0]->IsObject()) {
-                v8_error::ThrowError(isolate, "moveNPC requires a unit object as first argument");
+                error::ThrowError(isolate, "moveNPC requires a unit object as first argument");
                 return;
             }
 
             auto unitObj = args[0].As<v8::Object>();
             if (!JSUnit::IsInstance(unitObj)) {
-                v8_error::ThrowError(isolate, "moveNPC requires a unit object as first argument");
+                error::ThrowError(isolate, "moveNPC requires a unit object as first argument");
                 return;
             }
 
@@ -2280,11 +2279,11 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             // Reference line 1435: unit must be a monster/NPC (type 1)
             if (unitData->Type() != game::UnitType::Monster) {
-                v8_error::ThrowError(isolate, "Invalid NPC passed to moveNPC!");
+                error::ThrowError(isolate, "Invalid NPC passed to moveNPC!");
                 return;
             }
 
-            auto pos = v8_extract::Position(args, 1).value_or(game::Position::Zero);
+            auto pos = extract::Position(args, 1).value_or(game::Position::Zero);
 
             d2bs::game::MoveNPC(unitData->Id(), pos);
         });
@@ -2293,7 +2292,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature revealLevel(drawPresets?: boolean)
     /// @param drawPresets {boolean} - true also reveals preset units (default false)
     /// @returns {undefined} - no return value
-    v8_function::Register(
+    function::Register(
         isolate, global, "revealLevel", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 

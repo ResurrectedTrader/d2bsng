@@ -11,7 +11,7 @@ class HttpServer;
 class WebSocket;
 }  // namespace ix
 
-namespace d2bs::js::inspector {
+namespace d2bs::runtime::inspector {
 
 class InspectorTarget;
 
@@ -70,4 +70,4 @@ class InspectorServer {
     std::map<std::string, ix::WebSocket*> targetToConn_;
 };
 
-}  // namespace d2bs::js::inspector
+}  // namespace d2bs::runtime::inspector

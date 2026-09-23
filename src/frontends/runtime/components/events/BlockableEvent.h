@@ -67,7 +67,7 @@ class BlockableEvent : public BaseEvent {
 
     void OnDropped() override { DecrementExpected(); }
 
-    void Execute(js::script::Invocation& call) override { Vote(call.Run(*this)); }
+    void Execute(runtime::script::Invocation& call) override { Vote(call.Run(*this)); }
 
     [[nodiscard]] std::optional<bool> IsBlocked(
         std::chrono::milliseconds timeout = std::chrono::milliseconds::zero()) const {
@@ -82,7 +82,7 @@ class BlockableEvent : public BaseEvent {
         // Release GameWriteLock (if held by game thread) so scripts can acquire
         // GameReadLock to process the event handler. Re-acquires on scope exit.
         // No-op when no write lock is held.
-        const auto phase = js::gameloop::GameLoop::Instance().InPhase(js::gameloop::FramePhase::ScriptWait);
+        const auto phase = runtime::gameloop::GameLoop::Instance().InPhase(runtime::gameloop::FramePhase::ScriptWait);
         game::GameWriteLockReleaser releaser;
         if (future_.wait_for(timeout) == std::future_status::timeout) {
             return std::nullopt;

@@ -9,10 +9,10 @@
 
 #include "game/Types.h"
 
-namespace d2bs::js::drawing {
+namespace d2bs::runtime::drawing {
 
 struct Drawable {
     static void DrawAll(d2bs::game::GameState state);
 };
 
-}  // namespace d2bs::js::drawing
+}  // namespace d2bs::runtime::drawing

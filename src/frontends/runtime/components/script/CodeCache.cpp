@@ -15,7 +15,7 @@
 #include "config/AppConfig.h"
 #include "utils/utils.h"
 
-namespace d2bs::js::script {
+namespace d2bs::runtime::script {
 
 namespace {
 
@@ -46,11 +46,11 @@ constexpr size_t BYTES_PER_MB = 1024 * 1024;
 
 // CachedDataVersionTag covers the V8 version and the *effective* flag set -
 // including flags V8 derives by implication, which a hash of our own EngineFlags
-// string would miss (V8Host appends --expose-gc and, conditionally,
+// string would miss (Engine appends --expose-gc and, conditionally,
 // --single-threaded). Reading it requires V8's flags to already be applied, so
-// depend on V8Host explicitly rather than on the caller having gone first.
+// depend on Engine explicitly rather than on the caller having gone first.
 uint64_t CurrentBuildTag() {
-    (void)V8Host::GetPlatform();
+    (void)Engine::GetPlatform();
     return v8::ScriptCompiler::CachedDataVersionTag();
 }
 
@@ -327,4 +327,4 @@ void CodeCache::PruneDisk() const {
     logger_->debug("pruned disk tier to {} MB", total / BYTES_PER_MB);
 }
 
-}  // namespace d2bs::js::script
+}  // namespace d2bs::runtime::script

@@ -69,7 +69,7 @@ class ScriptEngine {
     }
     // Enqueue `code` to run as JS on the console script's isolate. This is
     // the raw eval primitive - for command-string dispatch (built-ins +
-    // eval fallback) see js::script::RunCommand in components/script/Commands.h.
+    // eval fallback) see runtime::script::RunCommand in components/script/Commands.h.
     void Evaluate(const std::string& code);
     void RestartConsoleScript();
 

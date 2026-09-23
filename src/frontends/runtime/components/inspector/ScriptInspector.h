@@ -12,7 +12,7 @@ namespace d2bs {
 class Script;
 }  // namespace d2bs
 
-namespace d2bs::js::inspector {
+namespace d2bs::runtime::inspector {
 
 class InspectorChannel;
 class InspectorClient;
@@ -97,4 +97,4 @@ class ScriptInspector {
     inline static thread_local int32_t evalDepth_ = 0;
 };
 
-}  // namespace d2bs::js::inspector
+}  // namespace d2bs::runtime::inspector

@@ -8,7 +8,7 @@
 
 #include "game/GameCallbacks.h"
 
-namespace d2bs::js {
+namespace d2bs::runtime {
 
 // Orchestrates DLL startup and shutdown.
 // Called from DllMain - keeps loader-lock-sensitive code minimal.
@@ -36,4 +36,4 @@ class Host {
     inline static PVOID vectoredExceptionHandle_ = nullptr;
 };
 
-}  // namespace d2bs::js
+}  // namespace d2bs::runtime

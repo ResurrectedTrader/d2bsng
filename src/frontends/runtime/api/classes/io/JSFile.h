@@ -54,7 +54,7 @@ struct FileData {
 };
 
 // JSFile - V8 wrapper for file operations
-class JSFile : public V8ClassBase<JSFile, FileData> {
+class JSFile : public ClassBase<JSFile, FileData> {
    public:
     static constexpr std::string_view ClassName = "File";
 
@@ -80,13 +80,13 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                 auto* data = Unwrap(self);
 
                 if (!data) {
-                    info.GetReturnValue().Set(v8_convert::ToV8(isolate, false));
+                    info.GetReturnValue().Set(convert::ToJS(isolate, false));
                     return;
                 }
 
                 // File is readable if open, not at EOF, and no errors
                 bool readable = data->handle && !feof(data->handle) && !ferror(data->handle);
-                info.GetReturnValue().Set(v8_convert::ToV8(isolate, readable));
+                info.GetReturnValue().Set(convert::ToJS(isolate, readable));
             });
         /// @description True while the file is open in write or append mode and has no pending error.
         /// @type {boolean}
@@ -98,14 +98,14 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                 auto* data = Unwrap(self);
 
                 if (!data) {
-                    info.GetReturnValue().Set(v8_convert::ToV8(isolate, false));
+                    info.GetReturnValue().Set(convert::ToJS(isolate, false));
                     return;
                 }
 
                 // File is writeable if open, no errors, and mode is write or append
                 bool writeable =
                     data->handle && !ferror(data->handle) && (data->mode % 3) > static_cast<int32_t>(FileMode::Read);
-                info.GetReturnValue().Set(v8_convert::ToV8(isolate, writeable));
+                info.GetReturnValue().Set(convert::ToJS(isolate, writeable));
             });
         /// @description True while the file is open and has no pending error.
         /// @type {boolean}
@@ -117,12 +117,12 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                 auto* data = Unwrap(self);
 
                 if (!data) {
-                    info.GetReturnValue().Set(v8_convert::ToV8(isolate, false));
+                    info.GetReturnValue().Set(convert::ToJS(isolate, false));
                     return;
                 }
 
                 bool seekable = data->handle && !ferror(data->handle);
-                info.GetReturnValue().Set(v8_convert::ToV8(isolate, seekable));
+                info.GetReturnValue().Set(convert::ToJS(isolate, seekable));
             });
         /// @description Base open mode without the binary flag: 0 = read (FILE_READ), 1 = write (FILE_WRITE), 2 =
         /// append (FILE_APPEND).
@@ -134,12 +134,12 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                 auto* data = Unwrap(self);
 
                 if (!data) {
-                    info.GetReturnValue().Set(v8_convert::ToV8(isolate, 0));
+                    info.GetReturnValue().Set(convert::ToJS(isolate, 0));
                     return;
                 }
 
                 // Return base mode (0, 1, or 2) without binary flag
-                info.GetReturnValue().Set(v8_convert::ToV8(isolate, data->mode % 3));
+                info.GetReturnValue().Set(convert::ToJS(isolate, data->mode % 3));
             });
         /// @description True if the file was opened in binary mode, where read/write operate on 32-bit integers rather
         /// than text.
@@ -152,12 +152,12 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                 auto* data = Unwrap(self);
 
                 if (!data) {
-                    info.GetReturnValue().Set(v8_convert::ToV8(isolate, false));
+                    info.GetReturnValue().Set(convert::ToJS(isolate, false));
                     return;
                 }
 
                 // Binary mode if mode > 2 (3, 4, 5 are binary versions of read, write, append)
-                info.GetReturnValue().Set(v8_convert::ToV8(isolate, data->mode > 2));
+                info.GetReturnValue().Set(convert::ToJS(isolate, data->mode > 2));
             });
         /// @description Total length of the file in bytes.
         /// @type {number}
@@ -169,13 +169,13 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                 auto* data = Unwrap(self);
 
                 if (!data || !data->handle) {
-                    info.GetReturnValue().Set(v8_convert::ToV8(isolate, 0));
+                    info.GetReturnValue().Set(convert::ToJS(isolate, 0));
                     return;
                 }
 
                 // Get file length using file descriptor
                 int32_t length = _filelength(_fileno(data->handle));
-                info.GetReturnValue().Set(v8_convert::ToV8(isolate, length));
+                info.GetReturnValue().Set(convert::ToJS(isolate, length));
             });
         /// @description File path as supplied to File.open, relative to the scripts folder.
         /// @type {string}
@@ -190,7 +190,7 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                     return;
                 }
 
-                info.GetReturnValue().Set(v8_convert::ToV8(isolate, data->path));
+                info.GetReturnValue().Set(convert::ToJS(isolate, data->path));
             });
         /// @description Current read/write position in the file, as a byte offset from the start.
         /// @type {number}
@@ -202,12 +202,12 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                 auto* data = Unwrap(self);
 
                 if (!data || !data->handle) {
-                    info.GetReturnValue().Set(v8_convert::ToV8(isolate, 0));
+                    info.GetReturnValue().Set(convert::ToJS(isolate, 0));
                     return;
                 }
 
                 int32_t pos = static_cast<int32_t>(ftell(data->handle));
-                info.GetReturnValue().Set(v8_convert::ToV8(isolate, pos));
+                info.GetReturnValue().Set(convert::ToJS(isolate, pos));
             });
         /// @description True when the end-of-file indicator is set on the stream.
         /// @type {boolean}
@@ -218,11 +218,11 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                 auto* data = Unwrap(self);
 
                 if (!data || !data->handle) {
-                    info.GetReturnValue().Set(v8_convert::ToV8(isolate, true));
+                    info.GetReturnValue().Set(convert::ToJS(isolate, true));
                     return;
                 }
 
-                info.GetReturnValue().Set(v8_convert::ToV8(isolate, feof(data->handle) != 0));
+                info.GetReturnValue().Set(convert::ToJS(isolate, feof(data->handle) != 0));
             });
         /// @description Last access time of the file, as a Unix timestamp in seconds since the epoch.
         /// @type {number}
@@ -234,13 +234,13 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                 auto* data = Unwrap(self);
 
                 if (!data || !data->handle) {
-                    info.GetReturnValue().Set(v8_convert::ToV8(isolate, 0.0));
+                    info.GetReturnValue().Set(convert::ToJS(isolate, 0.0));
                     return;
                 }
 
                 struct _stat fileStat = {};
                 _fstat(_fileno(data->handle), &fileStat);
-                info.GetReturnValue().Set(v8_convert::ToV8(isolate, static_cast<double>(fileStat.st_atime)));
+                info.GetReturnValue().Set(convert::ToJS(isolate, static_cast<double>(fileStat.st_atime)));
             });
         /// @description Creation time of the file, as a Unix timestamp in seconds since the epoch.
         /// @type {number}
@@ -252,13 +252,13 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                 auto* data = Unwrap(self);
 
                 if (!data || !data->handle) {
-                    info.GetReturnValue().Set(v8_convert::ToV8(isolate, 0.0));
+                    info.GetReturnValue().Set(convert::ToJS(isolate, 0.0));
                     return;
                 }
 
                 struct _stat fileStat = {};
                 _fstat(_fileno(data->handle), &fileStat);
-                info.GetReturnValue().Set(v8_convert::ToV8(isolate, static_cast<double>(fileStat.st_ctime)));
+                info.GetReturnValue().Set(convert::ToJS(isolate, static_cast<double>(fileStat.st_ctime)));
             });
         /// @description Last modification time of the file, as a Unix timestamp in seconds since the epoch.
         /// @type {number}
@@ -270,13 +270,13 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                 auto* data = Unwrap(self);
 
                 if (!data || !data->handle) {
-                    info.GetReturnValue().Set(v8_convert::ToV8(isolate, 0.0));
+                    info.GetReturnValue().Set(convert::ToJS(isolate, 0.0));
                     return;
                 }
 
                 struct _stat fileStat = {};
                 _fstat(_fileno(data->handle), &fileStat);
-                info.GetReturnValue().Set(v8_convert::ToV8(isolate, static_cast<double>(fileStat.st_mtime)));
+                info.GetReturnValue().Set(convert::ToJS(isolate, static_cast<double>(fileStat.st_mtime)));
             });
         /// @description Whether the stream is flushed to disk automatically after every write() call. Assigned values
         /// are coerced to boolean via JS truthiness.
@@ -289,11 +289,11 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                 auto* data = Unwrap(self);
 
                 if (!data) {
-                    info.GetReturnValue().Set(v8_convert::ToV8(isolate, false));
+                    info.GetReturnValue().Set(convert::ToJS(isolate, false));
                     return;
                 }
 
-                info.GetReturnValue().Set(v8_convert::ToV8(isolate, data->autoflush));
+                info.GetReturnValue().Set(convert::ToJS(isolate, data->autoflush));
             },
             +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value,
                 const v8::PropertyCallbackInfo<v8::Boolean>& info) {
@@ -318,12 +318,12 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                 auto* data = Unwrap(self);
 
                 if (!data) {
-                    v8_error::ThrowError(isolate, "Couldn't get file object");
+                    error::ThrowError(isolate, "Couldn't get file object");
                     return;
                 }
 
                 if (!data->handle) {
-                    v8_error::ThrowError(isolate, "File is not open");
+                    error::ThrowError(isolate, "File is not open");
                     return;
                 }
 
@@ -333,7 +333,7 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                 }
                 if (fclose(data->handle) != 0) {
                     data->handle = nullptr;
-                    v8_error::ThrowError(isolate, "Close failed");
+                    error::ThrowError(isolate, "Close failed");
                     return;
                 }
                 data->handle = nullptr;
@@ -353,12 +353,12 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                 auto* data = Unwrap(self);
 
                 if (!data) {
-                    v8_error::ThrowError(isolate, "Couldn't get file object");
+                    error::ThrowError(isolate, "Couldn't get file object");
                     return;
                 }
 
                 if (data->handle) {
-                    v8_error::ThrowError(isolate, "File is not closed");
+                    error::ThrowError(isolate, "File is not closed");
                     return;
                 }
 
@@ -398,12 +398,12 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                 }
 
                 if (args.Length() < 1) {
-                    v8_error::ThrowError(isolate, "Invalid arguments");
+                    error::ThrowError(isolate, "Invalid arguments");
                     return;
                 }
-                int32_t count = v8_convert::ToInt32(isolate, args[0]);
+                int32_t count = convert::ToInt32(isolate, args[0]);
                 if (count <= 0) {
-                    v8_error::ThrowError(isolate, "Invalid arguments");
+                    error::ThrowError(isolate, "Invalid arguments");
                     return;
                 }
 
@@ -415,16 +415,16 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                     size_t readCount = fread(result.data(), sizeof(int32_t), count, data->handle);
 
                     if (readCount != static_cast<size_t>(count) && ferror(data->handle)) {
-                        v8_error::ThrowError(isolate, "Read failed");
+                        error::ThrowError(isolate, "Read failed");
                         return;
                     }
 
                     if (count == 1) {
-                        args.GetReturnValue().Set(v8_convert::ToV8(isolate, result[0]));
+                        args.GetReturnValue().Set(convert::ToJS(isolate, result[0]));
                     } else {
                         auto arr = v8::Array::New(isolate, count);
                         for (int32_t i = 0; i < count; i++) {
-                            arr->Set(context, i, v8_convert::ToV8(isolate, result[i])).Check();
+                            arr->Set(context, i, convert::ToJS(isolate, result[i])).Check();
                         }
                         args.GetReturnValue().Set(arr);
                     }
@@ -438,7 +438,7 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                     size_t readCount = fread(result.data(), sizeof(char), count, data->handle);
 
                     if (readCount != static_cast<size_t>(count) && ferror(data->handle)) {
-                        v8_error::ThrowError(isolate, "Read failed");
+                        error::ThrowError(isolate, "Read failed");
                         return;
                     }
 
@@ -448,7 +448,7 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                     }
 
                     args.GetReturnValue().Set(
-                        v8_convert::ToV8(isolate, std::string(result.data() + offset, readCount - offset)));
+                        convert::ToJS(isolate, std::string(result.data() + offset, readCount - offset)));
                 }
             });
         /// @description Reads a single line from the file, newline excluded, advancing the position. A leading BOM is
@@ -468,7 +468,7 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
 
                 // Reference returns NULL from readLine when at EOF, then throws "Read failed"
                 if (feof(data->handle)) {
-                    v8_error::ThrowError(isolate, "Read failed");
+                    error::ThrowError(isolate, "Read failed");
                     return;
                 }
 
@@ -483,7 +483,7 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                     }
                 }
 
-                args.GetReturnValue().Set(v8_convert::ToV8(isolate, line));
+                args.GetReturnValue().Set(convert::ToJS(isolate, line));
             });
         /// @description Reads all remaining lines from the current position to end-of-file, newlines excluded. A
         /// leading BOM is skipped on the first line when reading from offset 0.
@@ -506,7 +506,7 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
 
                 while (true) {
                     if (ferror(data->handle)) {
-                        v8_error::ThrowError(isolate, "Read failed");
+                        error::ThrowError(isolate, "Read failed");
                         return;
                     }
                     if (feof(data->handle))
@@ -517,7 +517,7 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                     std::string line = file_detail::ReadLine(data->handle);
 
                     if (ferror(data->handle)) {
-                        v8_error::ThrowError(isolate, "Read failed");
+                        error::ThrowError(isolate, "Read failed");
                         return;
                     }
                     // EOF with no data means we hit EOF without reading new content - don't append
@@ -531,7 +531,7 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                         }
                     }
 
-                    arr->Set(context, idx++, v8_convert::ToV8(isolate, line)).Check();
+                    arr->Set(context, idx++, convert::ToJS(isolate, line)).Check();
                 }
 
                 args.GetReturnValue().Set(arr);
@@ -559,7 +559,7 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                 fseek(data->handle, 0, SEEK_SET);
 
                 if (size <= 0) {
-                    args.GetReturnValue().Set(v8_convert::ToV8(isolate, ""));
+                    args.GetReturnValue().Set(convert::ToJS(isolate, ""));
                     return;
                 }
 
@@ -567,7 +567,7 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                 size_t readCount = fread(contents.data(), sizeof(char), size, data->handle);
 
                 if (readCount != static_cast<size_t>(size) && ferror(data->handle)) {
-                    v8_error::ThrowError(isolate, "Read failed");
+                    error::ThrowError(isolate, "Read failed");
                     return;
                 }
 
@@ -577,7 +577,7 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                 }
 
                 args.GetReturnValue().Set(
-                    v8_convert::ToV8(isolate, std::string(contents.data() + offset, readCount - offset)));
+                    convert::ToJS(isolate, std::string(contents.data() + offset, readCount - offset)));
             });
         /// @description Writes the given values to the file in order, then flushes if autoflush is enabled. Text mode
         /// writes each value's text form; binary mode serializes per type (integer as 4-byte int32, non-integer number
@@ -630,18 +630,18 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                 auto* data = Unwrap(self);
 
                 if (!data || !data->handle) {
-                    v8_error::ThrowError(isolate, "File is not open");
+                    error::ThrowError(isolate, "File is not open");
                     return;
                 }
 
                 if (args.Length() < 1) {
-                    v8_error::ThrowError(isolate, "Not enough parameters");
+                    error::ThrowError(isolate, "Not enough parameters");
                     return;
                 }
 
-                int32_t offset = v8_convert::ToInt32(isolate, args[0]);
-                bool isLines = args.Length() > 1 ? v8_convert::ToBool(isolate, args[1]) : false;
-                bool fromStart = args.Length() > 2 ? v8_convert::ToBool(isolate, args[2]) : false;
+                int32_t offset = convert::ToInt32(isolate, args[0]);
+                bool isLines = args.Length() > 1 ? convert::ToBool(isolate, args[1]) : false;
+                bool fromStart = args.Length() > 2 ? convert::ToBool(isolate, args[2]) : false;
 
                 if (fromStart) {
                     fseek(data->handle, 0, SEEK_SET);
@@ -650,7 +650,7 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
 
                 if (!isLines) {
                     if (fseek(data->handle, offset, SEEK_CUR) != 0) {
-                        v8_error::ThrowError(isolate, "Seek failed");
+                        error::ThrowError(isolate, "Seek failed");
                         return;
                     }
                 } else {
@@ -688,7 +688,7 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
 
                 if (data && data->handle) {
                     if (fseek(data->handle, 0L, SEEK_SET) != 0) {
-                        v8_error::ThrowError(isolate, "Seek failed");
+                        error::ThrowError(isolate, "Seek failed");
                         return;
                     }
                 }
@@ -707,7 +707,7 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
 
                 if (data && data->handle) {
                     if (fseek(data->handle, 0L, SEEK_END) != 0) {
-                        v8_error::ThrowError(isolate, "Seek failed");
+                        error::ThrowError(isolate, "Seek failed");
                         return;
                     }
                 }
@@ -739,35 +739,35 @@ class JSFile : public V8ClassBase<JSFile, FileData> {
                 auto context = isolate->GetCurrentContext();
 
                 if (args.Length() < 2) {
-                    v8_error::ThrowError(isolate, "Not enough parameters, 2 or more expected");
+                    error::ThrowError(isolate, "Not enough parameters, 2 or more expected");
                     return;
                 }
 
                 if (!args[0]->IsString()) {
-                    v8_error::ThrowError(isolate, "Parameter 1 must be a string (path)");
+                    error::ThrowError(isolate, "Parameter 1 must be a string (path)");
                     return;
                 }
 
                 if (!args[1]->IsNumber()) {
-                    v8_error::ThrowError(isolate, "Parameter 2 must be a number (mode)");
+                    error::ThrowError(isolate, "Parameter 2 must be a number (mode)");
                     return;
                 }
 
-                std::string path = v8_convert::ToString(isolate, args[0]);
-                int32_t mode = v8_convert::ToInt32(isolate, args[1]);
-                bool binary = args.Length() > 2 ? v8_convert::ToBool(isolate, args[2]) : false;
-                bool autoflush = args.Length() > 3 ? v8_convert::ToBool(isolate, args[3]) : false;
-                bool lockFile = args.Length() > 4 ? v8_convert::ToBool(isolate, args[4]) : false;
+                std::string path = convert::ToString(isolate, args[0]);
+                int32_t mode = convert::ToInt32(isolate, args[1]);
+                bool binary = args.Length() > 2 ? convert::ToBool(isolate, args[2]) : false;
+                bool autoflush = args.Length() > 3 ? convert::ToBool(isolate, args[3]) : false;
+                bool lockFile = args.Length() > 4 ? convert::ToBool(isolate, args[4]) : false;
 
                 // Validate path
                 if (path.empty()) {
-                    v8_error::ThrowError(isolate, "Invalid file name");
+                    error::ThrowError(isolate, "Invalid file name");
                     return;
                 }
 
                 // Validate mode
                 if (mode < static_cast<int32_t>(FileMode::Read) || mode > static_cast<int32_t>(FileMode::Append)) {
-                    v8_error::ThrowError(isolate, "Invalid file mode");
+                    error::ThrowError(isolate, "Invalid file mode");
                     return;
                 }
 

@@ -16,7 +16,7 @@ class logger;
 }  // namespace spdlog
 // NOLINTEND(readability-identifier-naming)
 
-namespace d2bs::js::gameloop {
+namespace d2bs::runtime::gameloop {
 
 // Per-tick snapshot of the bits of game state the framework diffs across
 // frames. Populated under GameWriteLock inside GameLoop::TakeSnapshot.
@@ -145,4 +145,4 @@ class GameLoop {
     profiling::Timeline frame_;
 };
 
-}  // namespace d2bs::js::gameloop
+}  // namespace d2bs::runtime::gameloop

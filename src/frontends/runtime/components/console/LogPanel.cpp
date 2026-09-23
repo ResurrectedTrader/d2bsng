@@ -12,7 +12,7 @@
 #include "components/console/Theme.h"
 #include "utils/utils.h"
 
-namespace d2bs::js::console {
+namespace d2bs::runtime::console {
 
 namespace {
 
@@ -277,4 +277,4 @@ void LogPanel::Draw() {
     DrawScrollback();
 }
 
-}  // namespace d2bs::js::console
+}  // namespace d2bs::runtime::console

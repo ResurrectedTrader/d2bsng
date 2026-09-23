@@ -11,21 +11,21 @@
 
 // Error and warning utilities for V8
 
-namespace d2bs::api::v8_error {
+namespace d2bs::api::error {
 
 // Throw a generic Error
 inline void ThrowError(v8::Isolate* isolate, std::string_view message) {
-    isolate->ThrowException(v8::Exception::Error(v8_convert::ToV8(isolate, message)));
+    isolate->ThrowException(v8::Exception::Error(convert::ToJS(isolate, message)));
 }
 
 // Throw a TypeError (wrong argument type)
 inline void ThrowTypeError(v8::Isolate* isolate, std::string_view message) {
-    isolate->ThrowException(v8::Exception::TypeError(v8_convert::ToV8(isolate, message)));
+    isolate->ThrowException(v8::Exception::TypeError(convert::ToJS(isolate, message)));
 }
 
 // Throw a RangeError (value out of range)
 inline void ThrowRangeError(v8::Isolate* isolate, std::string_view message) {
-    isolate->ThrowException(v8::Exception::RangeError(v8_convert::ToV8(isolate, message)));
+    isolate->ThrowException(v8::Exception::RangeError(convert::ToJS(isolate, message)));
 }
 
 // Log a warning and set return value to false (caller must return afterward).
@@ -93,4 +93,4 @@ inline bool CheckIsFunction(const v8::FunctionCallbackInfo<v8::Value>& args, int
     return true;
 }
 
-}  // namespace d2bs::api::v8_error
+}  // namespace d2bs::api::error

@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <utility>
 
-namespace d2bs::js::console {
+namespace d2bs::runtime::console {
 
 void RowSelection::Begin() {
     frameOrder_.clear();
@@ -254,4 +254,4 @@ void RowSelection::Clear() {
     hasAnchor_ = false;
 }
 
-}  // namespace d2bs::js::console
+}  // namespace d2bs::runtime::console

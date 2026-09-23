@@ -6,7 +6,7 @@
 #include "components/console/Panel.h"
 #include "config/ProfileData.h"
 
-namespace d2bs::js::console {
+namespace d2bs::runtime::console {
 
 // Live editor for AppConfig fields. Each control reads the current atomic
 // value on every frame (no caching) and writes through on change - atomic
@@ -25,4 +25,4 @@ class SettingsPanel : public Panel {
     std::optional<config::ProfileData> cachedProfile_;
 };
 
-}  // namespace d2bs::js::console
+}  // namespace d2bs::runtime::console

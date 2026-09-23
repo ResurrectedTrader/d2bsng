@@ -52,7 +52,7 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             FD_SET(data->handle, &readSet);
 
             int32_t result = select(1, &readSet, nullptr, nullptr, &timeout);
-            info.GetReturnValue().Set(v8_convert::ToV8(isolate, result));
+            info.GetReturnValue().Set(convert::ToJS(isolate, result));
         });
 
     /// @description Whether the socket is ready to accept writes (1 = ready, 0 = not, -1 = error).
@@ -77,7 +77,7 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             FD_SET(data->handle, &writeSet);
 
             int32_t result = select(1, nullptr, &writeSet, nullptr, &timeout);
-            info.GetReturnValue().Set(v8_convert::ToV8(isolate, result));
+            info.GetReturnValue().Set(convert::ToJS(isolate, result));
         });
 
     // Instance Methods
@@ -91,18 +91,18 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
 
             auto data = Unwrap(args.This());
             if (!data || data->handle == INVALID_SOCKET) {
-                v8_error::ThrowError(isolate, "Socket is not connected");
+                error::ThrowError(isolate, "Socket is not connected");
                 return;
             }
 
             std::array<char, 10000> buffer{};
             int32_t bytesRead = recv(data->handle, buffer.data(), buffer.size(), 0);
             if (bytesRead == -1) {
-                v8_error::ThrowError(isolate, "Failed to read from socket");
+                error::ThrowError(isolate, "Failed to read from socket");
                 return;
             }
             std::string result(buffer.data(), bytesRead);
-            args.GetReturnValue().Set(v8_convert::ToV8(isolate, result));
+            args.GetReturnValue().Set(convert::ToJS(isolate, result));
         });
 
     /// @description Sends a string over the socket via a single send() call.
@@ -114,22 +114,22 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
         isolate, proto, "send", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
-            if (!v8_error::CheckArgCount(args, 1, "send")) {
+            if (!error::CheckArgCount(args, 1, "send")) {
                 return;
             }
 
             if (!args[0]->IsString()) {
-                v8_error::ThrowTypeError(isolate, "send() requires a string argument");
+                error::ThrowTypeError(isolate, "send() requires a string argument");
                 return;
             }
 
             auto data = Unwrap(args.This());
             if (!data || data->handle == INVALID_SOCKET) {
-                v8_error::ThrowError(isolate, "Socket is not connected");
+                error::ThrowError(isolate, "Socket is not connected");
                 return;
             }
 
-            std::string msg = v8_convert::ToString(isolate, args[0]);
+            std::string msg = convert::ToString(isolate, args[0]);
             // Return number of bytes sent so caller can detect partial writes. API enhancement.
             args.GetReturnValue().Set(send(data->handle, msg.c_str(), static_cast<int32_t>(msg.length()), 0));
         });
@@ -174,23 +174,23 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             }
 
             if (!args[0]->IsString()) {
-                v8_error::ThrowTypeError(isolate, "Socket.open() requires host as first argument");
+                error::ThrowTypeError(isolate, "Socket.open() requires host as first argument");
                 return;
             }
 
             if (!args[1]->IsNumber()) {
-                v8_error::ThrowTypeError(isolate, "Socket.open() requires port as second argument");
+                error::ThrowTypeError(isolate, "Socket.open() requires port as second argument");
                 return;
             }
 
             // Note: We are not implementing a host whitelist for this project for now.
-            std::string host = v8_convert::ToString(isolate, args[0]);
-            int32_t port = v8_convert::ToInt32(isolate, args[1]);
+            std::string host = convert::ToString(isolate, args[0]);
+            int32_t port = convert::ToInt32(isolate, args[1]);
 
             // Initialize Winsock
             WSADATA wsaData;
             if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-                v8_error::ThrowError(isolate, "Failed to initialize Winsock");
+                error::ThrowError(isolate, "Failed to initialize Winsock");
                 return;
             }
 
@@ -205,7 +205,7 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             int32_t addrResult = getaddrinfo(host.c_str(), portStr.c_str(), &hints, &result);
             if (addrResult != 0) {
                 WSACleanup();
-                v8_error::ThrowError(isolate, "Cannot resolve host");
+                error::ThrowError(isolate, "Cannot resolve host");
                 return;
             }
 
@@ -214,7 +214,7 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             if (sock == INVALID_SOCKET) {
                 freeaddrinfo(result);
                 WSACleanup();
-                v8_error::ThrowError(isolate, "Failed to create socket");
+                error::ThrowError(isolate, "Failed to create socket");
                 return;
             }
 
@@ -225,7 +225,7 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 closesocket(sock);
                 freeaddrinfo(result);
                 WSACleanup();
-                v8_error::ThrowError(isolate, "Failed to connect");
+                error::ThrowError(isolate, "Failed to connect");
                 return;
             }
 

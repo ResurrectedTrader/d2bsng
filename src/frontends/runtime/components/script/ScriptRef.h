@@ -16,11 +16,11 @@ class BaseEvent;
 class Script;
 }  // namespace d2bs
 
-namespace d2bs::js::drawing {
+namespace d2bs::runtime::drawing {
 struct Drawable;
-}  // namespace d2bs::js::drawing
+}  // namespace d2bs::runtime::drawing
 
-namespace d2bs::js::script {
+namespace d2bs::runtime::script {
 
 // Report a reference released off its owning thread. Out of line because the
 // logger reaches spdlog, and a header the event types include must not.
@@ -123,4 +123,4 @@ class Invocation {
     std::span<const v8::Local<v8::Function>> handlers_;
 };
 
-}  // namespace d2bs::js::script
+}  // namespace d2bs::runtime::script

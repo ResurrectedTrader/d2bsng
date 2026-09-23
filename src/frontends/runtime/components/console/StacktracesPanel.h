@@ -8,7 +8,7 @@ namespace d2bs {
 class Script;
 }  // namespace d2bs
 
-namespace d2bs::js::console {
+namespace d2bs::runtime::console {
 
 // JS call stacks per script. Capture is opt-in: selecting a script raises its
 // Script::SetStackCaptureMode to OnYield (refresh at delay() yields) or, with
@@ -32,4 +32,4 @@ class StacktracesPanel : public Panel {
     bool captureOnEveryCall_ = false;
 };
 
-}  // namespace d2bs::js::console
+}  // namespace d2bs::runtime::console

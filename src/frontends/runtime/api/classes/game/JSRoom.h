@@ -16,7 +16,7 @@
 namespace d2bs::api::classes {
 
 // V8 binding for game::Room (map tile).
-class JSRoom : public V8ClassBase<JSRoom, game::Room> {
+class JSRoom : public ClassBase<JSRoom, game::Room> {
    public:
     static constexpr std::string_view ClassName = "Room";
 
@@ -200,10 +200,10 @@ class JSRoom : public V8ClassBase<JSRoom, game::Room> {
                 std::optional<uint32_t> nType;
                 std::optional<uint32_t> nClass;
                 if (args.Length() > 0 && args[0]->IsUint32()) {
-                    nType = v8_convert::ToUint32(isolate, args[0]);
+                    nType = convert::ToUint32(isolate, args[0]);
                 }
                 if (args.Length() > 1 && args[1]->IsUint32()) {
-                    nClass = v8_convert::ToUint32(isolate, args[1]);
+                    nClass = convert::ToUint32(isolate, args[1]);
                 }
 
                 auto lock = game::Bridge::Lock();
@@ -214,7 +214,7 @@ class JSRoom : public V8ClassBase<JSRoom, game::Room> {
                     auto puData = std::make_unique<game::PresetUnitInfo>(presets[i]);
                     auto obj = JSPresetUnit::CreateInstance(isolate, context, std::move(puData));
                     if (obj.IsEmpty()) {
-                        v8_error::ThrowError(isolate, "Failed to build preset unit array");
+                        error::ThrowError(isolate, "Failed to build preset unit array");
                         return;
                     }
                     array->Set(context, i, obj).Check();
@@ -248,7 +248,7 @@ class JSRoom : public V8ClassBase<JSRoom, game::Room> {
                     const auto& row = collision[y];
                     auto innerArray = v8::Array::New(isolate, static_cast<int32_t>(row.size()));
                     for (size_t x = 0; x < row.size(); ++x) {
-                        innerArray->Set(context, x, v8_convert::ToV8(isolate, row[x])).Check();
+                        innerArray->Set(context, x, convert::ToJS(isolate, row[x])).Check();
                     }
                     outerArray->Set(context, y, innerArray).Check();
                 }
@@ -302,7 +302,7 @@ class JSRoom : public V8ClassBase<JSRoom, game::Room> {
                 for (uint32_t i = 0; i < nearby.size(); ++i) {
                     auto obj = CreateInstance(isolate, context, std::make_unique<game::Room>(nearby[i]));
                     if (obj.IsEmpty()) {
-                        v8_error::ThrowError(isolate, "Failed to build nearby room array");
+                        error::ThrowError(isolate, "Failed to build nearby room array");
                         return;
                     }
                     array->Set(context, i, obj).Check();
@@ -334,7 +334,7 @@ class JSRoom : public V8ClassBase<JSRoom, game::Room> {
                 if (!*data) {
                     return;
                 }
-                int32_t nStat = v8_convert::ToInt32(isolate, args[0]);
+                int32_t nStat = convert::ToInt32(isolate, args[0]);
                 auto lock = game::Bridge::Lock();
                 args.GetReturnValue().Set(data->GetStat(nStat));
             });

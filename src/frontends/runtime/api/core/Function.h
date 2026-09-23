@@ -6,7 +6,7 @@
 
 // Helper utilities for registering global functions
 
-namespace d2bs::api::v8_function {
+namespace d2bs::api::function {
 
 // Register a global function on the global object. Goes through the
 // framework's MethodTrampoline so per-callback stack capture (toggled per
@@ -14,8 +14,8 @@ namespace d2bs::api::v8_function {
 inline void Register(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> global, const char* name,
                      v8::FunctionCallback callback) {
     auto data =
-        v8::External::New(isolate, js::script::InternFunction(name, callback), v8::kExternalPointerTypeTagDefault);
-    global->Set(isolate, name, v8::FunctionTemplate::New(isolate, &js::script::MethodTrampoline, data));
+        v8::External::New(isolate, runtime::script::InternFunction(name, callback), v8::kExternalPointerTypeTagDefault);
+    global->Set(isolate, name, v8::FunctionTemplate::New(isolate, &runtime::script::MethodTrampoline, data));
 }
 
-}  // namespace d2bs::api::v8_function
+}  // namespace d2bs::api::function

@@ -32,7 +32,7 @@ struct HttpClientData {};
 // system (Internet Options) proxy configuration is honored. Non-2xx responses
 // are returned normally - inspect status / ok; only transport-level failures
 // (DNS, TLS, connection, timeout) throw.
-class JSHttpClient : public V8ClassBase<JSHttpClient, HttpClientData> {
+class JSHttpClient : public ClassBase<JSHttpClient, HttpClientData> {
    public:
     static constexpr std::string_view ClassName = "HttpClient";
 

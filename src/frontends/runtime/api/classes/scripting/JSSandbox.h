@@ -18,7 +18,7 @@ struct SandboxData {
 // Sandbox class - provides an isolated JavaScript execution environment
 // Dynamic properties: get/set/delete properties in the sandbox scope
 // Methods: evaluate, include, isIncluded, clearScope
-class JSSandbox : public V8ClassBase<JSSandbox, SandboxData> {
+class JSSandbox : public ClassBase<JSSandbox, SandboxData> {
    public:
     static constexpr std::string_view ClassName = "Sandbox";
 

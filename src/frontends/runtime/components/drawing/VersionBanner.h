@@ -1,6 +1,6 @@
 #pragma once
 
-namespace d2bs::js::drawing {
+namespace d2bs::runtime::drawing {
 
 // Draw the always-on "d2bsng <version>" banner in the bottom-right screen
 // corner, mirroring reference d2bs's DrawLogo. Shown both in-game and in menus
@@ -10,4 +10,4 @@ namespace d2bs::js::drawing {
 // from GameLoop::OnDraw on the game thread.
 void DrawVersionBanner();
 
-}  // namespace d2bs::js::drawing
+}  // namespace d2bs::runtime::drawing

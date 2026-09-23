@@ -21,7 +21,7 @@
 #include "utils/utils.h"
 
 using d2bs::game::GameState;
-using d2bs::js::gameloop::GameLoop;
+using d2bs::runtime::gameloop::GameLoop;
 
 namespace {
 
@@ -645,7 +645,7 @@ TEST_CASE_FIXTURE(GameLoopFixture, ".reload with waitForProfile=true is a no-op"
 
     // No StartedScripts beforehand; ReloadAll stops-all (no-op) + sleeps + the
     // waitForProfile guard returns before StartStarter runs.
-    d2bs::js::script::ReloadAll();
+    d2bs::runtime::script::ReloadAll();
     CHECK(d2bs::ScriptEngine::Instance().StartedScripts().empty());
 }
 

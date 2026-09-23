@@ -6,7 +6,7 @@
 #include "components/script/Script.h"
 #include "components/script/ScriptEngine.h"
 
-namespace d2bs::js::script {
+namespace d2bs::runtime::script {
 
 void OnNativeCall(v8::Isolate* isolate) {
     if (onEveryCallCaptureCount.load(std::memory_order_relaxed) == 0) {
@@ -149,4 +149,4 @@ void PropertySetterTrampoline(v8::Local<v8::Name> property, v8::Local<v8::Value>
     accessors->setter(property, value, info);
 }
 
-}  // namespace d2bs::js::script
+}  // namespace d2bs::runtime::script

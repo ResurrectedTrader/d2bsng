@@ -32,7 +32,7 @@ struct DBStatementData {
 // Methods: getObject, getColumnCount, getColumnName, getColumnValue,
 //          go, next, skip, reset, close, bind
 
-class JSDBStatement : public V8ClassBase<JSDBStatement, DBStatementData> {
+class JSDBStatement : public ClassBase<JSDBStatement, DBStatementData> {
    public:
     static constexpr std::string_view ClassName = "DBStatement";
 

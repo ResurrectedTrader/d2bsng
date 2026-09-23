@@ -15,7 +15,7 @@
 #include "utils/threadutils.h"
 #include "utils/utils.h"
 
-namespace d2bs::js::script {
+namespace d2bs::runtime::script {
 
 namespace {
 
@@ -162,4 +162,4 @@ void RunCommand(const std::string& line) {
     ScriptEngine::Instance().Evaluate(line);
 }
 
-}  // namespace d2bs::js::script
+}  // namespace d2bs::runtime::script

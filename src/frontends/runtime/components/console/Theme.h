@@ -10,7 +10,7 @@
 #include "components/script/ScriptTypes.h"
 #include "game/Console.h"
 
-namespace d2bs::js::console::theme {
+namespace d2bs::runtime::console::theme {
 
 [[nodiscard]] ImVec4 ColorForCode(game::console::ColorCode code);
 [[nodiscard]] ImVec4 ColorForLevel(game::console::MessageLevel level);
@@ -22,4 +22,4 @@ namespace d2bs::js::console::theme {
 [[nodiscard]] std::string FormatTimestamp(std::chrono::system_clock::time_point tp);
 [[nodiscard]] std::string FormatBytes(uint64_t bytes);
 
-}  // namespace d2bs::js::console::theme
+}  // namespace d2bs::runtime::console::theme

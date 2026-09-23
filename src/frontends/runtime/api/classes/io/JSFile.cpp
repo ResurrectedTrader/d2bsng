@@ -14,12 +14,12 @@ namespace d2bs::api::classes::file_detail {
 FILE* FileOpenRelScript(v8::Isolate* isolate, const std::string& relativePath, const wchar_t* mode) {
     auto fullPath = config::GetPathRelScript(relativePath);
     if (fullPath.empty()) {
-        v8_error::ThrowError(isolate, "Invalid file name");
+        error::ThrowError(isolate, "Invalid file name");
         return nullptr;
     }
     FILE* fp = nullptr;
     if (_wfopen_s(&fp, fullPath.c_str(), mode) != 0 || fp == nullptr) {
-        v8_error::ThrowError(isolate, "Couldn't open file");
+        error::ThrowError(isolate, "Couldn't open file");
         return nullptr;
     }
     return fp;
@@ -52,7 +52,7 @@ bool WriteValue(FILE* fptr, v8::Isolate* isolate, v8::Local<v8::Value> value, bo
     }
 
     if (value->IsString()) {
-        std::string str = v8_convert::ToString(isolate, value);
+        std::string str = convert::ToString(isolate, value);
         return fwrite(str.data(), sizeof(char), str.size(), fptr) == str.size();
     }
 

@@ -14,7 +14,7 @@
 #include <spdlog/spdlog.h>
 #include <v8.h>
 
-namespace d2bs::js::script {
+namespace d2bs::runtime::script {
 
 // Process-wide cache of V8 code-cache blobs (the serialized result of parsing
 // and compiling a source), keyed by the source a compile was handed.
@@ -32,7 +32,7 @@ namespace d2bs::js::script {
 // least-recently-used, disk least-recently-written (see PruneDisk).
 //
 // The cache holds byte vectors, never V8 handles, so its lifetime carries no
-// ordering dependency on V8Host teardown.
+// ordering dependency on Engine teardown.
 class CodeCache {
    public:
     // Handed out as a shared_ptr because a compile keeps the bytes alive for the
@@ -107,4 +107,4 @@ class CodeCache {
     std::shared_ptr<spdlog::logger> logger_;
 };
 
-}  // namespace d2bs::js::script
+}  // namespace d2bs::runtime::script

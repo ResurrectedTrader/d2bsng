@@ -6,7 +6,7 @@
 
 #include <regex>
 
-namespace d2bs::js::script {
+namespace d2bs::runtime::script {
 
 v8::MaybeLocal<v8::Script> CompileSource(v8::Isolate* isolate, v8::Local<v8::Context> context, std::string source,
                                          std::string_view originName) {
@@ -43,7 +43,7 @@ v8::MaybeLocal<v8::Script> CompileSource(v8::Isolate* isolate, v8::Local<v8::Con
         return {};
     }
 
-    auto originNameStr = api::v8_convert::ToV8(isolate, originName);
+    auto originNameStr = api::convert::ToJS(isolate, originName);
     v8::ScriptOrigin origin(originNameStr);
 
     auto& cache = CodeCache::Instance();
@@ -257,4 +257,4 @@ void ApplyCompatibilityPrelude(v8::Isolate* isolate, v8::Local<v8::Context> cont
     }
 }
 
-}  // namespace d2bs::js::script
+}  // namespace d2bs::runtime::script

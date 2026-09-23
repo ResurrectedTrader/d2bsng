@@ -11,13 +11,13 @@
 // Type conversion utilities for V8 <-> C++
 // All string operations use UTF-8
 
-namespace d2bs::api::v8_convert {
+namespace d2bs::api::convert {
 
 // ============================================================================
 // To V8 conversions
 // ============================================================================
 
-inline v8::Local<v8::String> ToV8(v8::Isolate* isolate, const char* str) {
+inline v8::Local<v8::String> ToJS(v8::Isolate* isolate, const char* str) {
     if (!str)
         return v8::String::Empty(isolate);
     v8::Local<v8::String> result;
@@ -28,7 +28,7 @@ inline v8::Local<v8::String> ToV8(v8::Isolate* isolate, const char* str) {
 
 // Keep both std::string and std::string_view overloads to prevent ambiguity
 // with the filesystem::path overload (std::string implicitly converts to path).
-inline v8::Local<v8::String> ToV8(v8::Isolate* isolate, const std::string& str) {
+inline v8::Local<v8::String> ToJS(v8::Isolate* isolate, const std::string& str) {
     v8::Local<v8::String> result;
     if (v8::String::NewFromUtf8(isolate, str.c_str(), v8::NewStringType::kNormal, static_cast<int32_t>(str.length()))
             .ToLocal(&result))
@@ -36,7 +36,7 @@ inline v8::Local<v8::String> ToV8(v8::Isolate* isolate, const std::string& str) 
     return v8::String::Empty(isolate);
 }
 
-inline v8::Local<v8::String> ToV8(v8::Isolate* isolate, std::string_view str) {
+inline v8::Local<v8::String> ToJS(v8::Isolate* isolate, std::string_view str) {
     v8::Local<v8::String> result;
     if (v8::String::NewFromUtf8(isolate, str.data(), v8::NewStringType::kNormal, static_cast<int32_t>(str.length()))
             .ToLocal(&result))
@@ -45,7 +45,7 @@ inline v8::Local<v8::String> ToV8(v8::Isolate* isolate, std::string_view str) {
 }
 
 // Convert filesystem path to UTF-8 V8 string (handles Unicode paths on Windows)
-inline v8::Local<v8::String> ToV8(v8::Isolate* isolate, const std::filesystem::path& path) {
+inline v8::Local<v8::String> ToJS(v8::Isolate* isolate, const std::filesystem::path& path) {
     auto u8Path = path.u8string();
     v8::Local<v8::String> result;
     if (v8::String::NewFromUtf8(isolate, reinterpret_cast<const char*>(u8Path.data()), v8::NewStringType::kNormal,
@@ -55,19 +55,19 @@ inline v8::Local<v8::String> ToV8(v8::Isolate* isolate, const std::filesystem::p
     return v8::String::Empty(isolate);
 }
 
-inline v8::Local<v8::Integer> ToV8(v8::Isolate* isolate, int32_t val) {
+inline v8::Local<v8::Integer> ToJS(v8::Isolate* isolate, int32_t val) {
     return v8::Integer::New(isolate, val);
 }
 
-inline v8::Local<v8::Integer> ToV8(v8::Isolate* isolate, uint32_t val) {
+inline v8::Local<v8::Integer> ToJS(v8::Isolate* isolate, uint32_t val) {
     return v8::Integer::NewFromUnsigned(isolate, val);
 }
 
-inline v8::Local<v8::Number> ToV8(v8::Isolate* isolate, double val) {
+inline v8::Local<v8::Number> ToJS(v8::Isolate* isolate, double val) {
     return v8::Number::New(isolate, val);
 }
 
-inline v8::Local<v8::Boolean> ToV8(v8::Isolate* isolate, bool val) {
+inline v8::Local<v8::Boolean> ToJS(v8::Isolate* isolate, bool val) {
     return v8::Boolean::New(isolate, val);
 }
 
@@ -103,7 +103,7 @@ inline KeyCache& Keys(v8::Isolate* isolate) {
     if (keyCache.isolate == isolate) {
         return keyCache;
     }
-    // Degrades to an empty name like the ToV8 overloads above rather than going fatal. The only
+    // Degrades to an empty name like the ToJS overloads above rather than going fatal. The only
     // way this fails is heap exhaustion, and ToLocalChecked would take the whole process down
     // through the isolate's fatal handler - killing every other script in it.
     bool interned = true;
@@ -146,48 +146,48 @@ inline void ClearKeyCache(v8::Isolate* isolate) {
 }
 
 // {x: uint32, y: uint32}
-inline v8::Local<v8::Object> ToV8(v8::Isolate* isolate, game::Position pos) {
+inline v8::Local<v8::Object> ToJS(v8::Isolate* isolate, game::Position pos) {
     auto& keys = detail::Keys(isolate);
     auto context = isolate->GetCurrentContext();
     auto obj = v8::Object::New(isolate);
-    obj->CreateDataProperty(context, keys.x.Get(isolate), ToV8(isolate, pos.x)).Check();
-    obj->CreateDataProperty(context, keys.y.Get(isolate), ToV8(isolate, pos.y)).Check();
+    obj->CreateDataProperty(context, keys.x.Get(isolate), ToJS(isolate, pos.x)).Check();
+    obj->CreateDataProperty(context, keys.y.Get(isolate), ToJS(isolate, pos.y)).Check();
     return obj;
 }
 
 // {x: int32, y: int32}
-inline v8::Local<v8::Object> ToV8(v8::Isolate* isolate, game::Point pt) {
+inline v8::Local<v8::Object> ToJS(v8::Isolate* isolate, game::Point pt) {
     auto& keys = detail::Keys(isolate);
     auto context = isolate->GetCurrentContext();
     auto obj = v8::Object::New(isolate);
-    obj->CreateDataProperty(context, keys.x.Get(isolate), ToV8(isolate, pt.x)).Check();
-    obj->CreateDataProperty(context, keys.y.Get(isolate), ToV8(isolate, pt.y)).Check();
+    obj->CreateDataProperty(context, keys.x.Get(isolate), ToJS(isolate, pt.x)).Check();
+    obj->CreateDataProperty(context, keys.y.Get(isolate), ToJS(isolate, pt.y)).Check();
     return obj;
 }
 
 // {width: uint32, height: uint32}
-inline v8::Local<v8::Object> ToV8(v8::Isolate* isolate, game::Size sz) {
+inline v8::Local<v8::Object> ToJS(v8::Isolate* isolate, game::Size sz) {
     auto& keys = detail::Keys(isolate);
     auto context = isolate->GetCurrentContext();
     auto obj = v8::Object::New(isolate);
-    obj->CreateDataProperty(context, keys.width.Get(isolate), ToV8(isolate, sz.width)).Check();
-    obj->CreateDataProperty(context, keys.height.Get(isolate), ToV8(isolate, sz.height)).Check();
+    obj->CreateDataProperty(context, keys.width.Get(isolate), ToJS(isolate, sz.width)).Check();
+    obj->CreateDataProperty(context, keys.height.Get(isolate), ToJS(isolate, sz.height)).Check();
     return obj;
 }
 
 // {id: uint32, layer: uint32, value: int32}
-inline v8::Local<v8::Object> ToV8(v8::Isolate* isolate, const game::StatEntry& stat) {
+inline v8::Local<v8::Object> ToJS(v8::Isolate* isolate, const game::StatEntry& stat) {
     auto& keys = detail::Keys(isolate);
     auto context = isolate->GetCurrentContext();
     auto obj = v8::Object::New(isolate);
-    obj->CreateDataProperty(context, keys.id.Get(isolate), ToV8(isolate, stat.statId)).Check();
-    obj->CreateDataProperty(context, keys.layer.Get(isolate), ToV8(isolate, stat.subIndex)).Check();
-    obj->CreateDataProperty(context, keys.value.Get(isolate), ToV8(isolate, stat.value)).Check();
+    obj->CreateDataProperty(context, keys.id.Get(isolate), ToJS(isolate, stat.statId)).Check();
+    obj->CreateDataProperty(context, keys.layer.Get(isolate), ToJS(isolate, stat.subIndex)).Check();
+    obj->CreateDataProperty(context, keys.value.Get(isolate), ToJS(isolate, stat.value)).Check();
     return obj;
 }
 
 // {flags: uint32, stateNo: uint32, stats: StatEntry[]}
-inline v8::Local<v8::Object> ToV8(v8::Isolate* isolate, const game::StatListEntry& list) {
+inline v8::Local<v8::Object> ToJS(v8::Isolate* isolate, const game::StatListEntry& list) {
     auto& keys = detail::Keys(isolate);
     auto context = isolate->GetCurrentContext();
     // One allocation, packed elements - the length-then-Set form starts holey and takes
@@ -195,12 +195,12 @@ inline v8::Local<v8::Object> ToV8(v8::Isolate* isolate, const game::StatListEntr
     std::vector<v8::Local<v8::Value>> elements;
     elements.reserve(list.stats.size());
     for (const auto& stat : list.stats) {
-        elements.emplace_back(ToV8(isolate, stat));
+        elements.emplace_back(ToJS(isolate, stat));
     }
     auto stats = v8::Array::New(isolate, elements.data(), elements.size());
     auto obj = v8::Object::New(isolate);
-    obj->CreateDataProperty(context, keys.flags.Get(isolate), ToV8(isolate, list.flags)).Check();
-    obj->CreateDataProperty(context, keys.stateNo.Get(isolate), ToV8(isolate, list.stateNo)).Check();
+    obj->CreateDataProperty(context, keys.flags.Get(isolate), ToJS(isolate, list.flags)).Check();
+    obj->CreateDataProperty(context, keys.stateNo.Get(isolate), ToJS(isolate, list.stateNo)).Check();
     obj->CreateDataProperty(context, keys.stats.Get(isolate), stats).Check();
     return obj;
 }
@@ -245,4 +245,4 @@ inline bool ToBool(v8::Isolate* isolate, v8::Local<v8::Value> val) {
     return val->BooleanValue(isolate);
 }
 
-}  // namespace d2bs::api::v8_convert
+}  // namespace d2bs::api::convert

@@ -15,7 +15,7 @@ namespace {
 // Returns false (and throws a TypeError) for any other value.
 bool ExtractBody(v8::Isolate* isolate, v8::Local<v8::Value> value, std::vector<uint8_t>& out) {
     if (value->IsString()) {
-        std::string text = v8_convert::ToString(isolate, value);
+        std::string text = convert::ToString(isolate, value);
         out.assign(text.begin(), text.end());
         return true;
     }
@@ -36,7 +36,7 @@ bool ExtractBody(v8::Isolate* isolate, v8::Local<v8::Value> value, std::vector<u
         }
         return true;
     }
-    v8_error::ThrowTypeError(isolate, "body must be a string, ArrayBuffer, or typed array");
+    error::ThrowTypeError(isolate, "body must be a string, ArrayBuffer, or typed array");
     return false;
 }
 
@@ -48,36 +48,36 @@ bool ExtractBody(v8::Isolate* isolate, v8::Local<v8::Value> value, std::vector<u
 bool ReadStringOption(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Local<v8::Object> options,
                       std::string_view name, std::string& out) {
     v8::Local<v8::Value> value;
-    if (!options->Get(context, v8_convert::ToV8(isolate, name)).ToLocal(&value)) {
+    if (!options->Get(context, convert::ToJS(isolate, name)).ToLocal(&value)) {
         return false;
     }
     if (value->IsUndefined()) {
         return true;
     }
     if (!value->IsString()) {
-        v8_error::ThrowTypeError(isolate, std::format("HttpClient: '{}' must be a string", name));
+        error::ThrowTypeError(isolate, std::format("HttpClient: '{}' must be a string", name));
         return false;
     }
-    out = v8_convert::ToString(isolate, value);
+    out = convert::ToString(isolate, value);
     return true;
 }
 
 bool ReadUint32Option(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Local<v8::Object> options,
                       std::string_view name, uint32_t& out) {
     v8::Local<v8::Value> value;
-    if (!options->Get(context, v8_convert::ToV8(isolate, name)).ToLocal(&value)) {
+    if (!options->Get(context, convert::ToJS(isolate, name)).ToLocal(&value)) {
         return false;
     }
     if (value->IsUndefined()) {
         return true;
     }
     if (!value->IsNumber()) {
-        v8_error::ThrowTypeError(isolate, std::format("HttpClient: '{}' must be a number", name));
+        error::ThrowTypeError(isolate, std::format("HttpClient: '{}' must be a number", name));
         return false;
     }
-    double number = v8_convert::ToDouble(isolate, value);
+    double number = convert::ToDouble(isolate, value);
     if (number < 0) {
-        v8_error::ThrowRangeError(isolate, std::format("HttpClient: '{}' must not be negative", name));
+        error::ThrowRangeError(isolate, std::format("HttpClient: '{}' must not be negative", name));
         return false;
     }
     out = static_cast<uint32_t>(number);
@@ -87,17 +87,17 @@ bool ReadUint32Option(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::
 bool ReadBoolOption(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Local<v8::Object> options,
                     std::string_view name, bool& out) {
     v8::Local<v8::Value> value;
-    if (!options->Get(context, v8_convert::ToV8(isolate, name)).ToLocal(&value)) {
+    if (!options->Get(context, convert::ToJS(isolate, name)).ToLocal(&value)) {
         return false;
     }
     if (value->IsUndefined()) {
         return true;
     }
     if (!value->IsBoolean()) {
-        v8_error::ThrowTypeError(isolate, std::format("HttpClient: '{}' must be a boolean", name));
+        error::ThrowTypeError(isolate, std::format("HttpClient: '{}' must be a boolean", name));
         return false;
     }
-    out = v8_convert::ToBool(isolate, value);
+    out = convert::ToBool(isolate, value);
     return true;
 }
 
@@ -111,12 +111,12 @@ bool ApplyOptions(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Loca
     }
 
     v8::Local<v8::Value> headers;
-    if (!options->Get(context, v8_convert::ToV8(isolate, "headers")).ToLocal(&headers)) {
+    if (!options->Get(context, convert::ToJS(isolate, "headers")).ToLocal(&headers)) {
         return false;
     }
     if (!headers->IsUndefined()) {
         if (!headers->IsObject()) {
-            v8_error::ThrowTypeError(isolate, "HttpClient: 'headers' must be an object");
+            error::ThrowTypeError(isolate, "HttpClient: 'headers' must be an object");
             return false;
         }
         auto headerObject = headers.As<v8::Object>();
@@ -134,18 +134,17 @@ bool ApplyOptions(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Loca
                 return false;
             }
             if (!value->IsString() && !value->IsNumber()) {
-                v8_error::ThrowTypeError(isolate,
-                                         std::format("HttpClient: header '{}' must have a string or number value",
-                                                     v8_convert::ToString(isolate, key)));
+                error::ThrowTypeError(isolate, std::format("HttpClient: header '{}' must have a string or number value",
+                                                           convert::ToString(isolate, key)));
                 return false;
             }
-            request.headers.emplace_back(v8_convert::ToString(isolate, key), v8_convert::ToString(isolate, value));
+            request.headers.emplace_back(convert::ToString(isolate, key), convert::ToString(isolate, value));
         }
     }
 
     if (allowBody) {
         v8::Local<v8::Value> body;
-        if (!options->Get(context, v8_convert::ToV8(isolate, "body")).ToLocal(&body)) {
+        if (!options->Get(context, convert::ToJS(isolate, "body")).ToLocal(&body)) {
             return false;
         }
         if (!body->IsNullOrUndefined() && !ExtractBody(isolate, body, request.body)) {
@@ -170,17 +169,17 @@ bool ApplyOptions(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Loca
     }
 
     v8::Local<v8::Value> maxBytes;
-    if (!options->Get(context, v8_convert::ToV8(isolate, "maxResponseBytes")).ToLocal(&maxBytes)) {
+    if (!options->Get(context, convert::ToJS(isolate, "maxResponseBytes")).ToLocal(&maxBytes)) {
         return false;
     }
     if (!maxBytes->IsUndefined()) {
         if (!maxBytes->IsNumber()) {
-            v8_error::ThrowTypeError(isolate, "HttpClient: 'maxResponseBytes' must be a number");
+            error::ThrowTypeError(isolate, "HttpClient: 'maxResponseBytes' must be a number");
             return false;
         }
-        double bytes = v8_convert::ToDouble(isolate, maxBytes);
+        double bytes = convert::ToDouble(isolate, maxBytes);
         if (bytes <= 0) {
-            v8_error::ThrowRangeError(isolate, "HttpClient: 'maxResponseBytes' must be positive");
+            error::ThrowRangeError(isolate, "HttpClient: 'maxResponseBytes' must be positive");
             return false;
         }
         request.maxResponseBytes = static_cast<size_t>(bytes);
@@ -195,33 +194,32 @@ v8::Local<v8::Value> BuildResponseObject(v8::Isolate* isolate, v8::Local<v8::Con
     v8::EscapableHandleScope scope(isolate);
     auto object = v8::Object::New(isolate);
 
-    object->Set(context, v8_convert::ToV8(isolate, "status"), v8_convert::ToV8(isolate, response.status)).Check();
-    object->Set(context, v8_convert::ToV8(isolate, "statusText"), v8_convert::ToV8(isolate, response.statusText))
-        .Check();
+    object->Set(context, convert::ToJS(isolate, "status"), convert::ToJS(isolate, response.status)).Check();
+    object->Set(context, convert::ToJS(isolate, "statusText"), convert::ToJS(isolate, response.statusText)).Check();
     object
-        ->Set(context, v8_convert::ToV8(isolate, "ok"),
-              v8_convert::ToV8(isolate, response.status >= 200 && response.status < 300))
+        ->Set(context, convert::ToJS(isolate, "ok"),
+              convert::ToJS(isolate, response.status >= 200 && response.status < 300))
         .Check();
-    object->Set(context, v8_convert::ToV8(isolate, "url"), v8_convert::ToV8(isolate, response.url)).Check();
+    object->Set(context, convert::ToJS(isolate, "url"), convert::ToJS(isolate, response.url)).Check();
 
     auto headerObject = v8::Object::New(isolate);
     for (const auto& [name, value] : response.headers) {
-        headerObject->Set(context, v8_convert::ToV8(isolate, name), v8_convert::ToV8(isolate, value)).Check();
+        headerObject->Set(context, convert::ToJS(isolate, name), convert::ToJS(isolate, value)).Check();
     }
-    object->Set(context, v8_convert::ToV8(isolate, "headers"), headerObject).Check();
+    object->Set(context, convert::ToJS(isolate, "headers"), headerObject).Check();
 
     if (binary) {
         auto buffer = v8::ArrayBuffer::New(isolate, response.body.size());
         if (!response.body.empty()) {
             std::memcpy(buffer->GetBackingStore()->Data(), response.body.data(), response.body.size());
         }
-        object->Set(context, v8_convert::ToV8(isolate, "body"), buffer).Check();
+        object->Set(context, convert::ToJS(isolate, "body"), buffer).Check();
     } else {
-        // View the body bytes as UTF-8 directly; ToV8 copies them into the V8 heap, so an
+        // View the body bytes as UTF-8 directly; ToJS copies them into the V8 heap, so an
         // owning std::string here would just be a wasted full-size copy.
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) - byte buffer viewed as chars
         std::string_view text(reinterpret_cast<const char*>(response.body.data()), response.body.size());
-        object->Set(context, v8_convert::ToV8(isolate, "body"), v8_convert::ToV8(isolate, text)).Check();
+        object->Set(context, convert::ToJS(isolate, "body"), convert::ToJS(isolate, text)).Check();
     }
 
     return scope.Escape(object);
@@ -245,30 +243,30 @@ void RequestImpl(const v8::FunctionCallbackInfo<v8::Value>& args, std::string_vi
 
     if (urlInOptions) {
         if (args.Length() < 1 || !args[0]->IsObject()) {
-            v8_error::ThrowTypeError(isolate, "HttpClient.request requires an options object");
+            error::ThrowTypeError(isolate, "HttpClient.request requires an options object");
             return;
         }
         options = args[0].As<v8::Object>();
         haveOptions = true;
         v8::Local<v8::Value> url;
-        if (!options->Get(context, v8_convert::ToV8(isolate, "url")).ToLocal(&url)) {
+        if (!options->Get(context, convert::ToJS(isolate, "url")).ToLocal(&url)) {
             return;
         }
         if (!url->IsString()) {
-            v8_error::ThrowTypeError(isolate, "HttpClient.request options must include a url string");
+            error::ThrowTypeError(isolate, "HttpClient.request options must include a url string");
             return;
         }
-        request.url = v8_convert::ToString(isolate, url);
+        request.url = convert::ToString(isolate, url);
     } else {
         if (args.Length() < 1 || !args[0]->IsString()) {
-            v8_error::ThrowTypeError(isolate, "url must be a string");
+            error::ThrowTypeError(isolate, "url must be a string");
             return;
         }
-        request.url = v8_convert::ToString(isolate, args[0]);
+        request.url = convert::ToString(isolate, args[0]);
         // A present-but-non-object options argument is a mistake, not a no-op.
         if (optionsArgIndex >= 0 && args.Length() > optionsArgIndex && !args[optionsArgIndex]->IsNullOrUndefined()) {
             if (!args[optionsArgIndex]->IsObject()) {
-                v8_error::ThrowTypeError(isolate, "options must be an object");
+                error::ThrowTypeError(isolate, "options must be an object");
                 return;
             }
             options = args[optionsArgIndex].As<v8::Object>();
@@ -291,7 +289,7 @@ void RequestImpl(const v8::FunctionCallbackInfo<v8::Value>& args, std::string_vi
     http::Response response;
     std::string error = http::Perform(request, response);
     if (!error.empty()) {
-        v8_error::ThrowError(isolate, "HTTP request failed: " + error);
+        error::ThrowError(isolate, "HTTP request failed: " + error);
         return;
     }
 

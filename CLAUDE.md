@@ -18,7 +18,7 @@ Design docs live in `docs/`. Read the one(s) covering whatever you are about to 
 - `docs/realms.md` - custom Battle.net gateways: the `RealmRegistry` store, the `-realm` launch option, in-memory injection into D2's gateway list by detouring the Storm registry read/write helpers (no registry persistence), realm enumeration (`game::GetRealms`) exposed as the global `getRealms()`.
 - `docs/stash_tabs.md` - stash tabs: the game-agnostic `game::StashTab` identity handle (`game/StashTab.h`; backend-implemented `Type` / `Name` / `Gold` / `GetItems` / `Click` / `MoveGold`, `game::GetStashTabs`, `Unit::StashTab`), exposed as the `StashTab` JS class via `getStashTabs()` and `Unit.stashTab` (with `depositGold` / `withdrawGold` wrapping `MoveGold`), the per-tab gold attribution rule, why there is no "select tab", the character-state `pages` feed, and the `GoldActionMode` dialog codes.
 - `docs/plugy_stash.md` - PlugY's multi-page stash on 1.14d, the backend behind `docs/stash_tabs.md` when PlugY is present: how PlugY pages the stash (only the shown page lives in the inventory; the rest hang off a `PYPlayerData` tail appended to the player data, parked items are stored-mode with no parent inventory), the version-allowlisted detection in `backends/lod114d/game/PlugY.cpp`, running PlugY's `Init` from `Bridge::Init` when PlugY.dll was injected without PlugY.exe, the patch-site overlap check against d2bs's hooks, the blocking swap-in / click / ack-wait / swap-back sequence over PlugY's 0x3A channel, the shared gold pool, and how to remove the PlugY code again.
-- `docs/code_cache.md` - the script code cache: why per-script isolates make V8's own compilation cache useless across scripts, the memory + opt-in disk tiers of `js::script::CodeCache`, how it hooks into `CompileSource` (eager on a miss / consume on a hit / drop on a rejected blob), the key (post-transform source + origin + V8 build tag), the header-less on-disk entries and cross-instance sharing, and the `CodeCachePath` / `CodeCacheMemoryLimit` / `CodeCacheDiskLimit` settings.
+- `docs/code_cache.md` - the script code cache: why per-script isolates make V8's own compilation cache useless across scripts, the memory + opt-in disk tiers of `runtime::script::CodeCache`, how it hooks into `CompileSource` (eager on a miss / consume on a hit / drop on a rejected blob), the key (post-transform source + origin + V8 build tag), the header-less on-disk entries and cross-instance sharing, and the `CodeCachePath` / `CodeCacheMemoryLimit` / `CodeCacheDiskLimit` settings.
 - `docs/analytics.md` - anonymous usage analytics (Aptabase): the `Analytics` component, the `session_start` / `profile_active` events (the latter carrying a per-install `profileHash`, never the profile name) and exactly what they do / do not collect, the compile-time app key (build-time only; the project key is the committed default in `Directory.Build.props`, overridable per-build via `-p:D2bsAnalyticsKey` / gitignored `d2bs.local.props` / `D2BS_ANALYTICS_KEY`, and an empty value compiles analytics out), the per-launch opt-out (`-noanalytics`/`D2BS_ANALYTICS_DISABLE`), the backend-agnostic `features` tag list via `game::GetActiveFeatures()`, the anonymous `installId` (derived per launch, never stored), and the `game::GetAnalyticsLaunchOptions()` / `game::GetBackendVersion()` contract accessors.
 - `docs/frontends.md` - what a second scripting frontend costs and the shape that reduces it: which V8 references under `components/` are the engine and which are incidental, why any shared handle must obey the stricter engine's rooting rules, the `script::Ref` / `CallArgs` / `Stats` boundary, the `EngineInfo` (name, version, and whether the engine has a debugger) the console asks for instead of assuming, the engine-neutral `Engine*` INI settings, and why `api/`'s duplication is a generation problem rather than an abstraction one.
 
@@ -244,7 +244,7 @@ d2bsng/
 │   │       │   ├── console/        ImGui dev console (log/REPL/scripts/stacktraces/threads/profiling/settings)
 │   │       │   ├── inspector/      V8 inspector (Chrome DevTools) debug server
 │   │       │   ├── drawing/        Screen-hook drawables (Box/Frame/Line/Text/Image)
-│   │       │   └── Host.h/.cpp     Frontend lifecycle (d2bs::js::Host) + GameCallbacks wiring
+│   │       │   └── Host.h/.cpp     Frontend lifecycle (d2bs::runtime::Host) + GameCallbacks wiring
 │   ├── backends/           One directory per game-version backend
 │   │   └── lod114d/        lod114d.lib - 1.14d game backend (implements contract); depends on contract + core
 │   │       ├── game/           1.14d implementation (.cpp + internal .h)
@@ -254,7 +254,7 @@ d2bsng/
 │   │       └── console/        Port console host (window + GL + ImGui glue)
 │   └── glue/               One directory per frontend+backend combo (the shippable target)
 │       └── js-v8-lod114d/  d2bs.dll - glue: DllMain + wiring; links runtime + lod114d + navigation + contract + core + utils
-│           ├── dllmain.cpp     DLL entry point (Bridge::Init -> InstallAll -> js::Host::Initialize)
+│           ├── dllmain.cpp     DLL entry point (Bridge::Init -> InstallAll -> runtime::Host::Initialize)
 │           └── version.rc      DLL version resource
 └── tests/
     └── frontends/
@@ -419,7 +419,7 @@ These are the intended dependencies. A few deliberate exceptions are noted inlin
 - **services/** (bot services) depends on: contract + core + utils. Holds the bot's own background features - anonymous analytics, the character-state snapshot sent to the D2BotNG manager, the DDE service, profile lookup/switching, and the GitHub-release update checker. None of them is frame-driven or script-driven, and none names an engine type, so they belong to no frontend: a second frontend links this library rather than reimplementing it. Like a frontend, it leaves `game::` symbols unresolved until the glue link. NEVER on a frontend, `api/`, or a backend.
 - **frontends/runtime/** (JavaScript frontend) depends on: contract + core + navigation + services + utils + V8. Reaches the game only through `game::` contract symbols (resolved at the glue link) and pushes its hooks down through the `GameCallbacks` table; it NEVER references a concrete backend.
   - **frontends/runtime/api/** depends on: contract (game/ interface + DTOs), core, navigation, services, components/, utils/, V8.
-  - **frontends/runtime/components/** depends on: contract, core, navigation, utils/, and V8 **only where the engine actually is**. `components/events/` and `components/drawing/` name no engine type: they hold a script function as a `script::Ref` and describe call arguments as a `script::CallArgs` value, both resolved by `components/script/`. Keep it that way - a second frontend compiles those directories unchanged, and `docs/frontends.md` records which of the remaining references are essential. Exception: `components/script/` includes `api/` - the script engine is the JS-API composition root (it owns V8 isolate setup and registers the `api/` ClassRegistry + globals), and a few components reuse `api::v8_convert`.
+  - **frontends/runtime/components/** depends on: contract, core, navigation, utils/, and V8 **only where the engine actually is**. `components/events/` and `components/drawing/` name no engine type: they hold a script function as a `script::Ref` and describe call arguments as a `script::CallArgs` value, both resolved by `components/script/`. Keep it that way - a second frontend compiles those directories unchanged, and `docs/frontends.md` records which of the remaining references are essential. Exception: `components/script/` includes `api/` - the script engine is the JS-API composition root (it owns V8 isolate setup and registers the `api/` ClassRegistry + globals), and a few components reuse `api::convert`.
 - **backends/lod114d/** (1.14d backend) depends on: contract + core + utils, plus sibling port headers (imports/, hooks/, asm_thunks/). Implements the `game::` contract symbols and calls UP into the frontend ONLY through the `GameCallbacks` pointers it is handed at init (`hooks::GetActiveCallbacks()`). NEVER on the frontend, api/, or V8. Config reads go through `core`; console output and rendering go through the `onConsoleMessage` / `onConsoleDrawFrame` callbacks.
 - **glue/js-v8-lod114d/** (glue) depends on: runtime + lod114d + navigation + services + contract + core + utils. The only project that sees both a frontend and a backend; owns `DllMain` and the bring-up wiring.
 
@@ -683,7 +683,7 @@ inline uint32_t* Ping = nullptr;
 
 ### V8 Value Creation
 
-Prefer `api::v8_convert::ToV8(isolate, value)` over direct V8 factory calls (`v8::String::NewFromUtf8`, `v8::Integer::New`, `v8::Number::New`, `v8::Boolean::New`). `ToV8` provides consistent error handling and supports: `const char*`, `std::string`, `std::string_view`, `std::filesystem::path`, `int32_t`, `uint32_t`, `double`, `bool`. Also has overloads for `Point` / `Position` / `Size` that emit `{x, y}` / `{width, height}` v8 objects.
+Prefer `api::convert::ToJS(isolate, value)` over direct V8 factory calls (`v8::String::NewFromUtf8`, `v8::Integer::New`, `v8::Number::New`, `v8::Boolean::New`). `ToJS` provides consistent error handling and supports: `const char*`, `std::string`, `std::string_view`, `std::filesystem::path`, `int32_t`, `uint32_t`, `double`, `bool`. Also has overloads for `Point` / `Position` / `Size` that emit `{x, y}` / `{width, height}` v8 objects.
 
 ### Geometric Primitives
 
@@ -700,11 +700,11 @@ All four default-construct to zero (default member initializers) and provide `op
 **Use the `::Zero` constants for explicit zero values** - clearer than `Point{}` / `{.x = 0, .y = 0}`:
 ```cpp
 // Good
-auto p = v8_extract::Point(args, 0).value_or(d2bs::game::Point::Zero);
+auto p = extract::Point(args, 0).value_or(d2bs::game::Point::Zero);
 return d2bs::game::Position::Zero;
 
 // Avoid
-auto p = v8_extract::Point(args, 0).value_or(d2bs::game::Point{});
+auto p = extract::Point(args, 0).value_or(d2bs::game::Point{});
 return {.x = 0, .y = 0};
 ```
 
@@ -742,10 +742,10 @@ data.resize(static_cast<size_t>(size.width) * size.height, fill);
 
 ### V8 Class Bindings
 
-All classes use `V8ClassBase<T>` CRTP pattern with inline lambdas:
+All classes use `ClassBase<T>` CRTP pattern with inline lambdas:
 
 ```cpp
-class JSExample : public V8ClassBase<JSExample, ExampleData> {
+class JSExample : public ClassBase<JSExample, ExampleData> {
 public:
     static constexpr std::string_view ClassName = "Example";
     V8_CLASS_NOT_CONSTRUCTABLE(Example)  // or provide New()
@@ -826,7 +826,7 @@ Prefer narrow fixes (just the import + d2bs callers) over wide ones (touching th
 
 **Port-chosen message sink:**
 
-`d2bs::game::console::OnMessage` is the port-chosen sink. The backend routes to the frontend console window through the `onConsoleMessage` callback in the `GameCallbacks` table (the frontend registers it to `d2bs::js::console::OnMessage`); the symmetric `onConsoleDrawFrame` callback lets the port console host render the frontend panels. Routing through callbacks keeps the backend free of any frontend dependency - the port still chooses the sink, it just resolves it via `hooks::GetActiveCallbacks()` instead of including the frontend directly. See `src/backends/lod114d/game/Console.cpp`.
+`d2bs::game::console::OnMessage` is the port-chosen sink. The backend routes to the frontend console window through the `onConsoleMessage` callback in the `GameCallbacks` table (the frontend registers it to `d2bs::runtime::console::OnMessage`); the symmetric `onConsoleDrawFrame` callback lets the port console host render the frontend panels. Routing through callbacks keeps the backend free of any frontend dependency - the port still chooses the sink, it just resolves it via `hooks::GetActiveCallbacks()` instead of including the frontend directly. See `src/backends/lod114d/game/Console.cpp`.
 
 **JS API stability:**
 

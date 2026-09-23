@@ -2,7 +2,7 @@
 
 #include "components/console/Panel.h"
 
-namespace d2bs::js::console {
+namespace d2bs::runtime::console {
 
 // Live-script table with per-row Stop / Pause / Resume buttons + header
 // actions (Stop all, Reload all, Restart console). Stateless - queries
@@ -14,4 +14,4 @@ class ScriptPanel : public Panel {
     void Draw() override;
 };
 
-}  // namespace d2bs::js::console
+}  // namespace d2bs::runtime::console

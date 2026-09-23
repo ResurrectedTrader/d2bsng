@@ -31,17 +31,17 @@ class JSLine : public JSDrawableBase<JSLine, LineDrawable> {
 
         auto* script = ScriptEngine::Instance().GetScript(isolate);
         if (!script) {
-            v8_error::ThrowError(isolate, "Line: no owning script");
+            error::ThrowError(isolate, "Line: no owning script");
             return;
         }
 
         auto drawable = std::make_shared<LineDrawable>();
 
-        v8_extract::PointInto(args, 0, drawable->pos);
-        v8_extract::PointInto(args, 2, drawable->p2);
+        extract::PointInto(args, 0, drawable->pos);
+        extract::PointInto(args, 2, drawable->p2);
 
         if (args.Length() > 4 && args[4]->IsNumber()) {
-            drawable->color.store(v8_convert::ToUint32(isolate, args[4]));
+            drawable->color.store(convert::ToUint32(isolate, args[4]));
         }
         if (args.Length() > 5 && args[5]->IsBoolean()) {
             drawable->isAutomap.store(args[5]->BooleanValue(isolate));
@@ -84,7 +84,7 @@ class JSLine : public JSDrawableBase<JSLine, LineDrawable> {
                 if (!value->IsNumber())
                     return;
                 auto cur = drawable->p2.load();
-                cur.x = v8_convert::ToInt32(info.GetIsolate(), value);
+                cur.x = convert::ToInt32(info.GetIsolate(), value);
                 drawable->p2.store(cur);
             });
 
@@ -105,7 +105,7 @@ class JSLine : public JSDrawableBase<JSLine, LineDrawable> {
                 if (!value->IsNumber())
                     return;
                 auto cur = drawable->p2.load();
-                cur.y = v8_convert::ToInt32(info.GetIsolate(), value);
+                cur.y = convert::ToInt32(info.GetIsolate(), value);
                 drawable->p2.store(cur);
             });
 
@@ -125,7 +125,7 @@ class JSLine : public JSDrawableBase<JSLine, LineDrawable> {
                     return;
                 if (!value->IsNumber())
                     return;
-                drawable->color.store(v8_convert::ToUint32(info.GetIsolate(), value));
+                drawable->color.store(convert::ToUint32(info.GetIsolate(), value));
             });
     }
 };

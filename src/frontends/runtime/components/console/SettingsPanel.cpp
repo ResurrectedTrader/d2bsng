@@ -18,7 +18,7 @@
 #include "profile/ProfileService.h"
 #include "speedhack/Speedhack.h"
 
-namespace d2bs::js::console {
+namespace d2bs::runtime::console {
 
 namespace {
 
@@ -299,4 +299,4 @@ void SettingsPanel::Draw() {
     ImGui::EndChild();
 }
 
-}  // namespace d2bs::js::console
+}  // namespace d2bs::runtime::console

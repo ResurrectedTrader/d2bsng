@@ -20,14 +20,14 @@ inline bool BindValue(v8::Isolate* isolate, v8::Local<v8::Value> value, sqlite3_
     if (value->IsNullOrUndefined()) {
         sqlite3_bind_null(handle, paramIdx);
     } else if (value->IsString()) {
-        std::string str = v8_convert::ToString(isolate, value);
+        std::string str = convert::ToString(isolate, value);
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast) - C-style cast in sqlite3 macro
         sqlite3_bind_text(handle, paramIdx, str.c_str(), static_cast<int32_t>(str.length()), SQLITE_TRANSIENT);
     } else if (value->IsNumber()) {
         if (value->IsInt32()) {
-            sqlite3_bind_int(handle, paramIdx, v8_convert::ToInt32(isolate, value));
+            sqlite3_bind_int(handle, paramIdx, convert::ToInt32(isolate, value));
         } else {
-            sqlite3_bind_double(handle, paramIdx, v8_convert::ToDouble(isolate, value));
+            sqlite3_bind_double(handle, paramIdx, convert::ToDouble(isolate, value));
         }
     } else if (value->IsBoolean()) {
         const char* boolStr = value->BooleanValue(isolate) ? "true" : "false";

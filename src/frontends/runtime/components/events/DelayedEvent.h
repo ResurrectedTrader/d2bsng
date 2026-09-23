@@ -12,10 +12,10 @@ class DelayedEvent : public BaseEvent {
 
    protected:
     // The timer callback takes no arguments.
-    void MakeArgs(js::script::CallArgs& /*args*/) const override {}
+    void MakeArgs(runtime::script::CallArgs& /*args*/) const override {}
 
    public:
-    explicit DelayedEvent(js::script::Ref callback, uint32_t repeatMs = 0)
+    explicit DelayedEvent(runtime::script::Ref callback, uint32_t repeatMs = 0)
         : eventId_(++globalEventId_), repeatMs_(repeatMs), callback_(std::move(callback)) {}
 
     [[nodiscard]] uint32_t EventId() const { return eventId_; }
@@ -30,7 +30,7 @@ class DelayedEvent : public BaseEvent {
         callback_.Reset();
     }
 
-    void Execute(js::script::Invocation& call) override {
+    void Execute(runtime::script::Invocation& call) override {
         if (cancelled_ || callback_.IsEmpty())
             return;
         call.Run(*this, callback_);
@@ -42,7 +42,7 @@ class DelayedEvent : public BaseEvent {
     const uint32_t eventId_;
     const uint32_t repeatMs_;
     std::atomic_bool cancelled_ = false;
-    js::script::Ref callback_;
+    runtime::script::Ref callback_;
 };
 
 }  // namespace d2bs

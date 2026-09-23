@@ -20,7 +20,7 @@
 #include "components/script/Script.h"
 #include "components/script/ScriptEngine.h"
 
-namespace d2bs::js::console {
+namespace d2bs::runtime::console {
 
 namespace {
 
@@ -145,4 +145,4 @@ void OnMessage(const game::console::Message& msg) {
     }
 }
 
-}  // namespace d2bs::js::console
+}  // namespace d2bs::runtime::console

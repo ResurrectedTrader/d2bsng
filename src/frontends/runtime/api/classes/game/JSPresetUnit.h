@@ -10,7 +10,7 @@ namespace d2bs::api::classes {
 // PresetUnit class - represents a preset unit in the game
 // Preset units are static objects placed in rooms at level generation
 // (e.g., waypoints, shrines, quest objects, special monsters)
-class JSPresetUnit : public V8ClassBase<JSPresetUnit, game::PresetUnitInfo> {
+class JSPresetUnit : public ClassBase<JSPresetUnit, game::PresetUnitInfo> {
    public:
     static constexpr std::string_view ClassName = "PresetUnit";
 

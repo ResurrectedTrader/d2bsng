@@ -10,7 +10,7 @@
 
 #include "utils/threadutils.h"
 
-namespace d2bs::js::console {
+namespace d2bs::runtime::console {
 
 std::string ThreadsPanel::FormatLabel(const Entry& entry) {
     if (entry.description.empty()) {
@@ -109,4 +109,4 @@ void ThreadsPanel::Draw() {
                               FLAGS);
 }
 
-}  // namespace d2bs::js::console
+}  // namespace d2bs::runtime::console

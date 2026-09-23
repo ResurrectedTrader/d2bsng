@@ -7,11 +7,11 @@
 namespace d2bs {
 
 class BaseEvent {
-    friend class js::script::Invocation;
+    friend class runtime::script::Invocation;
 
    protected:
     BaseEvent() = default;
-    virtual void MakeArgs(js::script::CallArgs& args) const = 0;
+    virtual void MakeArgs(runtime::script::CallArgs& args) const = 0;
 
    public:
     virtual ~BaseEvent() = default;
@@ -27,7 +27,7 @@ class BaseEvent {
     // Override to clean up dispatch-tracking state (e.g., BlockableEvent decrements remaining_).
     virtual void OnDropped() {}
 
-    virtual void Execute(js::script::Invocation& call) { call.Run(*this); }
+    virtual void Execute(runtime::script::Invocation& call) { call.Run(*this); }
 };
 
 }  // namespace d2bs

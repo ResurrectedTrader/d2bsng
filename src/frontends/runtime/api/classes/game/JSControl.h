@@ -12,7 +12,7 @@ namespace d2bs::api::classes {
 
 // Control class - represents a UI control element in menu screens
 // Controls are interactive elements like buttons, text boxes, labels
-class JSControl : public V8ClassBase<JSControl, game::Control> {
+class JSControl : public ClassBase<JSControl, game::Control> {
    public:
     static constexpr std::string_view ClassName = "Control";
 
@@ -65,7 +65,7 @@ class JSControl : public V8ClassBase<JSControl, game::Control> {
                     return;
                 }
                 auto* isolate = info.GetIsolate();
-                info.GetReturnValue().Set(v8_convert::ToV8(isolate, data->Text()));
+                info.GetReturnValue().Set(convert::ToJS(isolate, data->Text()));
             },
             +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value,
                 const v8::PropertyCallbackInfo<v8::Boolean>& info) {
@@ -77,7 +77,7 @@ class JSControl : public V8ClassBase<JSControl, game::Control> {
                     return;
                 }
                 auto* isolate = info.GetIsolate();
-                std::string text = v8_convert::ToString(isolate, value);
+                std::string text = convert::ToString(isolate, value);
                 data->SetText(text);
             });
         /// @description The control's left (x) screen coordinate.
@@ -136,9 +136,9 @@ class JSControl : public V8ClassBase<JSControl, game::Control> {
                 if (!value->IsNumber()) {
                     return;
                 }
-                int32_t state = v8_convert::ToInt32(isolate, value);
+                int32_t state = convert::ToInt32(isolate, value);
                 if (state < 0 || state > 3) {
-                    v8_error::ThrowError(isolate, "Invalid state value");
+                    error::ThrowError(isolate, "Invalid state value");
                     return;
                 }
                 data->SetState(static_cast<uint32_t>(state + 2));
@@ -179,11 +179,11 @@ class JSControl : public V8ClassBase<JSControl, game::Control> {
                 if (!data)
                     return;
                 if (!value->IsNumber()) {
-                    v8_error::ThrowError(info.GetIsolate(), "Invalid cursor position value");
+                    error::ThrowError(info.GetIsolate(), "Invalid cursor position value");
                     return;
                 }
                 auto* isolate = info.GetIsolate();
-                uint32_t pos = v8_convert::ToUint32(isolate, value);
+                uint32_t pos = convert::ToUint32(isolate, value);
                 data->SetCursorPos(pos);
             });
         /// @description The start character offset of the control's current text selection.
@@ -225,7 +225,7 @@ class JSControl : public V8ClassBase<JSControl, game::Control> {
                     return;
                 }
                 auto* isolate = info.GetIsolate();
-                uint32_t disabled = v8_convert::ToUint32(isolate, value);
+                uint32_t disabled = convert::ToUint32(isolate, value);
                 data->SetState(disabled);
             });
 
@@ -279,7 +279,7 @@ class JSControl : public V8ClassBase<JSControl, game::Control> {
                 // collapse into "default both".
                 std::optional<game::Position> pos;
                 if (args.Length() > 1 && args[0]->IsInt32() && args[1]->IsInt32()) {
-                    pos = v8_extract::Position(args, 0);
+                    pos = extract::Position(args, 0);
                 }
                 data->Click(pos);
             });
@@ -301,7 +301,7 @@ class JSControl : public V8ClassBase<JSControl, game::Control> {
                 if (args.Length() < 1 || !args[0]->IsString()) {
                     return;  // Silent return, matching reference
                 }
-                std::string text = v8_convert::ToString(isolate, args[0]);
+                std::string text = convert::ToString(isolate, args[0]);
                 data->SetText(text);
             });
         /// @description Returns the text lines of a list control (TextBox); undefined for other control types.
@@ -338,13 +338,13 @@ class JSControl : public V8ClassBase<JSControl, game::Control> {
                         auto inner = v8::Array::New(isolate);
                         for (uint32_t j = 0; j < game::Control::TEXT_SLOTS; ++j) {
                             if (line.at(j).has_value()) {
-                                inner->Set(context, j, v8_convert::ToV8(isolate, *line.at(j))).Check();
+                                inner->Set(context, j, convert::ToJS(isolate, *line.at(j))).Check();
                             }
                         }
                         value = inner;
                     } else if (line[0].has_value()) {
                         // Single text entry (slot 0 only): return as string directly
-                        value = v8_convert::ToV8(isolate, *line[0]);
+                        value = convert::ToJS(isolate, *line[0]);
                     }
                     if (!value.IsEmpty()) {
                         array->Set(context, i, value).Check();

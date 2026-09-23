@@ -6,7 +6,7 @@
 
 #include <imgui.h>
 
-namespace d2bs::js::console {
+namespace d2bs::runtime::console {
 
 // Line-granular text selection for the console's scrolling text views
 // (LogPanel scrollback, ConsolePanel transcript). Those panels render colored,
@@ -133,4 +133,4 @@ class RowSelection {
     bool copyRequested_ = false;
 };
 
-}  // namespace d2bs::js::console
+}  // namespace d2bs::runtime::console

@@ -13,7 +13,7 @@
 
 #ifdef D2BS_PROFILING
 
-namespace d2bs::js::console {
+namespace d2bs::runtime::console {
 
 // Where the process's CPU goes: per registered loop (game thread, console), per native binding,
 // and per thread. Exists to answer whether this framework burns more CPU than legacy d2bs, which is
@@ -132,6 +132,6 @@ class ProfilingPanel : public Panel {
     SortSpec bindingSort_;
 };
 
-}  // namespace d2bs::js::console
+}  // namespace d2bs::runtime::console
 
 #endif  // D2BS_PROFILING

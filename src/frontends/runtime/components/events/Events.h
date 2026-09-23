@@ -27,7 +27,7 @@ namespace d2bs {
 /// @param life {number} - the player's current life (HP)
 class LifeEvent : public BaseEvent {
    protected:
-    void MakeArgs(js::script::CallArgs& args) const override { args.Set({life}); }
+    void MakeArgs(runtime::script::CallArgs& args) const override { args.Set({life}); }
 
    public:
     explicit LifeEvent(uint32_t life) : life(life) {}
@@ -40,7 +40,7 @@ class LifeEvent : public BaseEvent {
 /// @param mana {number} - the player's current mana
 class ManaEvent : public BaseEvent {
    protected:
-    void MakeArgs(js::script::CallArgs& args) const override { args.Set({mana}); }
+    void MakeArgs(runtime::script::CallArgs& args) const override { args.Set({mana}); }
 
    public:
     explicit ManaEvent(uint32_t mana) : mana(mana) {}
@@ -53,7 +53,7 @@ class ManaEvent : public BaseEvent {
 /// @param unitId {number} - the assigned player unit id
 class PlayerAssignEvent : public BaseEvent {
    protected:
-    void MakeArgs(js::script::CallArgs& args) const override { args.Set({unitId}); }
+    void MakeArgs(runtime::script::CallArgs& args) const override { args.Set({unitId}); }
 
    public:
     explicit PlayerAssignEvent(uint32_t unitId) : unitId(unitId) {}
@@ -70,7 +70,7 @@ class PlayerAssignEvent : public BaseEvent {
 /// @param key {number} - the virtual key code
 class KeyDownEvent : public BaseEvent {
    protected:
-    void MakeArgs(js::script::CallArgs& args) const override { args.Set({key}); }
+    void MakeArgs(runtime::script::CallArgs& args) const override { args.Set({key}); }
 
    public:
     explicit KeyDownEvent(uint32_t key) : key(key) {}
@@ -83,7 +83,7 @@ class KeyDownEvent : public BaseEvent {
 /// @param key {number} - the virtual key code
 class KeyUpEvent : public BaseEvent {
    protected:
-    void MakeArgs(js::script::CallArgs& args) const override { args.Set({key}); }
+    void MakeArgs(runtime::script::CallArgs& args) const override { args.Set({key}); }
 
    public:
     explicit KeyUpEvent(uint32_t key) : key(key) {}
@@ -97,7 +97,7 @@ class KeyUpEvent : public BaseEvent {
 /// @returns {boolean} - return true to block the key from the game
 class KeyDownBlockerEvent : public BlockableEvent {
    protected:
-    void MakeArgs(js::script::CallArgs& args) const override { args.Set({key}); }
+    void MakeArgs(runtime::script::CallArgs& args) const override { args.Set({key}); }
 
    public:
     explicit KeyDownBlockerEvent(uint32_t key) : key(key) {}
@@ -111,7 +111,7 @@ class KeyDownBlockerEvent : public BlockableEvent {
 /// @returns {boolean} - return true to block the key from the game
 class KeyUpBlockerEvent : public BlockableEvent {
    protected:
-    void MakeArgs(js::script::CallArgs& args) const override { args.Set({key}); }
+    void MakeArgs(runtime::script::CallArgs& args) const override { args.Set({key}); }
 
    public:
     explicit KeyUpBlockerEvent(uint32_t key) : key(key) {}
@@ -128,7 +128,7 @@ class KeyUpBlockerEvent : public BlockableEvent {
 class MouseClickEvent : public BaseEvent {
    protected:
     // JS arg shape unchanged: (button:number, x:number, y:number, up:number 0/1).
-    void MakeArgs(js::script::CallArgs& args) const override {
+    void MakeArgs(runtime::script::CallArgs& args) const override {
         args.Set({
             static_cast<uint32_t>(button),
             pos.x,
@@ -153,7 +153,7 @@ class MouseClickEvent : public BaseEvent {
 class MouseMoveEvent : public BaseEvent {
    protected:
     // JS arg shape unchanged: (x:number, y:number).
-    void MakeArgs(js::script::CallArgs& args) const override { args.Set({pos.x, pos.y}); }
+    void MakeArgs(runtime::script::CallArgs& args) const override { args.Set({pos.x, pos.y}); }
 
    public:
     explicit MouseMoveEvent(game::Position pos) : pos(pos) {}
@@ -171,7 +171,7 @@ class MouseMoveEvent : public BaseEvent {
 /// @param msg {string} - the message text
 class ChatEvent : public BaseEvent {
    protected:
-    void MakeArgs(js::script::CallArgs& args) const override {
+    void MakeArgs(runtime::script::CallArgs& args) const override {
         args.Set({
             sender,
             message,
@@ -192,7 +192,7 @@ class ChatEvent : public BaseEvent {
 /// @returns {boolean} - return true to block the message
 class ChatBlockerEvent : public BlockableEvent {
    protected:
-    void MakeArgs(js::script::CallArgs& args) const override {
+    void MakeArgs(runtime::script::CallArgs& args) const override {
         args.Set({
             sender,
             message,
@@ -213,7 +213,7 @@ class ChatBlockerEvent : public BlockableEvent {
 /// @param msg {string} - the submitted text
 class ChatInputEvent : public BaseEvent {
    protected:
-    void MakeArgs(js::script::CallArgs& args) const override {
+    void MakeArgs(runtime::script::CallArgs& args) const override {
         args.Set({
             "me",
             message,
@@ -233,7 +233,7 @@ class ChatInputEvent : public BaseEvent {
 /// @returns {boolean} - return true to block the message
 class ChatInputBlockerEvent : public BlockableEvent {
    protected:
-    void MakeArgs(js::script::CallArgs& args) const override {
+    void MakeArgs(runtime::script::CallArgs& args) const override {
         args.Set({
             "me",
             message,
@@ -252,7 +252,7 @@ class ChatInputBlockerEvent : public BlockableEvent {
 /// @param msg {string} - the message text
 class WhisperEvent : public BaseEvent {
    protected:
-    void MakeArgs(js::script::CallArgs& args) const override {
+    void MakeArgs(runtime::script::CallArgs& args) const override {
         args.Set({
             sender,
             message,
@@ -273,7 +273,7 @@ class WhisperEvent : public BaseEvent {
 /// @returns {boolean} - return true to block the message
 class WhisperBlockerEvent : public BlockableEvent {
    protected:
-    void MakeArgs(js::script::CallArgs& args) const override {
+    void MakeArgs(runtime::script::CallArgs& args) const override {
         args.Set({
             sender,
             message,
@@ -298,7 +298,7 @@ class WhisperBlockerEvent : public BlockableEvent {
 /// @returns {boolean} - return true to block the packet
 class GamePacketEvent : public BlockableEvent {
    protected:
-    void MakeArgs(js::script::CallArgs& args) const override { args.Set({js::script::Bytes{.data = data}}); }
+    void MakeArgs(runtime::script::CallArgs& args) const override { args.Set({runtime::script::Bytes{.data = data}}); }
 
    public:
     explicit GamePacketEvent(std::span<const uint8_t> data) : data(data.begin(), data.end()) {}
@@ -312,7 +312,7 @@ class GamePacketEvent : public BlockableEvent {
 /// @returns {boolean} - return true to block the packet
 class GamePacketSentEvent : public BlockableEvent {
    protected:
-    void MakeArgs(js::script::CallArgs& args) const override { args.Set({js::script::Bytes{.data = data}}); }
+    void MakeArgs(runtime::script::CallArgs& args) const override { args.Set({runtime::script::Bytes{.data = data}}); }
 
    public:
     explicit GamePacketSentEvent(std::span<const uint8_t> data) : data(data.begin(), data.end()) {}
@@ -326,7 +326,7 @@ class GamePacketSentEvent : public BlockableEvent {
 /// @returns {boolean} - return true to block the packet
 class RealmPacketEvent : public BlockableEvent {
    protected:
-    void MakeArgs(js::script::CallArgs& args) const override { args.Set({js::script::Bytes{.data = data}}); }
+    void MakeArgs(runtime::script::CallArgs& args) const override { args.Set({runtime::script::Bytes{.data = data}}); }
 
    public:
     explicit RealmPacketEvent(std::span<const uint8_t> data) : data(data.begin(), data.end()) {}
@@ -347,7 +347,7 @@ class RealmPacketEvent : public BlockableEvent {
 /// @param name2 {string} - second name (e.g. the related player)
 class GameActionEvent : public BaseEvent {
    protected:
-    void MakeArgs(js::script::CallArgs& args) const override {
+    void MakeArgs(runtime::script::CallArgs& args) const override {
         args.Set({
             mode,
             param1,
@@ -376,7 +376,7 @@ class GameActionEvent : public BaseEvent {
 /// @param isGlobal {boolean} - true for the global (0x9D) variant
 class ItemActionEvent : public BaseEvent {
    protected:
-    void MakeArgs(js::script::CallArgs& args) const override {
+    void MakeArgs(runtime::script::CallArgs& args) const override {
         args.Set({
             unitId,
             action,
@@ -401,7 +401,7 @@ class ItemActionEvent : public BaseEvent {
 /// @param payload {string} - the message payload string
 class CopyDataEvent : public BaseEvent {
    protected:
-    void MakeArgs(js::script::CallArgs& args) const override {
+    void MakeArgs(runtime::script::CallArgs& args) const override {
         args.Set({
             // Scripts see the raw integer mode (matches reference CopyDataEvent surface).
             static_cast<uint32_t>(mode),
@@ -426,11 +426,11 @@ class CopyDataEvent : public BaseEvent {
 /// @param ...args {any} - the delivered values
 class BroadcastEvent : public BaseEvent {
    protected:
-    void MakeArgs(js::script::CallArgs& args) const override {
-        std::vector<js::script::Value> values;
+    void MakeArgs(runtime::script::CallArgs& args) const override {
+        std::vector<runtime::script::Value> values;
         values.reserve(values_.size());
         for (const auto& value : values_) {
-            values.emplace_back(js::script::Serialized{.data = value});
+            values.emplace_back(runtime::script::Serialized{.data = value});
         }
         args.Set(std::move(values));
     }
@@ -456,22 +456,24 @@ class BroadcastEvent : public BaseEvent {
 class ScreenHookClickEvent : public BlockableEvent {
    protected:
     // (button:number, x:number, y:number).
-    void MakeArgs(js::script::CallArgs& args) const override {
+    void MakeArgs(runtime::script::CallArgs& args) const override {
         args.Set({static_cast<uint32_t>(button_), pos_.x, pos_.y});
     }
 
    public:
-    ScreenHookClickEvent(std::shared_ptr<const js::drawing::Drawable> drawable, game::ClickButton button,
+    ScreenHookClickEvent(std::shared_ptr<const runtime::drawing::Drawable> drawable, game::ClickButton button,
                          game::Point pos)
         : drawable_(std::move(drawable)), button_(button), pos_(pos) {}
 
-    void Execute(js::script::Invocation& call) override { Vote(call.Run(*this, *drawable_, DrawableHandler::Click)); }
+    void Execute(runtime::script::Invocation& call) override {
+        Vote(call.Run(*this, *drawable_, DrawableHandler::Click));
+    }
 
     static constexpr std::string_view EVENT_NAME = "ScreenHookClick";
     [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 
    private:
-    std::shared_ptr<const js::drawing::Drawable> drawable_;
+    std::shared_ptr<const runtime::drawing::Drawable> drawable_;
     game::ClickButton button_;
     game::Point pos_;
 };
@@ -481,19 +483,19 @@ class ScreenHookHoverEvent : public BaseEvent {
     // (x:number, y:number, entered:bool). `entered` is emitted as a raw bool -
     // documented JS API contract for the screen hook hover callback, even after
     // the bool->enum sweep of other fields.
-    void MakeArgs(js::script::CallArgs& args) const override { args.Set({pos_.x, pos_.y, entered_}); }
+    void MakeArgs(runtime::script::CallArgs& args) const override { args.Set({pos_.x, pos_.y, entered_}); }
 
    public:
-    ScreenHookHoverEvent(std::shared_ptr<const js::drawing::Drawable> drawable, game::Point pos, bool entered)
+    ScreenHookHoverEvent(std::shared_ptr<const runtime::drawing::Drawable> drawable, game::Point pos, bool entered)
         : drawable_(std::move(drawable)), pos_(pos), entered_(entered) {}
 
-    void Execute(js::script::Invocation& call) override { call.Run(*this, *drawable_, DrawableHandler::Hover); }
+    void Execute(runtime::script::Invocation& call) override { call.Run(*this, *drawable_, DrawableHandler::Hover); }
 
     static constexpr std::string_view EVENT_NAME = "ScreenHookHover";
     [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 
    private:
-    std::shared_ptr<const js::drawing::Drawable> drawable_;
+    std::shared_ptr<const runtime::drawing::Drawable> drawable_;
     game::Point pos_;
     bool entered_;
 };
@@ -504,13 +506,13 @@ class ScreenHookHoverEvent : public BaseEvent {
 
 class EvaluateEvent : public BaseEvent {
    protected:
-    void MakeArgs(js::script::CallArgs& /*args*/) const override {}
+    void MakeArgs(runtime::script::CallArgs& /*args*/) const override {}
 
    public:
     explicit EvaluateEvent(std::string code) : code(std::move(code)) {}
     const std::string code;
 
-    void Execute(js::script::Invocation& call) override { call.Evaluate(code); }
+    void Execute(runtime::script::Invocation& call) override { call.Evaluate(code); }
 
     static constexpr std::string_view EVENT_NAME = "Evaluate";
     [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }

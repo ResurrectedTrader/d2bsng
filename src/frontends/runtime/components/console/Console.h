@@ -2,7 +2,7 @@
 
 #include "game/Console.h"
 
-namespace d2bs::js::console {
+namespace d2bs::runtime::console {
 
 // One-per-frame draw call. Always drains the cross-thread message queue, then
 // renders the tab bar and panels only while the console is visible (queried via
@@ -18,4 +18,4 @@ void DrawFrame();
 // entries when the queue grows past the limit.
 void OnMessage(const game::console::Message& msg);
 
-}  // namespace d2bs::js::console
+}  // namespace d2bs::runtime::console

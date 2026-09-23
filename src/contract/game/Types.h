@@ -181,7 +181,7 @@ enum class LoginStatus : uint8_t {
 };
 
 // Outcome of game::Login(). Invariant: status != Success => !errorMessage.empty().
-// The invariant lets callers pass errorMessage directly to v8_error::ThrowError
+// The invariant lets callers pass errorMessage directly to error::ThrowError
 // (which takes string_view) without a null/empty guard.
 struct LoginResult {
     LoginStatus status;

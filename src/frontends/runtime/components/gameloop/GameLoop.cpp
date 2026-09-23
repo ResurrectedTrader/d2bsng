@@ -25,7 +25,7 @@
 #include "utils/Profiling.h"
 #include "utils/utils.h"
 
-namespace d2bs::js::gameloop {
+namespace d2bs::runtime::gameloop {
 
 namespace {
 
@@ -446,4 +446,4 @@ void GameLoop::TakeSnapshot(Snapshot& out) {
     out.areaId = player.Area();
 }
 
-}  // namespace d2bs::js::gameloop
+}  // namespace d2bs::runtime::gameloop

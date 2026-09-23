@@ -147,7 +147,7 @@ void ClearAllClassCaches(v8::Isolate* isolate) {
     // Game data tables
     JSTxtTables::ClearCache(isolate);
 
-    v8_convert::ClearKeyCache(isolate);
+    convert::ClearKeyCache(isolate);
 }
 
 v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context> context) {
@@ -165,14 +165,14 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
     /// @type {string}
     JSUnit::InstanceProperty(
         isolate, context, me, "account", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            info.GetReturnValue().Set(v8_convert::ToV8(info.GetIsolate(), game::GetAccountName()));
+            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), game::GetAccountName()));
         });
 
     /// @description The current player character's name. Empty string when out of game.
     /// @type {string}
     JSUnit::InstanceProperty(
         isolate, context, me, "charname", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            info.GetReturnValue().Set(v8_convert::ToV8(info.GetIsolate(), game::GetPlayerName()));
+            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), game::GetPlayerName()));
         });
 
     /// @description Current game difficulty.
@@ -193,7 +193,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
     /// @type {string}
     JSUnit::InstanceProperty(
         isolate, context, me, "gamename", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            info.GetReturnValue().Set(v8_convert::ToV8(info.GetIsolate(), game::GetGameName()));
+            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), game::GetGameName()));
         });
 
     /// @description Password of the joined/created game. Empty string when not in a game or no password set.
@@ -201,7 +201,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
     JSUnit::InstanceProperty(
         isolate, context, me, "gamepassword",
         +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            info.GetReturnValue().Set(v8_convert::ToV8(info.GetIsolate(), game::GetGamePassword()));
+            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), game::GetGamePassword()));
         });
 
     /// @description IP address of the game server for the current session. Empty string when not connected.
@@ -209,7 +209,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
     JSUnit::InstanceProperty(
         isolate, context, me, "gameserverip",
         +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            info.GetReturnValue().Set(v8_convert::ToV8(info.GetIsolate(), game::GetGameServerIp()));
+            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), game::GetGameServerIp()));
         });
 
     /// @description Tick (milliseconds, same domain as getTickCount()) marking when the current game started, for
@@ -221,13 +221,13 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
             // Game-start anchor as steady_clock epoch ms, matching the
             // getTickCount() domain so script comparisons against it hold;
             // 0 when out of game.
-            auto anchor = js::gameloop::GameLoop::Instance().GameStartTime();
+            auto anchor = runtime::gameloop::GameLoop::Instance().GameStartTime();
             double ms = 0.0;
             if (anchor) {
                 auto epochMs = std::chrono::duration_cast<std::chrono::milliseconds>(anchor->time_since_epoch());
                 ms = static_cast<double>(epochMs.count());
             }
-            info.GetReturnValue().Set(v8_convert::ToV8(info.GetIsolate(), ms));
+            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), ms));
         });
 
     /// @description Whether the current character is an Expansion (LoD) character.
@@ -250,7 +250,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
     JSUnit::InstanceProperty(
         isolate, context, me, "ladder", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             if (const auto ladder = game::IsLadder())
-                info.GetReturnValue().Set(v8_convert::ToV8(info.GetIsolate(), static_cast<double>(ladder.value())));
+                info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), static_cast<double>(ladder.value())));
         });
 
     /// @description Current network latency to the game server, in milliseconds.
@@ -285,7 +285,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
     /// @type {string}
     JSUnit::InstanceProperty(
         isolate, context, me, "realm", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            info.GetReturnValue().Set(v8_convert::ToV8(info.GetIsolate(), game::GetRealmName()));
+            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), game::GetRealmName()));
         });
 
     /// @description Short/abbreviated name of the Battle.net realm for the current session. Empty string when not on a
@@ -293,7 +293,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
     /// @type {string}
     JSUnit::InstanceProperty(
         isolate, context, me, "realmshort", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            info.GetReturnValue().Set(v8_convert::ToV8(info.GetIsolate(), game::GetRealmShort()));
+            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), game::GetRealmShort()));
         });
 
     /// @description Gold cost to revive the player's current mercenary. 0 when there is no dead merc to revive.
@@ -317,14 +317,14 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
     JSUnit::InstanceProperty(
         isolate, context, me, "profile", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             auto name = config::GetAppConfig().GetProfileName();
-            info.GetReturnValue().Set(v8_convert::ToV8(info.GetIsolate(), name));
+            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), name));
         });
 
     /// @description OS process ID of the current game client (GetCurrentProcessId).
     /// @type {number}
     JSUnit::InstanceProperty(
         isolate, context, me, "pid", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            info.GetReturnValue().Set(v8_convert::ToV8(info.GetIsolate(), static_cast<double>(GetCurrentProcessId())));
+            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), static_cast<double>(GetCurrentProcessId())));
         });
 
     /// @description Whether the "enable unsupported" config flag is set, allowing use of less supported features.
@@ -354,7 +354,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
     /// @type {string}
     JSUnit::InstanceProperty(
         isolate, context, me, "windowtitle", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            info.GetReturnValue().Set(v8_convert::ToV8(info.GetIsolate(), game::GetWindowTitle()));
+            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), game::GetWindowTitle()));
         });
 
     /// @description Whether the client is currently in a game (as opposed to in menus / out of game). Less strict than
@@ -399,7 +399,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
             info.GetReturnValue().Set(game::GetAlwaysRun() ? 1U : 0U);
         },
         +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-            game::SetAlwaysRun(v8_convert::ToInt32(info.GetIsolate(), value) != 0);
+            game::SetAlwaysRun(convert::ToInt32(info.GetIsolate(), value) != 0);
         });
 
     /// @description Bot "chicken" HP threshold (config-backed) at/below which the bot bails out of a game.
@@ -410,7 +410,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
             info.GetReturnValue().Set(config::GetAppConfig().chickenHp.load());
         },
         +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-            config::GetAppConfig().chickenHp.store(v8_convert::ToInt32(info.GetIsolate(), value));
+            config::GetAppConfig().chickenHp.store(convert::ToInt32(info.GetIsolate(), value));
         });
 
     /// @description Bot "chicken" MP threshold (config-backed) at/below which the bot bails out of a game.
@@ -421,7 +421,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
             info.GetReturnValue().Set(config::GetAppConfig().chickenMp.load());
         },
         +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-            config::GetAppConfig().chickenMp.store(v8_convert::ToInt32(info.GetIsolate(), value));
+            config::GetAppConfig().chickenMp.store(convert::ToInt32(info.GetIsolate(), value));
         });
 
     /// @description Config flag: whether the bot should quit the game when another player goes hostile.
@@ -472,7 +472,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
             if (game::GetGameState() != game::GameState::InGame) {
                 return;
             }
-            game::SetNoPickUp(v8_convert::ToBool(info.GetIsolate(), value));
+            game::SetNoPickUp(convert::ToBool(info.GetIsolate(), value));
         });
 
     /// @description Config flag: whether the bot should quit the game when a script error occurs.
@@ -495,7 +495,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
         },
         +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
             config::GetAppConfig().maxGameTime.store(
-                std::chrono::milliseconds{v8_convert::ToUint32(info.GetIsolate(), value)});
+                std::chrono::milliseconds{convert::ToUint32(info.GetIsolate(), value)});
         });
 
     return scope.Escape(me);

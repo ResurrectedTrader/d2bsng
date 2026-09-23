@@ -1,6 +1,6 @@
 #pragma once
 
-namespace d2bs::js::console {
+namespace d2bs::runtime::console {
 
 // Abstract base for each tab in the console. Panels are owned by the
 // console module (in Console.cpp) and drawn once per frame while their
@@ -24,4 +24,4 @@ class Panel {
     virtual void Draw() = 0;
 };
 
-}  // namespace d2bs::js::console
+}  // namespace d2bs::runtime::console

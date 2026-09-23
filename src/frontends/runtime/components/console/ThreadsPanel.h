@@ -7,7 +7,7 @@
 
 #include "components/console/Panel.h"
 
-namespace d2bs::js::console {
+namespace d2bs::runtime::console {
 
 // Lists every native thread in the current process with its Win32 thread
 // description. Pick a thread in the combo and press "Capture" to walk its
@@ -38,4 +38,4 @@ class ThreadsPanel : public Panel {
     std::string capturedStack_;
 };
 
-}  // namespace d2bs::js::console
+}  // namespace d2bs::runtime::console
