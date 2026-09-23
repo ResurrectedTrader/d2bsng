@@ -122,8 +122,10 @@ void CopyDataEventDispatch(game::IpcMode mode, const std::string& payload) {
     FireIfListening<CopyDataEvent>(mode, payload);
 }
 
-void ScriptBroadcastEventDispatch(const std::shared_ptr<BaseEvent>& event) {
-    FireIfRunning(event);
+void ScriptBroadcastEventDispatch(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    // Not probed: constructing this serialises the arguments, which can run script code (getters),
+    // so skipping it when nobody listens would be observable.
+    FireIfRunning(std::make_shared<BroadcastEvent>(args));
 }
 
 bool KeyDownUpEventDispatch(uint32_t key, game::KeyState state) {

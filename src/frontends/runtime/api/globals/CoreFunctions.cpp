@@ -27,7 +27,6 @@
 #include "api/core/Function.h"
 #include "components/events/DelayedEvent.h"
 #include "components/events/EventDispatch.h"
-#include "components/events/Events.h"
 #include "components/script/ScriptEngine.h"
 #include "config/AppConfig.h"
 #include "config/Version.h"
@@ -602,7 +601,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            ScriptBroadcastEventDispatch(std::make_shared<BroadcastEvent>(runtime::script::SerializeArgs(args)));
+            ScriptBroadcastEventDispatch(args);
             args.GetReturnValue().SetNull();
         });
 
@@ -943,7 +942,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             auto fn = args[0].As<v8::Function>();
             uint32_t delayMs = convert::ToUint32(isolate, args[1]);
 
-            auto event = std::make_shared<DelayedEvent>(runtime::script::Ref(isolate, fn));
+            auto event = std::make_shared<DelayedEvent>(v8::Global<v8::Function>(isolate, fn));
             script->AddDelayedEvent(event);
             script->PostEvent(event, delayMs);
             args.GetReturnValue().Set(event->EventId());
@@ -994,7 +993,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             auto fn = args[0].As<v8::Function>();
             uint32_t repeatMs = convert::ToUint32(isolate, args[1]);
 
-            auto event = std::make_shared<DelayedEvent>(runtime::script::Ref(isolate, fn), repeatMs);
+            auto event = std::make_shared<DelayedEvent>(v8::Global<v8::Function>(isolate, fn), repeatMs);
             script->AddDelayedEvent(event);
             script->PostEvent(event, repeatMs);
             args.GetReturnValue().Set(event->EventId());

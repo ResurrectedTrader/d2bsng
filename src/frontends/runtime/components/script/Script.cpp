@@ -28,7 +28,6 @@
 #include "components/script/CompileSource.h"
 #include "components/script/NativeCallHook.h"
 #include "components/script/ScriptEngine.h"
-#include "components/script/ScriptRef.h"
 #include "config/AppConfig.h"
 #include "game/GameHelpers.h"
 #include "game/GameLock.h"
@@ -658,25 +657,6 @@ void Script::UpdateHeapStats(std::chrono::steady_clock::time_point now, bool for
     lastHeapStatsUpdate_ = now;
 }
 
-std::optional<HeapStats> Script::GetHeapStats() const {
-    auto stats = cachedHeapStats_.load();
-    if (!stats) {
-        return std::nullopt;
-    }
-    return HeapStats{.used = stats->used_heap_size(),
-                     .committed = stats->total_heap_size(),
-                     .limit = stats->heap_size_limit(),
-                     .physical = stats->total_physical_size(),
-                     .external = stats->external_memory(),
-                     .peakMalloced = stats->peak_malloced_memory(),
-                     .usedHandles = stats->used_global_handles_size(),
-                     .totalHandles = stats->total_global_handles_size()};
-}
-
-ObjectCounts Script::GetObjectCounts() const {
-    return api::InstanceTracker::Instance().Snapshot(GetThreadId());
-}
-
 void Script::SetStackCaptureMode(StackCaptureMode mode) {
     const auto prev = stackCaptureMode_.exchange(mode, std::memory_order_acq_rel);
     if (prev == mode) {
@@ -958,8 +938,7 @@ bool Script::ExecuteEvent(const std::shared_ptr<BaseEvent>& event) {
             // Pumped from inside delay(): the handler is the script's work, not delay's.
             const auto phase = idle_.Nest(IdlePhase::Handlers);
             const profiling::ScopedNativeExclusion handlerIsJs;
-            runtime::script::Invocation call(*this, iso, fns);
-            event->Execute(call);
+            event->Execute(iso, fns);
         }
 
         // Re-post interval timers AFTER execution to prevent unbounded accumulation.
