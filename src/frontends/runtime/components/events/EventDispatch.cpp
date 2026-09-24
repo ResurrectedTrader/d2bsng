@@ -122,7 +122,7 @@ void CopyDataEventDispatch(game::IpcMode mode, const std::string& payload) {
     FireIfListening<CopyDataEvent>(mode, payload);
 }
 
-void ScriptBroadcastEventDispatch(const v8::FunctionCallbackInfo<v8::Value>& args) {
+void ScriptBroadcastEventDispatch(const ub::CallbackInfo& args) {
     // Not probed: constructing this serialises the arguments, which can run script code (getters),
     // so skipping it when nobody listens would be observable.
     FireIfRunning(std::make_shared<BroadcastEvent>(args));

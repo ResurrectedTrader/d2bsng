@@ -1,8 +1,10 @@
-# V8 inspector (Chrome DevTools debugging)
+# Script inspector (Chrome DevTools debugging)
 
-How d2bs exposes each running script's V8 isolate to the Chrome DevTools
+How d2bs exposes each running script's isolate to the Chrome DevTools
 frontend, so a developer can set breakpoints, step, inspect scopes, and
 evaluate expressions against a live bot.
+
+Available on the V8 build only: see "Where it lives" below.
 
 Disabled by default. A single `[settings]/InspectorPort` controls it: a positive
 value runs the server on that port; `0` (the default) leaves it off. Toggle at
@@ -28,18 +30,42 @@ Every script isolate always registers a debuggable target; the port only governs
 whether the server that exposes them is listening. Attaching costs nothing
 measurable until a DevTools client actually connects.
 
-All inspector code lives in `src/frontends/runtime/components/inspector/`. It is wired
-into the script lifecycle from `src/frontends/runtime/components/script/Script.cpp` and
-started/stopped from `ScriptEngine`.
+## Where it lives: engine-neutral, over `ub::Inspector`
+
+The frontend (`src/frontends/runtime/`) is written against unibind and names no
+engine; which engine a build runs on is decided by which glue DLL links it
+(`glue/js-v8-lod114d` links `unibind_backend_v8.lib` + V8, `glue/js-sm-lod114d`
+links `unibind_backend_spidermonkey.lib` + SpiderMonkey). The inspector is no
+exception: it is written against unibind's `unibind/inspector.h`, an
+engine-neutral Chrome DevTools inspector shaped after V8's `v8_inspector` -
+`ub::Inspector` (one per isolate), `ub::InspectorSession` (one per DevTools
+connection) and `ub::InspectorClient` (what the inspector calls back into,
+written by us).
+
+Whether there is an inspector is a run-time answer, not a build-time one:
+`ub::Inspector::Supported()` is true on V8 and false on SpiderMonkey, whose
+debugging surface is a JavaScript `Debugger` object with no protocol to attach
+to. Both glue DLLs link the same frontend and the same inspector code; on
+SpiderMonkey it simply never does anything.
+
+All of it lives in `components/inspector/`: `InspectorServer`,
+`InspectorTarget`, `ScriptInspector` (below). No engine header anywhere. The
+script lifecycle in `components/script/Script.cpp` creates each script's
+`ScriptInspector` (`ScriptInspector::Create`, null where there is no inspector)
+and `ScriptEngine` starts / stops the server, only where
+`ub::Inspector::Supported()`; the console hides the debugging settings where it
+is false.
 
 ## Why WebSocket
 
 The Chrome DevTools frontend only speaks the Chrome DevTools Protocol (CDP) over
-WebSocket when attaching to a remote target. V8 ships the inspector engine
-(`v8_inspector`, compiled into our monolith) but NOT a transport - the embedder
-must move CDP bytes between the frontend and `V8InspectorSession`. We use
+WebSocket when attaching to a remote target. The engine ships the inspector
+(`v8_inspector`, compiled into the V8 monolith, reached through
+`ub::Inspector`) but NOT a transport - the embedder must move CDP bytes between
+the frontend and the `ub::InspectorSession`. We use
 [ixwebsocket](https://github.com/machinezone/IXWebSocket) (vcpkg,
-`default-features:false` so no TLS is pulled - localhost needs none).
+`default-features:false` so no TLS is pulled - localhost needs none). The
+frontend library compiles it; both glue DLLs link `ixwebsocket.lib`.
 
 The pipe transport (`--remote-debugging-pipe`) is a Chrome browser-process
 feature for programmatic CDP clients (Puppeteer/Playwright), not something the
@@ -72,82 +98,106 @@ DevTools frontend UI can attach over, so it is not an option here.
   runs, so a stale DevTools tab could in principle reattach to a different script;
   low impact). The title shown in chrome://inspect is the script name, prefixed
   with the active profile when set, so multi-box targets are distinguishable. It
-  owns nothing V8. Keeping the
+  owns nothing of the engine. Keeping the
   queue here (not on `ScriptInspector`) decouples the server's WebSocket threads
   (producers) from the isolate thread (the sole consumer), so the two have clean
   lifetimes across the window where the isolate thread tears the
-  `ScriptInspector` down. Pushing an event also schedules a V8 interrupt (see
-  below).
+  `ScriptInspector` down. Pushing an event also requests an inspector dispatch
+  (see below).
 
-- **`ScriptInspector`** - per-isolate glue. Owns the `V8Inspector`, the protocol
-  `Channel` (outbound CDP -> `InspectorServer::Send`), the `V8InspectorClient`
-  (pause-loop control), and the `V8InspectorSession` that exists only while a
-  DevTools client is attached. Created in `Script::SetupIsolate`, destroyed in
-  `Script::TeardownIsolate` before the context is reset. contextGroupId is `1`
-  (one context per isolate).
+- **`ScriptInspector`** - per-isolate glue: the `ub::InspectorClient`. Owns the `ub::Inspector` for the script's isolate
+  and the `ub::InspectorSession` that exists only while a DevTools client is
+  attached. As the client it forwards outbound CDP
+  (`SendProtocolMessage` -> `InspectorServer::Send`), runs pauses
+  (`RunMessageLoopOnPause` / `QuitMessageLoopOnPause`), supplies timestamps
+  (`CurrentTimeMs`) and maps script names to URLs (`ResourceNameToUrl`). Created
+  by `ScriptInspector::Create` when the script sets up its isolate (it announces the
+  script's context with `ContextCreated`, titled like the target), destroyed
+  before the script's context is reset (`ContextDestroyed` first). It holds the
+  script's `shared_ptr<ub::Isolate>`, so the isolate outlives the inspector, as
+  unibind requires.
 
 ## Threading model
 
-Every `v8_inspector` call must happen on the isolate's own thread. The WebSocket
-server runs on its own threads. The queue bridges them.
+Every `ub::Inspector` / `ub::InspectorSession` call must happen on the
+isolate's own thread; other threads reach it only through the
+`ub::InspectorDispatcher` that `Inspector::Dispatcher()` hands out. The WebSocket server
+runs on its own threads. The queue bridges them.
 
 ```
 DevTools <--ws--> InspectorServer (ws threads) --push--> InspectorTarget queue
                                                               |
                                             drained on the script's isolate thread
                                                               v
-                                              ScriptInspector -> V8InspectorSession
+                                            ScriptInspector -> ub::InspectorSession
 ```
 
 Inbound CDP is drained and dispatched on the isolate thread from three places,
 all calling `ScriptInspector::DrainIncoming` / the shared pause loop:
 
-1. **Normal execution** - `Script::ExecuteEvents` (the `delay()` pump) drains the
-   queue each iteration alongside `v8::platform::PumpMessageLoop`.
+1. **Normal execution** - `Script::ExecuteEvents` (the `delay()` pump) calls
+   `ScriptInspector::DrainIncoming` each iteration alongside the engine's job pump.
 2. **Busy scripts** - a script in a tight loop never reaches `delay()`, so a
-   queue push schedules `v8::Isolate::RequestInterrupt` (coalesced via an atomic
-   flag, isolate kept alive via `weak_ptr` like the GC interrupt). The interrupt
-   callback resolves the `ScriptInspector` from a fixed isolate data slot
-   (`ScriptInspector::ISOLATE_DATA_SLOT`, set in its ctor and cleared in its dtor)
-   and drains. This is what lets `Debugger.pause` take effect on a spinning script.
+   queue push requests an inspector dispatch (`ub::InspectorDispatcher::RequestDispatch`,
+   coalesced via an atomic flag). unibind runs it on the isolate thread at the
+   next safe point - inside running script, or at the next `PumpJobs` if the
+   isolate is idle - and, unlike `ub::Isolate::RequestInterrupt`'s callback, it
+   may dispatch protocol messages, which run script (a DevTools evaluate). The
+   callback carries the `ScriptInspector` as its `ub::CallbackData`; that is
+   never stale, because requests still waiting when the `ub::Inspector` is
+   destroyed are dropped. The target holds the dispatcher as a `shared_ptr`
+   taken when it is made; the dispatcher is safe to call from any thread even
+   while, or after, the inspector is destroyed (it declines then), so the target
+   is never detached and needs no lock around it. This is what lets
+   `Debugger.pause` take effect on a spinning script.
 3. **Paused at a breakpoint** - see below.
 
-Outbound CDP (`Channel::sendResponse` / `sendNotification`) runs on the isolate
-thread and hands the message to `InspectorServer::Send`, whose `ix::WebSocket`
-send is thread-safe.
+Events are taken off the target in batches into a backlog and processed one at
+a time. An event that ends a pause (a resume, or a disconnect) leaves the rest
+of the batch in the backlog for whoever runs next - the pause level it returns
+to, or the script once the pause unwinds, which is woken with a dispatch
+request rather than left waiting for the next message.
 
-## Pausing: `runMessageLoopOnPause`
+Outbound CDP (`InspectorClient::SendProtocolMessage`) runs on the isolate thread
+and hands the message to `InspectorServer::Send`, whose `ix::WebSocket` send is
+thread-safe.
 
-When the VM hits a breakpoint / `debugger` / caught exception, V8 calls
-`V8InspectorClient::runMessageLoopOnPause`, which must **block the isolate
-thread** and pump inbound CDP until DevTools sends resume/step (V8 then calls
-`quitMessageLoopOnPause`). Blocking the script at a breakpoint is the whole point
-and fits our one-thread-per-script model.
+## Pausing: `RunMessageLoopOnPause`
+
+When the VM hits a breakpoint / `debugger` / caught exception, the inspector
+calls `InspectorClient::RunMessageLoopOnPause`, which must **block the isolate
+thread** and pump inbound CDP until DevTools sends resume/step (the inspector
+then calls `QuitMessageLoopOnPause`). Blocking the script at a breakpoint is the
+whole point and fits our one-thread-per-script model. Pauses nest - an evaluate
+run during a pause can pause again - so the loop saves and restores its flags
+per level.
 
 **The game must not freeze while a script is paused.** The script thread may be
 holding a `GameReadLock` (e.g. paused mid-`getUnit()`); blocking with it held
 stalls the game thread's `GameWriteLock` or deadlocks against
-`GameThread::Execute`. `RunPauseLoop` therefore releases any game lock this
-thread holds for the duration of the pause - a `game::GameReadLockReleaser` for
-the read lock a script normally holds, plus a `game::GameWriteLockReleaser`
+`GameThread::Execute`. `RunMessageLoopOnPause` therefore releases any game lock
+this thread holds for the duration of the pause - a `game::GameReadLockReleaser`
+for the read lock a script normally holds, plus a `game::GameWriteLockReleaser`
 (defensive: a script thread does not normally hold the write lock, but releasing
 both keeps the pause correct regardless of which was held). Each reacquires on
 the way out and no-ops when nothing is held; see `docs/game_thread_safety.md`.
 Game state is live while paused; a resumed script sees current state.
 
-A DevTools client that disconnects while paused is handled by resuming first and
-deferring `V8InspectorSession` teardown to the next normal drain - V8 forbids
-destroying a session inside the nested run loop.
+A DevTools client that disconnects while paused is handled by resuming every
+pause level (`InspectorSession::Resume`) and deferring the session's teardown to
+the next normal drain - a session is not destroyed inside a pause. A reconnect
+that arrives in the meantime waits in the backlog until the pause has unwound.
 
 ## Lifecycle
 
-- `ScriptEngine::Initialize` starts `InspectorServer` when `InspectorPort > 0`;
-  `Shutdown` stops it after all scripts have joined (so every target is already
-  removed).
-- `Script::SetupIsolate` always calls `AttachInspector`, creating the
-  `ScriptInspector` and registering an `InspectorTarget` with the server - whether
-  or not the server is currently listening. `TeardownIsolate` destroys it before
-  `context_.Reset()` so `contextDestroyed` sees a live context.
+- `ScriptEngine::Initialize` starts the server (`InspectorServer::Start`) when
+  `InspectorPort > 0` and the engine has an inspector; `Shutdown` stops it after
+  all scripts have joined (so every target is already removed).
+- Every script calls `ScriptInspector::Create` while setting up its isolate,
+  creating the `ScriptInspector` and registering an `InspectorTarget` with the server -
+  whether or not the server is currently listening. The script destroys it before
+  resetting its context so `ContextDestroyed` sees a live context. With no
+  inspector (SpiderMonkey) `Attach` returns null and the script runs without one.
 - Runtime toggle: `ScriptEngine::SetInspector(enabled, port)` (the Settings panel)
   writes the sign-encoded port and reconciles the server - stop, then start on the
   new port when enabled. A toggle never touches the targets: they live for the
@@ -169,11 +219,15 @@ destroying a session inside the nested run loop.
   one half alone gets you an empty Elements panel or a window that never
   attaches. DevTools-only domains like DOM/CSS/Network answer with "method not
   found", which the frontend tolerates.
-- Sessions attach with `kNotWaitingForDebugger`: connecting DevTools does not
+- `ub::Inspector::Connect` makes a fully trusted session that is not waiting
+  for a debugger (V8's `kNotWaitingForDebugger`): connecting DevTools does not
   halt a running script; breakpoints set afterward pause as expected.
+- Timestamps (`ScriptInspector::CurrentTimeMs`) are real wall-clock time: the
+  script thread opts into the speedhack, so the call runs under a
+  `SpeedhackDisabledScope`, or timestamps would race ahead at speed > 1.
 - Script source URLs DevTools sees are mapped to `file:///` form relative to
-  the script base, e.g. `file:///libs/Town.js` (`InspectorClient::
-  resourceNameToUrl`, and the target `url` in `/json` matches), so gutter-set
+  the script base, e.g. `file:///libs/Town.js` (`ScriptInspector::
+  ResourceNameToUrl`, and the target `url` in `/json` matches), so gutter-set
   breakpoints bind in the Sources panel, the install path stays out of
   DevTools, and the URLs are stable across machines. Only the URL changes - the
   compile origin stays the raw Windows path (kolbot's require.js regex depends
@@ -184,8 +238,8 @@ destroying a session inside the nested run loop.
   || ...`, which the accessor's setter captures), landing in the d2bs console;
   `console.log` typed in the DevTools Console resolves to V8's built-in console
   and shows in the DevTools Console panel. Both callers share one global
-  `console`, so the discriminator is `ScriptInspector::IsEvaluating()` - set via a
-  `ReplEvalScope` around `dispatchProtocolMessage`, so it's true exactly while the
-  inspector is running a REPL evaluate.
+  `console`, so the discriminator is `ScriptInspector::IsEvaluating()` - set via a `ReplEvalScope` around
+  `InspectorSession::DispatchProtocolMessage`, so it's true exactly while the
+  inspector is running a REPL evaluate. On SpiderMonkey it is always false.
 - The port is localhost-only and opt-in; it is an open debug socket on the
   machine while enabled.

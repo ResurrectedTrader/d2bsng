@@ -1,21 +1,17 @@
 #pragma once
 
-#include <v8.h>
-
 #include "components/script/NativeCallHook.h"
-
-// Helper utilities for registering global functions
+#include "unibind/unibind.h"
 
 namespace d2bs::api::function {
 
-// Register a global function on the global object. Goes through the
-// framework's MethodTrampoline so per-callback stack capture (toggled per
-// script in the console) sees every global-function entry.
-inline void Register(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> global, const char* name,
-                     v8::FunctionCallback callback) {
-    auto data =
-        v8::External::New(isolate, runtime::script::InternFunction(name, callback), v8::kExternalPointerTypeTagDefault);
-    global->Set(isolate, name, v8::FunctionTemplate::New(isolate, &runtime::script::MethodTrampoline, data));
+// Install a global function on the context's global object. Goes through the NativeCallHook
+// trampoline so per-call stack capture (toggled per script in the console) and the Profiling panel
+// see every global-function entry. False if the function could not be made or installed.
+inline bool Register(const ub::Context& context, const char* name, ub::FunctionCallback callback) {
+    auto* binding = runtime::script::InternFunction(name, callback);
+    auto function = ub::Function::New(context, &runtime::script::MethodTrampoline, ub::CallbackData::For(*binding));
+    return function && context.GlobalObject().Set(context, name, *function).value_or(false);
 }
 
 }  // namespace d2bs::api::function

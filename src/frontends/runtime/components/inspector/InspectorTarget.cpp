@@ -1,15 +1,18 @@
 #include "components/inspector/InspectorTarget.h"
 
-#include <v8.h>
-
 #include <utility>
-
-#include "components/inspector/ScriptInspector.h"
 
 namespace d2bs::runtime::inspector {
 
-InspectorTarget::InspectorTarget(std::string id, std::string title, std::string url, std::weak_ptr<v8::Isolate> isolate)
-    : id_(std::move(id)), title_(std::move(title)), url_(std::move(url)), isolate_(std::move(isolate)) {}
+InspectorTarget::InspectorTarget(std::string id, std::string title, std::string url,
+                                 std::shared_ptr<ub::InspectorDispatcher> dispatcher, ub::JobCallback callback,
+                                 ub::CallbackData data)
+    : id_(std::move(id)),
+      title_(std::move(title)),
+      url_(std::move(url)),
+      dispatcher_(std::move(dispatcher)),
+      dispatchCallback_(callback),
+      dispatchData_(data) {}
 
 void InspectorTarget::Push(EventKind kind, std::string payload) {
     {
@@ -19,35 +22,23 @@ void InspectorTarget::Push(EventKind kind, std::string payload) {
     cv_.notify_all();
 
     // Break a script that's busy in JS so it drains the queue at the next safe
-    // point. Holding a shared_ptr across the call keeps the isolate alive even
-    // if teardown races us - the custom deleter is deferred until we drop it.
-    if (auto isolate = isolate_.lock()) {
-        if (!interruptScheduled_.exchange(true)) {
-            isolate->RequestInterrupt(
-                +[](v8::Isolate* iso, void* /*data*/) {
-                    // Runs on the isolate's own thread at a V8 safe point. Resolve the
-                    // ScriptInspector from its isolate data slot (set in the ctor,
-                    // cleared in the dtor) so a torn-down inspector simply no-ops.
-                    if (auto* inspector =
-                            static_cast<ScriptInspector*>(iso->GetData(ScriptInspector::ISOLATE_DATA_SLOT))) {
-                        inspector->DrainIncoming();
-                    }
-                },
-                nullptr);
-        }
+    // point. A plain interrupt would not do: dispatching a CDP message can run
+    // script (a DevTools evaluate), which only an inspector dispatch may.
+    if (!dispatchRequested_.exchange(true)) {
+        dispatcher_->RequestDispatch(dispatchCallback_, dispatchData_);
     }
 }
 
 std::deque<InspectorTarget::Event> InspectorTarget::DrainAll() {
     // Fast path: skip the lock when nothing was queued since the last drain (the
-    // common per-tick case). Push sets interruptScheduled_ after each enqueue
-    // while a consumer exists, so false means empty; a racing push is taken on
-    // the next drain (and has already scheduled an interrupt).
-    if (!interruptScheduled_.load()) {
+    // common per-tick case). Push sets dispatchRequested_ after each enqueue, so
+    // false means empty; a racing push is taken on the next drain (and has
+    // already requested a dispatch).
+    if (!dispatchRequested_.load()) {
         return {};
     }
     std::scoped_lock lock(mutex_);
-    interruptScheduled_.store(false);
+    dispatchRequested_.store(false);
     std::deque<Event> out;
     out.swap(queue_);
     return out;

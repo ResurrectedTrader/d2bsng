@@ -12,18 +12,19 @@
 #include <vector>
 
 #include <spdlog/spdlog.h>
-#include <v8.h>
+#include "unibind/unibind.h"
 
 namespace d2bs::runtime::script {
 
-// Process-wide cache of V8 code-cache blobs (the serialized result of parsing
-// and compiling a source), keyed by the source a compile was handed.
+// Process-wide cache of code-cache blobs (the serialized result of parsing and
+// compiling a source, as ub::Script::CreateCodeCache hands it out), keyed by the
+// source a compile was handed.
 //
-// Every script runs in its own isolate, so V8's per-isolate compilation cache
-// buys nothing across scripts: a bot that spawns half a dozen script threads per
-// game re-parses and re-compiles the same libraries once per isolate, every
-// game. Code-cache blobs are isolate-independent, which is exactly the axis that
-// repetition lives on.
+// Every script runs in its own isolate, so the engine's per-isolate compilation
+// cache buys nothing across scripts: a bot that spawns half a dozen script
+// threads per game re-parses and re-compiles the same libraries once per
+// isolate, every game. Code-cache blobs are isolate-independent, which is exactly
+// the axis that repetition lives on.
 //
 // Two tiers. The in-memory tier is always on and covers every isolate after the
 // first in this process. The on-disk tier is opt-in (AppConfig::codeCachePath)
@@ -31,13 +32,12 @@ namespace d2bs::runtime::script {
 // instances pointed at the same directory. Both are byte-capped; memory evicts
 // least-recently-used, disk least-recently-written (see PruneDisk).
 //
-// The cache holds byte vectors, never V8 handles, so its lifetime carries no
-// ordering dependency on Engine teardown.
+// The cache holds byte vectors, never engine handles, so its lifetime carries no
+// ordering dependency on engine teardown.
 class CodeCache {
    public:
-    // Handed out as a shared_ptr because a compile keeps the bytes alive for the
-    // whole ScriptCompiler::Source lifetime while another script thread may
-    // evict the entry from under it.
+    // Handed out as a shared_ptr because a compile reads the bytes while another
+    // script thread may evict the entry from under it.
     using Blob = std::shared_ptr<const std::vector<uint8_t>>;
 
     static CodeCache& Instance();
@@ -48,18 +48,18 @@ class CodeCache {
     static bool IsCacheable(size_t sourceSize) { return sourceSize >= MIN_CACHEABLE_BYTES; }
 
     // Identity of one compile: the post-transform source, the origin baked into
-    // the compiled script, and the V8 build the blob would be deserialized by.
-    // Covering the build here rather than validating it on read means an entry
-    // from another V8 version or flag set is never named, so instances that
-    // disagree simply use disjoint keys.
+    // the compiled script, and the engine build and configuration the blob would
+    // be read back by. Covering the engine here rather than learning it on read
+    // means an entry from another engine, engine build or flag set is never
+    // named, so instances that disagree simply use disjoint keys.
     uint64_t MakeKey(std::string_view originName, std::string_view source) const;
 
     // Null when neither tier holds `key`. A disk hit is promoted into memory.
     Blob Lookup(uint64_t key);
 
-    // Serialize `script` and store it under `key`. Does nothing if V8 declines
-    // to serialize it or the blob is implausibly large.
-    void Store(uint64_t key, v8::Local<v8::UnboundScript> script);
+    // Serialize `script` and store it under `key`. Does nothing if the engine
+    // declines to serialize it or the blob is implausibly large.
+    void Store(uint64_t key, const ub::Script& script);
 
     // Forget `key` in both tiers.
     void Drop(uint64_t key);
@@ -100,8 +100,8 @@ class CodeCache {
     // Empty when the disk tier is off - either unconfigured or the directory
     // could not be created.
     std::filesystem::path diskDir_;
-    // V8's own CachedData version tag (version + effective flags), folded into
-    // every key.
+    // The engine's name and build plus the engine settings that change what it
+    // compiles, folded into every key.
     uint64_t buildTag_ = 0;
 
     std::shared_ptr<spdlog::logger> logger_;

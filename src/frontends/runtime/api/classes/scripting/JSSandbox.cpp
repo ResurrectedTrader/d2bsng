@@ -1,78 +1,79 @@
 #include "JSSandbox.h"
 
+#include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <utility>
+
+#include "api/core/Convert.h"
+#include "api/core/Error.h"
 #include "components/script/CompileSource.h"
-#include "components/script/ScriptEngine.h"
 #include "config/AppConfig.h"
 #include "utils/utils.h"
 
 namespace d2bs::api::classes {
 
-// Helper: get the sandbox context's global object (the inner scope)
-static v8::Local<v8::Object> GetInnerGlobal(v8::Isolate* isolate, SandboxData* data) {
-    if (!data || data->context.IsEmpty())
+// The sandbox realm behind a Sandbox instance, or an empty context. A copy rather than a
+// reference: script run in the sandbox may call clearScope and replace the one on the native.
+static ub::Context GetSandboxContext(const ub::Local<ub::Object>& self) {
+    auto* data = JSSandbox::Unwrap(self);
+    if (!data) {
         return {};
-    return data->context.Get(isolate)->Global();
+    }
+    return data->context;
 }
 
 /// @description Create an isolated JS execution environment whose global object is the sandbox scope.
 /// @signature Sandbox()
 /// @returns {Sandbox} - a new sandbox with an empty scope and no included files.
-void JSSandbox::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    V8_CLASS_CTOR_PROLOGUE;
-
+std::unique_ptr<SandboxData> JSSandbox::New(const ub::CallbackInfo& args) {
     auto data = std::make_unique<SandboxData>();
 
     // Create a new context - its global object IS the sandbox scope
     // (matching d2bs reference where innerObj = JS_NewObject(box->context, &global_obj))
-    auto context = v8::Context::New(isolate);
-    data->context.Reset(isolate, context);
-
-    InitInstance(isolate, args.This(), std::move(data));
-    args.GetReturnValue().Set(args.This());
+    data->context = ub::Context::New(args.GetIsolate()).value_or(ub::Context());
+    return data;
 }
 
-void JSSandbox::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
-    auto inst = tpl->InstanceTemplate();
-    auto proto = tpl->PrototypeTemplate();
-
-    // Set up named property handlers - proxy property access to the sandbox context's global
-    inst->SetHandler(v8::NamedPropertyHandlerConfiguration(NamedPropertyGetter, NamedPropertySetter, NamedPropertyQuery,
-                                                           NamedPropertyDeleter, NamedPropertyEnumerator));
+void JSSandbox::Configure(const ub::Class<SandboxData>& cls) {
+    cls.SetHandler(ub::NamedPropertyHandler{.getter = &NamedPropertyGetter,
+                                            .setter = &NamedPropertySetter,
+                                            .query = &NamedPropertyQuery,
+                                            .deleter = &NamedPropertyDeleter,
+                                            .enumerator = &NamedPropertyEnumerator});
 
     /// @description Compile and run JS source in the sandbox scope, returning its completion value.
     /// @signature evaluate(code: string)
     /// @param code {string} - JS source to compile and execute in the sandbox context.
     /// @returns {any} - the completion value; undefined if compile/run threw.
     Method(
-        isolate, proto, "evaluate", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
+        cls, "evaluate", +[](const ub::CallbackInfo& args) {
+            auto& isolate = args.GetIsolate();
 
-            if (!error::CheckArgCount(args, 1, "evaluate"))
+            if (!error::CheckArgCount(args, 1, "evaluate")) {
                 return;
-            if (!args[0]->IsString()) {
+            }
+            if (!args[0].IsString()) {
                 error::ThrowTypeError(isolate, "evaluate() requires a string argument");
                 return;
             }
 
-            auto data = Unwrap(args.This());
-            if (!data || data->context.IsEmpty()) {
+            const auto sandboxContext = GetSandboxContext(args.This());
+            if (sandboxContext.IsEmpty()) {
                 error::ThrowError(isolate, "Invalid sandbox object");
                 return;
             }
 
+            std::string source = convert::ToString(args.GetContext(), args[0]);
+
             // Execute in the sandbox context - its global is the scope
-            auto sandboxContext = data->context.Get(isolate);
-            v8::Context::Scope contextScope(sandboxContext);
-
-            std::string source = convert::ToString(isolate, args[0]);
-
-            v8::Local<v8::Script> script;
-            if (!runtime::script::CompileSource(isolate, sandboxContext, std::move(source), "sandbox").ToLocal(&script))
+            const ub::ContextScope contextScope(sandboxContext);
+            auto script = runtime::script::CompileSource(sandboxContext, std::move(source), "sandbox");
+            if (!script) {
                 return;
-
-            v8::Local<v8::Value> result;
-            if (script->Run(sandboxContext).ToLocal(&result)) {
-                args.GetReturnValue().Set(result);
+            }
+            if (auto result = script->Run(sandboxContext)) {
+                args.GetReturnValue().Set(*result);
             }
         });
 
@@ -82,39 +83,37 @@ void JSSandbox::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
     /// @returns {any|boolean} - the file's completion value on success; false if already included, not found,
     /// unopenable, or compile/run failed.
     Method(
-        isolate, proto, "include", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
+        cls, "include", +[](const ub::CallbackInfo& args) {
+            auto& isolate = args.GetIsolate();
 
-            if (!error::CheckArgCount(args, 1, "include"))
+            if (!error::CheckArgCount(args, 1, "include")) {
                 return;
-            if (!args[0]->IsString()) {
+            }
+            if (!args[0].IsString()) {
                 error::ThrowTypeError(isolate, "include() requires a string argument");
                 return;
             }
 
-            auto data = Unwrap(args.This());
+            auto* data = Unwrap(args.This());
             if (!data || data->context.IsEmpty()) {
                 error::ThrowError(isolate, "Invalid sandbox object");
                 return;
             }
 
             // Normalize for case-insensitive dedup on Windows (matches Script::Include).
-            std::string filename = utils::ToLower(convert::ToString(isolate, args[0]));
+            std::string filename = utils::ToLower(convert::ToString(args.GetContext(), args[0]));
 
-            // Check if already included
             if (data->includedFiles.contains(filename)) {
                 args.GetReturnValue().SetFalse();
                 return;
             }
 
-            // Resolve path from libs/
             auto resolved = config::GetPathRelScript("libs/" + filename);
             if (resolved.empty() || !std::filesystem::exists(resolved)) {
                 args.GetReturnValue().SetFalse();
                 return;
             }
 
-            // Read file
             std::ifstream file(resolved, std::ios::binary);
             if (!file.is_open()) {
                 args.GetReturnValue().SetFalse();
@@ -124,23 +123,21 @@ void JSSandbox::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
             file.close();
 
             // Compile and execute in sandbox context
-            auto sandboxContext = data->context.Get(isolate);
-            v8::Context::Scope contextScope(sandboxContext);
-
-            v8::Local<v8::Script> script;
-            if (!runtime::script::CompileSource(isolate, sandboxContext, std::move(source), filename)
-                     .ToLocal(&script)) {
+            const auto sandboxContext = data->context;
+            const ub::ContextScope contextScope(sandboxContext);
+            auto script = runtime::script::CompileSource(sandboxContext, std::move(source), filename);
+            if (!script) {
                 args.GetReturnValue().SetFalse();
                 return;
             }
 
-            v8::Local<v8::Value> result;
-            if (script->Run(sandboxContext).ToLocal(&result)) {
-                data->includedFiles.insert(filename);
-                args.GetReturnValue().Set(result);
-            } else {
+            auto result = script->Run(sandboxContext);
+            if (!result) {
                 args.GetReturnValue().SetFalse();
+                return;
             }
+            data->includedFiles.insert(filename);
+            args.GetReturnValue().Set(*result);
         });
 
     /// @description Test whether a file has already been included into this sandbox.
@@ -148,23 +145,24 @@ void JSSandbox::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
     /// @param file {string} - filename to check (lowercased before lookup, matching include()'s key).
     /// @returns {boolean} - true if previously included; false otherwise.
     Method(
-        isolate, proto, "isIncluded", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
+        cls, "isIncluded", +[](const ub::CallbackInfo& args) {
+            auto& isolate = args.GetIsolate();
 
-            if (!error::CheckArgCount(args, 1, "isIncluded"))
+            if (!error::CheckArgCount(args, 1, "isIncluded")) {
                 return;
-            if (!args[0]->IsString()) {
+            }
+            if (!args[0].IsString()) {
                 error::ThrowTypeError(isolate, "isIncluded() requires a string argument");
                 return;
             }
 
-            auto data = Unwrap(args.This());
+            auto* data = Unwrap(args.This());
             if (!data) {
                 args.GetReturnValue().SetFalse();
                 return;
             }
 
-            std::string filename = utils::ToLower(convert::ToString(isolate, args[0]));
+            const std::string filename = utils::ToLower(convert::ToString(args.GetContext(), args[0]));
             args.GetReturnValue().Set(data->includedFiles.contains(filename));
         });
 
@@ -172,92 +170,87 @@ void JSSandbox::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
     /// @signature clearScope()
     /// @returns {undefined} - nothing.
     Method(
-        isolate, proto, "clearScope", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
-
-            auto data = Unwrap(args.This());
-            if (!data)
+        cls, "clearScope", +[](const ub::CallbackInfo& args) {
+            auto* data = Unwrap(args.This());
+            if (!data) {
                 return;
+            }
 
             // Recreate the context to get a fresh global scope
-            auto context = v8::Context::New(isolate);
-            data->context.Reset(isolate, context);
+            data->context = ub::Context::New(args.GetIsolate()).value_or(ub::Context());
             data->includedFiles.clear();
         });
 }
 
-v8::Intercepted JSSandbox::NamedPropertyGetter(v8::Local<v8::Name> property,
-                                               const v8::PropertyCallbackInfo<v8::Value>& info) {
-    auto data = Unwrap(info.Holder());
-    auto inner = GetInnerGlobal(info.GetIsolate(), data);
-    if (inner.IsEmpty())
-        return v8::Intercepted::kNo;
+// Each hook enters the sandbox realm before touching its global object: a realm's global is
+// access-checked against the current realm, and the hook runs with the caller's realm current.
 
-    auto context = data->context.Get(info.GetIsolate());
-    v8::Local<v8::Value> result;
-    if (inner->Get(context, property).ToLocal(&result) && !result->IsUndefined()) {
-        info.GetReturnValue().Set(result);
-        return v8::Intercepted::kYes;
-    }
-    return v8::Intercepted::kNo;
-}
-
-v8::Intercepted JSSandbox::NamedPropertySetter(v8::Local<v8::Name> property, v8::Local<v8::Value> value,
-                                               const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-    auto data = Unwrap(info.Holder());
-    auto inner = GetInnerGlobal(info.GetIsolate(), data);
-    if (inner.IsEmpty())
-        return v8::Intercepted::kNo;
-
-    auto context = data->context.Get(info.GetIsolate());
-    inner->Set(context, property, value).Check();
-    return v8::Intercepted::kYes;
-}
-
-v8::Intercepted JSSandbox::NamedPropertyQuery(v8::Local<v8::Name> property,
-                                              const v8::PropertyCallbackInfo<v8::Integer>& info) {
-    auto data = Unwrap(info.Holder());
-    auto inner = GetInnerGlobal(info.GetIsolate(), data);
-    if (inner.IsEmpty())
-        return v8::Intercepted::kNo;
-
-    auto context = data->context.Get(info.GetIsolate());
-    if (inner->Has(context, property).FromMaybe(false)) {
-        info.GetReturnValue().Set(v8::PropertyAttribute::None);
-        return v8::Intercepted::kYes;
-    }
-    return v8::Intercepted::kNo;
-}
-
-v8::Intercepted JSSandbox::NamedPropertyDeleter(v8::Local<v8::Name> property,
-                                                const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-    auto data = Unwrap(info.Holder());
-    auto inner = GetInnerGlobal(info.GetIsolate(), data);
+ub::Intercepted JSSandbox::NamedPropertyGetter(const ub::Local<ub::Name>& property,
+                                               const ub::PropertyCallbackInfo& info) {
+    const auto inner = GetSandboxContext(info.This());
     if (inner.IsEmpty()) {
-        info.GetReturnValue().SetFalse();
-        return v8::Intercepted::kYes;
+        return ub::Intercepted::No;
     }
 
-    auto context = data->context.Get(info.GetIsolate());
-    info.GetReturnValue().Set(inner->Delete(context, property).FromMaybe(false));
-    return v8::Intercepted::kYes;
+    const ub::ContextScope contextScope(inner);
+    auto result = inner.GlobalObject().Get(inner, property);
+    if (result && !result->IsUndefined()) {
+        info.GetReturnValue().Set(*result);
+        return ub::Intercepted::Yes;
+    }
+    return ub::Intercepted::No;
 }
 
-void JSSandbox::NamedPropertyEnumerator(const v8::PropertyCallbackInfo<v8::Array>& info) {
-    auto data = Unwrap(info.Holder());
-    auto inner = GetInnerGlobal(info.GetIsolate(), data);
+ub::Intercepted JSSandbox::NamedPropertySetter(const ub::Local<ub::Name>& property, const ub::Local<ub::Value>& value,
+                                               const ub::PropertyCallbackInfo& info) {
+    const auto inner = GetSandboxContext(info.This());
     if (inner.IsEmpty()) {
-        info.GetReturnValue().Set(v8::Array::New(info.GetIsolate(), 0));
-        return;
+        return ub::Intercepted::No;
     }
 
-    auto context = data->context.Get(info.GetIsolate());
-    v8::Local<v8::Array> props;
-    if (inner->GetPropertyNames(context).ToLocal(&props)) {
-        info.GetReturnValue().Set(props);
-    } else {
-        info.GetReturnValue().Set(v8::Array::New(info.GetIsolate(), 0));
+    const ub::ContextScope contextScope(inner);
+    static_cast<void>(inner.GlobalObject().Set(inner, property, value));
+    return ub::Intercepted::Yes;
+}
+
+std::optional<ub::PropertyAttribute> JSSandbox::NamedPropertyQuery(const ub::Local<ub::Name>& property,
+                                                                   const ub::PropertyCallbackInfo& info) {
+    const auto inner = GetSandboxContext(info.This());
+    if (inner.IsEmpty()) {
+        return std::nullopt;
     }
+
+    const ub::ContextScope contextScope(inner);
+    if (inner.GlobalObject().Has(inner, property).value_or(false)) {
+        return ub::PropertyAttribute::None;
+    }
+    return std::nullopt;
+}
+
+std::optional<bool> JSSandbox::NamedPropertyDeleter(const ub::Local<ub::Name>& property,
+                                                    const ub::PropertyCallbackInfo& info) {
+    const auto inner = GetSandboxContext(info.This());
+    if (inner.IsEmpty()) {
+        return false;
+    }
+
+    const ub::ContextScope contextScope(inner);
+    return inner.GlobalObject().Delete(inner, property).value_or(false);
+}
+
+std::optional<ub::Local<ub::Array>> JSSandbox::NamedPropertyEnumerator(const ub::PropertyCallbackInfo& info) {
+    const auto inner = GetSandboxContext(info.This());
+    if (inner.IsEmpty()) {
+        return ub::Array::New(info.GetContext(), 0);
+    }
+
+    // Own enumerable string keys of the sandbox global. The reference walk also took enumerable
+    // inherited keys, of which a global object's prototype chain has none.
+    const ub::ContextScope contextScope(inner);
+    if (auto props = inner.GlobalObject().GetOwnPropertyNames(inner)) {
+        return props;
+    }
+    return ub::Array::New(info.GetContext(), 0);
 }
 
 }  // namespace d2bs::api::classes

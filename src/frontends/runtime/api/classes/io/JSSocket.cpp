@@ -1,6 +1,8 @@
 #include "JSSocket.h"
 
 #include <array>
+#include <string>
+#include <string_view>
 
 #ifndef WIN32_LEAN_AND_MEAN
     #define WIN32_LEAN_AND_MEAN
@@ -12,6 +14,8 @@
 
 #pragma comment(lib, "Ws2_32.lib")
 
+#include "api/core/Convert.h"
+#include "api/core/Error.h"
 #include "proxy/ProxyBypass.h"
 
 namespace d2bs::api::classes {
@@ -25,18 +29,13 @@ SocketData::~SocketData() {
     }
 }
 
-void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
-    auto inst = tpl->InstanceTemplate();
-    auto proto = tpl->PrototypeTemplate();
-
+void JSSocket::Configure(const ub::Class<SocketData>& cls) {
     // Properties
     /// @description Whether the socket has data ready to read (1 = ready, 0 = not, -1 = error).
     /// @type {number}
     Property(
-        isolate, inst, "readable", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* isolate = info.GetIsolate();
-
-            auto data = Unwrap(info.Holder());
+        cls, "readable", +[](const ub::Local<ub::Name>& /*property*/, const ub::PropertyCallbackInfo& info) {
+            auto* data = Unwrap(info.This());
             if (!data || data->handle == INVALID_SOCKET) {
                 info.GetReturnValue().Set(0);
                 return;
@@ -52,16 +51,14 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             FD_SET(data->handle, &readSet);
 
             int32_t result = select(1, &readSet, nullptr, nullptr, &timeout);
-            info.GetReturnValue().Set(convert::ToJS(isolate, result));
+            info.GetReturnValue().Set(result);
         });
 
     /// @description Whether the socket is ready to accept writes (1 = ready, 0 = not, -1 = error).
     /// @type {number}
     Property(
-        isolate, inst, "writeable", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* isolate = info.GetIsolate();
-
-            auto data = Unwrap(info.Holder());
+        cls, "writeable", +[](const ub::Local<ub::Name>& /*property*/, const ub::PropertyCallbackInfo& info) {
+            auto* data = Unwrap(info.This());
             if (!data || data->handle == INVALID_SOCKET) {
                 info.GetReturnValue().Set(0);
                 return;
@@ -77,7 +74,7 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             FD_SET(data->handle, &writeSet);
 
             int32_t result = select(1, nullptr, &writeSet, nullptr, &timeout);
-            info.GetReturnValue().Set(convert::ToJS(isolate, result));
+            info.GetReturnValue().Set(result);
         });
 
     // Instance Methods
@@ -86,10 +83,10 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
     /// @returns {string} - Bytes received, empty on a clean peer close; throws if not connected or recv() fails.
     /// @throws {Error} - if the socket is not connected, or if recv() fails.
     Method(
-        isolate, proto, "read", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
+        cls, "read", +[](const ub::CallbackInfo& args) {
+            auto& isolate = args.GetIsolate();
 
-            auto data = Unwrap(args.This());
+            auto* data = Unwrap(args.This());
             if (!data || data->handle == INVALID_SOCKET) {
                 error::ThrowError(isolate, "Socket is not connected");
                 return;
@@ -101,8 +98,9 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 error::ThrowError(isolate, "Failed to read from socket");
                 return;
             }
-            std::string result(buffer.data(), bytesRead);
-            args.GetReturnValue().Set(convert::ToJS(isolate, result));
+            if (auto text = ub::String::NewFromUtf8(isolate, std::string_view(buffer.data(), bytesRead))) {
+                args.GetReturnValue().Set(*text);
+            }
         });
 
     /// @description Sends a string over the socket via a single send() call.
@@ -111,25 +109,25 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
     /// @returns {number} - Bytes sent (may be less than msg length; -1 on error).
     /// @throws {Error} - if the socket is not connected.
     Method(
-        isolate, proto, "send", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
+        cls, "send", +[](const ub::CallbackInfo& args) {
+            auto& isolate = args.GetIsolate();
 
             if (!error::CheckArgCount(args, 1, "send")) {
                 return;
             }
 
-            if (!args[0]->IsString()) {
+            if (!args[0].IsString()) {
                 error::ThrowTypeError(isolate, "send() requires a string argument");
                 return;
             }
 
-            auto data = Unwrap(args.This());
+            auto* data = Unwrap(args.This());
             if (!data || data->handle == INVALID_SOCKET) {
                 error::ThrowError(isolate, "Socket is not connected");
                 return;
             }
 
-            std::string msg = convert::ToString(isolate, args[0]);
+            std::string msg = convert::ToString(args.GetContext(), args[0]);
             // Return number of bytes sent so caller can detect partial writes. API enhancement.
             args.GetReturnValue().Set(send(data->handle, msg.c_str(), static_cast<int32_t>(msg.length()), 0));
         });
@@ -138,8 +136,8 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
     /// @signature close()
     /// @returns {undefined} - Nothing.
     Method(
-        isolate, proto, "close", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto data = Unwrap(args.This());
+        cls, "close", +[](const ub::CallbackInfo& args) {
+            auto* data = Unwrap(args.This());
             if (!data) {
                 return;
             }
@@ -165,27 +163,27 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
     /// @throws {Error} - if Winsock init fails, the host cannot be resolved, or the socket cannot be created or
     /// connected.
     StaticMethod(
-        isolate, tpl, "open", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
+        cls, "open", +[](const ub::CallbackInfo& args) {
+            auto& isolate = args.GetIsolate();
 
             if (args.Length() < 2) {
                 args.GetReturnValue().SetFalse();
                 return;
             }
 
-            if (!args[0]->IsString()) {
+            if (!args[0].IsString()) {
                 error::ThrowTypeError(isolate, "Socket.open() requires host as first argument");
                 return;
             }
 
-            if (!args[1]->IsNumber()) {
+            if (!args[1].IsNumber()) {
                 error::ThrowTypeError(isolate, "Socket.open() requires port as second argument");
                 return;
             }
 
             // Note: We are not implementing a host whitelist for this project for now.
-            std::string host = convert::ToString(isolate, args[0]);
-            int32_t port = convert::ToInt32(isolate, args[1]);
+            std::string host = convert::ToString(args.GetContext(), args[0]);
+            int32_t port = convert::ToInt32(args.GetContext(), args[1]);
 
             // Initialize Winsock
             WSADATA wsaData;
@@ -231,17 +229,16 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
 
             freeaddrinfo(result);
 
-            // Create Socket object with proper initialization and weak reference
-            auto context = isolate->GetCurrentContext();
-            auto data = std::make_unique<SocketData>();
+            auto data = std::make_shared<SocketData>();
             data->handle = sock;
             data->isConnected = true;
             data->isWsaInitialized = true;
 
-            auto obj = CreateInstance(isolate, context, std::move(data));
-            if (obj.IsEmpty())
+            auto obj = Wrap(args.GetContext(), std::move(data));
+            if (!obj) {
                 return;
-            args.GetReturnValue().Set(obj);
+            }
+            args.GetReturnValue().Set(*obj);
         });
 }
 

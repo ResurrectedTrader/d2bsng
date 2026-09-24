@@ -1,11 +1,10 @@
 #pragma once
 
-#include <v8.h>
 #include <string>
 #include <thread>
 #include "api/core/Class.h"
-#include "api/core/Error.h"
 #include "components/script/ScriptEngine.h"
+#include "unibind/unibind.h"
 
 namespace d2bs::api::classes {
 
@@ -24,18 +23,14 @@ struct ScriptHandle {
 // - getNext returns true if moved to next script, undefined if at end
 // - All methods return null on success (matching JSVAL_NULL)
 // - If script is not found, properties return undefined, methods return null
+//
+// Script objects are obtained via getScript()/getScripts() global functions (Wrap), not direct
+// construction.
 class JSScript : public ClassBase<JSScript, ScriptHandle> {
    public:
     static constexpr std::string_view ClassName = "D2BSScript";
 
-    // Script objects are obtained via getScript()/getScripts() global functions, not direct construction
-    V8_CLASS_NOT_CONSTRUCTABLE
-
-    static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl);
-
-    // Create a Script JS object from a Script pointer
-    // Returns empty handle if script is null
-    static v8::Local<v8::Object> Create(v8::Isolate* isolate, Script* script);
+    static void Configure(const ub::Class<ScriptHandle>& cls);
 };
 
 }  // namespace d2bs::api::classes

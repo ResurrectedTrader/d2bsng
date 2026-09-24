@@ -50,69 +50,104 @@
     <D2bsProfiling Condition="'$(D2bsProfiling)' == ''">true</D2bsProfiling>
   </PropertyGroup>
 
-  <!-- The published V8 this tree builds against. Nothing of V8 is in the
-       repository: the headers and the monolith both come out of one published
-       archive, which the build downloads on demand (see scripts/fetch_v8.ps1).
-       Declaring the version here rather than in a CI step or a README
-       instruction is what makes a fresh clone build unattended, and leaves one
-       place to edit for an upgrade.
+  <!-- The published engines and the published unibind this tree builds against.
+       None of them is in the repository: each comes as one archive from a
+       GitHub release, which the build downloads on demand (see
+       scripts/fetch_archive.ps1). Declaring the versions here rather than in a
+       CI step or a README instruction is what makes a fresh clone build
+       unattended, and leaves one place to edit for an upgrade.
 
-       The version and the archive's flavor are both in the directory the
-       archive unpacks into, and that directory is what the compiler's include
-       path and the linker's library path point at. So changing V8Version
-       changes where every one of those points, the archive for the new version
-       is fetched, and headers and library cannot be from different builds of
-       V8 - not because something checks, but because there is no path that
-       expresses the mismatch. The flavor is in there too because v8-gn.h
-       differs between the release and debug archives (every other header is
-       identical), and it is the header that lays objects out the way the
-       library does - an ABI requirement, not a convenience.
+       The frontend is written against unibind (https://github.com/ResurrectedTrader/unibind)
+       and names no engine: it compiles once against unibind's headers, and
+       which engine it runs on is decided at the glue link, by which unibind
+       backend library and which engine archive that project links. So there
+       are three archives - the two engines and unibind - and a project asks for
+       the ones it needs.
 
-       Old versions are left alone when this is bumped. They are over a gigabyte
-       each, so delete dependencies/v8/<old version> by hand once nothing builds
-       against it.
+       Each archive's version and flavor are in the directory it unpacks into,
+       and that directory is what the compiler's include path and the linker's
+       library path point at. Changing a version changes where every one of
+       those points, the archive for the new version is fetched, and headers and
+       library cannot be from different builds - not because something checks,
+       but because there is no path that expresses the mismatch. The flavor is
+       in there too because a debug engine lays some objects out differently
+       from a release one, and unibind's debug prefix links the debug engines:
+       headers, libraries and CRT all have to agree.
 
-       V8Toolset is the MSVC toolset the published archive was built with, which
-       is part of its name. It is a floor, not a match: any toolset at least
-       that new links it, so this is spelled out rather than resolved through
-       the releases API - a literal name needs no network round-trip, no JSON
-       parsing and no token, and the URL it produces is the same one a human
-       would click. It only changes when the publishing runner's compiler does,
-       which is a V8 upgrade anyway.
+       Old versions are left alone when one is bumped. The engines are hundreds
+       of megabytes each, so delete dependencies/<name>/<old version> by hand
+       once nothing builds against it.
 
-       V8Flavor follows $(Configuration), which build.ps1, the solution and the
-       IDE all supply as a global property, so it is set by the time this is
-       evaluated. Overriding V8Asset is what lets a build point at an archive
-       whose name does not follow from the version. -->
+       EngineToolset is the MSVC toolset all three archives were built with,
+       which is part of their names. It is a floor, not a match: any toolset at
+       least that new links them, so it is spelled out rather than resolved
+       through the releases API - a literal name needs no network round-trip, no
+       JSON parsing and no token, and the URL it produces is the same one a
+       human would click.
+
+       EngineFlavor follows $(Configuration), which build.ps1, the solution and
+       the IDE all supply as a global property, so it is set by the time this
+       is evaluated. The engines are x86 only here, because the glue DLLs are;
+       unibind follows $(Platform), because its config.h describes the
+       architecture and the frontend library builds for x64 as well. Overriding
+       an *Asset property is what lets a build point at an archive whose name
+       does not follow from the version. -->
   <PropertyGroup>
+    <EngineToolset Condition="'$(EngineToolset)' == ''">14.44</EngineToolset>
+    <EngineFlavor Condition="'$(EngineFlavor)' == '' And '$(Configuration)' == 'Debug'">debug</EngineFlavor>
+    <EngineFlavor Condition="'$(EngineFlavor)' == ''">release</EngineFlavor>
+
     <V8Version Condition="'$(V8Version)' == ''">15.6.8</V8Version>
     <V8Repo Condition="'$(V8Repo)' == ''">ResurrectedTrader/v8-static-win</V8Repo>
     <V8ReleaseTag Condition="'$(V8ReleaseTag)' == ''">v8-$(V8Version)</V8ReleaseTag>
-    <V8Toolset Condition="'$(V8Toolset)' == ''">14.44</V8Toolset>
-    <V8Flavor Condition="'$(V8Flavor)' == '' And '$(Configuration)' == 'Debug'">debug</V8Flavor>
-    <V8Flavor Condition="'$(V8Flavor)' == ''">release</V8Flavor>
-    <V8Asset Condition="'$(V8Asset)' == ''">v8-$(V8Version)-x86-$(V8Flavor)-msvc$(V8Toolset).zip</V8Asset>
-    <V8Dir Condition="'$(V8Dir)' == ''">$(MSBuildThisFileDirectory)dependencies\v8\$(V8Version)\x86-$(V8Flavor)</V8Dir>
+    <V8Asset Condition="'$(V8Asset)' == ''">v8-$(V8Version)-x86-$(EngineFlavor)-msvc$(EngineToolset).zip</V8Asset>
+    <V8Dir Condition="'$(V8Dir)' == ''">$(MSBuildThisFileDirectory)dependencies\v8\$(V8Version)\x86-$(EngineFlavor)</V8Dir>
     <V8IncludeDir>$(V8Dir)\include</V8IncludeDir>
-    <V8MonolithLib>$(V8Dir)\v8_monolith.lib</V8MonolithLib>
+
+    <SpiderMonkeyVersion Condition="'$(SpiderMonkeyVersion)' == ''">153.3.0esr</SpiderMonkeyVersion>
+    <SpiderMonkeyRepo Condition="'$(SpiderMonkeyRepo)' == ''">ResurrectedTrader/spidermonkey-static-win</SpiderMonkeyRepo>
+    <SpiderMonkeyReleaseTag Condition="'$(SpiderMonkeyReleaseTag)' == ''">spidermonkey-$(SpiderMonkeyVersion)</SpiderMonkeyReleaseTag>
+    <SpiderMonkeyAsset Condition="'$(SpiderMonkeyAsset)' == ''">spidermonkey-$(SpiderMonkeyVersion)-x86-$(EngineFlavor)-msvc$(EngineToolset).zip</SpiderMonkeyAsset>
+    <SpiderMonkeyDir Condition="'$(SpiderMonkeyDir)' == ''">$(MSBuildThisFileDirectory)dependencies\spidermonkey\$(SpiderMonkeyVersion)\x86-$(EngineFlavor)</SpiderMonkeyDir>
+
+    <UnibindArch Condition="'$(Platform)' == 'x64'">x64</UnibindArch>
+    <UnibindArch Condition="'$(UnibindArch)' == ''">x86</UnibindArch>
+    <UnibindVersion Condition="'$(UnibindVersion)' == ''">0.6.3</UnibindVersion>
+    <UnibindRepo Condition="'$(UnibindRepo)' == ''">ResurrectedTrader/unibind</UnibindRepo>
+    <UnibindReleaseTag Condition="'$(UnibindReleaseTag)' == ''">v$(UnibindVersion)</UnibindReleaseTag>
+    <UnibindAsset Condition="'$(UnibindAsset)' == ''">unibind-$(UnibindVersion)-$(UnibindArch)-$(EngineFlavor)-msvc$(EngineToolset).zip</UnibindAsset>
+    <UnibindDir Condition="'$(UnibindDir)' == ''">$(MSBuildThisFileDirectory)dependencies\unibind\$(UnibindVersion)\$(UnibindArch)-$(EngineFlavor)</UnibindDir>
+    <UnibindIncludeDir>$(UnibindDir)\include</UnibindIncludeDir>
+    <UnibindLibDir>$(UnibindDir)\lib</UnibindLibDir>
   </PropertyGroup>
 
-  <!-- Unpack that archive before anything compiles against its headers. Only a
-       project that needs V8 sets V8Required (js, lod114d and d2bs do), so the
-       test executable fetches nothing. Both halves land together because they
-       come out of the same download - discarding the library an x64 build
-       cannot link would only force the next Win32 build to fetch it again.
+  <!-- Unpack an archive before anything compiles or links against it. A
+       project opts in with UnibindRequired (the frontend and the glue DLLs),
+       V8Required (the V8 glue) or
+       SpiderMonkeyRequired (the SpiderMonkey glue), so the test executable
+       fetches nothing.
 
-       The test is the directory, not a file in it: fetch_v8.ps1 extracts
-       elsewhere and renames the finished tree into place in one move, so
-       $(V8Dir) either does not exist or is a complete install. A file inside it
-       would only say that much of an install got as far as that file.
+       The test is the directory, not a file in it: fetch_archive.ps1 extracts
+       elsewhere and renames the finished tree into place in one move, so the
+       directory either does not exist or is a complete install. A file inside
+       it would only say that much of an install got as far as that file.
 
        Exists() is re-evaluated when the target would run, so a build that
-       already has the archive unpacked does not even start PowerShell. -->
+       already has an archive unpacked does not even start PowerShell. -->
+  <PropertyGroup>
+    <FetchArchive>powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)scripts\fetch_archive.ps1&quot;</FetchArchive>
+  </PropertyGroup>
+  <Target Name="FetchUnibind" BeforeTargets="ClCompile;ResourceCompile;Link" Condition="'$(UnibindRequired)' == 'true'">
+    <Exec Condition="!Exists('$(UnibindDir)')"
+          Command="$(FetchArchive) -Name unibind -Repo &quot;$(UnibindRepo)&quot; -Tag &quot;$(UnibindReleaseTag)&quot; -Asset &quot;$(UnibindAsset)&quot; -Destination &quot;$(UnibindDir)&quot; -Require include\unibind\unibind.h,include\unibind\config.h,lib\unibind_backend_v8.lib,lib\unibind_backend_spidermonkey.lib -VerifySha256" />
+  </Target>
   <Target Name="FetchV8" BeforeTargets="ClCompile;ResourceCompile;Link" Condition="'$(V8Required)' == 'true'">
     <Exec Condition="!Exists('$(V8Dir)')"
-          Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)scripts\fetch_v8.ps1&quot; -Repo &quot;$(V8Repo)&quot; -Tag &quot;$(V8ReleaseTag)&quot; -Asset &quot;$(V8Asset)&quot; -Destination &quot;$(V8Dir)&quot;" />
+          Command="$(FetchArchive) -Name V8 -Repo &quot;$(V8Repo)&quot; -Tag &quot;$(V8ReleaseTag)&quot; -Asset &quot;$(V8Asset)&quot; -Destination &quot;$(V8Dir)&quot; -Require v8_monolith.lib,include\v8.h" />
+  </Target>
+  <Target Name="FetchSpiderMonkey" BeforeTargets="ClCompile;ResourceCompile;Link" Condition="'$(SpiderMonkeyRequired)' == 'true'">
+    <Exec Condition="!Exists('$(SpiderMonkeyDir)')"
+          Command="$(FetchArchive) -Name SpiderMonkey -Repo &quot;$(SpiderMonkeyRepo)&quot; -Tag &quot;$(SpiderMonkeyReleaseTag)&quot; -Asset &quot;$(SpiderMonkeyAsset)&quot; -Destination &quot;$(SpiderMonkeyDir)&quot; -Require spidermonkey.lib,include\jsapi.h" />
   </Target>
 
   <!-- Bake the build-time version into D2BS_VERSION (see core/config/Version.h,

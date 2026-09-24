@@ -22,7 +22,7 @@
     <VCProjectVersion>15.0</VCProjectVersion>
     <ProjectGuid>{B1A2C3D4-E5F6-7890-ABCD-100000000002}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>js</RootNamespace>
+    <RootNamespace>runtime</RootNamespace>
     <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -54,10 +54,11 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <!-- This project compiles against V8, so the FetchV8 target in
-       Directory.Build.props unpacks the archive before it builds. -->
+  <!-- The frontend compiles against unibind's headers and names no engine, so
+       the FetchUnibind target in Directory.Build.props unpacks the prefix before
+       it builds. Which engine it runs on is the glue project's choice. -->
   <PropertyGroup>
-    <V8Required>true</V8Required>
+    <UnibindRequired>true</UnibindRequired>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
     <ClCompile>
@@ -65,16 +66,16 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_DEBUG;NOMINMAX;V8_GN_HEADER;SPDLOG_WCHAR_TO_UTF8_SUPPORT;SPDLOG_FMT_EXTERNAL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;NOMINMAX;SPDLOG_WCHAR_TO_UTF8_SUPPORT;SPDLOG_FMT_EXTERNAL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\services;$(SolutionDir)src;$(V8IncludeDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <ExternalIncludeDirectories>$(V8IncludeDir);%(ExternalIncludeDirectories)</ExternalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\services;$(SolutionDir)src;$(UnibindIncludeDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ExternalIncludeDirectories>$(UnibindIncludeDir);%(ExternalIncludeDirectories)</ExternalIncludeDirectories>
       <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
       <TreatAngleIncludeAsExternal>true</TreatAngleIncludeAsExternal>
-      <ClangTidyAdditionalOptions>-DNOMINMAX --extra-arg=-isystem$(V8IncludeDir)</ClangTidyAdditionalOptions>
+      <ClangTidyAdditionalOptions>-DNOMINMAX --extra-arg=-isystem$(UnibindIncludeDir)</ClangTidyAdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
@@ -85,16 +86,16 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;NDEBUG;NOMINMAX;V8_GN_HEADER;SPDLOG_WCHAR_TO_UTF8_SUPPORT;SPDLOG_FMT_EXTERNAL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;NOMINMAX;SPDLOG_WCHAR_TO_UTF8_SUPPORT;SPDLOG_FMT_EXTERNAL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\services;$(SolutionDir)src;$(V8IncludeDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <ExternalIncludeDirectories>$(V8IncludeDir);%(ExternalIncludeDirectories)</ExternalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\services;$(SolutionDir)src;$(UnibindIncludeDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ExternalIncludeDirectories>$(UnibindIncludeDir);%(ExternalIncludeDirectories)</ExternalIncludeDirectories>
       <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
       <TreatAngleIncludeAsExternal>true</TreatAngleIncludeAsExternal>
-      <ClangTidyAdditionalOptions>-DNOMINMAX --extra-arg=-isystem$(V8IncludeDir)</ClangTidyAdditionalOptions>
+      <ClangTidyAdditionalOptions>-DNOMINMAX --extra-arg=-isystem$(UnibindIncludeDir)</ClangTidyAdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -130,10 +131,6 @@
     <ClCompile Include="components\script\NativeCallHook.cpp" />
     <ClCompile Include="components\script\Script.cpp" />
     <ClCompile Include="components\script\ScriptEngine.cpp" />
-    <!-- Inspector (V8 / Chrome DevTools) -->
-    <ClCompile Include="components\inspector\InspectorServer.cpp" />
-    <ClCompile Include="components\inspector\InspectorTarget.cpp" />
-    <ClCompile Include="components\inspector\ScriptInspector.cpp" />
     <!-- Event System -->
     <ClCompile Include="components\events\EventDispatch.cpp" />
     <!-- Console -->
@@ -152,10 +149,12 @@
     <ClCompile Include="components\Host.cpp" />
     <!-- GameLoop -->
     <ClCompile Include="components\gameloop\GameLoop.cpp" />
+    <ClCompile Include="components\engine\Engine.cpp" />
+    <ClCompile Include="components\inspector\InspectorServer.cpp" />
+    <ClCompile Include="components\inspector\InspectorTarget.cpp" />
+    <ClCompile Include="components\inspector\ScriptInspector.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <!-- V8 Host -->
-    <ClInclude Include="components\engine\Engine.h" />
     <!-- Event System -->
     <ClInclude Include="components\events\BaseEvent.h" />
     <ClInclude Include="components\events\BlockableEvent.h" />
@@ -176,11 +175,6 @@
     <ClInclude Include="components\console\StacktracesPanel.h" />
     <ClInclude Include="components\console\ThreadsPanel.h" />
     <!-- API Core -->
-    <ClInclude Include="api\core\Class.h" />
-    <ClInclude Include="api\core\Convert.h" />
-    <ClInclude Include="api\core\Extract.h" />
-    <ClInclude Include="api\core\Error.h" />
-    <ClInclude Include="api\core\Function.h" />
     <ClInclude Include="api\core\InstanceTracker.h" />
     <!-- API Globals -->
     <ClInclude Include="api\globals\Constants.h" />
@@ -235,14 +229,21 @@
     <ClInclude Include="components\script\ScriptEngine.h" />
     <ClInclude Include="components\script\ScriptLogger.h" />
     <ClInclude Include="components\script\ScriptTypes.h" />
-    <!-- Inspector (V8 / Chrome DevTools) -->
-    <ClInclude Include="components\inspector\InspectorServer.h" />
-    <ClInclude Include="components\inspector\InspectorTarget.h" />
-    <ClInclude Include="components\inspector\ScriptInspector.h" />
     <!-- Host lifecycle -->
     <ClInclude Include="components\Host.h" />
     <!-- GameLoop -->
     <ClInclude Include="components\gameloop\GameLoop.h" />
+    <ClInclude Include="api\classes\game\Receiver.h" />
+    <ClInclude Include="api\classes\io\Text.h" />
+    <ClInclude Include="api\core\Class.h" />
+    <ClInclude Include="api\core\Convert.h" />
+    <ClInclude Include="api\core\Error.h" />
+    <ClInclude Include="api\core\Extract.h" />
+    <ClInclude Include="api\core\Function.h" />
+    <ClInclude Include="components\inspector\InspectorServer.h" />
+    <ClInclude Include="components\inspector\InspectorTarget.h" />
+    <ClInclude Include="components\inspector\ScriptInspector.h" />
+    <ClInclude Include="components\engine\Engine.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\contract\contract.vcxproj">

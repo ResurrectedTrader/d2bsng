@@ -3,7 +3,7 @@
 // D2MOO version selection - must precede any D2MOO header inclusion.
 // D2MOO's D2BuildInformation.h falls back to 1.10f when nothing is predefined,
 // so every TU that pulls in a D2MOO header MUST go through this config first
-// (or rely on the matching project-wide PreprocessorDefinitions in d2bs.vcxproj).
+// (or rely on the matching project-wide PreprocessorDefinitions in lod114d.vcxproj).
 
 // Diablo II 1.14d: monolithic Game.exe, expansion (LoD), the only target
 // this codebase supports today.

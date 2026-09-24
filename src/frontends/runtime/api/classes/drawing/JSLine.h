@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+
 #include "JSDrawableBase.h"
 
 namespace d2bs::api::classes {
@@ -26,13 +28,13 @@ class JSLine : public JSDrawableBase<JSLine, LineDrawable> {
     /// fires)
     /// @returns {Line} - The new Line drawable.
     /// @throws {Error} - when called outside a running script (no owning script context).
-    static void New(const v8::FunctionCallbackInfo<v8::Value>& args) {
-        V8_CLASS_CTOR_PROLOGUE;
+    static std::shared_ptr<LineDrawable> New(const ub::CallbackInfo& args) {
+        const auto& context = args.GetContext();
 
-        auto* script = ScriptEngine::Instance().GetScript(isolate);
+        auto* script = ScriptEngine::Instance().GetScript(&args.GetIsolate());
         if (!script) {
-            error::ThrowError(isolate, "Line: no owning script");
-            return;
+            error::ThrowError(args.GetIsolate(), "Line: no owning script");
+            return nullptr;
         }
 
         auto drawable = std::make_shared<LineDrawable>();
@@ -40,92 +42,80 @@ class JSLine : public JSDrawableBase<JSLine, LineDrawable> {
         extract::PointInto(args, 0, drawable->pos);
         extract::PointInto(args, 2, drawable->p2);
 
-        if (args.Length() > 4 && args[4]->IsNumber()) {
-            drawable->color.store(convert::ToUint32(isolate, args[4]));
+        if (args[4].IsNumber()) {
+            drawable->color.store(convert::ToUint32(context, args[4]));
         }
-        if (args.Length() > 5 && args[5]->IsBoolean()) {
-            drawable->isAutomap.store(args[5]->BooleanValue(isolate));
+        if (args[5].IsBoolean()) {
+            drawable->isAutomap.store(args[5].IsTrue());
         }
-        if (args.Length() > 6 && args[6]->IsFunction()) {
-            script->SetDrawableHandler(*drawable, DrawableHandler::Click, args[6].As<v8::Function>());
-        }
-        if (args.Length() > 7 && args[7]->IsFunction()) {
-            script->SetDrawableHandler(*drawable, DrawableHandler::Hover, args[7].As<v8::Function>());
-        }
+        SetConstructorHandlers(args, *script, *drawable, 6);
 
-        auto* rawDrawable = drawable.get();
-        SetupInstanceTracking(rawDrawable);
-        script->AddDrawable(std::move(drawable));
-
-        Wrap(args.This(), rawDrawable);
-        args.GetReturnValue().Set(args.This());
+        script->AddDrawable(drawable);
+        return drawable;
     }
 
-    static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
-        auto inst = tpl->InstanceTemplate();
-        auto proto = tpl->PrototypeTemplate();
-
-        ConfigureCommonProperties(isolate, inst, proto);
+    static void Configure(const ub::Class<LineDrawable>& cls) {
+        ConfigureCommonProperties(cls);
 
         /// @description X coordinate of the line's second endpoint
         /// @type {number}
         Property(
-            isolate, inst, "x2",
-            +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Unwrap(info.Holder());
-                if (!drawable)
+            cls, "x2",
+            +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Unwrap(info.This());
+                if (!drawable) {
                     return;
+                }
                 info.GetReturnValue().Set(drawable->p2.load().x);
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Unwrap(info.Holder());
-                if (!drawable)
+            +[](const ub::Local<ub::Name>&, const ub::Local<ub::Value>& value, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Unwrap(info.This());
+                if (!drawable || !value.IsNumber()) {
                     return;
-                if (!value->IsNumber())
-                    return;
+                }
                 auto cur = drawable->p2.load();
-                cur.x = convert::ToInt32(info.GetIsolate(), value);
+                cur.x = convert::ToInt32(info.GetContext(), value);
                 drawable->p2.store(cur);
             });
 
         /// @description Y coordinate of the line's second endpoint
         /// @type {number}
         Property(
-            isolate, inst, "y2",
-            +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Unwrap(info.Holder());
-                if (!drawable)
+            cls, "y2",
+            +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Unwrap(info.This());
+                if (!drawable) {
                     return;
+                }
                 info.GetReturnValue().Set(drawable->p2.load().y);
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Unwrap(info.Holder());
-                if (!drawable)
+            +[](const ub::Local<ub::Name>&, const ub::Local<ub::Value>& value, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Unwrap(info.This());
+                if (!drawable || !value.IsNumber()) {
                     return;
-                if (!value->IsNumber())
-                    return;
+                }
                 auto cur = drawable->p2.load();
-                cur.y = convert::ToInt32(info.GetIsolate(), value);
+                cur.y = convert::ToInt32(info.GetContext(), value);
                 drawable->p2.store(cur);
             });
 
         /// @description Line draw color as a game color palette index
         /// @type {number}
         Property(
-            isolate, inst, "color",
-            +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Unwrap(info.Holder());
-                if (!drawable)
+            cls, "color",
+            +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Unwrap(info.This());
+                if (!drawable) {
                     return;
+                }
                 info.GetReturnValue().Set(drawable->color.load());
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Unwrap(info.Holder());
-                if (!drawable)
+            +[](const ub::Local<ub::Name>&, const ub::Local<ub::Value>& value, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Unwrap(info.This());
+                if (!drawable || !value.IsNumber()) {
                     return;
-                if (!value->IsNumber())
-                    return;
-                drawable->color.store(convert::ToUint32(info.GetIsolate(), value));
+                }
+                drawable->color.store(convert::ToUint32(info.GetContext(), value));
             });
     }
 };

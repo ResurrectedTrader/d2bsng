@@ -1,10 +1,10 @@
 #pragma once
 
-#include <v8.h>
+#include "unibind/unibind.h"
 
 namespace d2bs::api::globals {
 
-// Register all game functions on the global object template
-void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> global);
+// Register all game functions on the context's global object
+void RegisterGameFunctions(const ub::Context& context);
 
 }  // namespace d2bs::api::globals

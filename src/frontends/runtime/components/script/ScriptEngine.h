@@ -6,6 +6,7 @@
 #include <shared_mutex>
 #include <vector>
 #include "Script.h"
+#include "ScriptTypes.h"
 #include "utils/utils.h"
 
 namespace d2bs {
@@ -29,13 +30,12 @@ class ScriptEngine {
     // Returns shared_ptr to prevent dangling pointers across threads
     std::shared_ptr<Script> GetScript(std::thread::id threadId);
     std::shared_ptr<Script> GetScriptByPath(const std::filesystem::path& path);
-    // Script owning `iso`. If `iso` is null, uses v8::Isolate::TryGetCurrent()
-    // so V8 callbacks can just write `GetScript()` with no argument.
-    // Returns nullptr if there's no current isolate or the isolate doesn't
-    // belong to a d2bs script (e.g. raw V8 platform threads). Always safe
-    // to call cross-thread - the returned pointer is only dereferenced on
-    // the isolate's own thread by convention.
-    Script* GetScript(v8::Isolate* iso = nullptr);
+    // Script owning `iso`. If `iso` is null, the script whose thread this is,
+    // so a binding can just write `GetScript()` with no argument. Returns
+    // nullptr when neither names a d2bs script (an engine worker thread, the
+    // game thread). Always safe to call cross-thread - the returned pointer is
+    // only dereferenced on the isolate's own thread by convention.
+    Script* GetScript(ub::Isolate* iso = nullptr);
     std::vector<std::shared_ptr<Script>> GetAllScripts();
 
     // Snapshots to avoid deadlock when a callback calls ScriptEngine methods.
@@ -66,12 +66,14 @@ class ScriptEngine {
     void Evaluate(const std::string& code);
     void RestartConsoleScript();
 
-    // Enable/disable Chrome DevTools debugging and set the listening port in one
-    // call. Persists both into AppConfig::inspectorPort via the sign convention
-    // (positive = enabled on that port, non-positive = disabled with the
-    // magnitude remembered) and reconciles the server: (re)binds when enabled,
-    // stops when disabled. Scripts always have a ScriptInspector attached, so
-    // this only controls whether the server exposes them. Safe from the UI thread.
+    // Enable/disable the script debugger server and set its listening port in
+    // one call. Persists both into AppConfig::inspectorPort via the sign
+    // convention (positive = enabled on that port, non-positive = disabled with
+    // the magnitude remembered) and reconciles the server: (re)binds when
+    // enabled, stops when disabled. Scripts stay attached to the debugger
+    // either way, so this only controls whether the server exposes them. On an
+    // engine with no debugger the bind fails and the setting is stored
+    // disabled. Safe from the UI thread.
     void SetInspector(bool enabled, int32_t port);
 
     // Non-copyable
@@ -79,6 +81,9 @@ class ScriptEngine {
     ScriptEngine& operator=(const ScriptEngine&) = delete;
 
    private:
+    // Script::ThreadMain publishes itself here for the life of its thread.
+    friend class Script;
+
     ScriptEngine() = default;
     ~ScriptEngine() = default;
 
@@ -96,6 +101,10 @@ class ScriptEngine {
     mutable std::shared_mutex scriptsMutex_;
 
     std::atomic<bool> initialized_ = false;
+
+    // The script whose thread this is, for GetScript(nullptr). Set by the
+    // script's own thread, so no other thread ever reads it.
+    inline static thread_local Script* currentScript_ = nullptr;
 
     std::shared_ptr<spdlog::logger> logger_ = utils::GetLogger("script");
 };

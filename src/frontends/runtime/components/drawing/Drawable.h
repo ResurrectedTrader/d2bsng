@@ -31,7 +31,7 @@ struct Drawable : std::enable_shared_from_this<Drawable> {
 
     // Optional cleanup hook invoked from ~Drawable. Populated by the JS wrapper
     // layer (JSDrawableBase::SetupInstanceTracking) to decrement the per-thread
-    // V8 instance count without pulling an api/ dependency into components/.
+    // script instance count without pulling an api/ dependency into components/.
     std::function<void()> onDestroy;
 
     // Whether the owning Script holds a click / hover callback for this

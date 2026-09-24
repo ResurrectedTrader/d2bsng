@@ -1,77 +1,79 @@
 #include "JSScript.h"
 
+#include <chrono>
+#include <memory>
+
+#include "api/core/Convert.h"
+#include "api/core/Error.h"
 #include "components/events/Events.h"
 
 namespace d2bs::api::classes {
 
-// GetScript: unwraps ScriptHandle and resolves to a live Script in one call.
-static std::shared_ptr<Script> GetScriptFromHandle(ScriptHandle* handle) {
-    if (!handle)
+// Resolves the receiver's handle to a live Script in one call.
+static std::shared_ptr<Script> GetScript(const ub::CallbackContextBase& info) {
+    auto* handle = JSScript::Unwrap(info.This());
+    if (!handle) {
         return nullptr;
+    }
     return ScriptEngine::Instance().GetScript(handle->threadId);
 }
 
-template <typename InfoT>
-static std::shared_ptr<Script> GetScript(const InfoT& info) {
-    if constexpr (std::is_same_v<InfoT, v8::FunctionCallbackInfo<v8::Value>>) {
-        return GetScriptFromHandle(JSScript::Unwrap(info.This()));
-    } else {
-        return GetScriptFromHandle(JSScript::Unwrap(info.Holder()));
-    }
-}
-
-void JSScript::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
-    auto inst = tpl->InstanceTemplate();
-    auto proto = tpl->PrototypeTemplate();
-
+void JSScript::Configure(const ub::Class<ScriptHandle>& cls) {
     /// @description The script's short file name.
     /// @type {string}
     Property(
-        isolate, inst, "name", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
+        cls, "name", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
             auto script = GetScript(info);
-            if (!script)
+            if (!script) {
                 return;
+            }
             info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), script->GetName()));
         });
 
     /// @description true for an out-of-game script (menu/console), false for an in-game script.
     /// @type {boolean}
     Property(
-        isolate, inst, "type", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
+        cls, "type", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
             auto script = GetScript(info);
-            if (!script)
+            if (!script) {
                 return;
+            }
             // true = out-of-game (OutOfGame or Console), false = in-game (InGame)
-            bool isOutOfGame = script->GetMode() != ScriptMode::InGame;
+            const bool isOutOfGame = script->GetMode() != ScriptMode::InGame;
             info.GetReturnValue().Set(isOutOfGame);
         });
 
     /// @description true while the script is in the Running state.
     /// @type {boolean}
     Property(
-        isolate, inst, "running", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
+        cls, "running", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
             auto script = GetScript(info);
-            if (!script)
+            if (!script) {
                 return;
+            }
             info.GetReturnValue().Set(script->GetState() == ScriptState::Running);
         });
 
     /// @description The script's native Win32 thread ID.
     /// @type {number}
     Property(
-        isolate, inst, "threadid", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
+        cls, "threadid", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
             auto script = GetScript(info);
-            if (!script)
+            if (!script) {
                 return;
+            }
             info.GetReturnValue().Set(script->GetNativeThreadId());
         });
 
-    /// @description Used JS heap size in bytes for this script's V8 runtime (0 when stats unavailable).
+    /// @description Used JS heap size in bytes for this script's engine (0 when stats unavailable).
     /// @type {number}
     Property(
-        isolate, inst, "memory", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* handle = Unwrap(info.Holder());
-            auto script = GetScriptFromHandle(handle);
+        cls, "memory", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+            auto* handle = Unwrap(info.This());
+            if (!handle) {
+                return;
+            }
+            auto script = ScriptEngine::Instance().GetScript(handle->threadId);
             if (!script) {
                 return;
             }
@@ -85,27 +87,25 @@ void JSScript::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 info.GetReturnValue().Set(0);
                 return;
             }
-            info.GetReturnValue().Set(stats->used_heap_size());
+            info.GetReturnValue().Set(stats->usedBytes);
         });
 
     /// @description Advances this Script handle in place to the next script in the engine's list.
     /// @signature getNext()
     /// @returns {boolean|undefined} - true if advanced; undefined when no further script exists.
     Method(
-        isolate, proto, "getNext", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+        cls, "getNext", +[](const ub::CallbackInfo& args) {
             auto* handle = Unwrap(args.This());
             if (!handle) {
                 return;
             }
 
-            auto& engine = ScriptEngine::Instance();
-            auto scripts = engine.GetAllScripts();
+            auto scripts = ScriptEngine::Instance().GetAllScripts();
 
             // Find current script in list, then move to next
             bool foundCurrent = false;
             for (auto& script : scripts) {
                 if (foundCurrent) {
-                    // Found next script - update handle to point to it
                     handle->threadId = script->GetThreadId();
                     args.GetReturnValue().Set(true);
                     return;
@@ -122,7 +122,7 @@ void JSScript::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
     /// @signature pause()
     /// @returns {null} - Always null.
     Method(
-        isolate, proto, "pause", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+        cls, "pause", +[](const ub::CallbackInfo& args) {
             args.GetReturnValue().SetNull();
             auto script = GetScript(args);
             if (script && script->GetState() == ScriptState::Running) {
@@ -134,7 +134,7 @@ void JSScript::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
     /// @signature resume()
     /// @returns {null} - Always null.
     Method(
-        isolate, proto, "resume", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+        cls, "resume", +[](const ub::CallbackInfo& args) {
             args.GetReturnValue().SetNull();
             auto script = GetScript(args);
             if (script && script->GetState() == ScriptState::Paused) {
@@ -147,11 +147,10 @@ void JSScript::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
     /// @returns {null} - Always null.
     /// @throws {Error} - When a script tries to join itself (would deadlock).
     Method(
-        isolate, proto, "join", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+        cls, "join", +[](const ub::CallbackInfo& args) {
             args.GetReturnValue().SetNull();
             auto script = GetScript(args);
             if (script) {
-                // Prevent self-join deadlock
                 if (script->GetThreadId() == std::this_thread::get_id()) {
                     error::ThrowError(args.GetIsolate(), "Cannot join a script from its own thread");
                     return;
@@ -164,12 +163,13 @@ void JSScript::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
     /// @signature stop()
     /// @returns {null} - Always null.
     Method(
-        isolate, proto, "stop", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+        cls, "stop", +[](const ub::CallbackInfo& args) {
             args.GetReturnValue().SetNull();
             auto script = GetScript(args);
-            if (!script)
+            if (!script) {
                 return;
-            auto state = script->GetState();
+            }
+            const auto state = script->GetState();
             if (state == ScriptState::Running || state == ScriptState::Paused) {
                 script->Stop();
             }
@@ -182,33 +182,21 @@ void JSScript::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
     /// @param rest {any} - Additional values to send.
     /// @returns {null} - Always null.
     Method(
-        isolate, proto, "send", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+        cls, "send", +[](const ub::CallbackInfo& args) {
             args.GetReturnValue().SetNull();
 
-            if (args.Length() < 1)
+            if (args.Length() < 1) {
                 return;
+            }
 
             auto script = GetScript(args);
             if (!script || script->GetState() != ScriptState::Running) {
                 return;
             }
 
-            // Serialize arguments using V8 ValueSerializer and dispatch as BroadcastEvent
             auto evt = std::make_shared<BroadcastEvent>(args);
             script->ExecuteEvent(evt);
         });
-}
-
-v8::Local<v8::Object> JSScript::Create(v8::Isolate* isolate, Script* script) {
-    if (!script) {
-        return {};
-    }
-
-    auto context = isolate->GetCurrentContext();
-
-    // Create handle with thread ID for safe lookup
-    auto handle = std::make_unique<ScriptHandle>(script->GetThreadId());
-    return CreateInstance(isolate, context, std::move(handle));
 }
 
 }  // namespace d2bs::api::classes

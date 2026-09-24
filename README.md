@@ -4,16 +4,17 @@
 
 **d2bsng** (D2 Botting System: Next Generation) is a modern, from-scratch rewrite of the
 long-running d2bs scripting and automation framework for Diablo II: Lord of Destruction.
-Where the legacy project embedded Mozilla's SpiderMonkey JavaScript engine, d2bsng is built
-on Google's V8 - the same engine that powers Chrome and Node.js - and ships as a 32-bit
-Windows DLL injected into the game client (patch 1.14d).
+It ships as a 32-bit Windows DLL injected into the game client (patch 1.14d), in two builds
+that differ only in the JavaScript engine inside: Google's V8 - the engine behind Chrome and
+Node.js, and the default - or a current Mozilla SpiderMonkey. See
+[Choosing an engine](#choosing-an-engine).
 
 A central design goal is **JavaScript API compatibility with the legacy d2bs project**, so
 that the large existing body of community scripts written against the older SpiderMonkey-era
 API can run with minimal or no changes. Scripts read live game state and drive the client
 through a typed game-abstraction layer built on [D2MOO](https://github.com/ThePhrozenKeep/D2MOO),
 and the runtime ships with conveniences the original never had - notably full Chrome DevTools
-debugging of each running script.
+debugging of each running script (on the V8 build).
 
 > The JavaScript API and the 1.14d implementation are complete - d2bsng aims to be a drop-in
 > replacement for the original d2bs. A few behaviors carry over deliberately from the original;
@@ -41,9 +42,11 @@ considerably.
 
 d2bsng re-implements the framework from scratch with a few goals:
 
-- **A modern JavaScript engine.** Moving to V8 brings a current language implementation
-  (modern ECMAScript, fast JIT) and a maintained, well-documented embedding API.
-- **First-class debugging.** Because it is V8, each running script's isolate can be attached
+- **A modern JavaScript engine.** A current language implementation (modern ECMAScript, fast
+  JIT) behind a maintained embedding API. The frontend is written against
+  [unibind](https://github.com/ResurrectedTrader/unibind), an engine-neutral embedding
+  layer, so the same code runs on V8 or on a current SpiderMonkey.
+- **First-class debugging.** On the V8 build, each running script's isolate can be attached
   to the Chrome DevTools frontend - breakpoints, stepping, scope inspection, and a REPL
   against a live bot. See [Debugging](#debugging).
 - **Compatibility with the existing script ecosystem.** The JavaScript surface is modeled on
@@ -57,15 +60,15 @@ d2bsng re-implements the framework from scratch with a few goals:
 
 ## What this port adds over the original d2bs
 
-Beyond the move from SpiderMonkey to V8, this port adds capabilities the original never had:
+Beyond a current JavaScript engine, this port adds capabilities the original never had:
 
-- **Chrome DevTools debugging.** Each script's isolate is a Chrome DevTools Protocol target -
-  real breakpoints, stepping, scope inspection, and a console against a running bot. See
-  [Debugging](#debugging).
+- **Chrome DevTools debugging** (V8 build). Each script's isolate is a Chrome DevTools
+  Protocol target - real breakpoints, stepping, scope inspection, and a console against a
+  running bot. See [Debugging](#debugging).
 - **A real dev console.** An ImGui overlay (toggle with Home, or Ctrl+Break as an escape hatch
   when the game is hung and not processing normal input) with separate panels for log output,
   an interactive REPL, per-script control (stop / pause / resume / restart) with
-  live V8 heap and wrapped-object-instance diagnostics, JS stack traces, native per-thread
+  live engine heap and wrapped-object-instance diagnostics, JS stack traces, native per-thread
   stacks (via a symbol-resolving stack walker), and a live settings editor. The original had
   only a single command-line scrollback.
 - **SOCKS5 proxy for the game's own traffic.** Started with
@@ -126,7 +129,7 @@ command-line scrollback with separate, ImGui-rendered panels:
     <td width="50%"><img src="images/console.png" alt="REPL console"><br><sub><b>Console</b> - interactive JS REPL against the running bot</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="images/scripts.png" alt="Scripts panel"><br><sub><b>Scripts</b> - stop / pause / resume / restart, with live V8 heap and wrapped-instance counts</sub></td>
+    <td width="50%"><img src="images/scripts.png" alt="Scripts panel"><br><sub><b>Scripts</b> - stop / pause / resume / restart, with live engine heap and wrapped-instance counts</sub></td>
     <td width="50%"><img src="images/stacktraces.png" alt="Stack traces panel"><br><sub><b>Stack traces</b> - JS stacks plus native per-thread stacks via a symbol-resolving walker</sub></td>
   </tr>
   <tr>
@@ -135,11 +138,27 @@ command-line scrollback with separate, ImGui-rendered panels:
   </tr>
 </table>
 
-(For full breakpoint/step debugging, attach Chrome DevTools - see [Debugging](#debugging).)
+(For full breakpoint/step debugging on the V8 build, attach Chrome DevTools - see
+[Debugging](#debugging).)
+
+## Choosing an engine
+
+Both builds are the same framework, the same JavaScript API and the same DLL name,
+`d2bs.dll`; only the engine inside differs. Pick one and inject it as usual.
+
+| | V8 (default) | SpiderMonkey |
+| --- | --- | --- |
+| Release asset | `d2bs.dll` (+ `d2bs.pdb`) | `d2bs-spidermonkey.zip` (its own `d2bs.dll` + `d2bs.pdb`) |
+| Local build output | `Release\js-v8-lod114d\d2bs.dll` | `Release\js-sm-lod114d\d2bs.dll` |
+| Chrome DevTools debugger | Yes | **No** - SpiderMonkey has no inspector to attach DevTools to; the console hides the debugging settings |
+
+Everything else - the console, the compatibility shims, the code cache, the INI settings -
+works on both. `EngineFlags` is handed verbatim to whichever engine is inside, so flags
+written for one engine mean nothing to the other.
 
 ## Architecture
 
-The codebase builds seven targets plus a test executable. A frontend (JS) and a backend (1.14d) both compile against a shared `contract`; a thin glue project links one of each into the injectable DLL:
+The codebase builds seven static libraries, two DLLs and a test executable. A frontend (JS) and a backend (1.14d) both compile against a shared `contract`; a thin glue project links one of each, plus a JavaScript engine, into the injectable DLL:
 
 | Target | Source | Output | Role |
 | --- | --- | --- | --- |
@@ -148,9 +167,10 @@ The codebase builds seven targets plus a test executable. A frontend (JS) and a 
 | `core` | `src/core/` | `core.lib` | Shared infrastructure: config, speedhack, proxy. Depends on `contract`. |
 | `navigation` | `src/navigation/` | `navigation.lib` | Game-agnostic map algorithms over the contract: the A* pathfinder and the level-exit finder. Depends on `contract` + `utils` only - no `core`, no engine. |
 | `services` | `src/services/` | `services.lib` | Bot services over the contract: analytics, character-state IPC, DDE, profile switching, update checks. Depends on `contract` + `core` + `utils` - no engine. |
-| `runtime` | `src/frontends/runtime/` | `runtime.lib` | JavaScript scripting frontend: engine + V8 JavaScript API. Depends on `contract` + `core` + `navigation` + `services`. |
+| `runtime` | `src/frontends/runtime/` | `runtime.lib` | JavaScript scripting frontend: script lifecycle, events, dev console and the JavaScript API, written against [unibind](https://github.com/ResurrectedTrader/unibind) and naming no engine. Depends on `contract` + `core` + `navigation` + `services`. |
 | `lod114d` | `src/backends/lod114d/` | `lod114d.lib` | The 1.14d game *backend* (directory named for the patch it targets) - game-memory reads, function calls, hooks, offsets. Implements `contract`; depends on `contract` + `core`. No frontend dependency. |
-| `d2bs` | `src/glue/js-v8-lod114d/` | `d2bs.dll` | Glue: `DllMain` + wiring. Links runtime + lod114d + navigation + services + contract + core + utils. This is the injectable DLL. |
+| `d2bs-v8` | `src/glue/js-v8-lod114d/` | `js-v8-lod114d\d2bs.dll` | Glue: `DllMain` + wiring. Links runtime + lod114d + navigation + services + contract + core + utils with unibind's V8 backend and V8. The default injectable DLL. |
+| `d2bs-sm` | `src/glue/js-sm-lod114d/` | `js-sm-lod114d\d2bs.dll` | The same glue sources, linked with unibind's SpiderMonkey backend and SpiderMonkey instead. |
 | `js_tests` | `tests/frontends/runtime/` | `js_tests.exe` | A [doctest](https://github.com/doctest/doctest) suite (pathfinding) compiled against a fake game layer |
 
 The key structural decision is the split between a **version-agnostic game interface**
@@ -160,11 +180,16 @@ provides the actual game-memory reads, function calls, hooks, and offsets. The f
 JavaScript API never touch game memory directly or depend on any particular game build;
 supporting another game version means adding a new backend lib (sibling of `src/backends/lod114d/`)
 over the same `contract` + `core`, and a new frontend (e.g. a non-JS host) is a sibling of
-`src/frontends/runtime/`. Frontend and backend never reference each other - only the `d2bs` glue does.
+`src/frontends/runtime/`. Frontend and backend never reference each other - only the glue does.
 
-The project is **32-bit (Win32) only** (required for 1.14d), compiled with C++23 using the
-LLVM/Clang (ClangCL) toolchain with link-time optimization, so the thin wrapper types inline
-away across translation units.
+The engine is chosen the same way: the frontend compiles once against unibind's headers, and
+each glue project picks an engine by the unibind backend library and engine library it
+links.
+
+The DLLs are **32-bit (Win32)** (required for 1.14d); the engine-free libraries (`utils`,
+`contract`, `core`, `navigation`, `services`, `runtime`) also build for x64. Everything is
+compiled with C++23 using the LLVM/Clang (ClangCL) toolchain with link-time optimization, so
+the thin wrapper types inline away across translation units.
 
 Design notes for contributors live in [`docs/`](docs/):
 
@@ -183,9 +208,10 @@ Design notes for contributors live in [`docs/`](docs/):
 - Windows
 - Visual Studio 2022 with the **C++ Clang tools for Windows (ClangCL)** workload
 - Windows SDK **10.0.26100.0**
-- The 32-bit (Win32) toolchain - the project is x86-only for 1.14d compatibility
+- The 32-bit (Win32) toolchain - the DLLs are x86-only for 1.14d compatibility
 - [vcpkg](https://github.com/microsoft/vcpkg) - dependencies are restored from `vcpkg.json`
-- V8 headers + monolith - the build downloads them for you (see [V8](#v8))
+- unibind, V8 and SpiderMonkey - the build downloads them for you (see
+  [Engines and unibind](#engines-and-unibind))
 
 ## Getting the source
 
@@ -200,68 +226,70 @@ git clone --recurse-submodules <repo-url> d2bsng
 git submodule update --init --recursive
 ```
 
-## V8
+## Engines and unibind
 
-**Nothing of V8 is in this repository** - not the monolith, which is over a gigabyte per
-configuration, and not the headers. The build downloads them. The first build that needs V8
-pulls one archive from
-[v8-static-win](https://github.com/ResurrectedTrader/v8-static-win/releases), which builds the
-monolith for 32-bit Windows against the static CRT, and unpacks it into a directory named for
-the version and the archive it came from:
+**No engine and no unibind is in this repository** - not V8's monolith, which is over a
+gigabyte per configuration, not SpiderMonkey, and not unibind's headers. The build downloads
+them. Three archives are involved, each from a GitHub release:
+
+| Archive | From | Needed by |
+| --- | --- | --- |
+| unibind (headers + `unibind_backend_v8.lib` / `unibind_backend_spidermonkey.lib`) | [unibind](https://github.com/ResurrectedTrader/unibind/releases) | the `runtime` frontend and both glue DLLs |
+| V8 (headers + `v8_monolith.lib`) | [v8-static-win](https://github.com/ResurrectedTrader/v8-static-win/releases) | the V8 glue |
+| SpiderMonkey (headers + `spidermonkey.lib`) | [spidermonkey-static-win](https://github.com/ResurrectedTrader/spidermonkey-static-win/releases) | the SpiderMonkey glue |
+
+The frontend compiles against unibind's headers only; the engines are link inputs of the glue
+projects. The engines are built for 32-bit Windows against the static CRT. Each archive is
+unpacked into a directory named for its version and the archive it came from:
 
 ```
-dependencies/v8/15.6.8/x86-release/include/...
-dependencies/v8/15.6.8/x86-release/v8_monolith.lib
-dependencies/v8/15.6.8/x86-debug/...
+dependencies/unibind/0.3.0/x86-release/{include,lib}/...
+dependencies/v8/15.6.8/x86-release/{include/...,v8_monolith.lib}
+dependencies/spidermonkey/153.3.0esr/x86-release/{include/...,spidermonkey.lib}
+dependencies/<name>/<version>/x86-debug/...
 ```
 
-That download is a few hundred megabytes and happens once per version and configuration.
-Later builds see the directory and skip it, and only the configuration being built is
-fetched - a Release build never pulls the debug archive.
+The first build that needs an archive fetches it (`scripts/fetch_archive.ps1`); later builds
+see the directory and skip it. Only the configuration being built is fetched - a Release build
+never pulls a debug archive - and a project fetches only what it asks for (`UnibindRequired`,
+`V8Required`, `SpiderMonkeyRequired`), so the test executable fetches nothing. An x64 build of
+the libraries fetches only unibind's `x64-<flavor>` archive: the engines are x86 only.
 
-Which V8 that is lives in `Directory.Build.props`, as `V8Version` / `V8Repo` / `V8ReleaseTag` /
-`V8Toolset`. That is the only place it is written down: the compiler's include path, the
-linker's library path and the CI cache key are all derived from it. Because the version is in
-the path, **changing `V8Version` changes where everything points**, so the new archive is
-fetched and the headers and the library are always from one build of V8. Header/library skew
-is not something a check catches - there is no path that expresses it.
+Which versions those are lives in `Directory.Build.props`, as `UnibindVersion`, `V8Version`
+and `SpiderMonkeyVersion` (with their `*Repo` / `*ReleaseTag` / `*Asset` properties) and the
+shared `EngineToolset` / `EngineFlavor`. That is the only place they are written down: the
+compiler's include path, the linker's library paths and the CI cache keys are all derived from
+them. Because the version is in the path, **changing a version changes where everything
+points**, so the new archive is fetched and headers and library always come from one build.
+Header/library skew is not something a check catches - there is no path that expresses it.
 
-The flavour is in the path too because `v8-gn.h` differs between the release and debug
-archives (every other header is identical), and that header is what makes the compiler lay
-objects out the way the library does - an ABI requirement, not a convenience.
+The flavour is in the path too because a debug engine lays some objects out differently from
+a release one, and unibind's debug archive links the debug engines: headers, libraries and CRT
+all have to agree. `EngineFlavor` follows the configuration.
 
-`V8Toolset` is the MSVC toolset the published archive was built with, which is part of its
-name. It is a **floor, not a match**: build with that toolset or newer. An older one fails
-with undefined `__std_*` symbols, because MSVC's STL headers call helpers that ship in its own
-`libcpmt.lib`.
+`EngineToolset` is the MSVC toolset the published archives were built with, which is part of
+their names. It is a **floor, not a match**: build with that toolset or newer. An older one
+fails with undefined `__std_*` symbols, because MSVC's STL headers call helpers that ship in
+its own `libcpmt.lib`.
 
-**A fresh clone has no V8 headers until the first build**, so an editor cannot resolve
-`#include <v8.h>` before then (the same is true of the vcpkg headers). To populate the
-dependencies without compiling anything:
+**A fresh clone has no unibind headers until the first build**, so an editor cannot resolve
+`#include "unibind/unibind.h"` before then (the same is true of the vcpkg headers). To
+populate the dependencies without compiling anything:
 
 ```
 .\build.ps1 deps
 ```
 
-Bumping `V8Version` leaves the old directory alone. They are over a gigabyte each, so delete
-`dependencies/v8/<old version>` by hand once nothing builds against it.
+Bumping a version leaves the old directory alone. An unpacked engine is several hundred
+megabytes to over a gigabyte, so delete `dependencies/<name>/<old version>` by hand once nothing builds against it.
 
-To supply the archive yourself instead - working offline, or testing a particular build -
-download it by hand and unpack it into `dependencies/v8/<version>/x86-<config>/`. That
+To supply an archive yourself instead - working offline, or testing a particular build -
+download it by hand and unpack it into `dependencies/<name>/<version>/<arch>-<config>/`. That
 directory existing is what the build takes as "installed", so unpack it somewhere else and
 move it into place when it is complete; a directory that appears half-written will be trusted
 and fail later as a much stranger error. That is why the fetch extracts to a staging directory
-beside it and renames the finished tree in one move.
-
-Compile with `/DV8_GN_HEADER` so the public headers pick up the archive's `include/v8-gn.h` and
-lay objects out the way the library does - this is an ABI requirement, not a convenience - and
-link `ntdll.lib`, `userenv.lib` and `bcrypt.lib` alongside it. The projects here already do
-both. Each archive's `README.txt` lists the full system-library set.
-
-To build V8 yourself instead, see the upstream [V8 build documentation](https://v8.dev/docs/build);
-it must be a monolith for `target_cpu = "x86"` with the static CRT (`/MT` for Release, `/MTd`
-for Debug), including the `v8_inspector` engine (part of a standard monolith) that the DevTools
-integration needs.
+beside it and renames the finished tree in one move. Overriding an `*Asset` property points
+the build at an archive whose name does not follow from the version.
 
 ## Building
 
@@ -276,13 +304,15 @@ directory. From a PowerShell prompt in the repo root:
 .\build.ps1 check-format  # verify formatting without modifying
 .\build.ps1 lint          # clang-tidy analysis (scripts/lint.ps1)
 .\build.ps1 fix           # clang-tidy --fix
-.\build.ps1 deps          # download V8 (headers + monolith) without building
+.\build.ps1 deps          # download unibind, V8 and SpiderMonkey without building
 ```
 
 From cmd or another shell, invoke it as
 `powershell -NoProfile -ExecutionPolicy Bypass -File build.ps1 <target>`. The build itself is
 MSBuild over `d2bsng.slnx`, so you can also build directly with MSBuild or in Visual Studio.
-Build output is written to `Release/` (or `Debug/`); the injectable DLL is `d2bs.dll`.
+Build output is written to `Release/` (or `Debug/`). The injectable DLL is `d2bs.dll`, once per
+engine: `Release\js-v8-lod114d\d2bs.dll` (V8) and `Release\js-sm-lod114d\d2bs.dll`
+(SpiderMonkey). `-Platform x64` builds only the engine-free libraries, into `x64\Release\`.
 
 ## Tests
 
@@ -294,7 +324,7 @@ Release\js_tests.exe -s               # verbose (assertions + benchmarks)
 ```
 
 The suite compiles the real pathfinder against fake game-layer implementations - no DLL, no
-V8, and no running game required. It currently covers the pathfinding engine.
+engine, and no running game required. It currently covers the pathfinding engine.
 
 Real-game collision benchmarks run against the `.d2col` fixtures under
 `tests/frontends/runtime/fixtures/maps/` (collision dumps included in the repo). The benchmarks
@@ -302,16 +332,17 @@ auto-discover whatever is present and skip gracefully if the folder is empty.
 
 ## Compatibility with legacy d2bs scripts
 
-Running existing d2bs scripts on a different JavaScript engine is the project's defining
-constraint, and it is handled in two layers, both applied at the point user source enters V8:
+Running existing d2bs scripts on a current JavaScript engine is the project's defining
+constraint, and it is handled in two layers, both applied at the point user source enters the
+engine, on either build:
 
 1. **Source rewrites.** Before compilation, each script is lightly preprocessed: a UTF-8 BOM
    is stripped; a legacy strict-mode opt-in is translated into a real `"use strict"`
-   directive (with the script origin offset so error line numbers still line up); and a
-   declaration idiom that the older engine bound to the global object - but V8 does not - is
-   rewritten so cross-script lookups keep resolving.
+   directive (placed on the script's first line so error line numbers still line up); and a
+   declaration idiom that the older engine bound to the global object - but current engines
+   do not - is rewritten so cross-script lookups keep resolving.
 
-2. **A per-context compatibility prelude.** Each V8 context is seeded with shims for
+2. **A per-context compatibility prelude.** Each script context is seeded with shims for
    SpiderMonkey-era behaviors that scripts relied on: aliases for non-standard string/array
    methods that later became standard under different names, a higher default stack-trace
    limit, a stack-trace formatter and `Error` properties (`fileName` / `lineNumber` /
@@ -321,8 +352,9 @@ constraint, and it is handled in two layers, both applied at the point user sour
    built-in delay primitive so a tight script loop can still be interrupted by `stop()`.
 
 These shims are deliberately scoped to bridge documented engine differences, not to reproduce
-bugs. They are currently always-on; the plan is to expose an API to turn these compatibility
-layers off, to be used as and if the legacy scripting frameworks stop relying on them.
+bugs. Each shim is a named compatibility flag, on by default, that scripts can switch off
+through the global `Compatibility` object once they stop relying on it - see
+[`docs/compatibility.md`](docs/compatibility.md).
 
 The aim is broad compatibility with the existing d2bs script ecosystem, not a bit-for-bit
 clone. Where the legacy engine's observable behavior was relied upon, d2bsng preserves it;
@@ -331,9 +363,13 @@ equivalent.
 
 ## Debugging
 
-Each running script's V8 isolate registers as a Chrome DevTools target, so you can point
-`chrome://inspect` at a live bot and set breakpoints, step, inspect scopes, and evaluate
-expressions. Pausing at a breakpoint blocks only that script - the game keeps running.
+On the V8 build, each running script's isolate registers as a Chrome DevTools target, so you
+can point `chrome://inspect` at a live bot and set breakpoints, step, inspect scopes, and
+evaluate expressions. Pausing at a breakpoint blocks only that script - the game keeps running.
+
+**The SpiderMonkey build has no DevTools debugger.** SpiderMonkey has no inspector to attach
+DevTools to, so no targets are registered, nothing listens on the port, and the console does
+not show the debugging settings. Use the V8 build to debug a script.
 
 It is off by default (it opens a local debug port). Enable it by setting `InspectorPort` under
 `[settings]` in the d2bs INI - a positive port enables it, and `9229` is the port
@@ -364,8 +400,9 @@ worth knowing up front:
   non-ASCII glyphs (em/en dashes, curly quotes, emoji) render as missing-glyph boxes. This does
   not constrain comments, docs, or tooling scripts that ImGui never renders.
 - Keep the game-abstraction boundary clean: the framework and JavaScript API must not depend
-  on a specific game build, and the game implementation must not depend on V8 or the API
-  layer. Read the relevant doc under [`docs/`](docs/) before changing an area.
+  on a specific game build, and the game implementation must not depend on the frontend,
+  unibind or an engine. The frontend names no engine either: it is written against unibind
+  (`ub::`) only. Read the relevant doc under [`docs/`](docs/) before changing an area.
 
 Install the pre-commit format hook:
 
@@ -379,13 +416,19 @@ Run `.\build.ps1 check-format` and `.\build.ps1 lint` before submitting changes.
 
 This project links or vendors the following, each under its own license:
 
-- [V8](https://v8.dev/) - BSD-3-Clause
+- [unibind](https://github.com/ResurrectedTrader/unibind) - MIT
+- [V8](https://v8.dev/) - BSD-3-Clause (V8 build)
+- [SpiderMonkey](https://spidermonkey.dev/) - MPL-2.0 (SpiderMonkey build)
 - [D2MOO](https://github.com/ThePhrozenKeep/D2MOO) - MIT
 - spdlog, fmt, Dear ImGui, Microsoft Detours, magic_enum, nlohmann/json, doctest - MIT
 - [IXWebSocket](https://github.com/machinezone/IXWebSocket) - BSD-3-Clause
 - StackWalker - BSD
 - zlib - Zlib license
 - SQLite - public domain
+
+Their licence texts - and the source location of the SpiderMonkey release linked, which
+MPL-2.0 asks for - are in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt), which every
+release ships beside `d2bs.dll` and inside `d2bs-spidermonkey.zip`.
 
 ## License
 

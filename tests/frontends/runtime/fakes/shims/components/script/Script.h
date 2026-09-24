@@ -3,7 +3,7 @@
 // Test shim for src/frontends/runtime/components/script/Script.h
 //
 // Test-only shim for components/script/Script.h. The real header depends on
-// <v8.h> for isolate/event machinery; GameLoop.cpp only needs Script::GetMode()
+// the script engine for isolate/event machinery; GameLoop.cpp only needs Script::GetMode()
 // and Script::Stop() via the ForEachScript callback in DriveScriptLifecycle.
 
 #include <filesystem>

@@ -12,7 +12,10 @@
   <Project Path="src/backends/lod114d/lod114d.vcxproj">
     <Build Solution="*|x64" Project="false" />
   </Project>
-  <Project Path="src/glue/js-v8-lod114d/d2bs.vcxproj">
+  <Project Path="src/glue/js-v8-lod114d/d2bs-v8.vcxproj">
+    <Build Solution="*|x64" Project="false" />
+  </Project>
+  <Project Path="src/glue/js-sm-lod114d/d2bs-sm.vcxproj">
     <Build Solution="*|x64" Project="false" />
   </Project>
   <Project Path="tests/frontends/runtime/js_tests.vcxproj">

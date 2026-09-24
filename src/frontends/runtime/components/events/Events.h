@@ -1,7 +1,5 @@
 #pragma once
 
-#include <v8.h>
-#include <cstdlib>
 #include <memory>
 #include <span>
 #include <string>
@@ -18,6 +16,7 @@
 #include "components/script/ScriptTypes.h"
 #include "game/Console.h"
 #include "game/Types.h"
+#include "unibind/unibind.h"
 
 namespace d2bs {
 
@@ -32,8 +31,8 @@ namespace d2bs {
 /// @param life {number} - the player's current life (HP)
 class LifeEvent : public BaseEvent {
    protected:
-    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
-        return {api::convert::ToJS(isolate, life)};
+    std::vector<ub::Local<ub::Value>> MakeArgs(const ub::Context& context) const override {
+        return {api::convert::ToJS(context.GetIsolate(), life)};
     }
 
    public:
@@ -47,8 +46,8 @@ class LifeEvent : public BaseEvent {
 /// @param mana {number} - the player's current mana
 class ManaEvent : public BaseEvent {
    protected:
-    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
-        return {api::convert::ToJS(isolate, mana)};
+    std::vector<ub::Local<ub::Value>> MakeArgs(const ub::Context& context) const override {
+        return {api::convert::ToJS(context.GetIsolate(), mana)};
     }
 
    public:
@@ -62,8 +61,8 @@ class ManaEvent : public BaseEvent {
 /// @param unitId {number} - the assigned player unit id
 class PlayerAssignEvent : public BaseEvent {
    protected:
-    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
-        return {api::convert::ToJS(isolate, unitId)};
+    std::vector<ub::Local<ub::Value>> MakeArgs(const ub::Context& context) const override {
+        return {api::convert::ToJS(context.GetIsolate(), unitId)};
     }
 
    public:
@@ -81,8 +80,8 @@ class PlayerAssignEvent : public BaseEvent {
 /// @param key {number} - the virtual key code
 class KeyDownEvent : public BaseEvent {
    protected:
-    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
-        return {api::convert::ToJS(isolate, key)};
+    std::vector<ub::Local<ub::Value>> MakeArgs(const ub::Context& context) const override {
+        return {api::convert::ToJS(context.GetIsolate(), key)};
     }
 
    public:
@@ -96,8 +95,8 @@ class KeyDownEvent : public BaseEvent {
 /// @param key {number} - the virtual key code
 class KeyUpEvent : public BaseEvent {
    protected:
-    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
-        return {api::convert::ToJS(isolate, key)};
+    std::vector<ub::Local<ub::Value>> MakeArgs(const ub::Context& context) const override {
+        return {api::convert::ToJS(context.GetIsolate(), key)};
     }
 
    public:
@@ -112,8 +111,8 @@ class KeyUpEvent : public BaseEvent {
 /// @returns {boolean} - return true to block the key from the game
 class KeyDownBlockerEvent : public BlockableEvent {
    protected:
-    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
-        return {api::convert::ToJS(isolate, key)};
+    std::vector<ub::Local<ub::Value>> MakeArgs(const ub::Context& context) const override {
+        return {api::convert::ToJS(context.GetIsolate(), key)};
     }
 
    public:
@@ -128,8 +127,8 @@ class KeyDownBlockerEvent : public BlockableEvent {
 /// @returns {boolean} - return true to block the key from the game
 class KeyUpBlockerEvent : public BlockableEvent {
    protected:
-    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
-        return {api::convert::ToJS(isolate, key)};
+    std::vector<ub::Local<ub::Value>> MakeArgs(const ub::Context& context) const override {
+        return {api::convert::ToJS(context.GetIsolate(), key)};
     }
 
    public:
@@ -147,12 +146,12 @@ class KeyUpBlockerEvent : public BlockableEvent {
 class MouseClickEvent : public BaseEvent {
    protected:
     // JS arg shape unchanged: (button:number, x:number, y:number, up:number 0/1).
-    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+    std::vector<ub::Local<ub::Value>> MakeArgs(const ub::Context& context) const override {
         return {
-            api::convert::ToJS(isolate, static_cast<uint32_t>(button)),
-            api::convert::ToJS(isolate, pos.x),
-            api::convert::ToJS(isolate, pos.y),
-            api::convert::ToJS(isolate, state == game::KeyState::Up ? 1 : 0),
+            api::convert::ToJS(context.GetIsolate(), static_cast<uint32_t>(button)),
+            api::convert::ToJS(context.GetIsolate(), pos.x),
+            api::convert::ToJS(context.GetIsolate(), pos.y),
+            api::convert::ToJS(context.GetIsolate(), state == game::KeyState::Up ? 1 : 0),
         };
     }
 
@@ -172,8 +171,8 @@ class MouseClickEvent : public BaseEvent {
 class MouseMoveEvent : public BaseEvent {
    protected:
     // JS arg shape unchanged: (x:number, y:number).
-    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
-        return {api::convert::ToJS(isolate, pos.x), api::convert::ToJS(isolate, pos.y)};
+    std::vector<ub::Local<ub::Value>> MakeArgs(const ub::Context& context) const override {
+        return {api::convert::ToJS(context.GetIsolate(), pos.x), api::convert::ToJS(context.GetIsolate(), pos.y)};
     }
 
    public:
@@ -192,10 +191,10 @@ class MouseMoveEvent : public BaseEvent {
 /// @param msg {string} - the message text
 class ChatEvent : public BaseEvent {
    protected:
-    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+    std::vector<ub::Local<ub::Value>> MakeArgs(const ub::Context& context) const override {
         return {
-            api::convert::ToJS(isolate, sender),
-            api::convert::ToJS(isolate, message),
+            api::convert::ToJS(context.GetIsolate(), sender),
+            api::convert::ToJS(context.GetIsolate(), message),
         };
     }
 
@@ -213,10 +212,10 @@ class ChatEvent : public BaseEvent {
 /// @returns {boolean} - return true to block the message
 class ChatBlockerEvent : public BlockableEvent {
    protected:
-    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+    std::vector<ub::Local<ub::Value>> MakeArgs(const ub::Context& context) const override {
         return {
-            api::convert::ToJS(isolate, sender),
-            api::convert::ToJS(isolate, message),
+            api::convert::ToJS(context.GetIsolate(), sender),
+            api::convert::ToJS(context.GetIsolate(), message),
         };
     }
 
@@ -234,10 +233,10 @@ class ChatBlockerEvent : public BlockableEvent {
 /// @param msg {string} - the submitted text
 class ChatInputEvent : public BaseEvent {
    protected:
-    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+    std::vector<ub::Local<ub::Value>> MakeArgs(const ub::Context& context) const override {
         return {
-            api::convert::ToJS(isolate, "me"),
-            api::convert::ToJS(isolate, message),
+            api::convert::ToJS(context.GetIsolate(), "me"),
+            api::convert::ToJS(context.GetIsolate(), message),
         };
     }
 
@@ -254,10 +253,10 @@ class ChatInputEvent : public BaseEvent {
 /// @returns {boolean} - return true to block the message
 class ChatInputBlockerEvent : public BlockableEvent {
    protected:
-    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+    std::vector<ub::Local<ub::Value>> MakeArgs(const ub::Context& context) const override {
         return {
-            api::convert::ToJS(isolate, "me"),
-            api::convert::ToJS(isolate, message),
+            api::convert::ToJS(context.GetIsolate(), "me"),
+            api::convert::ToJS(context.GetIsolate(), message),
         };
     }
 
@@ -273,10 +272,10 @@ class ChatInputBlockerEvent : public BlockableEvent {
 /// @param msg {string} - the message text
 class WhisperEvent : public BaseEvent {
    protected:
-    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+    std::vector<ub::Local<ub::Value>> MakeArgs(const ub::Context& context) const override {
         return {
-            api::convert::ToJS(isolate, sender),
-            api::convert::ToJS(isolate, message),
+            api::convert::ToJS(context.GetIsolate(), sender),
+            api::convert::ToJS(context.GetIsolate(), message),
         };
     }
 
@@ -294,10 +293,10 @@ class WhisperEvent : public BaseEvent {
 /// @returns {boolean} - return true to block the message
 class WhisperBlockerEvent : public BlockableEvent {
    protected:
-    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+    std::vector<ub::Local<ub::Value>> MakeArgs(const ub::Context& context) const override {
         return {
-            api::convert::ToJS(isolate, sender),
-            api::convert::ToJS(isolate, message),
+            api::convert::ToJS(context.GetIsolate(), sender),
+            api::convert::ToJS(context.GetIsolate(), message),
         };
     }
 
@@ -319,10 +318,12 @@ class WhisperBlockerEvent : public BlockableEvent {
 /// @returns {boolean} - return true to block the packet
 class GamePacketEvent : public BlockableEvent {
    protected:
-    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
-        auto arrayBuffer = v8::ArrayBuffer::New(isolate, data.size());
-        std::copy_n(data.data(), data.size(), static_cast<uint8_t*>(arrayBuffer->GetBackingStore()->Data()));
-        return {v8::Uint8Array::New(arrayBuffer, 0, data.size())};
+    std::vector<ub::Local<ub::Value>> MakeArgs(const ub::Context& context) const override {
+        auto array = ub::TypedArray::New(context, std::span<const uint8_t>(data));
+        if (!array) {
+            return {};
+        }
+        return {*array};
     }
 
    public:
@@ -337,10 +338,12 @@ class GamePacketEvent : public BlockableEvent {
 /// @returns {boolean} - return true to block the packet
 class GamePacketSentEvent : public BlockableEvent {
    protected:
-    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
-        auto arrayBuffer = v8::ArrayBuffer::New(isolate, data.size());
-        std::copy_n(data.data(), data.size(), static_cast<uint8_t*>(arrayBuffer->GetBackingStore()->Data()));
-        return {v8::Uint8Array::New(arrayBuffer, 0, data.size())};
+    std::vector<ub::Local<ub::Value>> MakeArgs(const ub::Context& context) const override {
+        auto array = ub::TypedArray::New(context, std::span<const uint8_t>(data));
+        if (!array) {
+            return {};
+        }
+        return {*array};
     }
 
    public:
@@ -355,10 +358,12 @@ class GamePacketSentEvent : public BlockableEvent {
 /// @returns {boolean} - return true to block the packet
 class RealmPacketEvent : public BlockableEvent {
    protected:
-    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
-        auto arrayBuffer = v8::ArrayBuffer::New(isolate, data.size());
-        std::copy_n(data.data(), data.size(), static_cast<uint8_t*>(arrayBuffer->GetBackingStore()->Data()));
-        return {v8::Uint8Array::New(arrayBuffer, 0, data.size())};
+    std::vector<ub::Local<ub::Value>> MakeArgs(const ub::Context& context) const override {
+        auto array = ub::TypedArray::New(context, std::span<const uint8_t>(data));
+        if (!array) {
+            return {};
+        }
+        return {*array};
     }
 
    public:
@@ -380,11 +385,11 @@ class RealmPacketEvent : public BlockableEvent {
 /// @param name2 {string} - second name (e.g. the related player)
 class GameActionEvent : public BaseEvent {
    protected:
-    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+    std::vector<ub::Local<ub::Value>> MakeArgs(const ub::Context& context) const override {
         return {
-            api::convert::ToJS(isolate, mode),   api::convert::ToJS(isolate, param1),
-            api::convert::ToJS(isolate, param2), api::convert::ToJS(isolate, name1),
-            api::convert::ToJS(isolate, name2),
+            api::convert::ToJS(context.GetIsolate(), mode),   api::convert::ToJS(context.GetIsolate(), param1),
+            api::convert::ToJS(context.GetIsolate(), param2), api::convert::ToJS(context.GetIsolate(), name1),
+            api::convert::ToJS(context.GetIsolate(), name2),
         };
     }
 
@@ -407,12 +412,12 @@ class GameActionEvent : public BaseEvent {
 /// @param isGlobal {boolean} - true for the global (0x9D) variant
 class ItemActionEvent : public BaseEvent {
    protected:
-    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+    std::vector<ub::Local<ub::Value>> MakeArgs(const ub::Context& context) const override {
         return {
-            api::convert::ToJS(isolate, unitId),
-            api::convert::ToJS(isolate, action),
-            api::convert::ToJS(isolate, code),
-            api::convert::ToJS(isolate, isGlobal),
+            api::convert::ToJS(context.GetIsolate(), unitId),
+            api::convert::ToJS(context.GetIsolate(), action),
+            api::convert::ToJS(context.GetIsolate(), code),
+            api::convert::ToJS(context.GetIsolate(), isGlobal),
         };
     }
 
@@ -432,11 +437,11 @@ class ItemActionEvent : public BaseEvent {
 /// @param payload {string} - the message payload string
 class CopyDataEvent : public BaseEvent {
    protected:
-    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+    std::vector<ub::Local<ub::Value>> MakeArgs(const ub::Context& context) const override {
         return {
             // Scripts see the raw integer mode (matches reference CopyDataEvent surface).
-            api::convert::ToJS(isolate, static_cast<uint32_t>(mode)),
-            api::convert::ToJS(isolate, payload),
+            api::convert::ToJS(context.GetIsolate(), static_cast<uint32_t>(mode)),
+            api::convert::ToJS(context.GetIsolate(), payload),
         };
     }
 
@@ -457,48 +462,33 @@ class CopyDataEvent : public BaseEvent {
 /// @param ...args {any} - the delivered values
 class BroadcastEvent : public BaseEvent {
    protected:
-    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
-        auto cx = isolate->GetCurrentContext();
-        std::vector<v8::Local<v8::Value>> deserializedArgs;
+    std::vector<ub::Local<ub::Value>> MakeArgs(const ub::Context& context) const override {
+        std::vector<ub::Local<ub::Value>> deserializedArgs;
         for (const auto& arg : values_) {
-            auto deserializer = v8::ValueDeserializer(isolate, arg.data(), arg.size());
-            if (deserializer.ReadHeader(cx).FromMaybe(false)) {
-                v8::Local<v8::Value> jsArg;
-                if (deserializer.ReadValue(cx).ToLocal(&jsArg)) {
-                    deserializedArgs.push_back(jsArg);
-                } else {
-                    GetLogger(isolate)->critical("Failed to deserialize broadcast event argument");
-                }
+            if (auto jsArg = ub::Deserialize(context, arg)) {
+                deserializedArgs.push_back(*jsArg);
             } else {
-                GetLogger(isolate)->critical("Failed to read broadcast event header");
+                GetLogger(&context.GetIsolate())->critical("Failed to deserialize broadcast event argument");
             }
         }
         return deserializedArgs;
     }
 
    public:
-    explicit BroadcastEvent(const v8::FunctionCallbackInfo<v8::Value>& args) {
-        auto* isolate = args.GetIsolate();
-        auto cx = isolate->GetCurrentContext();
+    explicit BroadcastEvent(const ub::CallbackInfo& args) {
+        auto& isolate = args.GetIsolate();
+        const auto& cx = args.GetContext();
         values_.reserve(args.Length());
 
-        v8::ValueSerializer undefinedSerializer(isolate);
-        undefinedSerializer.WriteHeader();
-        undefinedSerializer.WriteValue(cx, v8::Undefined(isolate)).Check();
-        auto [udData, udSize] = undefinedSerializer.Release();
-        const std::vector<uint8_t> undefinedBlob(udData, udData + udSize);
-        std::free(udData);  // NOLINT(cppcoreguidelines-no-malloc) - V8's ValueSerializer allocates with realloc()
+        const std::vector<uint8_t> undefinedBlob =
+            ub::Serialize(cx, ub::Undefined(isolate)).value_or(std::vector<uint8_t>{});
 
         // Like the reference, a value that cannot be cloned arrives as undefined and the broadcast
         // still goes out; the sender sees no error.
-        for (int32_t i = 0; i < args.Length(); i++) {
-            v8::TryCatch tryCatch(isolate);
-            v8::ValueSerializer serializer(isolate);
-            serializer.WriteHeader();
-            if (serializer.WriteValue(cx, args[i]).FromMaybe(false)) {
-                auto [data, size] = serializer.Release();
-                values_.emplace_back(data, data + size);
-                std::free(data);  // NOLINT(cppcoreguidelines-no-malloc) - V8's ValueSerializer allocates with realloc()
+        for (uint32_t i = 0; i < args.Length(); i++) {
+            ub::TryCatch tryCatch(isolate);
+            if (auto data = ub::Serialize(cx, args[i])) {
+                values_.push_back(std::move(*data));
                 continue;
             }
             values_.push_back(undefinedBlob);
@@ -527,21 +517,21 @@ class BroadcastEvent : public BaseEvent {
 // when the event runs, so a handler cleared in between simply does not fire.
 
 // The drawable's handler from the script that owns `isolate`; empty if it has none.
-inline v8::Local<v8::Function> DrawableHandlerFor(v8::Isolate* isolate, const runtime::drawing::Drawable& drawable,
+inline ub::Local<ub::Function> DrawableHandlerFor(ub::Isolate& isolate, const runtime::drawing::Drawable& drawable,
                                                   DrawableHandler which) {
-    auto* script = ScriptEngine::Instance().GetScript(isolate);
+    auto* script = ScriptEngine::Instance().GetScript(&isolate);
     if (script == nullptr) {
         return {};
     }
-    return script->GetDrawableHandler(drawable, which).FromMaybe(v8::Local<v8::Function>());
+    return script->GetDrawableHandler(drawable, which).value_or(ub::Local<ub::Function>());
 }
 
 class ScreenHookClickEvent : public BlockableEvent {
    protected:
     // JS arg shape unchanged: (button:number, x:number, y:number).
-    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
-        return {api::convert::ToJS(isolate, static_cast<uint32_t>(button_)), api::convert::ToJS(isolate, pos_.x),
-                api::convert::ToJS(isolate, pos_.y)};
+    std::vector<ub::Local<ub::Value>> MakeArgs(const ub::Context& context) const override {
+        return {api::convert::ToJS(context.GetIsolate(), static_cast<uint32_t>(button_)),
+                api::convert::ToJS(context.GetIsolate(), pos_.x), api::convert::ToJS(context.GetIsolate(), pos_.y)};
     }
 
    public:
@@ -549,9 +539,10 @@ class ScreenHookClickEvent : public BlockableEvent {
                          game::Point pos)
         : drawable_(std::move(drawable)), button_(button), pos_(pos) {}
 
-    void Execute(v8::Isolate* isolate, const std::vector<v8::Local<v8::Function>>& /*fns*/) override {
-        v8::HandleScope scope(isolate);
-        BlockableEvent::Execute(isolate, {DrawableHandlerFor(isolate, *drawable_, DrawableHandler::Click)});
+    void Execute(const ub::Context& context, const std::vector<ub::Local<ub::Function>>& /*fns*/) override {
+        const ub::HandleScope scope(context.GetIsolate());
+        BlockableEvent::Execute(context,
+                                {DrawableHandlerFor(context.GetIsolate(), *drawable_, DrawableHandler::Click)});
     }
 
     static constexpr std::string_view EVENT_NAME = "ScreenHookClick";
@@ -568,18 +559,18 @@ class ScreenHookHoverEvent : public BaseEvent {
     // JS arg shape unchanged: (x:number, y:number, entered:bool).  `entered` is
     // emitted as raw bool - documented JS API contract for the screen hook
     // hover callback, even after the bool->enum sweep of other fields.
-    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
-        return {api::convert::ToJS(isolate, pos_.x), api::convert::ToJS(isolate, pos_.y),
-                api::convert::ToJS(isolate, entered_)};
+    std::vector<ub::Local<ub::Value>> MakeArgs(const ub::Context& context) const override {
+        return {api::convert::ToJS(context.GetIsolate(), pos_.x), api::convert::ToJS(context.GetIsolate(), pos_.y),
+                api::convert::ToJS(context.GetIsolate(), entered_)};
     }
 
    public:
     ScreenHookHoverEvent(std::shared_ptr<const runtime::drawing::Drawable> drawable, game::Point pos, bool entered)
         : drawable_(std::move(drawable)), pos_(pos), entered_(entered) {}
 
-    void Execute(v8::Isolate* isolate, const std::vector<v8::Local<v8::Function>>& /*fns*/) override {
-        v8::HandleScope scope(isolate);
-        BaseEvent::Execute(isolate, {DrawableHandlerFor(isolate, *drawable_, DrawableHandler::Hover)});
+    void Execute(const ub::Context& context, const std::vector<ub::Local<ub::Function>>& /*fns*/) override {
+        const ub::HandleScope scope(context.GetIsolate());
+        BaseEvent::Execute(context, {DrawableHandlerFor(context.GetIsolate(), *drawable_, DrawableHandler::Hover)});
     }
 
     static constexpr std::string_view EVENT_NAME = "ScreenHookHover";
@@ -597,42 +588,37 @@ class ScreenHookHoverEvent : public BaseEvent {
 
 class EvaluateEvent : public BaseEvent {
    protected:
-    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* /*isolate*/) const override { return {}; }
+    std::vector<ub::Local<ub::Value>> MakeArgs(const ub::Context& /*context*/) const override { return {}; }
 
    public:
     explicit EvaluateEvent(std::string code) : code(std::move(code)) {}
     const std::string code;
 
-    void Execute(v8::Isolate* isolate, const std::vector<v8::Local<v8::Function>>& /*fns*/) override {
-        v8::HandleScope scope(isolate);
-        v8::TryCatch tryCatch(isolate);
+    void Execute(const ub::Context& context, const std::vector<ub::Local<ub::Function>>& /*fns*/) override {
+        auto& isolate = context.GetIsolate();
+        const ub::HandleScope scope(isolate);
+        const ub::TryCatch tryCatch(isolate);
 
-        auto cx = isolate->GetCurrentContext();
-        auto src = api::convert::ToJS(isolate, code);
-
-        v8::ScriptOrigin origin(api::convert::ToJS(isolate, runtime::script::COMMAND_LINE_NAME));
-        v8::Local<v8::Script> snippet;
-        v8::Local<v8::Value> result;
-        if (v8::Script::Compile(cx, src, &origin).ToLocal(&snippet) && snippet->Run(cx).ToLocal(&result)) {
-            if (!result->IsUndefined()) {
-                v8::String::Utf8Value resultStr(isolate, result);
+        auto snippet =
+            ub::Script::Compile(context, code, ub::ScriptOrigin{.resourceName = runtime::script::COMMAND_LINE_NAME});
+        if (snippet) {
+            if (auto result = snippet->Run(context); result && !result->IsUndefined()) {
+                auto resultStr = result->ToString(context);
                 game::console::OnMessage({
                     .source = game::console::MessageSource::EvaluateResult,
                     .name = std::string{runtime::script::COMMAND_LINE_NAME},
                     .level = game::console::MessageLevel::Info,
-                    .text = std::string(*resultStr, resultStr.length()),
+                    .text = resultStr ? resultStr->Utf8Value() : std::string{},
                 });
             }
         }
-        if (tryCatch.HasCaught()) {
-            auto message = tryCatch.Message();
-            if (!message.IsEmpty()) {
-                v8::String::Utf8Value errorStr(isolate, message->Get());
+        if (tryCatch.HasCaught() && !tryCatch.HasTerminated()) {
+            if (auto message = tryCatch.Message(context)) {
                 game::console::OnMessage({
                     .source = game::console::MessageSource::EvaluateResult,
                     .name = std::string{runtime::script::COMMAND_LINE_NAME},
                     .level = game::console::MessageLevel::Error,
-                    .text = std::string(*errorStr, errorStr.length()),
+                    .text = std::move(*message),
                 });
             }
         }

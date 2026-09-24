@@ -1,15 +1,17 @@
 #pragma once
 
-#include <v8.h>
-
+#include <optional>
 #include <string>
 #include <string_view>
 
+#include "unibind/unibind.h"
+
 namespace d2bs::runtime::script {
 
-// Compile a JavaScript source string into a v8::Script, applying source-level
-// kolbot compatibility transforms. Used by the per-script execution path and
-// by Sandbox compile/include - anywhere user-authored source enters V8.
+// Compile a JavaScript source string, applying source-level kolbot
+// compatibility transforms and the code cache. Used by the per-script execution
+// path and by Sandbox compile/include - anywhere user-authored source enters the
+// engine. Empty if the source did not compile; the syntax error is then pending.
 //
 // Transforms applied:
 //   1. UTF-8 BOM strip (always; source hygiene, not a compatibility flag).
@@ -17,11 +19,10 @@ namespace d2bs::runtime::script {
 //      line (no newline, so reported line numbers still match the file on disk)
 //      (Compatibility flag: jsStrictShim).
 //   3. `const X = new Runnable` -> `var X = new Runnable` regex rewrite. const
-//      declarations don't bind to the global object in V8; kolbot relies on the
+//      declarations don't bind to the global object; kolbot relies on the
 //      global binding for cross-script lookup (Compatibility flag:
 //      constRunnableRewrite).
-v8::MaybeLocal<v8::Script> CompileSource(v8::Isolate* isolate, v8::Local<v8::Context> context, std::string source,
-                                         std::string_view originName);
+std::optional<ub::Script> CompileSource(const ub::Context& context, std::string source, std::string_view originName);
 
 // Run the per-context kolbot compatibility prelude. Installs the enabled subset
 // of the SpiderMonkey-era shims (String/Array.prototype.contains, the
@@ -29,8 +30,9 @@ v8::MaybeLocal<v8::Script> CompileSource(v8::Isolate* isolate, v8::Local<v8::Con
 // Error properties, and Object.prototype.toSource), each gated by its
 // Compatibility flag; the delay wrapper is always installed.
 //
-// Call once per V8 context after globals are registered, before any user
-// script runs. Failure is non-fatal - the prelude is best-effort.
-void ApplyCompatibilityPrelude(v8::Isolate* isolate, v8::Local<v8::Context> context);
+// Call once per context after globals are registered, before any user script
+// runs, with the context entered. Failure is non-fatal - the prelude is
+// best-effort.
+void ApplyCompatibilityPrelude(const ub::Context& context);
 
 }  // namespace d2bs::runtime::script

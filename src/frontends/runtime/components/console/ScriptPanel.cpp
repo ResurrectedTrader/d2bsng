@@ -2,7 +2,6 @@
 
 #include <fmt/format.h>
 #include <imgui.h>
-#include <v8.h>
 #include <magic_enum/magic_enum.hpp>
 
 #include <functional>
@@ -14,6 +13,7 @@
 #include "components/console/Theme.h"
 #include "components/script/Script.h"
 #include "components/script/ScriptEngine.h"
+#include "unibind/unibind.h"
 
 namespace d2bs::runtime::console {
 
@@ -62,14 +62,14 @@ void DrawHeapBreakdown(uint64_t used, uint64_t total, uint64_t limit, uint64_t p
     ImGui::EndTable();
 }
 
-void DrawHeapTooltipBody(const std::shared_ptr<v8::HeapStatistics>& stats) {
+void DrawHeapTooltipBody(const std::shared_ptr<ub::HeapStatistics>& stats) {
     if (stats == nullptr) {
         ImGui::TextDisabled("(no heap snapshot yet)");
         return;
     }
-    DrawHeapBreakdown(stats->used_heap_size(), stats->total_heap_size(), stats->heap_size_limit(),
-                      stats->total_physical_size(), stats->external_memory(), stats->peak_malloced_memory(),
-                      stats->used_global_handles_size(), stats->total_global_handles_size());
+    DrawHeapBreakdown(stats->usedBytes, stats->totalBytes, stats->limitBytes, stats->physicalBytes.value_or(0),
+                      stats->externalBytes.value_or(0), stats->peakMallocedBytes.value_or(0),
+                      stats->usedGlobalHandlesBytes.value_or(0), stats->totalGlobalHandlesBytes.value_or(0));
 }
 
 // Sum-of-fields helper for the totals row tooltip.
@@ -130,16 +130,16 @@ void DrawScriptRow(size_t rowIndex, const std::shared_ptr<Script>& script, HeapT
         const bool hovered = IsCellHovered();
         const auto stats = script->GetCachedHeapStats();
         if (stats != nullptr) {
-            const auto used = static_cast<uint64_t>(stats->used_heap_size());
+            const auto used = stats->usedBytes;
             ImGui::TextUnformatted(theme::FormatBytes(used).c_str());
             heapTotalsOut.used += used;
-            heapTotalsOut.total += static_cast<uint64_t>(stats->total_heap_size());
-            heapTotalsOut.limit += static_cast<uint64_t>(stats->heap_size_limit());
-            heapTotalsOut.physical += static_cast<uint64_t>(stats->total_physical_size());
-            heapTotalsOut.external += static_cast<uint64_t>(stats->external_memory());
-            heapTotalsOut.peakMalloced += static_cast<uint64_t>(stats->peak_malloced_memory());
-            heapTotalsOut.usedHandles += static_cast<uint64_t>(stats->used_global_handles_size());
-            heapTotalsOut.totalHandles += static_cast<uint64_t>(stats->total_global_handles_size());
+            heapTotalsOut.total += stats->totalBytes;
+            heapTotalsOut.limit += stats->limitBytes;
+            heapTotalsOut.physical += stats->physicalBytes.value_or(0);
+            heapTotalsOut.external += stats->externalBytes.value_or(0);
+            heapTotalsOut.peakMalloced += stats->peakMallocedBytes.value_or(0);
+            heapTotalsOut.usedHandles += stats->usedGlobalHandlesBytes.value_or(0);
+            heapTotalsOut.totalHandles += stats->totalGlobalHandlesBytes.value_or(0);
         } else {
             ImGui::TextDisabled("-");
         }

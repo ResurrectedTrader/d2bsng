@@ -1,16 +1,19 @@
 #pragma once
 
-#include <v8.h>
+#include <optional>
+
+#include "unibind/unibind.h"
 
 namespace d2bs::api::classes {
 
-// Register all class constructors on the global object template
-void RegisterAllClasses(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> global);
+// Install every class constructor on the context's global object. False if any could not be
+// installed, with the engine's exception (if it raised one) pending.
+bool RegisterAllClasses(const ub::Context& context);
 
-// Clear all per-isolate template caches (call before isolate disposal)
-void ClearAllClassCaches(v8::Isolate* isolate);
+// Forget this thread's declared classes (call while the isolate is torn down).
+void ClearAllClassCaches();
 
 // Create the special 'me' global object (extended Unit representing the player)
-v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context> context);
+std::optional<ub::Local<ub::Object>> CreateMeObject(const ub::Context& context);
 
 }  // namespace d2bs::api::classes

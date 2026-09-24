@@ -54,25 +54,21 @@ class BlockableEvent : public BaseEvent {
 
     void OnDropped() override { DecrementExpected(); }
 
-    void Execute(v8::Isolate* isolate, const std::vector<v8::Local<v8::Function>>& fns) override {
-        v8::HandleScope scope(isolate);
-        auto args = MakeArgs(isolate);
-        auto cx = isolate->GetCurrentContext();
+    void Execute(const ub::Context& context, const std::vector<ub::Local<ub::Function>>& fns) override {
+        auto& isolate = context.GetIsolate();
+        const ub::HandleScope scope(isolate);
+        auto args = MakeArgs(context);
         bool block = false;
         for (const auto& fn : fns) {
-            if (!fn.IsEmpty() && fn->IsFunction()) {
-                v8::TryCatch tryCatch(isolate);
-                v8::Local<v8::Value> returnValue;
-                if (fn->Call(cx, cx->Global(), static_cast<int32_t>(args.size()), args.data()).ToLocal(&returnValue) &&
-                    returnValue->BooleanValue(isolate)) {
+            if (!fn.IsEmpty()) {
+                const ub::TryCatch tryCatch(isolate);
+                auto returnValue = fn.Call(context, context.GlobalObject(), args);
+                if (returnValue && returnValue->ToBoolean(context).value_or(false)) {
                     block = true;
                 }
                 if (tryCatch.HasCaught()) {
-                    auto message = tryCatch.Message();
-                    if (!message.IsEmpty()) {
-                        v8::String::Utf8Value errorStr(isolate, message->Get());
-                        GetLogger(isolate)->error("[{}] handler exception: {}", Name(),
-                                                  std::string(*errorStr, errorStr.length()));
+                    if (auto message = tryCatch.Message(context)) {
+                        GetLogger(&isolate)->error("[{}] handler exception: {}", Name(), *message);
                     }
                     // Exception counts as block=false for this handler
                 }

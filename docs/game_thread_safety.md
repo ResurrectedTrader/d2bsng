@@ -7,7 +7,7 @@ How script threads safely access game memory in d2bsng.
 ```
 Game thread                     Script threads (one per script)
 -----------                     -----------------------------
-Runs the game frame loop        Each has own V8 isolate
+Runs the game frame loop        Each has its own engine isolate
 Modifies game state             Reads game state via handles
 Fires events to scripts         Processes events during delay()
 Holds GameWriteLock per frame   Holds GameReadLock per resolve
@@ -55,11 +55,11 @@ void GameLoop::OnSleep(std::chrono::milliseconds duration) {
 
 ### Bridge::Lock() - explicit batched reads
 
-For V8 callbacks that make multiple game reads requiring a consistent view. Returns a `GameReadLock` that covers the entire callback scope. Inner `ResolvePtr()` calls are recursive re-entries (free).
+For binding callbacks that make multiple game reads requiring a consistent view. Returns a `GameReadLock` that covers the entire callback scope. Inner `ResolvePtr()` calls are recursive re-entries (free).
 
 ```cpp
-Method(isolate, proto, "getItem", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-    auto lock = d2bs::game::Bridge::Lock();  // Hold for entire inventory iteration
+Method(cls, "getItem", +[](const ub::CallbackInfo& args) {
+    auto lock = game::Bridge::Lock();  // Hold for entire inventory iteration
     // ... iterate inventory, each item.Name()/item.ClassId() is a recursive lock (free) ...
 });
 ```
@@ -137,8 +137,8 @@ because they do more than the walk.
 Simple property getters and single-method calls returning copies do NOT need
 `Bridge::Lock()` - `ResolvePtr()` locks per resolve.
 
-Note that several bindings hold the lock across V8 allocation (`getItem`, `getItems`,
+Note that several bindings hold the lock across engine allocation (`getItem`, `getItems`,
 `getPresetUnit`, `getPresetUnits` all construct wrappers under it). That is a latent stall:
-an allocation can trigger a GC whose weak callbacks run native destructors
+an allocation can trigger a GC whose finalizers drop the last share of a native and run its destructor
 (`closesocket`, `sqlite3_close_v2`, `fclose`), and the game thread waits on the write lock
 for the duration. Worth avoiding in new code; the existing sites are not yet fixed.

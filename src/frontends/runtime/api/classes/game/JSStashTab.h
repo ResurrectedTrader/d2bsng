@@ -1,10 +1,12 @@
 #pragma once
 
-#include <v8.h>
-
+#include <cstdint>
 #include <memory>
 #include <optional>
+#include <string_view>
+#include <tuple>
 
+#include "Receiver.h"
 #include "api/classes/game/JSUnit.h"
 #include "api/core/Class.h"
 #include "api/core/Convert.h"
@@ -14,79 +16,103 @@
 #include "game/GameHelpers.h"
 #include "game/StashTab.h"
 #include "game/Unit.h"
+#include "unibind/unibind.h"
 
 namespace d2bs::api::classes {
 
-// V8 binding for game::StashTab (docs/plugy_stash.md). Obtained from getStashTabs()
+// Binding for game::StashTab (docs/plugy_stash.md). Obtained from getStashTabs()
 // and Unit.stashTab; never constructed by scripts.
 class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
    public:
     static constexpr std::string_view ClassName = "StashTab";
 
-    V8_CLASS_NOT_CONSTRUCTABLE
-
-    static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
-        auto inst = tpl->InstanceTemplate();
-        auto proto = tpl->PrototypeTemplate();
-
+    static void Configure(const ub::Class<Native>& cls) {
         /// @description Which stash the tab belongs to.
         /// @type {StashTabKind}
         Property(
-            isolate, inst, "kind", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                info.GetReturnValue().Set(static_cast<uint32_t>(Unwrap(info.Holder())->Kind()));
+            cls, "kind", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSStashTab>(info);
+                if (data == nullptr) {
+                    return;
+                }
+                info.GetReturnValue().Set(static_cast<uint32_t>(data->Kind()));
             });
 
         /// @description 0-based position of the tab within its kind.
         /// @type {number}
         Property(
-            isolate, inst, "index", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                info.GetReturnValue().Set(Unwrap(info.Holder())->Index());
+            cls, "index", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSStashTab>(info);
+                if (data == nullptr) {
+                    return;
+                }
+                info.GetReturnValue().Set(data->Index());
             });
 
         /// @description What the tab holds; every LoD tab is StashTabType.normal.
         /// @type {StashTabType}
         Property(
-            isolate, inst, "type", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                info.GetReturnValue().Set(static_cast<uint32_t>(Unwrap(info.Holder())->Type()));
+            cls, "type", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSStashTab>(info);
+                if (data == nullptr) {
+                    return;
+                }
+                info.GetReturnValue().Set(static_cast<uint32_t>(data->Type()));
             });
 
         /// @description User-given tab name; empty when unnamed or when the tab is gone.
         /// @type {string}
         Property(
-            isolate, inst, "name", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
+            cls, "name", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSStashTab>(info);
+                if (data == nullptr) {
+                    return;
+                }
                 auto lock = game::Bridge::Lock();
-                info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), Unwrap(info.Holder())->Name()));
+                std::ignore = info.GetReturnValue().Set(data->Name());
             });
 
         /// @description Gold stored on the tab. Where the game keeps one gold figure per stash rather than per tab,
         /// it is attributed to the first tab of that kind and the other tabs read 0.
         /// @type {number}
         Property(
-            isolate, inst, "gold", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
+            cls, "gold", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSStashTab>(info);
+                if (data == nullptr) {
+                    return;
+                }
                 auto lock = game::Bridge::Lock();
-                info.GetReturnValue().Set(Unwrap(info.Holder())->Gold());
+                info.GetReturnValue().Set(data->Gold());
             });
 
         /// @description The tab's items, whether or not the tab is the one shown. Items on tabs that are not shown
         /// are live units and behave like any other Unit. Built on each access; empty for a tab that is gone.
         /// @type {Unit[]}
         Property(
-            isolate, inst, "items", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* isolate = info.GetIsolate();
-                auto context = isolate->GetCurrentContext();
+            cls, "items", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSStashTab>(info);
+                if (data == nullptr) {
+                    return;
+                }
+                const auto& context = info.GetContext();
                 auto lock = game::Bridge::Lock();
-                const auto items = Unwrap(info.Holder())->GetItems();
-                auto arr = v8::Array::New(isolate, static_cast<int32_t>(items.size()));
+                const auto items = data->GetItems();
+                auto arr = ub::Array::New(context, static_cast<uint32_t>(items.size()));
+                if (!arr) {
+                    return;
+                }
                 uint32_t i = 0;
                 for (const auto& item : items) {
-                    auto obj = JSUnit::CreateInstance(isolate, context, std::make_unique<game::Unit>(item));
-                    if (obj.IsEmpty()) {
-                        error::ThrowError(isolate, "Failed to build item array");
+                    auto obj = JSUnit::Wrap(context, std::make_shared<game::Unit>(item));
+                    if (!obj) {
+                        error::ThrowError(info.GetIsolate(), "Failed to build item array");
                         return;
                     }
-                    arr->Set(context, i++, obj).Check();
+                    if (!arr->Set(context, i++, *obj).value_or(false)) {
+                        return;
+                    }
                 }
-                info.GetReturnValue().Set(arr);
+                info.GetReturnValue().Set(*arr);
             });
 
         /// @description Left-clicks a grid cell of this tab: picks up the item there, drops the cursor item, or
@@ -101,19 +127,23 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
         /// be brought in, an open trade, or not being in a game. As with clickItem, true does not confirm the item
         /// moved.
         Method(
-            isolate, proto, "click", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                auto* isolate = args.GetIsolate();
-                if (args.Length() < 2 || !args[0]->IsNumber() || !args[1]->IsNumber()) {
-                    error::ThrowTypeError(isolate, "StashTab.click(x, y) expects two numbers");
+            cls, "click", +[](const ub::CallbackInfo& args) {
+                auto* data = Receiver<JSStashTab>(args);
+                if (data == nullptr) {
+                    return;
+                }
+                if (args.Length() < 2 || !args[0].IsNumber() || !args[1].IsNumber()) {
+                    error::ThrowTypeError(args.GetIsolate(), "StashTab.click(x, y) expects two numbers");
                     return;
                 }
                 if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
                     error::WarnAndReturnFalse(args, "Game not ready");
                     return;
                 }
-                const game::Position cell{.x = convert::ToUint32(isolate, args[0]),
-                                          .y = convert::ToUint32(isolate, args[1])};
-                args.GetReturnValue().Set(Unwrap(args.This())->Click(cell) == game::ClickResult::Dispatched);
+                const auto& context = args.GetContext();
+                const game::Position cell{.x = convert::ToUint32(context, args[0]),
+                                          .y = convert::ToUint32(context, args[1])};
+                args.GetReturnValue().Set(data->Click(cell) == game::ClickResult::Dispatched);
             });
 
         /// @description Deposits carried gold into this tab. The stash panel must be open. Fire and forget like
@@ -124,9 +154,13 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
         /// @returns {boolean} - true once the move was requested; false for a tab that holds no gold, nothing to
         /// move, or not being in a game
         Method(
-            isolate, proto, "depositGold", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+            cls, "depositGold", +[](const ub::CallbackInfo& args) {
+                auto* data = Receiver<JSStashTab>(args);
+                if (data == nullptr) {
+                    return;
+                }
                 if (const auto amount = GoldAmount(args)) {
-                    args.GetReturnValue().Set(Unwrap(args.This())->MoveGold(game::GoldActionMode::Deposit, *amount));
+                    args.GetReturnValue().Set(data->MoveGold(game::GoldActionMode::Deposit, *amount));
                 }
             });
 
@@ -138,9 +172,13 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
         /// @returns {boolean} - true once the move was requested; false for a tab that holds no gold, nothing to
         /// move, or not being in a game
         Method(
-            isolate, proto, "withdrawGold", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+            cls, "withdrawGold", +[](const ub::CallbackInfo& args) {
+                auto* data = Receiver<JSStashTab>(args);
+                if (data == nullptr) {
+                    return;
+                }
                 if (const auto amount = GoldAmount(args)) {
-                    args.GetReturnValue().Set(Unwrap(args.This())->MoveGold(game::GoldActionMode::Withdraw, *amount));
+                    args.GetReturnValue().Set(data->MoveGold(game::GoldActionMode::Withdraw, *amount));
                 }
             });
     }
@@ -148,17 +186,16 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
    private:
     // The single amount argument of the gold moves; nullopt (with the error or warning already
     // raised) when the call cannot proceed.
-    static std::optional<uint32_t> GoldAmount(const v8::FunctionCallbackInfo<v8::Value>& args) {
-        auto* isolate = args.GetIsolate();
-        if (args.Length() < 1 || !args[0]->IsNumber()) {
-            error::ThrowTypeError(isolate, "StashTab gold moves expect an amount");
+    static std::optional<uint32_t> GoldAmount(const ub::CallbackInfo& args) {
+        if (args.Length() < 1 || !args[0].IsNumber()) {
+            error::ThrowTypeError(args.GetIsolate(), "StashTab gold moves expect an amount");
             return std::nullopt;
         }
         if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
             error::WarnAndReturnFalse(args, "Game not ready");
             return std::nullopt;
         }
-        return convert::ToUint32(isolate, args[0]);
+        return convert::ToUint32(args.GetContext(), args[0]);
     }
 };
 

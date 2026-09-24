@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+
 #include "JSDrawableBase.h"
 
 namespace d2bs::api::classes {
@@ -25,13 +27,13 @@ class JSFrame : public JSDrawableBase<JSFrame, FrameDrawable> {
     /// (entered = false, x and y are 0 on leave); return value ignored
     /// @returns {Frame}
     /// @throws {Error} - when called outside a running script (no owning script context).
-    static void New(const v8::FunctionCallbackInfo<v8::Value>& args) {
-        V8_CLASS_CTOR_PROLOGUE;
+    static std::shared_ptr<FrameDrawable> New(const ub::CallbackInfo& args) {
+        const auto& context = args.GetContext();
 
-        auto* script = ScriptEngine::Instance().GetScript(isolate);
+        auto* script = ScriptEngine::Instance().GetScript(&args.GetIsolate());
         if (!script) {
-            error::ThrowError(isolate, "Frame: no owning script");
-            return;
+            error::ThrowError(args.GetIsolate(), "Frame: no owning script");
+            return nullptr;
         }
         // Framehooks are gated in the game-layer DrawFrame: it no-ops when the
         // client isn't in-game. OOG-script-created frames are therefore silent
@@ -43,53 +45,41 @@ class JSFrame : public JSDrawableBase<JSFrame, FrameDrawable> {
         extract::PointInto(args, 0, drawable->pos);
         extract::SizeInto(args, 2, drawable->size);
 
-        if (args.Length() > 4 && args[4]->IsNumber()) {
-            drawable->align.store(static_cast<Align>(convert::ToInt32(isolate, args[4])));
+        if (args[4].IsNumber()) {
+            drawable->align.store(static_cast<Align>(convert::ToInt32(context, args[4])));
         }
-        if (args.Length() > 5 && args[5]->IsBoolean()) {
-            drawable->isAutomap.store(args[5]->BooleanValue(isolate));
+        if (args[5].IsBoolean()) {
+            drawable->isAutomap.store(args[5].IsTrue());
         }
-        if (args.Length() > 6 && args[6]->IsFunction()) {
-            script->SetDrawableHandler(*drawable, DrawableHandler::Click, args[6].As<v8::Function>());
-        }
-        if (args.Length() > 7 && args[7]->IsFunction()) {
-            script->SetDrawableHandler(*drawable, DrawableHandler::Hover, args[7].As<v8::Function>());
-        }
+        SetConstructorHandlers(args, *script, *drawable, 6);
 
-        auto* rawDrawable = drawable.get();
-        SetupInstanceTracking(rawDrawable);
-        script->AddDrawable(std::move(drawable));
-
-        Wrap(args.This(), rawDrawable);
-        args.GetReturnValue().Set(args.This());
+        script->AddDrawable(drawable);
+        return drawable;
     }
 
-    static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
-        auto inst = tpl->InstanceTemplate();
-        auto proto = tpl->PrototypeTemplate();
-
-        ConfigureCommonProperties(isolate, inst, proto);
+    static void Configure(const ub::Class<FrameDrawable>& cls) {
+        ConfigureCommonProperties(cls);
 
         // xsize property
         /// @description Frame width in pixels.
         /// @type {number}
         Property(
-            isolate, inst, "xsize",
-            +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Unwrap(info.Holder());
-                if (!drawable)
+            cls, "xsize",
+            +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Unwrap(info.This());
+                if (!drawable) {
                     return;
+                }
                 info.GetReturnValue().Set(drawable->size.load().width);
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Unwrap(info.Holder());
-                if (!drawable)
+            +[](const ub::Local<ub::Name>&, const ub::Local<ub::Value>& value, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Unwrap(info.This());
+                if (!drawable || !value.IsNumber()) {
                     return;
-                if (!value->IsNumber())
-                    return;
+                }
                 auto cur = drawable->size.load();
                 // Note: Size is unsigned; negative values coerce to large positive via ToUint32.
-                cur.width = convert::ToUint32(info.GetIsolate(), value);
+                cur.width = convert::ToUint32(info.GetContext(), value);
                 drawable->size.store(cur);
             });
 
@@ -97,22 +87,22 @@ class JSFrame : public JSDrawableBase<JSFrame, FrameDrawable> {
         /// @description Frame height in pixels.
         /// @type {number}
         Property(
-            isolate, inst, "ysize",
-            +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Unwrap(info.Holder());
-                if (!drawable)
+            cls, "ysize",
+            +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Unwrap(info.This());
+                if (!drawable) {
                     return;
+                }
                 info.GetReturnValue().Set(drawable->size.load().height);
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Unwrap(info.Holder());
-                if (!drawable)
+            +[](const ub::Local<ub::Name>&, const ub::Local<ub::Value>& value, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Unwrap(info.This());
+                if (!drawable || !value.IsNumber()) {
                     return;
-                if (!value->IsNumber())
-                    return;
+                }
                 auto cur = drawable->size.load();
                 // Note: Size is unsigned; negative values coerce to large positive via ToUint32.
-                cur.height = convert::ToUint32(info.GetIsolate(), value);
+                cur.height = convert::ToUint32(info.GetContext(), value);
                 drawable->size.store(cur);
             });
     }

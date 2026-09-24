@@ -1,93 +1,73 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 
 #include <spdlog/logger.h>
-#include <v8.h>
 
-#include "Convert.h"
 #include "components/script/ScriptLogger.h"
+#include "unibind/unibind.h"
 
-// Error and warning utilities for V8
+// Throwing from a binding, and the argument checks that throw. A throw takes effect when the
+// binding returns to the engine, so return promptly after one.
 
 namespace d2bs::api::error {
 
-// Throw a generic Error
-inline void ThrowError(v8::Isolate* isolate, std::string_view message) {
-    isolate->ThrowException(v8::Exception::Error(convert::ToJS(isolate, message)));
+inline void ThrowError(ub::Isolate& isolate, std::string_view message) {
+    ub::Throw(isolate, ub::ErrorKind::Error, message);
 }
 
-// Throw a TypeError (wrong argument type)
-inline void ThrowTypeError(v8::Isolate* isolate, std::string_view message) {
-    isolate->ThrowException(v8::Exception::TypeError(convert::ToJS(isolate, message)));
+inline void ThrowTypeError(ub::Isolate& isolate, std::string_view message) {
+    ub::Throw(isolate, ub::ErrorKind::TypeError, message);
 }
 
-// Throw a RangeError (value out of range)
-inline void ThrowRangeError(v8::Isolate* isolate, std::string_view message) {
-    isolate->ThrowException(v8::Exception::RangeError(convert::ToJS(isolate, message)));
+inline void ThrowRangeError(ub::Isolate& isolate, std::string_view message) {
+    ub::Throw(isolate, ub::ErrorKind::RangeError, message);
 }
 
-// Log a warning and set return value to false (caller must return afterward).
-inline void WarnAndReturnFalse(const v8::FunctionCallbackInfo<v8::Value>& args, std::string_view message) {
-    GetLogger(args.GetIsolate())->warn("{}", message);
+inline void WarnAndReturnFalse(const ub::CallbackInfo& args, std::string_view message) {
+    GetLogger(&args.GetIsolate())->warn("{}", message);
     args.GetReturnValue().SetFalse();
 }
 
-// Log an error without throwing a JS exception (caller must return afterward).
-inline void ReportError(const v8::FunctionCallbackInfo<v8::Value>& args, std::string_view message) {
-    GetLogger(args.GetIsolate())->error("{}", message);
+inline void ReportError(const ub::CallbackInfo& args, std::string_view message) {
+    GetLogger(&args.GetIsolate())->error("{}", message);
 }
 
-// ============================================================================
-// Argument validation helpers
-// ============================================================================
-
-// Check minimum argument count, throw if not met
-inline bool CheckArgCount(const v8::FunctionCallbackInfo<v8::Value>& args, int32_t minArgs,
-                          const char* funcName = nullptr) {
+inline bool CheckArgCount(const ub::CallbackInfo& args, uint32_t minArgs, const char* funcName = nullptr) {
     if (args.Length() < minArgs) {
-        auto* isolate = args.GetIsolate();
-        std::string msg = funcName
-                              ? std::string(funcName) + " requires at least " + std::to_string(minArgs) + " argument(s)"
-                              : "Not enough arguments";
-        ThrowTypeError(isolate, msg);
+        const std::string msg = funcName != nullptr ? std::string(funcName) + " requires at least " +
+                                                          std::to_string(minArgs) + " argument(s)"
+                                                    : "Not enough arguments";
+        args.ThrowTypeError(msg);
         return false;
     }
     return true;
 }
 
-// Check argument is a number
-inline bool CheckIsNumber(const v8::FunctionCallbackInfo<v8::Value>& args, int32_t index,
-                          const char* argName = nullptr) {
-    if (args.Length() <= index || !args[index]->IsNumber()) {
-        auto* isolate = args.GetIsolate();
-        std::string msg = argName ? std::string(argName) + " must be a number" : "Argument must be a number";
-        ThrowTypeError(isolate, msg);
+inline bool CheckIsNumber(const ub::CallbackInfo& args, uint32_t index, const char* argName = nullptr) {
+    if (args.Length() <= index || !args[index].IsNumber()) {
+        args.ThrowTypeError(argName != nullptr ? std::string(argName) + " must be a number"
+                                               : "Argument must be a number");
         return false;
     }
     return true;
 }
 
-// Check argument is a string
-inline bool CheckIsString(const v8::FunctionCallbackInfo<v8::Value>& args, int32_t index,
-                          const char* argName = nullptr) {
-    if (args.Length() <= index || !args[index]->IsString()) {
-        auto* isolate = args.GetIsolate();
-        std::string msg = argName ? std::string(argName) + " must be a string" : "Argument must be a string";
-        ThrowTypeError(isolate, msg);
+inline bool CheckIsString(const ub::CallbackInfo& args, uint32_t index, const char* argName = nullptr) {
+    if (args.Length() <= index || !args[index].IsString()) {
+        args.ThrowTypeError(argName != nullptr ? std::string(argName) + " must be a string"
+                                               : "Argument must be a string");
         return false;
     }
     return true;
 }
 
-// Check argument is a function
-inline bool CheckIsFunction(const v8::FunctionCallbackInfo<v8::Value>& args, int32_t index,
-                            const char* argName = nullptr) {
-    if (args.Length() <= index || !args[index]->IsFunction()) {
-        auto* isolate = args.GetIsolate();
-        std::string msg = argName ? std::string(argName) + " must be a function" : "Argument must be a function";
-        ThrowTypeError(isolate, msg);
+inline bool CheckIsFunction(const ub::CallbackInfo& args, uint32_t index, const char* argName = nullptr) {
+    if (args.Length() <= index || !args[index].IsFunction()) {
+        args.ThrowTypeError(argName != nullptr ? std::string(argName) + " must be a function"
+                                               : "Argument must be a function");
         return false;
     }
     return true;

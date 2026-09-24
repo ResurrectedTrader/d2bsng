@@ -100,32 +100,46 @@ jobs:
           & "$vcpkgDir\vcpkg.exe" integrate install
           if ($LASTEXITCODE -ne 0) { throw "vcpkg integrate failed" }
           "VCPKG_ROOT=$vcpkgDir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-      # The build fetches V8 itself - headers and monolith, out of one archive,
-      # into dependencies/v8/<version>/ (Directory.Build.props declares the
-      # version; scripts/fetch_v8.ps1 unpacks it before anything compiles). So
-      # there is nothing to download here. All this does is stop a runner from
-      # pulling over a gigabyte on every run, and it reads the version out of
-      # the build rather than restating it, so the key cannot drift from what
-      # the build actually wants - and a version bump is a new key and a new
-      # directory rather than a stale hit.
-      - name: Resolve V8 version
-        id: v8
+      # The build fetches unibind, V8 and SpiderMonkey itself, each out of one
+      # archive into dependencies/<name>/<version>/ (Directory.Build.props
+      # declares the versions; scripts/fetch_archive.ps1 unpacks them before
+      # anything compiles). So there is nothing to download here. All this does
+      # is stop a runner from pulling a couple of gigabytes on every run, and it
+      # reads the versions out of the build rather than restating them, so a key
+      # cannot drift from what the build actually wants - and a version bump is
+      # a new key and a new directory rather than a stale hit.
+      - name: Resolve dependency versions
+        id: deps
         shell: pwsh
         run: |
           $props = [xml](Get-Content Directory.Build.props -Raw)
-          $node = $props.SelectSingleNode('//V8Version')
-          if (-not $node) { throw "V8Version not found in Directory.Build.props" }
-          "version=$($node.InnerText.Trim())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          foreach ($name in 'V8Version', 'SpiderMonkeyVersion', 'UnibindVersion') {
+            $node = $props.SelectSingleNode("//$name")
+            if (-not $node) { throw "$name not found in Directory.Build.props" }
+            "$($name.ToLower())=$($node.InnerText.Trim())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          }
       - name: Cache V8
         uses: actions/cache@v4
         with:
-          path: dependencies/v8/${{ steps.v8.outputs.version }}
-          key: v8-${{ runner.os }}-${{ steps.v8.outputs.version }}
+          path: dependencies/v8/${{ steps.deps.outputs.v8version }}
+          key: v8-${{ runner.os }}-${{ steps.deps.outputs.v8version }}
+      - name: Cache SpiderMonkey
+        uses: actions/cache@v4
+        with:
+          path: dependencies/spidermonkey/${{ steps.deps.outputs.spidermonkeyversion }}
+          key: spidermonkey-${{ runner.os }}-${{ steps.deps.outputs.spidermonkeyversion }}
+      - name: Cache unibind
+        uses: actions/cache@v4
+        with:
+          path: dependencies/unibind/${{ steps.deps.outputs.unibindversion }}
+          key: unibind-${{ runner.os }}-${{ steps.deps.outputs.unibindversion }}
+      # Both glue DLLs: Release/js-v8-lod114d/d2bs.dll and Release/js-sm-lod114d/d2bs.dll.
       - name: Build (Release)
         shell: pwsh
         run: .\build.ps1 Release
-      # utils / contract / core / js carry no game-version-specific code, so they
-      # also have to compile as 64-bit. Static libs only - nothing links here.
+      # utils / contract / core / navigation / services / runtime carry no
+      # game-version-specific code and name no engine, so they also have to
+      # compile as 64-bit. Static libs only - nothing links here.
       - name: Build (Release, x64 libraries)
         shell: pwsh
         run: .\build.ps1 Release -Platform x64

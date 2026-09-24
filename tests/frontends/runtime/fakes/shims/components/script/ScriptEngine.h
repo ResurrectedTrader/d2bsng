@@ -2,7 +2,7 @@
 
 // Test shim for src/frontends/runtime/components/script/ScriptEngine.h
 //
-// Test-only shim for components/script/ScriptEngine.h. Drops the v8-heavy
+// Test-only shim for components/script/ScriptEngine.h. Drops the engine-heavy
 // isolate/console surface. Only StartScript and ForEachScript - the two hooks
 // GameLoop::DriveScriptLifecycle touches - are exposed.
 

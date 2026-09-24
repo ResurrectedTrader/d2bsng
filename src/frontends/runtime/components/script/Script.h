@@ -1,21 +1,23 @@
 #pragma once
 
 #include <spdlog/logger.h>
-#include <v8.h>
 #include <atomic>
 #include <chrono>
 #include <filesystem>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <set>
 #include <shared_mutex>
 #include <string>
 #include <string_view>
 #include <thread>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 #include "ScriptTypes.h"
 #include "game/Types.h"
+#include "unibind/unibind.h"
 #include "utils/Profiling.h"
 
 namespace d2bs::runtime::drawing {
@@ -103,25 +105,28 @@ class Script : public std::enable_shared_from_this<Script> {
     [[nodiscard]] std::thread::id GetThreadId() const;
     [[nodiscard]] uint32_t GetNativeThreadId() const { return nativeThreadId_.load(std::memory_order_relaxed); }
 
-    // V8 access - returns a refcounted copy so the isolate stays alive for
+    // Engine access - returns a refcounted copy so the isolate stays alive for
     // the duration of the caller's use, even if TeardownIsolate runs concurrently.
-    [[nodiscard]] std::shared_ptr<v8::Isolate> GetIsolate() const { return isolate_.load(); }
+    // Only the calls unibind allows from any thread (TerminateExecution,
+    // RequestInterrupt, PostJob) may be made off the script's thread, and a
+    // copy must be dropped promptly: TeardownIsolate waits for the last one so
+    // the isolate is destroyed on its own thread.
+    [[nodiscard]] std::shared_ptr<ub::Isolate> GetIsolate() const { return isolate_.load(); }
 
     // Whether this script's execution environment still exists, so posted
     // events can still run. False before SetupIsolate and after TeardownIsolate.
     [[nodiscard]] bool IsAlive() const { return isolate_.load() != nullptr; }
 
-    // The script's V8 context. Only valid on the script's own thread (a v8::Local
-    // requires a HandleScope on the isolate's thread). Empty before SetupIsolate
-    // and after TeardownIsolate.
-    [[nodiscard]] v8::Local<v8::Context> GetContext() const;
+    // The script's realm. Script thread only, like every value read out of it.
+    // Empty before SetupIsolate and after TeardownIsolate.
+    [[nodiscard]] const ub::Context& GetContext() const { return context_; }
 
     // Canonical cancellation signal - fires when Stop() is called.
     [[nodiscard]] std::stop_token GetStopToken() const { return thread_.get_stop_token(); }
 
     // Heap stats cached on the script's own thread (safe to read cross-thread).
     // Updated periodically (~1s), not on every event loop tick.
-    [[nodiscard]] std::shared_ptr<v8::HeapStatistics> GetCachedHeapStats() const { return cachedHeapStats_.load(); }
+    [[nodiscard]] std::shared_ptr<ub::HeapStatistics> GetCachedHeapStats() const { return cachedHeapStats_.load(); }
     // Force a fresh snapshot - only safe from the script's own thread. `now` is
     // the caller's single steady_clock reading for the pass (steady_clock::now()
     // is QueryPerformanceCounter on MSVC, so event-loop callers pass theirs in
@@ -132,8 +137,9 @@ class Script : public std::enable_shared_from_this<Script> {
     // so nothing is captured unless the Stacktraces panel selected this script).
     // Callable from any thread.
     [[nodiscard]] std::shared_ptr<StackTraceSnapshot> GetLastStackTrace() const { return lastStackTrace_.load(); }
-    // Walk this script's V8 stack and replace the cache. Owner-thread only -
-    // invoked from delay() and the JS->native trampolines per StackCaptureMode.
+    // Walk this script's JS stack and replace the cache. Owner-thread only -
+    // invoked from delay() and the JS->native trampolines per StackCaptureMode,
+    // and from an interrupt when capture is switched on from another thread.
     void RefreshLastStackTrace(int32_t maxFrames = 64);
 
     // Controls how often RefreshLastStackTrace runs (see StackCaptureMode). Off
@@ -145,12 +151,12 @@ class Script : public std::enable_shared_from_this<Script> {
         return stackCaptureMode_.load(std::memory_order_acquire);
     }
 
-    // Ask V8 to garbage-collect this script's isolate. Safe to call from
-    // any thread. From the script's own thread (e.g. TeardownIsolate) the
-    // GC runs synchronously; from any other thread (e.g. the console
-    // GC button) it's scheduled via RequestInterrupt and runs the next
-    // time V8 hits a safe point. No-op if the script has no isolate
-    // (Stopped state).
+    // Ask the engine to garbage-collect this script's isolate. Safe to call
+    // from any thread. From the script's own thread the request is made
+    // directly; from any other thread (e.g. the console GC button) it's
+    // scheduled via RequestInterrupt and made the next time the engine
+    // checks for interrupts inside running script. No-op if the script has
+    // no isolate (Stopped state).
     void RequestGarbageCollection() const;
 
     // Evaluate `code` as JS on this script's isolate. Enqueues an
@@ -159,8 +165,8 @@ class Script : public std::enable_shared_from_this<Script> {
     void Evaluate(const std::string& code);
 
     // Event system
-    void RegisterEvent(const std::string& eventName, v8::Local<v8::Function> func);
-    void UnregisterEvent(const std::string& eventName, v8::Local<v8::Function> func);
+    void RegisterEvent(const std::string& eventName, const ub::Local<ub::Function>& func);
+    void UnregisterEvent(const std::string& eventName, const ub::Local<ub::Function>& func);
     [[nodiscard]] bool IsEventRegistered(std::string_view eventName);
     void ClearEvent(const std::string& eventName);
     void ClearAllEvents();
@@ -185,7 +191,7 @@ class Script : public std::enable_shared_from_this<Script> {
     [[nodiscard]] static std::filesystem::path NormalizePath(const std::filesystem::path& path);
 
     // Drawables (screen hooks: boxes, frames, lines, text, images) owned by
-    // this script. Added and removed from V8 callbacks on the script's own
+    // this script. Added and removed from native callbacks on the script's own
     // thread; iterated by the game thread via GetDrawables() for draw / hit
     // testing across all scripts.
     void AddDrawable(std::shared_ptr<runtime::drawing::Drawable> drawable);
@@ -199,15 +205,15 @@ class Script : public std::enable_shared_from_this<Script> {
     [[nodiscard]] std::vector<std::shared_ptr<runtime::drawing::Drawable>> GetDrawables();
 
     // A drawable's click / hover callbacks live here rather than on the
-    // drawable, so the v8::Global is only ever created and destroyed on this
+    // drawable, so the root is only ever created and destroyed on this
     // script's thread - the game thread holds shared_ptr<Drawable> copies
     // across a frame, which would otherwise release a GC root off-thread.
     // The drawable carries the matching hasClick / hasHover flag for
     // game-thread hit testing. An empty `handler` clears the slot.
     void SetDrawableHandler(runtime::drawing::Drawable& drawable, DrawableHandler which,
-                            v8::Local<v8::Function> handler);
-    [[nodiscard]] v8::MaybeLocal<v8::Function> GetDrawableHandler(const runtime::drawing::Drawable& drawable,
-                                                                  DrawableHandler which);
+                            const ub::Local<ub::Function>& handler);
+    [[nodiscard]] std::optional<ub::Local<ub::Function>> GetDrawableHandler(const runtime::drawing::Drawable& drawable,
+                                                                            DrawableHandler which);
 
     // Game thread. Runs the drawable's handler on this script's event loop.
     // The event names the drawable and keeps it alive; the handler itself is
@@ -228,11 +234,28 @@ class Script : public std::enable_shared_from_this<Script> {
     void SetupIsolate();
     void TeardownIsolate();
     void RunScript();
-    void ReportException(v8::TryCatch& tryCatch);
+    void ReportException(const ub::TryCatch& tryCatch);
 
-    // Create and register this isolate's ScriptInspector (Chrome DevTools
-    // target). Called once from SetupIsolate, on the isolate's own thread.
-    void AttachInspector();
+    // Attach this script to the engine's debugger, if it has one. Called once
+    // from SetupIsolate, on the isolate's own thread, with the context entered.
+    void AttachDebugger(ub::Isolate& isolate);
+
+    // An event posted to this script's isolate and not yet run. Owned here
+    // rather than by the job queue, which drops what it has not run when the
+    // isolate goes: TeardownIsolate frees whatever is left, and an event that
+    // never ran is told so (OnDropped) on the way out.
+    struct PendingJob {
+        explicit PendingJob(std::shared_ptr<BaseEvent> event) : event(std::move(event)) {}
+        ~PendingJob();
+        PendingJob(const PendingJob&) = delete;
+        PendingJob& operator=(const PendingJob&) = delete;
+        PendingJob(PendingJob&&) = delete;
+        PendingJob& operator=(PendingJob&&) = delete;
+
+        std::shared_ptr<BaseEvent> event;
+        bool isDelivered = false;
+    };
+    static void RunPendingJob(ub::Isolate& isolate, ub::CallbackData data);
 
     // Detach thread and remove self from ScriptEngine map (safe for self-destruction)
     void RemoveSelfFromEngine();
@@ -247,21 +270,21 @@ class Script : public std::enable_shared_from_this<Script> {
     std::shared_ptr<spdlog::logger> logger_;
 
     std::jthread thread_;
-    // Shared ownership prevents use-after-dispose: Stop() and PostEvent() (called
+    // Shared ownership prevents use-after-destroy: Stop() and PostEvent() (called
     // from external threads) atomically load a refcounted copy, keeping the isolate
     // alive for the duration of their call.  TeardownIsolate() atomically exchanges
-    // to nullptr and performs cleanup; the custom deleter (NotifyIsolateShutdown +
-    // Dispose) fires when the last copy drops.
+    // to nullptr, waits for those copies to drop, and destroys the isolate on the
+    // script's own thread, which is the only thread that may.
     //
     // The shared_ptr must be wrapped in std::atomic (C++20) because the shared_ptr
     // object itself is not thread-safe: its internal refcount is atomic, but
     // concurrent read (load/copy) and write (store/exchange) of the same shared_ptr
     // instance is UB without external synchronization.  std::atomic<shared_ptr>
     // provides that synchronization without an explicit mutex.
-    std::atomic<std::shared_ptr<v8::Isolate>> isolate_;
-    v8::Global<v8::Context> context_;
+    std::atomic<std::shared_ptr<ub::Isolate>> isolate_;
+    ub::Context context_;
 
-    std::atomic<std::shared_ptr<v8::HeapStatistics>> cachedHeapStats_;
+    std::atomic<std::shared_ptr<ub::HeapStatistics>> cachedHeapStats_;
     std::chrono::steady_clock::time_point lastHeapStatsUpdate_;
     std::atomic<std::shared_ptr<StackTraceSnapshot>> lastStackTrace_;
     std::atomic<StackCaptureMode> stackCaptureMode_{StackCaptureMode::Off};
@@ -269,7 +292,7 @@ class Script : public std::enable_shared_from_this<Script> {
 
     // Event registry
     std::mutex eventFunctionsMutex_;
-    std::unordered_map<std::string, std::vector<v8::Global<v8::Function>>> eventFunctions_;
+    std::unordered_map<std::string, std::vector<ub::Global<ub::Function>>> eventFunctions_;
 
     // Delayed events (setTimeout/setInterval)
     std::mutex delayedEventMutex_;
@@ -280,8 +303,8 @@ class Script : public std::enable_shared_from_this<Script> {
     std::set<std::filesystem::path> inProgressIncludes_;
 
     struct DrawableHandlers {
-        v8::Global<v8::Function> click;
-        v8::Global<v8::Function> hover;
+        ub::Global<ub::Function> click;
+        ub::Global<ub::Function> hover;
     };
 
     std::shared_mutex drawablesMutex_;
@@ -290,9 +313,15 @@ class Script : public std::enable_shared_from_this<Script> {
     // the script's own shared_ptr drops, so a key never outlives its drawable.
     std::unordered_map<const runtime::drawing::Drawable*, DrawableHandlers> drawableHandlers_;
 
-    // V8 inspector (Chrome DevTools) attachment for this isolate. Created by
-    // AttachInspector in SetupIsolate and destroyed in TeardownIsolate, both on
-    // the script's own thread; touched only there.
+    // Posted events not yet run, keyed by the pointer the job carries. Filled
+    // by PostEvent on any thread, emptied by RunPendingJob and TeardownIsolate
+    // on the script's own.
+    std::mutex pendingJobsMutex_;
+    std::unordered_map<PendingJob*, std::unique_ptr<PendingJob>> pendingJobs_;
+
+    // Debugger attachment for this isolate; null when the engine has none.
+    // Created by AttachDebugger in SetupIsolate and destroyed in
+    // TeardownIsolate, both on the script's own thread; touched only there.
     std::unique_ptr<runtime::inspector::ScriptInspector> inspector_;
 };
 

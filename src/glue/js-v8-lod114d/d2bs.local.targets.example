@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Local-only MSBuild overrides for the d2bs project.
+  Local-only MSBuild overrides for the glue projects (d2bs-v8, d2bs-sm).
 
   Copy this file to "d2bs.local.targets" (same folder) to enable it. That name is
-  gitignored, so your local tweaks are never committed. d2bs.vcxproj imports it
-  automatically when present (see the ExtensionTargets ImportGroup).
+  gitignored, so your local tweaks are never committed. The glue project in that
+  folder imports it automatically when present (see the ExtensionTargets ImportGroup).
 
   The example below copies the freshly built DLL (and PDB) into a folder of your
   choice after each build - handy for dropping it straight into a bot/script setup.

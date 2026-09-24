@@ -22,8 +22,8 @@ namespace d2bs::api {
 // Transparent comparator map type - allows heterogeneous find/contains with string_view.
 using ClassCountMap = std::map<std::string, int32_t, std::less<>>;
 
-// Central registry for per-thread, per-class V8 instance counts.
-// Tracks how many live V8-wrapped native objects exist for each class type on each script thread.
+// Central registry for per-thread, per-class script instance counts.
+// Tracks how many live wrapped native objects exist for each class type on each script thread.
 // Used for debugging, leak detection, and polling for count==0 during isolate teardown.
 //
 // Counting sits on every wrapper object's construction and destruction, so the hot path is a

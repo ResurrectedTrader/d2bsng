@@ -1,17 +1,17 @@
 #pragma once
 
-#include <v8.h>
+#include <memory>
+#include <optional>
 #include <string>
 #include <unordered_set>
 #include "api/core/Class.h"
-#include "api/core/Convert.h"
-#include "api/core/Error.h"
+#include "unibind/unibind.h"
 
 namespace d2bs::api::classes {
 
 // Sandbox native data - the sandbox context's global IS the inner object (matching d2bs reference)
 struct SandboxData {
-    v8::Global<v8::Context> context;
+    ub::Context context;
     std::unordered_set<std::string> includedFiles;
 };
 
@@ -23,34 +23,23 @@ class JSSandbox : public ClassBase<JSSandbox, SandboxData> {
     static constexpr std::string_view ClassName = "Sandbox";
 
     // Constructor callback
-    static void New(const v8::FunctionCallbackInfo<v8::Value>& args);
+    static std::unique_ptr<SandboxData> New(const ub::CallbackInfo& args);
 
-    static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl);
+    static void Configure(const ub::Class<SandboxData>& cls);
 
    private:
-    // ========================================================================
-    // Named Property Handlers (for dynamic property access)
-    // V8 v14+ uses Intercepted return type for interceptor callbacks
-    // ========================================================================
-
-    // Getter for named properties
-    static v8::Intercepted NamedPropertyGetter(v8::Local<v8::Name> property,
-                                               const v8::PropertyCallbackInfo<v8::Value>& info);
-
-    // Setter for named properties
-    static v8::Intercepted NamedPropertySetter(v8::Local<v8::Name> property, v8::Local<v8::Value> value,
-                                               const v8::PropertyCallbackInfo<v8::Boolean>& info);
-
-    // Query for named properties
-    static v8::Intercepted NamedPropertyQuery(v8::Local<v8::Name> property,
-                                              const v8::PropertyCallbackInfo<v8::Integer>& info);
-
-    // Deleter for named properties
-    static v8::Intercepted NamedPropertyDeleter(v8::Local<v8::Name> property,
-                                                const v8::PropertyCallbackInfo<v8::Boolean>& info);
-
-    // Enumerator for named properties (still returns void)
-    static void NamedPropertyEnumerator(const v8::PropertyCallbackInfo<v8::Array>& info);
+    // Named property interceptor on every Sandbox instance: property access is proxied to the
+    // sandbox context's global object. The getter declines for a property the scope does not
+    // define, so the prototype's methods stay reachable.
+    static ub::Intercepted NamedPropertyGetter(const ub::Local<ub::Name>& property,
+                                               const ub::PropertyCallbackInfo& info);
+    static ub::Intercepted NamedPropertySetter(const ub::Local<ub::Name>& property, const ub::Local<ub::Value>& value,
+                                               const ub::PropertyCallbackInfo& info);
+    static std::optional<ub::PropertyAttribute> NamedPropertyQuery(const ub::Local<ub::Name>& property,
+                                                                   const ub::PropertyCallbackInfo& info);
+    static std::optional<bool> NamedPropertyDeleter(const ub::Local<ub::Name>& property,
+                                                    const ub::PropertyCallbackInfo& info);
+    static std::optional<ub::Local<ub::Array>> NamedPropertyEnumerator(const ub::PropertyCallbackInfo& info);
 };
 
 }  // namespace d2bs::api::classes

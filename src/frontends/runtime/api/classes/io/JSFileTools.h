@@ -1,7 +1,5 @@
 #pragma once
 
-#include <v8.h>
-
 #include <cstdio>
 #include <filesystem>
 #include <mutex>
@@ -18,40 +16,39 @@ namespace d2bs::api::classes {
 namespace filetools_detail {
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern std::mutex fileMutex;
-std::filesystem::path ResolveScriptPath(v8::Isolate* isolate, const std::string& relativePath, const char* errorMsg);
-FILE* FileOpenRelScript(v8::Isolate* isolate, const std::string& relativePath, const wchar_t* mode);
-std::string ValueToString(v8::Isolate* isolate, v8::Local<v8::Value> value);
+std::filesystem::path ResolveScriptPath(ub::Isolate& isolate, const std::string& relativePath, const char* errorMsg);
+FILE* FileOpenRelScript(ub::Isolate& isolate, const std::string& relativePath, const wchar_t* mode);
+std::string ValueToString(const ub::Context& context, const ub::Local<ub::Value>& value);
 }  // namespace filetools_detail
 
 // FileTools has no instance data - static utility class
 struct FileToolsData {};
 
-// JSFileTools - V8 wrapper for static file utility operations
+// JSFileTools - script wrapper for static file utility operations
 // This class only has static methods, no instances are created
 class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
    public:
     static constexpr std::string_view ClassName = "FileTools";
 
-    V8_CLASS_NOT_CONSTRUCTABLE
-
-    static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
+    static void Configure(const ub::Class<FileToolsData>& cls) {
         /// @description Delete a file under the script base directory.
         /// @signature remove(path: string)
         /// @param path {string} - file name relative to the script base directory.
         /// @returns {undefined} - throws "Invalid file name" on bad path; a missing file is ignored.
         /// @throws {Error} - path is empty or resolves outside the script base directory.
         StaticMethod(
-            isolate, tpl, "remove", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                auto* isolate = args.GetIsolate();
+            cls, "remove", +[](const ub::CallbackInfo& args) {
+                auto& isolate = args.GetIsolate();
+                const auto& context = args.GetContext();
                 if (!error::CheckArgCount(args, 1, "FileTools.remove")) {
                     return;
                 }
-                if (!args[0]->IsString()) {
+                if (!args[0].IsString()) {
                     error::ThrowTypeError(isolate, "You must supply a file name");
                     return;
                 }
 
-                std::string path = convert::ToString(isolate, args[0]);
+                std::string path = convert::ToString(context, args[0]);
                 auto fullPath = filetools_detail::ResolveScriptPath(isolate, path, "Invalid file name");
                 if (fullPath.empty()) {
                     return;
@@ -69,22 +66,23 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
         /// @throws {Error} - oldName is empty or resolves outside the script base directory.
         /// @throws {Error} - newName is empty or resolves outside the script base directory.
         StaticMethod(
-            isolate, tpl, "rename", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                auto* isolate = args.GetIsolate();
+            cls, "rename", +[](const ub::CallbackInfo& args) {
+                auto& isolate = args.GetIsolate();
+                const auto& context = args.GetContext();
                 if (!error::CheckArgCount(args, 2, "FileTools.rename")) {
                     return;
                 }
-                if (!args[0]->IsString()) {
+                if (!args[0].IsString()) {
                     error::ThrowTypeError(isolate, "You must supply an original file name");
                     return;
                 }
-                if (!args[1]->IsString()) {
+                if (!args[1].IsString()) {
                     error::ThrowTypeError(isolate, "You must supply a new file name");
                     return;
                 }
 
-                std::string oldName = convert::ToString(isolate, args[0]);
-                std::string newName = convert::ToString(isolate, args[1]);
+                std::string oldName = convert::ToString(context, args[0]);
+                std::string newName = convert::ToString(context, args[1]);
 
                 auto oldPath = filetools_detail::ResolveScriptPath(isolate, oldName, "Invalid original file name");
                 if (oldPath.empty()) {
@@ -109,23 +107,24 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
         /// @throws {Error} - the source or destination file cannot be opened.
         /// @throws {Error} - copying fails partway (a read or write error occurs).
         StaticMethod(
-            isolate, tpl, "copy", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                auto* isolate = args.GetIsolate();
+            cls, "copy", +[](const ub::CallbackInfo& args) {
+                auto& isolate = args.GetIsolate();
+                const auto& context = args.GetContext();
                 if (!error::CheckArgCount(args, 2, "FileTools.copy")) {
                     return;
                 }
-                if (!args[0]->IsString()) {
+                if (!args[0].IsString()) {
                     error::ThrowTypeError(isolate, "You must supply an original file name");
                     return;
                 }
-                if (!args[1]->IsString()) {
+                if (!args[1].IsString()) {
                     error::ThrowTypeError(isolate, "You must supply a new file name");
                     return;
                 }
 
-                std::string original = convert::ToString(isolate, args[0]);
-                std::string copyName = convert::ToString(isolate, args[1]);
-                bool skipIfExists = convert::ToBool(isolate, args.Length() > 2 ? args[2] : v8::Local<v8::Value>());
+                std::string original = convert::ToString(context, args[0]);
+                std::string copyName = convert::ToString(context, args[1]);
+                bool skipIfExists = convert::ToBool(context, args[2]);
 
                 auto dstPath = filetools_detail::ResolveScriptPath(isolate, copyName, "Invalid new file name");
                 if (dstPath.empty()) {
@@ -183,17 +182,18 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
         /// @returns {boolean} - true if the resolved path exists; throws "Invalid file name" on bad path.
         /// @throws {Error} - path is empty or resolves outside the script base directory.
         StaticMethod(
-            isolate, tpl, "exists", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                auto* isolate = args.GetIsolate();
+            cls, "exists", +[](const ub::CallbackInfo& args) {
+                auto& isolate = args.GetIsolate();
+                const auto& context = args.GetContext();
                 if (!error::CheckArgCount(args, 1, "FileTools.exists")) {
                     return;
                 }
-                if (!args[0]->IsString()) {
+                if (!args[0].IsString()) {
                     error::ThrowTypeError(isolate, "Invalid file name");
                     return;
                 }
 
-                std::string path = convert::ToString(isolate, args[0]);
+                std::string path = convert::ToString(context, args[0]);
                 auto fullPath = filetools_detail::ResolveScriptPath(isolate, path, "Invalid file name");
                 if (fullPath.empty()) {
                     return;
@@ -211,17 +211,18 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
         /// @throws {Error} - the file cannot be opened (e.g. it does not exist).
         /// @throws {Error} - reading the file fails.
         StaticMethod(
-            isolate, tpl, "readText", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                auto* isolate = args.GetIsolate();
+            cls, "readText", +[](const ub::CallbackInfo& args) {
+                auto& isolate = args.GetIsolate();
+                const auto& context = args.GetContext();
                 if (!error::CheckArgCount(args, 1, "FileTools.readText")) {
                     return;
                 }
-                if (!args[0]->IsString()) {
+                if (!args[0].IsString()) {
                     error::ThrowTypeError(isolate, "You must supply a file name");
                     return;
                 }
 
-                std::string path = convert::ToString(isolate, args[0]);
+                std::string path = convert::ToString(context, args[0]);
                 FILE* fp = filetools_detail::FileOpenRelScript(isolate, path, L"r");
                 if (fp == nullptr) {
                     return;
@@ -255,7 +256,9 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
                     contents.erase(0, 3);
                 }
 
-                args.GetReturnValue().Set(convert::ToJS(isolate, contents));
+                if (auto text = ub::String::NewFromUtf8(isolate, contents)) {
+                    args.GetReturnValue().Set(*text);
+                }
             });
 
         /// @description Write one or more values to a file, overwriting existing contents.
@@ -267,17 +270,18 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
         /// @throws {Error} - path is empty or resolves outside the script base directory.
         /// @throws {Error} - the file cannot be opened for writing.
         StaticMethod(
-            isolate, tpl, "writeText", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                auto* isolate = args.GetIsolate();
+            cls, "writeText", +[](const ub::CallbackInfo& args) {
+                auto& isolate = args.GetIsolate();
+                const auto& context = args.GetContext();
                 if (!error::CheckArgCount(args, 2, "FileTools.writeText")) {
                     return;
                 }
-                if (!args[0]->IsString()) {
+                if (!args[0].IsString()) {
                     error::ThrowTypeError(isolate, "You must supply a file name");
                     return;
                 }
 
-                std::string path = convert::ToString(isolate, args[0]);
+                std::string path = convert::ToString(context, args[0]);
 
                 std::scoped_lock lock(filetools_detail::fileMutex);
 
@@ -287,8 +291,8 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
                 }
 
                 bool result = true;
-                for (int32_t i = 1; i < args.Length(); i++) {
-                    std::string text = filetools_detail::ValueToString(isolate, args[i]);
+                for (uint32_t i = 1; i < args.Length(); i++) {
+                    std::string text = filetools_detail::ValueToString(context, args[i]);
                     if (!text.empty()) {
                         if (fwrite(text.data(), 1, text.size(), fp) != text.size()) {
                             result = false;
@@ -311,17 +315,18 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
         /// @throws {Error} - path is empty or resolves outside the script base directory.
         /// @throws {Error} - the file cannot be opened for appending.
         StaticMethod(
-            isolate, tpl, "appendText", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                auto* isolate = args.GetIsolate();
+            cls, "appendText", +[](const ub::CallbackInfo& args) {
+                auto& isolate = args.GetIsolate();
+                const auto& context = args.GetContext();
                 if (!error::CheckArgCount(args, 2, "FileTools.appendText")) {
                     return;
                 }
-                if (!args[0]->IsString()) {
+                if (!args[0].IsString()) {
                     error::ThrowTypeError(isolate, "You must supply a file name");
                     return;
                 }
 
-                std::string path = convert::ToString(isolate, args[0]);
+                std::string path = convert::ToString(context, args[0]);
 
                 std::scoped_lock lock(filetools_detail::fileMutex);
 
@@ -331,8 +336,8 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
                 }
 
                 bool result = true;
-                for (int32_t i = 1; i < args.Length(); i++) {
-                    std::string text = filetools_detail::ValueToString(isolate, args[i]);
+                for (uint32_t i = 1; i < args.Length(); i++) {
+                    std::string text = filetools_detail::ValueToString(context, args[i]);
                     if (!text.empty()) {
                         if (fwrite(text.data(), 1, text.size(), fp) != text.size()) {
                             result = false;

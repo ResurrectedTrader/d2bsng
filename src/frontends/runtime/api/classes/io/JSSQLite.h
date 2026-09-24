@@ -1,15 +1,14 @@
 #pragma once
 
 #include <sqlite3.h>
-#include <v8.h>
 #include <filesystem>
-#include <set>
+#include <memory>
+#include <vector>
+
 #include "api/core/Class.h"
-#include "api/core/Error.h"
 
 namespace d2bs::api::classes {
 
-// Forward declaration
 struct DBStatementData;
 
 // Internal data structure for SQLite
@@ -17,7 +16,9 @@ struct SQLiteData {
     sqlite3* handle = nullptr;
     std::filesystem::path path;
     bool isOpen = false;
-    std::set<DBStatementData*> statements;
+    // Statements prepared on this connection, in creation order. Weak: a statement keeps its
+    // database alive, not the other way round; close() finalizes whichever are still live.
+    std::vector<std::weak_ptr<DBStatementData>> statements;
 
     // Idempotent cleanup - closes all statements and database
     void Close() noexcept;
@@ -36,10 +37,9 @@ class JSSQLite : public ClassBase<JSSQLite, SQLiteData> {
    public:
     static constexpr std::string_view ClassName = "SQLite";
 
-    // Constructor - creates a SQLite database connection
-    static void New(const v8::FunctionCallbackInfo<v8::Value>& args);
+    static std::unique_ptr<SQLiteData> New(const ub::CallbackInfo& args);
 
-    static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl);
+    static void Configure(const ub::Class<SQLiteData>& cls);
 };
 
 }  // namespace d2bs::api::classes

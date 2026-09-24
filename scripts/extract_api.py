@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Extract the JavaScript API surface from d2bsng V8 bindings.
+Extract the JavaScript API surface from d2bsng's bindings.
 
-Parses C++ source files using libclang to walk the AST and find V8
+Parses C++ source files using libclang to walk the AST and find the
 registration calls (Method, Property, function::Register, etc.),
 then outputs a structured JSON description of the entire JS API.
 
@@ -35,36 +35,37 @@ except ImportError:
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
-def v8_include_dir():
-    """Where the build unpacks the V8 headers.
+def unibind_include_dir():
+    """Where the build unpacks unibind's headers.
 
-    They are not in the repository: the build downloads them per version into
-    dependencies/v8/<version>/x86-<flavor>/include. The version comes from the
-    same property the build and the CI cache key read, so this cannot drift from
-    what was actually unpacked.
+    The bindings compile against unibind (`ub::`), not against an engine, and
+    unibind is not in the repository: the build downloads it per version into
+    dependencies/unibind/<version>/x86-<flavor>/include. The version comes from
+    the same property the build and the CI cache key read, so this cannot drift
+    from what was actually unpacked.
 
     Returns the path whether or not it exists, so a caller can name the
     directory that was missing; None only if Directory.Build.props was unreadable.
     """
     props = REPO_ROOT / "Directory.Build.props"
     try:
-        node = ElementTree.parse(props).getroot().find(".//V8Version")
+        node = ElementTree.parse(props).getroot().find(".//UnibindVersion")
     except (OSError, ElementTree.ParseError):
         return None
     if node is None or not (node.text or "").strip():
         return None
-    root = REPO_ROOT / "dependencies" / "v8" / node.text.strip()
+    root = REPO_ROOT / "dependencies" / "unibind" / node.text.strip()
     # Release is what a normal build leaves behind; fall back to whichever
     # flavor is present so a tree that has only ever built Debug still works.
     for flavor in ("x86-release", "x86-debug"):
         d = root / flavor / "include"
-        if (d / "v8.h").exists():
+        if (d / "unibind" / "unibind.h").exists():
             return d
     return root / "x86-release" / "include"
 
 
-def require_v8_headers():
-    """Stop before parsing anything if the V8 headers are not unpacked.
+def require_unibind_headers():
+    """Stop before parsing anything if unibind's headers are not unpacked.
 
     libclang does not need them to produce *an* answer: it reports the missing
     include, carries on, and hands back a fraction of the AST. That would write
@@ -72,15 +73,15 @@ def require_v8_headers():
     d2bsng.d.ts. So this is a precondition rather than a warning - and since an
     un-built clone is its normal cause, it gets a sentence, not a traceback.
     """
-    inc = v8_include_dir()
+    inc = unibind_include_dir()
     if inc is None:
         sys.exit(
-            "error: could not read V8Version from Directory.Build.props;"
-            " that property is what says which V8 to look for."
+            "error: could not read UnibindVersion from Directory.Build.props;"
+            " that property is what says which unibind to look for."
         )
-    if not (inc / "v8.h").exists():
+    if not (inc / "unibind" / "unibind.h").exists():
         sys.exit(
-            f"error: V8 headers not found at {inc}\n"
+            f"error: unibind headers not found at {inc}\n"
             "       They are not in the repository - the build downloads them.\n"
             "       Run `build.ps1 deps` (or any build) first, then re-run this."
         )
@@ -168,11 +169,12 @@ def build_compile_flags():
         REPO_ROOT / "src" / "frontends" / "runtime",
         REPO_ROOT / "src" / "contract",
         REPO_ROOT / "src" / "core",
+        REPO_ROOT / "src" / "services",
         REPO_ROOT / "src",
     ):
         if d.exists():
             flags += ["-I", str(d)]
-    # V8 and vcpkg use angle-bracket includes → -isystem
+    # unibind and vcpkg are third-party headers → -isystem
     vcpkg_inc = (
         REPO_ROOT
         / "vcpkg_installed"
@@ -180,7 +182,7 @@ def build_compile_flags():
         / "x86-windows-static"
         / "include"
     )
-    for d in (v8_include_dir(), vcpkg_inc):
+    for d in (unibind_include_dir(), vcpkg_inc):
         if d and d.exists():
             flags += ["-isystem", str(d)]
     for d in find_system_includes():
@@ -265,6 +267,15 @@ def member_call_object(call):
             if name and name not in ("operator->",):
                 return name
     return None
+
+
+def define_target(call):
+    """For Define(context, target, "NAME", value), the variable naming the
+    target object: 'global', or the nested object ('*profileType' -> 'profileType')."""
+    args = list(call_args(call))
+    if len(args) < 2:
+        return None
+    return find_decl_ref(args[1])
 
 
 def count_unary_ops(call):
@@ -643,7 +654,7 @@ class ApiExtractor:
         self.me_properties = []
         self._seen = set()  # (file, line, name) dedup from header re-inclusion
         self._nested_obj_name = {}  # var_name -> [entries]
-        self._constructable = {}  # cpp_class -> bool (false = V8_CLASS_NOT_CONSTRUCTABLE)
+        self._constructable = {}  # cpp_class -> bool (true when the class declares New)
         self._ctor = {}  # cpp_class -> {file, line, doc} for the documented New
         self._extends = {}  # cpp_class -> base js name (shared-property inheritance)
         self._class_js = {}  # cpp_class -> ClassName (JS-visible name), for consistent keying
@@ -674,7 +685,7 @@ class ApiExtractor:
         # Context-setting function definitions
         if cur.kind in (CursorKind.FUNCTION_DECL, CursorKind.CXX_METHOD):
             name = cur.spelling
-            if name == "ConfigureTemplate":
+            if name == "Configure":
                 parent = cur.semantic_parent
                 cpp_name = parent.spelling if parent else "Unknown"
                 new_ctx = ("class", cpp_name)
@@ -743,13 +754,13 @@ class ApiExtractor:
         if tag == "class":
             cpp_class = ctx[1]
             if name == "ConfigureCommonProperties":
-                # A drawable's ConfigureTemplate calls this base helper; record
+                # A drawable's Configure calls this base helper; record
                 # the inheritance so shared members aren't duplicated per class.
                 if cpp_class != "JSDrawableBase":
                     self._extends[cpp_class] = "DrawableBase"
                 return
             if name == "Method":
-                s = nth_arg_string(call, 2)
+                s = nth_arg_string(call, 1)
                 if s:
                     entry = {"name": s, **loc}
                     if doc:
@@ -758,7 +769,7 @@ class ApiExtractor:
                         entry
                     )
             elif name == "Property":
-                s = nth_arg_string(call, 2)
+                s = nth_arg_string(call, 1)
                 if s:
                     ro = readonly_from(doc, call)
                     doc.setdefault("mode", "readonly" if ro else "readwrite")
@@ -767,7 +778,7 @@ class ApiExtractor:
                         "properties"
                     ].append(entry)
             elif name == "StaticMethod":
-                s = nth_arg_string(call, 2)
+                s = nth_arg_string(call, 1)
                 if s:
                     entry = {"name": s, **loc}
                     if doc:
@@ -779,7 +790,7 @@ class ApiExtractor:
         elif tag == "globals":
             category = ctx[1]
             if name == "Register":
-                s = nth_arg_string(call, 2)
+                s = nth_arg_string(call, 1)
                 if s:
                     entry = {"name": s, "category": category, **loc}
                     if doc:
@@ -787,11 +798,11 @@ class ApiExtractor:
                     self.globals.append(entry)
 
         elif tag == "constants":
-            if name == "Set":
-                s = nth_arg_string(call, 1)
+            if name == "Define":
+                s = nth_arg_string(call, 2)
                 if not s:
                     return
-                obj = member_call_object(call)
+                obj = define_target(call)
                 entry = {"name": s, **loc}
                 if doc:
                     entry["doc"] = doc
@@ -816,12 +827,10 @@ class ApiExtractor:
                         self.constants[s] = entry
 
         elif tag == "me":
-            # InstanceProperty(isolate, context, me, "name", getter[, setter]) - the `me`
-            # extras go through the class trampoline, so the name is the 4th argument.
-            # A raw SetNativeDataProperty(context, "name", ...) puts it 2nd.
-            if name in ("InstanceProperty", "SetNativeDataProperty"):
-                idx = 3 if name == "InstanceProperty" else 1
-                s = nth_arg_string(call, idx, depth=6)
+            # InstanceProperty(context, me, "name", getter[, setter]) - the `me` extras
+            # go through the class trampoline, so the name is the 3rd argument.
+            if name == "InstanceProperty":
+                s = nth_arg_string(call, 2, depth=6)
                 if s:
                     ro = readonly_from(doc, call)
                     doc.setdefault("mode", "readonly" if ro else "readwrite")
@@ -832,8 +841,8 @@ class ApiExtractor:
             pass  # ClassName constexpr already captures this
 
     def _scan_constructable(self, class_cursor):
-        """A class is constructable unless its body uses the
-        ``V8_CLASS_NOT_CONSTRUCTABLE`` macro (which makes ``new T()`` throw)."""
+        """A class is constructable when it declares a ``New`` constructor
+        callback; ClassBase leaves a class without one unconstructable."""
         cpp = class_cursor.spelling
         if cpp in self._constructable:
             return
@@ -843,7 +852,11 @@ class ApiExtractor:
             return
         lines = _get_lines(Path(src.name))
         body = "\n".join(lines[ext.start.line - 1 : ext.end.line])
-        self._constructable[cpp] = "V8_CLASS_NOT_CONSTRUCTABLE" not in body
+        # The declaration, not any call: a class body calls `ub::Object::New(` and
+        # the like whether or not it has a constructor of its own.
+        self._constructable[cpp] = (
+            re.search(r"static\s+std::(?:unique|shared)_ptr<[^;{]*>\s+New\s*\(", body) is not None
+        )
 
     def _on_constructor(self, cur, cpp_name, path):
         """Record the documented ``New`` definition as the class constructor.
@@ -904,7 +917,7 @@ class ApiExtractor:
 
 # ── Parallel extraction ─────────────────────────────────────────────
 #
-# Parsing dominates runtime: every file re-parses the full V8 + MSVC +
+# Parsing dominates runtime: every file re-parses the full unibind + MSVC +
 # Windows SDK include set (~4-5s each), and the work is CPU-bound inside
 # libclang.  Each file is an independent translation unit, so we fan the
 # parse+walk out across worker processes (threads don't help — the AST
@@ -1411,7 +1424,7 @@ _DRAWABLE_BASE_FILE = (
     REPO_ROOT / "src" / "frontends" / "runtime" / "api" / "classes" / "drawing" / "JSDrawableBase.h"
 )
 _DRAWABLE_REG_RE = re.compile(
-    r'Base::(Property|Method)\(\s*isolate\s*,\s*\w+\s*,\s*"([^"]+)"'
+    r'Base::(Property|Method)\(\s*cls\s*,\s*"([^"]+)"'
 )
 
 
@@ -1475,7 +1488,7 @@ def main():
             except ValueError:
                 jobs = None
 
-    require_v8_headers()
+    require_unibind_headers()
 
     flags = build_compile_flags()
     if verbose:

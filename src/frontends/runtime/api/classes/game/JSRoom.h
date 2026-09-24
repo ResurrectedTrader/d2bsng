@@ -1,37 +1,36 @@
 #pragma once
 
-#include <cstring>
-
-#include <v8.h>
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <span>
+#include <string_view>
 
 #include "JSPresetUnit.h"
 #include "JSUnit.h"
+#include "Receiver.h"
 #include "api/core/Class.h"
 #include "api/core/Convert.h"
 #include "api/core/Error.h"
 #include "game/Bridge.h"
 #include "game/GameHelpers.h"
 #include "game/Room.h"
+#include "unibind/unibind.h"
 
 namespace d2bs::api::classes {
 
-// V8 binding for game::Room (map tile).
+// Binding for game::Room (map tile).
 class JSRoom : public ClassBase<JSRoom, game::Room> {
    public:
     static constexpr std::string_view ClassName = "Room";
 
-    V8_CLASS_NOT_CONSTRUCTABLE
-
-    static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
-        auto inst = tpl->InstanceTemplate();
-        auto proto = tpl->PrototypeTemplate();
-
+    static void Configure(const ub::Class<Native>& cls) {
         /// @description Room-tree room number identifier.
         /// @type {number}
         Property(
-            isolate, inst, "number", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
-                if (!*data) {
+            cls, "number", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSRoom>(info);
+                if (data == nullptr || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(data->Number());
@@ -40,9 +39,9 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @description Room origin X in subtiles (room-tree X position).
         /// @type {number}
         Property(
-            isolate, inst, "x", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
-                if (!*data) {
+            cls, "x", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSRoom>(info);
+                if (data == nullptr || !*data) {
                     return;
                 }
                 // reference d2bs parity: room.x/y are exposed as subtiles; Room::Bounds() returns game-coords (see
@@ -53,9 +52,9 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @description Room origin Y in subtiles (room-tree Y position).
         /// @type {number}
         Property(
-            isolate, inst, "y", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
-                if (!*data) {
+            cls, "y", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSRoom>(info);
+                if (data == nullptr || !*data) {
                     return;
                 }
                 // reference d2bs parity: room.x/y are exposed as subtiles; Room::Bounds() returns game-coords (see
@@ -66,9 +65,9 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @description Room width.
         /// @type {number}
         Property(
-            isolate, inst, "xsize", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
-                if (!*data) {
+            cls, "xsize", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSRoom>(info);
+                if (data == nullptr || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(data->Bounds().size.width);
@@ -77,9 +76,9 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @description Room height.
         /// @type {number}
         Property(
-            isolate, inst, "ysize", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
-                if (!*data) {
+            cls, "ysize", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSRoom>(info);
+                if (data == nullptr || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(data->Bounds().size.height);
@@ -88,9 +87,9 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @description Room sub-number (secondary room-tree identifier).
         /// @type {number}
         Property(
-            isolate, inst, "subnumber", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
-                if (!*data) {
+            cls, "subnumber", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSRoom>(info);
+                if (data == nullptr || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(data->SubNumber());
@@ -99,8 +98,11 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @description Level/area ID this room belongs to. Alias of the level property.
         /// @type {number}
         Property(
-            isolate, inst, "area", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+            cls, "area", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSRoom>(info);
+                if (data == nullptr) {
+                    return;
+                }
                 if (!*data) {
                     info.GetReturnValue().Set(0);
                     return;
@@ -112,8 +114,11 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// property.
         /// @type {number}
         Property(
-            isolate, inst, "level", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+            cls, "level", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSRoom>(info);
+                if (data == nullptr) {
+                    return;
+                }
                 if (!*data) {
                     info.GetReturnValue().Set(0);
                     return;
@@ -124,8 +129,11 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @description Correct-tomb level number for this room (Tal Rasha's Tombs detection).
         /// @type {number}
         Property(
-            isolate, inst, "correcttomb", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+            cls, "correcttomb", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSRoom>(info);
+                if (data == nullptr) {
+                    return;
+                }
                 if (!*data) {
                     info.GetReturnValue().Set(0);
                     return;
@@ -138,8 +146,11 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @signature getNext()
         /// @returns {boolean} - true if advanced; false at end of chain or when unresolved.
         Method(
-            isolate, proto, "getNext", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                auto* data = Unwrap(args.This());
+            cls, "getNext", +[](const ub::CallbackInfo& args) {
+                auto* data = Receiver<JSRoom>(args);
+                if (data == nullptr) {
+                    return;
+                }
                 if (!*data) {
                     args.GetReturnValue().SetFalse();
                     return;
@@ -158,18 +169,18 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @param drawPresets {boolean} - when true also reveals preset unit markers (default false).
         /// @returns {boolean} - true on successful reveal; undefined when game not ready or room unresolved.
         Method(
-            isolate, proto, "reveal", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+            cls, "reveal", +[](const ub::CallbackInfo& args) {
                 if (!game::IsGameReady()) {
                     return;
                 }
-                auto* data = Unwrap(args.This());
-                if (!*data) {
+                auto* data = Receiver<JSRoom>(args);
+                if (data == nullptr || !*data) {
                     return;
                 }
 
                 bool drawPresets = false;
-                if (args.Length() >= 1 && args[0]->IsBoolean()) {
-                    drawPresets = args[0]->BooleanValue(args.GetIsolate());
+                if (args.Length() >= 1 && args[0].IsBoolean()) {
+                    drawPresets = convert::ToBool(args.GetContext(), args[0]);
                 }
 
                 auto lock = game::Bridge::Lock();
@@ -183,14 +194,13 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @returns {PresetUnit[]} - matching PresetUnit objects (possibly empty); undefined when game not ready
         /// or room unresolved.
         Method(
-            isolate, proto, "getPresetUnits", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                auto* isolate = args.GetIsolate();
+            cls, "getPresetUnits", +[](const ub::CallbackInfo& args) {
                 if (!game::IsGameReady()) {
                     return;
                 }
-                auto context = isolate->GetCurrentContext();
-                auto* data = Unwrap(args.This());
-                if (!*data) {
+                const auto& context = args.GetContext();
+                auto* data = Receiver<JSRoom>(args);
+                if (data == nullptr || !*data) {
                     return;  // Returns undefined - reference returns undefined when room is null
                 }
 
@@ -199,28 +209,32 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 // store 0xFFFFFFFF as an engaged optional, breaking "no filter" semantics.
                 std::optional<uint32_t> nType;
                 std::optional<uint32_t> nClass;
-                if (args.Length() > 0 && args[0]->IsUint32()) {
-                    nType = convert::ToUint32(isolate, args[0]);
+                if (args.Length() > 0 && args[0].IsUint32()) {
+                    nType = convert::ToUint32(context, args[0]);
                 }
-                if (args.Length() > 1 && args[1]->IsUint32()) {
-                    nClass = convert::ToUint32(isolate, args[1]);
+                if (args.Length() > 1 && args[1].IsUint32()) {
+                    nClass = convert::ToUint32(context, args[1]);
                 }
 
                 auto lock = game::Bridge::Lock();
                 auto presets = data->GetPresetUnits(nType, nClass);
-                auto array = v8::Array::New(isolate, static_cast<int32_t>(presets.size()));
-
-                for (uint32_t i = 0; i < presets.size(); ++i) {
-                    auto puData = std::make_unique<game::PresetUnitInfo>(presets[i]);
-                    auto obj = JSPresetUnit::CreateInstance(isolate, context, std::move(puData));
-                    if (obj.IsEmpty()) {
-                        error::ThrowError(isolate, "Failed to build preset unit array");
-                        return;
-                    }
-                    array->Set(context, i, obj).Check();
+                auto array = ub::Array::New(context, static_cast<uint32_t>(presets.size()));
+                if (!array) {
+                    return;
                 }
 
-                args.GetReturnValue().Set(array);
+                for (uint32_t i = 0; i < presets.size(); ++i) {
+                    auto obj = JSPresetUnit::Wrap(context, std::make_shared<game::PresetUnitInfo>(presets[i]));
+                    if (!obj) {
+                        error::ThrowError(args.GetIsolate(), "Failed to build preset unit array");
+                        return;
+                    }
+                    if (!array->Set(context, i, *obj).value_or(false)) {
+                        return;
+                    }
+                }
+
+                args.GetReturnValue().Set(*array);
             });
 
         /// @description Returns the room's collision grid as a 2D array indexed grid[y][x] (outer array is rows).
@@ -228,32 +242,42 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @returns {number[][]} - rows of collision cell flags; undefined when game not ready or room
         /// unresolved.
         Method(
-            isolate, proto, "getCollision", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                auto* isolate = args.GetIsolate();
+            cls, "getCollision", +[](const ub::CallbackInfo& args) {
                 if (!game::IsGameReady()) {
                     return;
                 }
-                auto context = isolate->GetCurrentContext();
-                auto* data = Unwrap(args.This());
-                if (!*data) {
+                const auto& context = args.GetContext();
+                auto* data = Receiver<JSRoom>(args);
+                if (data == nullptr || !*data) {
                     return;  // Returns undefined - reference returns undefined when room is null
                 }
 
                 auto lock = game::Bridge::Lock();
                 auto collision = data->GetCollision();
-                auto outerArray = v8::Array::New(isolate, static_cast<int32_t>(collision.size()));
-
-                for (size_t y = 0; y < collision.size(); ++y) {
-                    v8::HandleScope rowScope(isolate);
-                    const auto& row = collision[y];
-                    auto innerArray = v8::Array::New(isolate, static_cast<int32_t>(row.size()));
-                    for (size_t x = 0; x < row.size(); ++x) {
-                        innerArray->Set(context, x, convert::ToJS(isolate, row[x])).Check();
-                    }
-                    outerArray->Set(context, y, innerArray).Check();
+                auto& isolate = args.GetIsolate();
+                auto outerArray = ub::Array::New(context, static_cast<uint32_t>(collision.size()));
+                if (!outerArray) {
+                    return;
                 }
 
-                args.GetReturnValue().Set(outerArray);
+                for (uint32_t y = 0; y < collision.size(); ++y) {
+                    ub::HandleScope rowScope(isolate);
+                    const auto& row = collision[y];
+                    auto innerArray = ub::Array::New(context, static_cast<uint32_t>(row.size()));
+                    if (!innerArray) {
+                        return;
+                    }
+                    for (uint32_t x = 0; x < row.size(); ++x) {
+                        if (!innerArray->Set(context, x, convert::ToJS(isolate, row[x])).value_or(false)) {
+                            return;
+                        }
+                    }
+                    if (!outerArray->Set(context, y, *innerArray).value_or(false)) {
+                        return;
+                    }
+                }
+
+                args.GetReturnValue().Set(*outerArray);
             });
 
         /// @description Returns the room's collision grid as a flat row-major Uint16Array (length width*height);
@@ -262,13 +286,12 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @returns {Uint16Array} - flat row-major collision cell flags; undefined when game not ready, room
         /// unresolved, or no collision data.
         Method(
-            isolate, proto, "getCollisionA", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                auto* isolate = args.GetIsolate();
+            cls, "getCollisionA", +[](const ub::CallbackInfo& args) {
                 if (!game::IsGameReady()) {
                     return;
                 }
-                auto* data = Unwrap(args.This());
-                if (!*data) {
+                auto* data = Receiver<JSRoom>(args);
+                if (data == nullptr || !*data) {
                     return;  // Returns undefined - reference returns undefined when room is null
                 }
 
@@ -276,39 +299,46 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 if (flat.empty()) {
                     return;  // Returns undefined - reference returns undefined when collision data is null
                 }
-                size_t byteLength = flat.size() * sizeof(uint16_t);
-                auto backing = v8::ArrayBuffer::NewBackingStore(isolate, byteLength);
-                std::memcpy(backing->Data(), flat.data(), byteLength);
-                auto buffer = v8::ArrayBuffer::New(isolate, std::move(backing));
-                args.GetReturnValue().Set(v8::Uint16Array::New(buffer, 0, flat.size()));
+                if (auto view = ub::TypedArray::New(args.GetContext(), std::span<const uint16_t>(flat))) {
+                    args.GetReturnValue().Set(*view);
+                }
             });
 
         /// @description Returns Room objects adjacent to / near this room.
         /// @signature getNearby()
         /// @returns {Room[]} - nearby Room objects; empty array when unresolved or none.
         Method(
-            isolate, proto, "getNearby", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                auto* isolate = args.GetIsolate();
-                auto context = isolate->GetCurrentContext();
-                auto* data = Unwrap(args.This());
+            cls, "getNearby", +[](const ub::CallbackInfo& args) {
+                const auto& context = args.GetContext();
+                auto* data = Receiver<JSRoom>(args);
+                if (data == nullptr) {
+                    return;
+                }
                 if (!*data) {
-                    args.GetReturnValue().Set(v8::Array::New(isolate, 0));
+                    if (auto empty = ub::Array::New(context)) {
+                        args.GetReturnValue().Set(*empty);
+                    }
                     return;
                 }
 
                 auto nearby = data->GetNearby();
-                auto array = v8::Array::New(isolate, static_cast<int32_t>(nearby.size()));
-
-                for (uint32_t i = 0; i < nearby.size(); ++i) {
-                    auto obj = CreateInstance(isolate, context, std::make_unique<game::Room>(nearby[i]));
-                    if (obj.IsEmpty()) {
-                        error::ThrowError(isolate, "Failed to build nearby room array");
-                        return;
-                    }
-                    array->Set(context, i, obj).Check();
+                auto array = ub::Array::New(context, static_cast<uint32_t>(nearby.size()));
+                if (!array) {
+                    return;
                 }
 
-                args.GetReturnValue().Set(array);
+                for (uint32_t i = 0; i < nearby.size(); ++i) {
+                    auto obj = Wrap(context, std::make_shared<game::Room>(nearby[i]));
+                    if (!obj) {
+                        error::ThrowError(args.GetIsolate(), "Failed to build nearby room array");
+                        return;
+                    }
+                    if (!array->Set(context, i, *obj).value_or(false)) {
+                        return;
+                    }
+                }
+
+                args.GetReturnValue().Set(*array);
             });
 
         /// @description Reads a raw room field by stat index; the returned field varies per index, in mixed
@@ -321,20 +351,19 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @returns {number|null} - raw stat value (0 for unmapped/out-of-range/index-8); null only when not
         /// ready, bad args, or room unresolved.
         Method(
-            isolate, proto, "getStat", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                auto* isolate = args.GetIsolate();
+            cls, "getStat", +[](const ub::CallbackInfo& args) {
                 args.GetReturnValue().SetNull();
                 if (!game::IsGameReady()) {
                     return;
                 }
-                if (args.Length() < 1 || !args[0]->IsNumber()) {
+                if (args.Length() < 1 || !args[0].IsNumber()) {
                     return;
                 }
-                auto* data = Unwrap(args.This());
-                if (!*data) {
+                auto* data = Receiver<JSRoom>(args);
+                if (data == nullptr || !*data) {
                     return;
                 }
-                int32_t nStat = convert::ToInt32(isolate, args[0]);
+                int32_t nStat = convert::ToInt32(args.GetContext(), args[0]);
                 auto lock = game::Bridge::Lock();
                 args.GetReturnValue().Set(data->GetStat(nStat));
             });
@@ -344,21 +373,18 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @signature getFirst()
         /// @returns {Room} - the first Room in the level; undefined when unresolved or none.
         Method(
-            isolate, proto, "getFirst", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                auto* isolate = args.GetIsolate();
-                auto context = isolate->GetCurrentContext();
-                auto* data = Unwrap(args.This());
-                if (!*data) {
+            cls, "getFirst", +[](const ub::CallbackInfo& args) {
+                auto* data = Receiver<JSRoom>(args);
+                if (data == nullptr || !*data) {
                     return;
                 }
                 auto first = data->GetFirst();
                 if (!first) {
                     return;
                 }
-                auto obj = CreateInstance(isolate, context, std::make_unique<game::Room>(first));
-                if (obj.IsEmpty())
-                    return;
-                args.GetReturnValue().Set(obj);
+                if (auto obj = Wrap(args.GetContext(), std::make_shared<game::Room>(first))) {
+                    args.GetReturnValue().Set(*obj);
+                }
             });
 
         /// @description Tests whether the given Unit is currently in this room.
@@ -367,22 +393,17 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @returns {boolean} - true if the unit is in this room, false otherwise; undefined on invalid/missing
         /// argument or unresolved handles.
         Method(
-            isolate, proto, "unitInRoom", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                if (args.Length() < 1 || !args[0]->IsObject()) {
+            cls, "unitInRoom", +[](const ub::CallbackInfo& args) {
+                if (args.Length() < 1 || !args[0].IsObject()) {
                     return;  // Returns undefined, matching reference early-return
                 }
-                auto* data = Unwrap(args.This());
-                if (!*data) {
+                auto* data = Receiver<JSRoom>(args);
+                if (data == nullptr || !*data) {
                     return;  // undefined, matching reference
                 }
 
-                // Extract game::Unit* from the passed Unit JS object
-                auto unitObj = args[0].As<v8::Object>();
-                if (!JSUnit::IsInstance(unitObj)) {
-                    return;  // undefined, matching reference
-                }
-                auto* unitData = JSUnit::Unwrap(unitObj);
-                if (!unitData || !*unitData) {
+                auto* unitData = JSUnit::Unwrap(args[0]);
+                if (unitData == nullptr || !*unitData) {
                     return;  // undefined, matching reference
                 }
 

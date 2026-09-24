@@ -1,13 +1,17 @@
 #pragma once
 
-#include <v8.h>
+#include <algorithm>
+#include <cstdint>
+#include <memory>
+
 #include "api/core/Class.h"
 #include "api/core/Convert.h"
+#include "api/core/Error.h"
 #include "api/core/Extract.h"
-#include "api/core/InstanceTracker.h"
 #include "components/drawing/Drawable.h"
 #include "components/script/Script.h"
 #include "components/script/ScriptEngine.h"
+#include "unibind/unibind.h"
 
 namespace d2bs::api::classes {
 
@@ -20,77 +24,68 @@ using runtime::drawing::ImageDrawable;
 using runtime::drawing::LineDrawable;
 using runtime::drawing::TextDrawable;
 
-// extract is a sibling namespace - alias so all drawing JS headers can write
-// extract::PointInto / SizeInto without fully qualifying.
-namespace extract = extract;
-
+// Instances hold a share of their drawable, as does the owning Script until remove() or teardown.
 template <typename Derived, typename DrawableType>
 class JSDrawableBase : public ClassBase<Derived, DrawableType> {
    protected:
     using Base = ClassBase<Derived, DrawableType>;
 
-    // Set up instance tracking for a drawable before Wrap().
-    // Increments the per-thread count now and installs an onDestroy hook that
-    // decrements when the owning Script destroys the drawable.
-    static void SetupInstanceTracking(DrawableType* drawable) {
-        const int32_t classId = Base::InstanceClassId();
-        // Carries the row rather than re-resolving one in the hook: ~Drawable runs the hook and
-        // can itself run on the game thread, which only RemoveDrawable clearing onDestroy first
-        // keeps it from reaching.
-        auto* row = &InstanceTracker::Instance().Increment(classId);
-        drawable->onDestroy = [classId, row] {
-            InstanceTracker::Instance().Decrement(*row, classId);
-        };
+    // Whether `script` still owns `drawable`. A wrapper keeps its drawable alive past remove(), and
+    // a handler installed on a removed drawable would be keyed on its address after it is freed.
+    static bool IsAttached(Script& script, const Drawable& drawable) {
+        return std::ranges::any_of(script.GetDrawables(),
+                                   [&drawable](const auto& owned) { return owned.get() == &drawable; });
     }
 
     // The click / hover callbacks are owned by the script, not the drawable -
     // see Script::SetDrawableHandler.
-    static void GetHandler(const v8::PropertyCallbackInfo<v8::Value>& info, DrawableHandler which) {
-        auto* drawable = Base::Unwrap(info.Holder());
-        if (!drawable)
+    static void GetHandler(const ub::PropertyCallbackInfo& info, DrawableHandler which) {
+        auto* drawable = Base::Unwrap(info.This());
+        if (!drawable) {
             return;
-        auto* script = ScriptEngine::Instance().GetScript(info.GetIsolate());
-        if (!script)
+        }
+        auto* script = ScriptEngine::Instance().GetScript(&info.GetIsolate());
+        if (!script) {
             return;
-        v8::Local<v8::Function> handler;
-        if (script->GetDrawableHandler(*drawable, which).ToLocal(&handler)) {
-            info.GetReturnValue().Set(handler);
+        }
+        if (auto handler = script->GetDrawableHandler(*drawable, which)) {
+            info.GetReturnValue().Set(*handler);
         }
     }
 
-    static void SetHandler(const v8::PropertyCallbackInfo<v8::Boolean>& info, DrawableHandler which,
-                           v8::Local<v8::Value> value) {
-        auto* drawable = Base::Unwrap(info.Holder());
-        if (!drawable)
+    static void SetHandler(const ub::PropertyCallbackInfo& info, DrawableHandler which,
+                           const ub::Local<ub::Value>& value) {
+        auto* drawable = Base::Unwrap(info.This());
+        if (!drawable) {
             return;
-        auto* script = ScriptEngine::Instance().GetScript(info.GetIsolate());
-        if (!script)
+        }
+        auto* script = ScriptEngine::Instance().GetScript(&info.GetIsolate());
+        if (!script || !IsAttached(*script, *drawable)) {
             return;
-        script->SetDrawableHandler(*drawable, which,
-                                   value->IsFunction() ? value.As<v8::Function>() : v8::Local<v8::Function>());
+        }
+        script->SetDrawableHandler(*drawable, which, value.To<ub::Function>().value_or(ub::Local<ub::Function>()));
     }
 
-    static void ConfigureCommonProperties(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> inst,
-                                          v8::Local<v8::ObjectTemplate> proto) {
+    static void ConfigureCommonProperties(const ub::Class<DrawableType>& cls) {
         // x property
         /// @description Horizontal screen position in pixels.
         /// @type {number}
         Base::Property(
-            isolate, inst, "x",
-            +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Base::Unwrap(info.Holder());
-                if (!drawable)
+            cls, "x",
+            +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Base::Unwrap(info.This());
+                if (!drawable) {
                     return;
+                }
                 info.GetReturnValue().Set(drawable->pos.load().x);
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Base::Unwrap(info.Holder());
-                if (!drawable)
+            +[](const ub::Local<ub::Name>&, const ub::Local<ub::Value>& value, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Base::Unwrap(info.This());
+                if (!drawable || !value.IsNumber()) {
                     return;
-                if (!value->IsNumber())
-                    return;
+                }
                 auto cur = drawable->pos.load();
-                cur.x = convert::ToInt32(info.GetIsolate(), value);
+                cur.x = convert::ToInt32(info.GetContext(), value);
                 drawable->pos.store(cur);
             });
 
@@ -98,21 +93,21 @@ class JSDrawableBase : public ClassBase<Derived, DrawableType> {
         /// @description Vertical screen position in pixels.
         /// @type {number}
         Base::Property(
-            isolate, inst, "y",
-            +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Base::Unwrap(info.Holder());
-                if (!drawable)
+            cls, "y",
+            +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Base::Unwrap(info.This());
+                if (!drawable) {
                     return;
+                }
                 info.GetReturnValue().Set(drawable->pos.load().y);
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Base::Unwrap(info.Holder());
-                if (!drawable)
+            +[](const ub::Local<ub::Name>&, const ub::Local<ub::Value>& value, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Base::Unwrap(info.This());
+                if (!drawable || !value.IsNumber()) {
                     return;
-                if (!value->IsNumber())
-                    return;
+                }
                 auto cur = drawable->pos.load();
-                cur.y = convert::ToInt32(info.GetIsolate(), value);
+                cur.y = convert::ToInt32(info.GetContext(), value);
                 drawable->pos.store(cur);
             });
 
@@ -120,60 +115,60 @@ class JSDrawableBase : public ClassBase<Derived, DrawableType> {
         /// @description Whether this overlay is drawn each frame.
         /// @type {boolean}
         Base::Property(
-            isolate, inst, "visible",
-            +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Base::Unwrap(info.Holder());
-                if (!drawable)
+            cls, "visible",
+            +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Base::Unwrap(info.This());
+                if (!drawable) {
                     return;
+                }
                 info.GetReturnValue().Set(drawable->isVisible.load());
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Base::Unwrap(info.Holder());
-                if (!drawable)
+            +[](const ub::Local<ub::Name>&, const ub::Local<ub::Value>& value, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Base::Unwrap(info.This());
+                if (!drawable || !value.IsBoolean()) {
                     return;
-                if (!value->IsBoolean())
-                    return;
-                drawable->isVisible.store(value->BooleanValue(info.GetIsolate()));
+                }
+                drawable->isVisible.store(value.IsTrue());
             });
 
         // zorder property
         /// @description Draw order relative to other overlays; higher draws on top.
         /// @type {number}
         Base::Property(
-            isolate, inst, "zorder",
-            +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Base::Unwrap(info.Holder());
-                if (!drawable)
+            cls, "zorder",
+            +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Base::Unwrap(info.This());
+                if (!drawable) {
                     return;
+                }
                 info.GetReturnValue().Set(drawable->zorder.load());
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Base::Unwrap(info.Holder());
-                if (!drawable)
+            +[](const ub::Local<ub::Name>&, const ub::Local<ub::Value>& value, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Base::Unwrap(info.This());
+                if (!drawable || !value.IsNumber()) {
                     return;
-                if (!value->IsNumber())
-                    return;
-                drawable->zorder.store(convert::ToInt32(info.GetIsolate(), value));
+                }
+                drawable->zorder.store(convert::ToInt32(info.GetContext(), value));
             });
 
         // align property
         /// @description Horizontal content alignment: 0 = Left, 1 = Right, 2 = Center.
         /// @type {number}
         Base::Property(
-            isolate, inst, "align",
-            +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Base::Unwrap(info.Holder());
-                if (!drawable)
+            cls, "align",
+            +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Base::Unwrap(info.This());
+                if (!drawable) {
                     return;
+                }
                 info.GetReturnValue().Set(static_cast<int32_t>(drawable->align.load()));
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Base::Unwrap(info.Holder());
-                if (!drawable)
+            +[](const ub::Local<ub::Name>&, const ub::Local<ub::Value>& value, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Base::Unwrap(info.This());
+                if (!drawable || !value.IsNumber()) {
                     return;
-                if (!value->IsNumber())
-                    return;
-                auto raw = convert::ToInt32(info.GetIsolate(), value);
+                }
+                const auto raw = convert::ToInt32(info.GetContext(), value);
                 if (raw >= 0 && raw <= 2) {
                     drawable->align.store(static_cast<Align>(raw));
                 }
@@ -183,20 +178,20 @@ class JSDrawableBase : public ClassBase<Derived, DrawableType> {
         /// @description Whether coordinates are interpreted as automap space instead of screen space.
         /// @type {boolean}
         Base::Property(
-            isolate, inst, "automap",
-            +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Base::Unwrap(info.Holder());
-                if (!drawable)
+            cls, "automap",
+            +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Base::Unwrap(info.This());
+                if (!drawable) {
                     return;
+                }
                 info.GetReturnValue().Set(drawable->isAutomap.load());
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Base::Unwrap(info.Holder());
-                if (!drawable)
+            +[](const ub::Local<ub::Name>&, const ub::Local<ub::Value>& value, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Base::Unwrap(info.This());
+                if (!drawable || !value.IsBoolean()) {
                     return;
-                if (!value->IsBoolean())
-                    return;
-                drawable->isAutomap.store(value->BooleanValue(info.GetIsolate()));
+                }
+                drawable->isAutomap.store(value.IsTrue());
             });
 
         // click property
@@ -205,11 +200,11 @@ class JSDrawableBase : public ClassBase<Derived, DrawableType> {
         /// @callback click(button: number, x: number, y: number) -> {boolean} - return true to block the click from the
         /// game (block votes are not awaited in the current build)
         Base::Property(
-            isolate, inst, "click",
-            +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
+            cls, "click",
+            +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
                 GetHandler(info, DrawableHandler::Click);
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
+            +[](const ub::Local<ub::Name>&, const ub::Local<ub::Value>& value, const ub::PropertyCallbackInfo& info) {
                 SetHandler(info, DrawableHandler::Click, value);
             });
 
@@ -219,11 +214,11 @@ class JSDrawableBase : public ClassBase<Derived, DrawableType> {
         /// @callback hover(x: number, y: number, entered: boolean) - fired on cursor enter (entered = true) and leave
         /// (entered = false, x and y are 0 on leave); return value ignored
         Base::Property(
-            isolate, inst, "hover",
-            +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
+            cls, "hover",
+            +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
                 GetHandler(info, DrawableHandler::Hover);
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
+            +[](const ub::Local<ub::Name>&, const ub::Local<ub::Value>& value, const ub::PropertyCallbackInfo& info) {
                 SetHandler(info, DrawableHandler::Hover, value);
             });
 
@@ -232,16 +227,28 @@ class JSDrawableBase : public ClassBase<Derived, DrawableType> {
         /// @signature remove()
         /// @returns {undefined} - No value.
         Base::Method(
-            isolate, proto, "remove", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+            cls, "remove", +[](const ub::CallbackInfo& args) {
                 auto* drawable = Base::Unwrap(args.This());
-                if (!drawable)
+                if (!drawable) {
                     return;
-                auto* script = ScriptEngine::Instance().GetScript(args.GetIsolate());
-                if (!script)
+                }
+                auto* script = ScriptEngine::Instance().GetScript(&args.GetIsolate());
+                if (!script) {
                     return;
+                }
                 script->RemoveDrawable(drawable->shared_from_this());
-                Base::Wrap(args.This(), nullptr);
             });
+    }
+
+    // Installs the click / hover handlers a constructor was passed at `clickIdx` / `clickIdx + 1`.
+    static void SetConstructorHandlers(const ub::CallbackInfo& args, Script& script, Drawable& drawable,
+                                       uint32_t clickIdx) {
+        if (auto click = args[clickIdx].To<ub::Function>()) {
+            script.SetDrawableHandler(drawable, DrawableHandler::Click, *click);
+        }
+        if (auto hover = args[clickIdx + 1].To<ub::Function>()) {
+            script.SetDrawableHandler(drawable, DrawableHandler::Hover, *hover);
+        }
     }
 };
 
