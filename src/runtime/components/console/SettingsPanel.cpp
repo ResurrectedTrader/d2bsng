@@ -15,6 +15,7 @@
 #include "game/Menu.h"
 #include "game/Types.h"
 #include "speedhack/Speedhack.h"
+#include "unibind/unibind.h"
 
 namespace d2bs::runtime::console {
 
@@ -177,7 +178,8 @@ void SettingsPanel::Draw() {
         }
     }
 
-    if (ImGui::CollapsingHeader("Debugging (V8 inspector)")) {
+    // Only V8 has an inspector; on SpiderMonkey there is nothing to configure.
+    if (ub::Inspector::Supported() && ImGui::CollapsingHeader("Debugging (V8 inspector)")) {
         if (ImGui::BeginTable("##inspector", 2, TABLE_FLAGS)) {
             ImGui::TableSetupColumn("##label", ImGuiTableColumnFlags_WidthFixed, 200.0F);
             ImGui::TableSetupColumn("##value", ImGuiTableColumnFlags_WidthStretch);
@@ -273,7 +275,9 @@ void SettingsPanel::Draw() {
             } else {
                 DisplayRow("Engine threads", "default, %d thread(s)", config.engineThreadPoolSize);
             }
-            DisplayRow("V8 version", "%s", v8::V8::GetVersion());
+            DisplayRow("Engine", "%.*s %.*s", static_cast<int>(ub::Platform::BackendName().size()),
+                       ub::Platform::BackendName().data(), static_cast<int>(ub::Platform::BackendVersion().size()),
+                       ub::Platform::BackendVersion().data());
             const auto paths = config.GetScriptPaths();
             DisplayRow("Script base", "%s", paths.basePath.string().c_str());
             DisplayRow("Game script", "%s", paths.gameScript.c_str());

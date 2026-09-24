@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include "components/engine/Engine.h"
 #include "components/inspector/InspectorTarget.h"
 #include "utils/utils.h"
 
@@ -296,7 +297,8 @@ void InspectorServer::OnClientClosed(const std::string& connId) {
 
 std::string InspectorServer::BuildVersionJson() {
     // Protocol-Version 1.3 is what current DevTools negotiates over CDP.
-    const nlohmann::json version{{"Browser", "d2bsng/v8"}, {"Protocol-Version", "1.3"}};
+    const nlohmann::json version{{"Browser", std::format("d2bsng/{}", ub::Platform::BackendName())},
+                                 {"Protocol-Version", "1.3"}};
     return version.dump();
 }
 

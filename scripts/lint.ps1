@@ -58,20 +58,25 @@ if (-not $useDepCache) {
 }
 
 # --- Projects and their compile databases ---
-# MSBuild's RunCodeAnalysis writes <project>\[<platform>\]Release\<project>.ClangTidy\
-# compile_commands.json (Win32 gets no platform directory). Each project is linted on
-# Win32 when it has a Win32 configuration, otherwise on the one platform it has.
+# MSBuild's RunCodeAnalysis writes <project>\[<platform>\]Release\<target>.ClangTidy\
+# compile_commands.json (Win32 gets no platform directory), where <target> is the
+# project's TargetName: its file name unless it sets one (every DLL project builds
+# d2bs.dll). Each project is linted on Win32 when it has a Win32 configuration,
+# otherwise on the one platform it has.
 $projects = @(Get-ChildItem -Path 'src', 'tests' -Recurse -File -Filter '*.vcxproj' -ErrorAction SilentlyContinue | ForEach-Object {
-    $platforms = @([regex]::Matches([System.IO.File]::ReadAllText($_.FullName), 'Include="Release\|([^"]+)"') |
+    $text = [System.IO.File]::ReadAllText($_.FullName)
+    $platforms = @([regex]::Matches($text, 'Include="Release\|([^"]+)"') |
         ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
     if ($platforms.Count -eq 0) { return }
     $platform = if ($platforms -contains 'Win32') { 'Win32' } else { $platforms[0] }
     $outDir = if ($platform -eq 'Win32') { 'Release' } else { Join-Path $platform 'Release' }
+    $targetName = [regex]::Match($text, '<TargetName>([^<$]+)</TargetName>')
+    $target = if ($targetName.Success) { $targetName.Groups[1].Value } else { $_.BaseName }
     [PSCustomObject]@{
         Vcxproj  = $_.FullName
         Dir      = $_.DirectoryName
         Platform = $platform
-        Db       = Join-Path $_.DirectoryName (Join-Path $outDir ($_.BaseName + '.ClangTidy'))
+        Db       = Join-Path $_.DirectoryName (Join-Path $outDir ($target + '.ClangTidy'))
         CacheDir = Join-Path $_.DirectoryName (Join-Path $outDir 'lint_cache')
     }
 })

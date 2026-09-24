@@ -47,7 +47,7 @@ except ImportError:
     sys.exit("Required: pip install libclang")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from extract_api import find_system_includes, v8_include_dir  # noqa: E402 - after the sys.path tweak
+from extract_api import find_system_includes, unibind_include_dir  # noqa: E402 - after the sys.path tweak
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC = REPO_ROOT / "src"
@@ -160,7 +160,7 @@ def parse_project(project, headers):
             "-ferror-limit=0", "-w"]
     for inc in [project.spelling_root, *project.include_dirs]:
         args += ["-I", str(inc)]
-    extra = [v8_include_dir()] + sorted((REPO_ROOT / "vcpkg_installed").glob("*/*/include"))
+    extra = [unibind_include_dir()] + sorted((REPO_ROOT / "vcpkg_installed").glob("*/*/include"))
     for inc in [*extra, *find_system_includes()]:
         if inc and Path(inc).exists():
             args += ["-isystem", str(inc)]

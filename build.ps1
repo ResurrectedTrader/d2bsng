@@ -12,15 +12,16 @@
 #   lint              clang-tidy analysis (delegates to scripts\lint.ps1)
 #   fix               clang-tidy --fix
 #   test              build and run the test suite (js_tests.exe)
-#   deps              download the V8 headers + monolith without building anything,
+#   deps              download unibind, V8 and SpiderMonkey without building anything,
 #                     so an editor can resolve includes in a fresh clone. Fetches the
-#                     Release archive; `build.ps1 Debug` fetches the debug one.
+#                     Release archives; `build.ps1 Debug` fetches the debug ones. With
+#                     -Platform x64 only unibind is fetched: the engines are x86 only.
 #
 # Switches:
-#   -Version          version baked into the DLL (CI passes the release version; build only)
-#   -AnalyticsKey     Aptabase app key baked into the DLL (see docs/analytics.md; build only)
+#   -Version          version baked into the DLLs (CI passes the release version; build only)
+#   -AnalyticsKey     Aptabase app key baked into the DLLs (see docs/analytics.md; build only)
 #   -NoProfiling      compile the profiling counters and Profiling panel out (build and test)
-#   -Platform         Win32 (default, builds d2bs.dll) or x64 (the shared libraries only)
+#   -Platform         Win32 (default, builds both d2bs.dll) or x64 (the shared libraries only)
 #
 # The actual build is MSBuild over d2bsng.slnx; this script just locates the
 # toolchain and dispatches. You can also build directly with MSBuild or in
@@ -39,9 +40,10 @@ param(
     # Compile the profiling counters and the console's Profiling panel out
     # (MSBuild -p:D2bsProfiling=false; see Directory.Build.props).
     [switch]$NoProfiling,
-    # Solution platform. Win32 builds the 1.14d backend into Release\ and the
-    # DLL into Release\js-v8-lod114d\; x64 builds the platform-independent
-    # libraries into x64\Release\.
+    # Solution platform. Win32 builds the 1.14d backend into Release\ and one
+    # d2bs.dll per engine, each into its DLL project's directory: Release\js-v8-lod114d\
+    # (V8) and Release\js-sm-lod114d\ (SpiderMonkey). x64 builds the
+    # platform-independent libraries into x64\Release\.
     # The .slnx maps each project to the platforms it supports, so the ones that
     # are Win32-only are skipped rather than failing.
     [ValidateSet('Win32', 'x64')]
@@ -188,9 +190,17 @@ switch ($mode) {
         exit $LASTEXITCODE
     }
     'deps' {
-        # Runs only the FetchV8 target, on the project that needs the headers
-        # earliest. Nothing compiles, so this does not need vcpkg restored.
-        & $msbuild 'src\runtime\runtime.vcxproj' '-t:FetchV8' '-p:Configuration=Release' "-p:Platform=$Platform" '-v:m' '-nologo'
+        # Runs only the fetch targets. Each is conditioned on its *Required
+        # property, which the projects set for themselves, so they are asked for
+        # here as global properties instead. Nothing compiles, so this does not
+        # need vcpkg restored. The engines are x86 only.
+        $fetchArgs = @("-p:Configuration=$config", "-p:Platform=$Platform", '-p:UnibindRequired=true', '-v:m', '-nologo')
+        if ($Platform -eq 'Win32') {
+            $fetchArgs += @('-t:FetchUnibind;FetchV8;FetchSpiderMonkey', '-p:V8Required=true', '-p:SpiderMonkeyRequired=true')
+        } else {
+            $fetchArgs += '-t:FetchUnibind'
+        }
+        & $msbuild 'src\runtime\runtime.vcxproj' @fetchArgs
         exit $LASTEXITCODE
     }
     'test' {
