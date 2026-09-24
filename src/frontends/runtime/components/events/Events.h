@@ -1,6 +1,7 @@
 #pragma once
 
-#include <cstdint>
+#include <v8.h>
+#include <cstdlib>
 #include <memory>
 #include <span>
 #include <string>
@@ -10,8 +11,12 @@
 
 #include "BaseEvent.h"
 #include "BlockableEvent.h"
+#include "api/core/Convert.h"
 #include "components/drawing/Drawable.h"
+#include "components/script/Commands.h"
+#include "components/script/ScriptEngine.h"
 #include "components/script/ScriptTypes.h"
+#include "game/Console.h"
 #include "game/Types.h"
 
 namespace d2bs {
@@ -27,7 +32,9 @@ namespace d2bs {
 /// @param life {number} - the player's current life (HP)
 class LifeEvent : public BaseEvent {
    protected:
-    void MakeArgs(runtime::script::CallArgs& args) const override { args.Set({life}); }
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        return {api::convert::ToJS(isolate, life)};
+    }
 
    public:
     explicit LifeEvent(uint32_t life) : life(life) {}
@@ -40,7 +47,9 @@ class LifeEvent : public BaseEvent {
 /// @param mana {number} - the player's current mana
 class ManaEvent : public BaseEvent {
    protected:
-    void MakeArgs(runtime::script::CallArgs& args) const override { args.Set({mana}); }
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        return {api::convert::ToJS(isolate, mana)};
+    }
 
    public:
     explicit ManaEvent(uint32_t mana) : mana(mana) {}
@@ -53,7 +62,9 @@ class ManaEvent : public BaseEvent {
 /// @param unitId {number} - the assigned player unit id
 class PlayerAssignEvent : public BaseEvent {
    protected:
-    void MakeArgs(runtime::script::CallArgs& args) const override { args.Set({unitId}); }
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        return {api::convert::ToJS(isolate, unitId)};
+    }
 
    public:
     explicit PlayerAssignEvent(uint32_t unitId) : unitId(unitId) {}
@@ -70,7 +81,9 @@ class PlayerAssignEvent : public BaseEvent {
 /// @param key {number} - the virtual key code
 class KeyDownEvent : public BaseEvent {
    protected:
-    void MakeArgs(runtime::script::CallArgs& args) const override { args.Set({key}); }
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        return {api::convert::ToJS(isolate, key)};
+    }
 
    public:
     explicit KeyDownEvent(uint32_t key) : key(key) {}
@@ -83,7 +96,9 @@ class KeyDownEvent : public BaseEvent {
 /// @param key {number} - the virtual key code
 class KeyUpEvent : public BaseEvent {
    protected:
-    void MakeArgs(runtime::script::CallArgs& args) const override { args.Set({key}); }
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        return {api::convert::ToJS(isolate, key)};
+    }
 
    public:
     explicit KeyUpEvent(uint32_t key) : key(key) {}
@@ -97,7 +112,9 @@ class KeyUpEvent : public BaseEvent {
 /// @returns {boolean} - return true to block the key from the game
 class KeyDownBlockerEvent : public BlockableEvent {
    protected:
-    void MakeArgs(runtime::script::CallArgs& args) const override { args.Set({key}); }
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        return {api::convert::ToJS(isolate, key)};
+    }
 
    public:
     explicit KeyDownBlockerEvent(uint32_t key) : key(key) {}
@@ -111,7 +128,9 @@ class KeyDownBlockerEvent : public BlockableEvent {
 /// @returns {boolean} - return true to block the key from the game
 class KeyUpBlockerEvent : public BlockableEvent {
    protected:
-    void MakeArgs(runtime::script::CallArgs& args) const override { args.Set({key}); }
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        return {api::convert::ToJS(isolate, key)};
+    }
 
    public:
     explicit KeyUpBlockerEvent(uint32_t key) : key(key) {}
@@ -128,13 +147,13 @@ class KeyUpBlockerEvent : public BlockableEvent {
 class MouseClickEvent : public BaseEvent {
    protected:
     // JS arg shape unchanged: (button:number, x:number, y:number, up:number 0/1).
-    void MakeArgs(runtime::script::CallArgs& args) const override {
-        args.Set({
-            static_cast<uint32_t>(button),
-            pos.x,
-            pos.y,
-            state == game::KeyState::Up ? 1 : 0,
-        });
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        return {
+            api::convert::ToJS(isolate, static_cast<uint32_t>(button)),
+            api::convert::ToJS(isolate, pos.x),
+            api::convert::ToJS(isolate, pos.y),
+            api::convert::ToJS(isolate, state == game::KeyState::Up ? 1 : 0),
+        };
     }
 
    public:
@@ -153,7 +172,9 @@ class MouseClickEvent : public BaseEvent {
 class MouseMoveEvent : public BaseEvent {
    protected:
     // JS arg shape unchanged: (x:number, y:number).
-    void MakeArgs(runtime::script::CallArgs& args) const override { args.Set({pos.x, pos.y}); }
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        return {api::convert::ToJS(isolate, pos.x), api::convert::ToJS(isolate, pos.y)};
+    }
 
    public:
     explicit MouseMoveEvent(game::Position pos) : pos(pos) {}
@@ -171,11 +192,11 @@ class MouseMoveEvent : public BaseEvent {
 /// @param msg {string} - the message text
 class ChatEvent : public BaseEvent {
    protected:
-    void MakeArgs(runtime::script::CallArgs& args) const override {
-        args.Set({
-            sender,
-            message,
-        });
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        return {
+            api::convert::ToJS(isolate, sender),
+            api::convert::ToJS(isolate, message),
+        };
     }
 
    public:
@@ -192,11 +213,11 @@ class ChatEvent : public BaseEvent {
 /// @returns {boolean} - return true to block the message
 class ChatBlockerEvent : public BlockableEvent {
    protected:
-    void MakeArgs(runtime::script::CallArgs& args) const override {
-        args.Set({
-            sender,
-            message,
-        });
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        return {
+            api::convert::ToJS(isolate, sender),
+            api::convert::ToJS(isolate, message),
+        };
     }
 
    public:
@@ -213,11 +234,11 @@ class ChatBlockerEvent : public BlockableEvent {
 /// @param msg {string} - the submitted text
 class ChatInputEvent : public BaseEvent {
    protected:
-    void MakeArgs(runtime::script::CallArgs& args) const override {
-        args.Set({
-            "me",
-            message,
-        });
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        return {
+            api::convert::ToJS(isolate, "me"),
+            api::convert::ToJS(isolate, message),
+        };
     }
 
    public:
@@ -233,11 +254,11 @@ class ChatInputEvent : public BaseEvent {
 /// @returns {boolean} - return true to block the message
 class ChatInputBlockerEvent : public BlockableEvent {
    protected:
-    void MakeArgs(runtime::script::CallArgs& args) const override {
-        args.Set({
-            "me",
-            message,
-        });
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        return {
+            api::convert::ToJS(isolate, "me"),
+            api::convert::ToJS(isolate, message),
+        };
     }
 
    public:
@@ -252,11 +273,11 @@ class ChatInputBlockerEvent : public BlockableEvent {
 /// @param msg {string} - the message text
 class WhisperEvent : public BaseEvent {
    protected:
-    void MakeArgs(runtime::script::CallArgs& args) const override {
-        args.Set({
-            sender,
-            message,
-        });
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        return {
+            api::convert::ToJS(isolate, sender),
+            api::convert::ToJS(isolate, message),
+        };
     }
 
    public:
@@ -273,11 +294,11 @@ class WhisperEvent : public BaseEvent {
 /// @returns {boolean} - return true to block the message
 class WhisperBlockerEvent : public BlockableEvent {
    protected:
-    void MakeArgs(runtime::script::CallArgs& args) const override {
-        args.Set({
-            sender,
-            message,
-        });
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        return {
+            api::convert::ToJS(isolate, sender),
+            api::convert::ToJS(isolate, message),
+        };
     }
 
    public:
@@ -298,7 +319,11 @@ class WhisperBlockerEvent : public BlockableEvent {
 /// @returns {boolean} - return true to block the packet
 class GamePacketEvent : public BlockableEvent {
    protected:
-    void MakeArgs(runtime::script::CallArgs& args) const override { args.Set({runtime::script::Bytes{.data = data}}); }
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        auto arrayBuffer = v8::ArrayBuffer::New(isolate, data.size());
+        std::copy_n(data.data(), data.size(), static_cast<uint8_t*>(arrayBuffer->GetBackingStore()->Data()));
+        return {v8::Uint8Array::New(arrayBuffer, 0, data.size())};
+    }
 
    public:
     explicit GamePacketEvent(std::span<const uint8_t> data) : data(data.begin(), data.end()) {}
@@ -312,7 +337,11 @@ class GamePacketEvent : public BlockableEvent {
 /// @returns {boolean} - return true to block the packet
 class GamePacketSentEvent : public BlockableEvent {
    protected:
-    void MakeArgs(runtime::script::CallArgs& args) const override { args.Set({runtime::script::Bytes{.data = data}}); }
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        auto arrayBuffer = v8::ArrayBuffer::New(isolate, data.size());
+        std::copy_n(data.data(), data.size(), static_cast<uint8_t*>(arrayBuffer->GetBackingStore()->Data()));
+        return {v8::Uint8Array::New(arrayBuffer, 0, data.size())};
+    }
 
    public:
     explicit GamePacketSentEvent(std::span<const uint8_t> data) : data(data.begin(), data.end()) {}
@@ -326,7 +355,11 @@ class GamePacketSentEvent : public BlockableEvent {
 /// @returns {boolean} - return true to block the packet
 class RealmPacketEvent : public BlockableEvent {
    protected:
-    void MakeArgs(runtime::script::CallArgs& args) const override { args.Set({runtime::script::Bytes{.data = data}}); }
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        auto arrayBuffer = v8::ArrayBuffer::New(isolate, data.size());
+        std::copy_n(data.data(), data.size(), static_cast<uint8_t*>(arrayBuffer->GetBackingStore()->Data()));
+        return {v8::Uint8Array::New(arrayBuffer, 0, data.size())};
+    }
 
    public:
     explicit RealmPacketEvent(std::span<const uint8_t> data) : data(data.begin(), data.end()) {}
@@ -347,14 +380,12 @@ class RealmPacketEvent : public BlockableEvent {
 /// @param name2 {string} - second name (e.g. the related player)
 class GameActionEvent : public BaseEvent {
    protected:
-    void MakeArgs(runtime::script::CallArgs& args) const override {
-        args.Set({
-            mode,
-            param1,
-            param2,
-            name1,
-            name2,
-        });
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        return {
+            api::convert::ToJS(isolate, mode),   api::convert::ToJS(isolate, param1),
+            api::convert::ToJS(isolate, param2), api::convert::ToJS(isolate, name1),
+            api::convert::ToJS(isolate, name2),
+        };
     }
 
    public:
@@ -376,13 +407,13 @@ class GameActionEvent : public BaseEvent {
 /// @param isGlobal {boolean} - true for the global (0x9D) variant
 class ItemActionEvent : public BaseEvent {
    protected:
-    void MakeArgs(runtime::script::CallArgs& args) const override {
-        args.Set({
-            unitId,
-            action,
-            code,
-            isGlobal,
-        });
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        return {
+            api::convert::ToJS(isolate, unitId),
+            api::convert::ToJS(isolate, action),
+            api::convert::ToJS(isolate, code),
+            api::convert::ToJS(isolate, isGlobal),
+        };
     }
 
    public:
@@ -401,12 +432,12 @@ class ItemActionEvent : public BaseEvent {
 /// @param payload {string} - the message payload string
 class CopyDataEvent : public BaseEvent {
    protected:
-    void MakeArgs(runtime::script::CallArgs& args) const override {
-        args.Set({
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        return {
             // Scripts see the raw integer mode (matches reference CopyDataEvent surface).
-            static_cast<uint32_t>(mode),
-            payload,
-        });
+            api::convert::ToJS(isolate, static_cast<uint32_t>(mode)),
+            api::convert::ToJS(isolate, payload),
+        };
     }
 
    public:
@@ -426,17 +457,59 @@ class CopyDataEvent : public BaseEvent {
 /// @param ...args {any} - the delivered values
 class BroadcastEvent : public BaseEvent {
    protected:
-    void MakeArgs(runtime::script::CallArgs& args) const override {
-        std::vector<runtime::script::Value> values;
-        values.reserve(values_.size());
-        for (const auto& value : values_) {
-            values.emplace_back(runtime::script::Serialized{.data = value});
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        auto cx = isolate->GetCurrentContext();
+        std::vector<v8::Local<v8::Value>> deserializedArgs;
+        for (const auto& arg : values_) {
+            auto deserializer = v8::ValueDeserializer(isolate, arg.data(), arg.size());
+            if (deserializer.ReadHeader(cx).FromMaybe(false)) {
+                v8::Local<v8::Value> jsArg;
+                if (deserializer.ReadValue(cx).ToLocal(&jsArg)) {
+                    deserializedArgs.push_back(jsArg);
+                } else {
+                    GetLogger(isolate)->critical("Failed to deserialize broadcast event argument");
+                }
+            } else {
+                GetLogger(isolate)->critical("Failed to read broadcast event header");
+            }
         }
-        args.Set(std::move(values));
+        return deserializedArgs;
     }
 
    public:
-    explicit BroadcastEvent(std::vector<std::vector<uint8_t>> values) : values_(std::move(values)) {}
+    explicit BroadcastEvent(const v8::FunctionCallbackInfo<v8::Value>& args) {
+        auto* isolate = args.GetIsolate();
+        auto cx = isolate->GetCurrentContext();
+        values_.reserve(args.Length());
+
+        v8::ValueSerializer undefinedSerializer(isolate);
+        undefinedSerializer.WriteHeader();
+        undefinedSerializer.WriteValue(cx, v8::Undefined(isolate)).Check();
+        auto [udData, udSize] = undefinedSerializer.Release();
+        const std::vector<uint8_t> undefinedBlob(udData, udData + udSize);
+        std::free(udData);  // NOLINT(cppcoreguidelines-no-malloc) - V8's ValueSerializer allocates with realloc()
+
+        // Like the reference, a value that cannot be cloned arrives as undefined and the broadcast
+        // still goes out; the sender sees no error.
+        for (int32_t i = 0; i < args.Length(); i++) {
+            v8::TryCatch tryCatch(isolate);
+            v8::ValueSerializer serializer(isolate);
+            serializer.WriteHeader();
+            if (serializer.WriteValue(cx, args[i]).FromMaybe(false)) {
+                auto [data, size] = serializer.Release();
+                values_.emplace_back(data, data + size);
+                std::free(data);  // NOLINT(cppcoreguidelines-no-malloc) - V8's ValueSerializer allocates with realloc()
+                continue;
+            }
+            values_.push_back(undefinedBlob);
+            if (tryCatch.HasTerminated()) {
+                values_.resize(args.Length(), undefinedBlob);
+                tryCatch.ReThrow();
+                return;
+            }
+            tryCatch.Reset();
+        }
+    }
 
     static constexpr std::string_view EVENT_NAME = "scriptmsg";
     [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
@@ -453,11 +526,22 @@ class BroadcastEvent : public BaseEvent {
 // alive, but never the handler: that is looked up on the owning script's thread
 // when the event runs, so a handler cleared in between simply does not fire.
 
+// The drawable's handler from the script that owns `isolate`; empty if it has none.
+inline v8::Local<v8::Function> DrawableHandlerFor(v8::Isolate* isolate, const runtime::drawing::Drawable& drawable,
+                                                  DrawableHandler which) {
+    auto* script = ScriptEngine::Instance().GetScript(isolate);
+    if (script == nullptr) {
+        return {};
+    }
+    return script->GetDrawableHandler(drawable, which).FromMaybe(v8::Local<v8::Function>());
+}
+
 class ScreenHookClickEvent : public BlockableEvent {
    protected:
-    // (button:number, x:number, y:number).
-    void MakeArgs(runtime::script::CallArgs& args) const override {
-        args.Set({static_cast<uint32_t>(button_), pos_.x, pos_.y});
+    // JS arg shape unchanged: (button:number, x:number, y:number).
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        return {api::convert::ToJS(isolate, static_cast<uint32_t>(button_)), api::convert::ToJS(isolate, pos_.x),
+                api::convert::ToJS(isolate, pos_.y)};
     }
 
    public:
@@ -465,8 +549,9 @@ class ScreenHookClickEvent : public BlockableEvent {
                          game::Point pos)
         : drawable_(std::move(drawable)), button_(button), pos_(pos) {}
 
-    void Execute(runtime::script::Invocation& call) override {
-        Vote(call.Run(*this, *drawable_, DrawableHandler::Click));
+    void Execute(v8::Isolate* isolate, const std::vector<v8::Local<v8::Function>>& /*fns*/) override {
+        v8::HandleScope scope(isolate);
+        BlockableEvent::Execute(isolate, {DrawableHandlerFor(isolate, *drawable_, DrawableHandler::Click)});
     }
 
     static constexpr std::string_view EVENT_NAME = "ScreenHookClick";
@@ -480,16 +565,22 @@ class ScreenHookClickEvent : public BlockableEvent {
 
 class ScreenHookHoverEvent : public BaseEvent {
    protected:
-    // (x:number, y:number, entered:bool). `entered` is emitted as a raw bool -
-    // documented JS API contract for the screen hook hover callback, even after
-    // the bool->enum sweep of other fields.
-    void MakeArgs(runtime::script::CallArgs& args) const override { args.Set({pos_.x, pos_.y, entered_}); }
+    // JS arg shape unchanged: (x:number, y:number, entered:bool).  `entered` is
+    // emitted as raw bool - documented JS API contract for the screen hook
+    // hover callback, even after the bool->enum sweep of other fields.
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        return {api::convert::ToJS(isolate, pos_.x), api::convert::ToJS(isolate, pos_.y),
+                api::convert::ToJS(isolate, entered_)};
+    }
 
    public:
     ScreenHookHoverEvent(std::shared_ptr<const runtime::drawing::Drawable> drawable, game::Point pos, bool entered)
         : drawable_(std::move(drawable)), pos_(pos), entered_(entered) {}
 
-    void Execute(runtime::script::Invocation& call) override { call.Run(*this, *drawable_, DrawableHandler::Hover); }
+    void Execute(v8::Isolate* isolate, const std::vector<v8::Local<v8::Function>>& /*fns*/) override {
+        v8::HandleScope scope(isolate);
+        BaseEvent::Execute(isolate, {DrawableHandlerFor(isolate, *drawable_, DrawableHandler::Hover)});
+    }
 
     static constexpr std::string_view EVENT_NAME = "ScreenHookHover";
     [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
@@ -506,13 +597,46 @@ class ScreenHookHoverEvent : public BaseEvent {
 
 class EvaluateEvent : public BaseEvent {
    protected:
-    void MakeArgs(runtime::script::CallArgs& /*args*/) const override {}
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* /*isolate*/) const override { return {}; }
 
    public:
     explicit EvaluateEvent(std::string code) : code(std::move(code)) {}
     const std::string code;
 
-    void Execute(runtime::script::Invocation& call) override { call.Evaluate(code); }
+    void Execute(v8::Isolate* isolate, const std::vector<v8::Local<v8::Function>>& /*fns*/) override {
+        v8::HandleScope scope(isolate);
+        v8::TryCatch tryCatch(isolate);
+
+        auto cx = isolate->GetCurrentContext();
+        auto src = api::convert::ToJS(isolate, code);
+
+        v8::ScriptOrigin origin(api::convert::ToJS(isolate, runtime::script::COMMAND_LINE_NAME));
+        v8::Local<v8::Script> snippet;
+        v8::Local<v8::Value> result;
+        if (v8::Script::Compile(cx, src, &origin).ToLocal(&snippet) && snippet->Run(cx).ToLocal(&result)) {
+            if (!result->IsUndefined()) {
+                v8::String::Utf8Value resultStr(isolate, result);
+                game::console::OnMessage({
+                    .source = game::console::MessageSource::EvaluateResult,
+                    .name = std::string{runtime::script::COMMAND_LINE_NAME},
+                    .level = game::console::MessageLevel::Info,
+                    .text = std::string(*resultStr, resultStr.length()),
+                });
+            }
+        }
+        if (tryCatch.HasCaught()) {
+            auto message = tryCatch.Message();
+            if (!message.IsEmpty()) {
+                v8::String::Utf8Value errorStr(isolate, message->Get());
+                game::console::OnMessage({
+                    .source = game::console::MessageSource::EvaluateResult,
+                    .name = std::string{runtime::script::COMMAND_LINE_NAME},
+                    .level = game::console::MessageLevel::Error,
+                    .text = std::string(*errorStr, errorStr.length()),
+                });
+            }
+        }
+    }
 
     static constexpr std::string_view EVENT_NAME = "Evaluate";
     [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }

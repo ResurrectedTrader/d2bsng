@@ -7,7 +7,6 @@
 #include <filesystem>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <set>
 #include <shared_mutex>
 #include <string>
@@ -123,11 +122,6 @@ class Script : public std::enable_shared_from_this<Script> {
     // Heap stats cached on the script's own thread (safe to read cross-thread).
     // Updated periodically (~1s), not on every event loop tick.
     [[nodiscard]] std::shared_ptr<v8::HeapStatistics> GetCachedHeapStats() const { return cachedHeapStats_.load(); }
-    // The same cached figures without naming an engine type, for the console.
-    // Empty until the first snapshot is taken.
-    [[nodiscard]] std::optional<HeapStats> GetHeapStats() const;
-    // Live native wrapper objects owned by this script's thread. Any thread.
-    [[nodiscard]] ObjectCounts GetObjectCounts() const;
     // Force a fresh snapshot - only safe from the script's own thread. `now` is
     // the caller's single steady_clock reading for the pass (steady_clock::now()
     // is QueryPerformanceCounter on MSVC, so event-loop callers pass theirs in

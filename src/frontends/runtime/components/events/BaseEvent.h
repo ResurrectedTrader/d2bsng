@@ -1,17 +1,19 @@
 #pragma once
 
+#include <spdlog/logger.h>
+#include <v8.h>
+#include <memory>
 #include <string_view>
+#include <vector>
 
-#include "components/script/ScriptRef.h"
+#include "components/script/ScriptLogger.h"
 
 namespace d2bs {
 
 class BaseEvent {
-    friend class runtime::script::Invocation;
-
    protected:
     BaseEvent() = default;
-    virtual void MakeArgs(runtime::script::CallArgs& args) const = 0;
+    virtual std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const = 0;
 
    public:
     virtual ~BaseEvent() = default;
@@ -27,7 +29,25 @@ class BaseEvent {
     // Override to clean up dispatch-tracking state (e.g., BlockableEvent decrements remaining_).
     virtual void OnDropped() {}
 
-    virtual void Execute(runtime::script::Invocation& call) { call.Run(*this); }
+    virtual void Execute(v8::Isolate* isolate, const std::vector<v8::Local<v8::Function>>& fns) {
+        v8::HandleScope scope(isolate);
+        auto args = MakeArgs(isolate);
+        auto cx = isolate->GetCurrentContext();
+        for (const auto& fn : fns) {
+            if (!fn.IsEmpty() && fn->IsFunction()) {
+                v8::TryCatch tryCatch(isolate);
+                (void)fn->Call(cx, cx->Global(), static_cast<int32_t>(args.size()), args.data());
+                if (tryCatch.HasCaught()) {
+                    auto message = tryCatch.Message();
+                    if (!message.IsEmpty()) {
+                        v8::String::Utf8Value errorStr(isolate, message->Get());
+                        GetLogger(isolate)->error("[{}] handler exception: {}", Name(),
+                                                  std::string(*errorStr, errorStr.length()));
+                    }
+                }
+            }
+        }
+    }
 };
 
 }  // namespace d2bs
