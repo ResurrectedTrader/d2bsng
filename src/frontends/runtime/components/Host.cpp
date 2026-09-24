@@ -16,6 +16,7 @@
 #include "components/console/Console.h"
 #include "components/console/ConsoleSink.h"
 #include "components/drawing/Drawable.h"
+#include "components/engine/Engine.h"
 #include "components/events/EventDispatch.h"
 #include "components/gameloop/GameLoop.h"
 #include "components/script/Commands.h"
@@ -56,7 +57,7 @@ void Host::DoInitialize(HMODULE hModule) {
         // Register crash handler early so any subsequent failure produces diagnostics
         previousExceptionFilter_ = SetUnhandledExceptionFilter(thread_utils::ExceptionHandler);
 
-        // VEH backstop: V8/Crashpad and Detours both install their own UEFs;
+        // VEH backstop: the engine/Crashpad and Detours both install their own UEFs;
         // whichever runs last wins, so our SEH filter may never see the
         // crash. The VEH fires first-chance and is purely diagnostic - it
         // logs and propagates so existing dispatch is unaffected. Pass
@@ -140,7 +141,9 @@ void Host::DoInitialize(HMODULE hModule) {
         // Best-effort anonymous usage analytics: a single startup event to
         // Aptabase, off unless an app key is configured. Independent of game
         // readiness. See docs/analytics.md.
-        services::analytics::Analytics::Instance().Start();
+        services::analytics::Analytics::Instance().Start({.name = std::string(ub::Platform::BackendName()),
+                                                          .version = std::string(ub::Platform::BackendVersion()),
+                                                          .hasDebugger = ub::Inspector::Supported()});
 
         logger_->info("d2bsng initialized");
     } catch (const std::exception& ex) {

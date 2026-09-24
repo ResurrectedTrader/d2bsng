@@ -1,15 +1,13 @@
 #include "CompileSource.h"
 
 #include "CodeCache.h"
-#include "api/core/Convert.h"
 #include "config/CompatibilityFlags.h"
 
 #include <regex>
 
 namespace d2bs::runtime::script {
 
-v8::MaybeLocal<v8::Script> CompileSource(v8::Isolate* isolate, v8::Local<v8::Context> context, std::string source,
-                                         std::string_view originName) {
+std::optional<ub::Script> CompileSource(const ub::Context& context, std::string source, std::string_view originName) {
     auto& compat = config::CompatibilityFlags::Instance();
 
     // Strip UTF-8 BOM. Always applied - this is source hygiene, not a
@@ -20,9 +18,9 @@ v8::MaybeLocal<v8::Script> CompileSource(v8::Isolate* isolate, v8::Local<v8::Con
     }
 
     // kolbot-era `js_strict(true);` shim (flag: jsStrictShim). Prepended without
-    // a newline, on purpose: an extra line would shift every line V8 reports off
-    // the file the user is editing, and ScriptOrigin's line offset only ever
-    // adds, so cancelling it would take a negative offset. Sharing line 1 keeps
+    // a newline, on purpose: an extra line would shift every line the engine
+    // reports off the file the user is editing, and ScriptOrigin's line offset
+    // only ever adds, so cancelling it would take a negative offset. Sharing line 1 keeps
     // every line number exact and costs only that line's columns. Still a valid
     // directive prologue - it remains the first statement.
     if (compat.IsEnabled("jsStrictShim") && source.find("js_strict(true);") != std::string::npos) {
@@ -31,60 +29,43 @@ v8::MaybeLocal<v8::Script> CompileSource(v8::Isolate* isolate, v8::Local<v8::Con
 
     // kolbot-era `const X = new Runnable` -> `var X` rewrite (flag:
     // constRunnableRewrite). const declarations don't bind to the global object
-    // in V8; kolbot relies on the global binding for cross-script lookup.
+    // in JavaScript; kolbot relies on the global binding for cross-script lookup.
     if (compat.IsEnabled("constRunnableRewrite")) {
         static const std::regex CONST_RUNNABLE(R"(\bconst\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*new\s+Runnable\b)");
         source = std::regex_replace(source, CONST_RUNNABLE, "var $1 = new Runnable");
     }
 
-    auto sourceStr = v8::String::NewFromUtf8(isolate, source.c_str(), v8::NewStringType::kNormal,
-                                             static_cast<int32_t>(source.size()));
-    if (sourceStr.IsEmpty()) {
-        return {};
+    const ub::ScriptOrigin origin{.resourceName = originName};
+    if (!CodeCache::IsCacheable(source.size())) {
+        return ub::Script::Compile(context, source, origin);
     }
-
-    auto originNameStr = api::convert::ToJS(isolate, originName);
-    v8::ScriptOrigin origin(originNameStr);
 
     auto& cache = CodeCache::Instance();
-    const bool isCacheable = CodeCache::IsCacheable(source.size());
-    const uint64_t key = isCacheable ? cache.MakeKey(originName, source) : 0;
-    // Declared before compilerSource, and it must stay that way: the CachedData
-    // below is BufferNotOwned, so the Source reads these bytes until it is
-    // destroyed. Reverse-order destruction is what keeps them alive, and holding
-    // the shared_ptr is what stops another script thread's eviction from freeing
-    // them mid-compile.
-    auto blob = isCacheable ? cache.Lookup(key) : nullptr;
-
-    auto* cachedData = blob ? new v8::ScriptCompiler::CachedData(blob->data(), static_cast<int32_t>(blob->size()),
-                                                                 v8::ScriptCompiler::CachedData::BufferNotOwned)
-                            : nullptr;
-    v8::ScriptCompiler::Source compilerSource(sourceStr.ToLocalChecked(), origin, cachedData);
-
-    // kConsumeCodeCache and kEagerCompile are mutually exclusive. Eager on a
-    // miss is what makes the blob we store complete: a lazily compiled script
-    // serializes only the functions that happened to run.
-    const auto options =
-        cachedData != nullptr ? v8::ScriptCompiler::kConsumeCodeCache : v8::ScriptCompiler::kEagerCompile;
-    v8::Local<v8::Script> script;
-    const bool isCompiled = v8::ScriptCompiler::Compile(context, &compilerSource, options).ToLocal(&script);
-
-    if (isCacheable) {
-        if (cachedData == nullptr) {
-            if (isCompiled) {
-                cache.Store(key, script->GetUnboundScript());
-            }
-        } else if (compilerSource.GetCachedData()->rejected) {
-            // V8 fell back to compiling this lazily, so re-serializing now would
-            // persist a partial blob. Drop the entry instead and let the next
-            // compile - a clean miss - produce a complete one. Checked before
-            // the failure return below so a rejected entry is dropped even when
-            // the fallback compile then fails on its own.
-            cache.Drop(key);
+    const uint64_t key = cache.MakeKey(originName, source);
+    // Held for the whole compile: another script thread's eviction must not free
+    // the bytes while the engine reads them.
+    const auto blob = cache.Lookup(key);
+    // Eager whenever this compile works from source: a blob covers only the
+    // functions compiled when it was made, so a lazy compile would store little
+    // more than the top level. When the blob is used the option is moot - the
+    // blob is what was compiled.
+    if (!blob) {
+        auto script = ub::Script::Compile(context, source, origin, ub::CompileOptions::EagerCompile);
+        if (script) {
+            cache.Store(key, *script);
         }
+        return script;
     }
-    if (!isCompiled) {
-        return {};
+
+    auto script = ub::Script::CompileWithCache(context, source, *blob, origin, ub::CompileOptions::EagerCompile);
+    if (!script || !script->UsedCodeCache()) {
+        // Refused - by unibind's own blob check or by the engine - and compiled
+        // eagerly from source instead: replace the entry with this compile's
+        // blob, or just forget it when the fallback compile failed as well.
+        cache.Drop(key);
+        if (script) {
+            cache.Store(key, *script);
+        }
     }
     return script;
 }
@@ -232,7 +213,7 @@ constexpr std::string_view PRELUDE_DELAY = R"(
 
 }  // namespace
 
-void ApplyCompatibilityPrelude(v8::Isolate* isolate, v8::Local<v8::Context> context) {
+void ApplyCompatibilityPrelude(const ub::Context& context) {
     auto& compat = config::CompatibilityFlags::Instance();
 
     std::string prelude;
@@ -250,10 +231,9 @@ void ApplyCompatibilityPrelude(v8::Isolate* isolate, v8::Local<v8::Context> cont
     }
     prelude += PRELUDE_DELAY;
 
-    v8::Local<v8::Script> script;
-    if (CompileSource(isolate, context, std::move(prelude), "v8-compatibility.js").ToLocal(&script)) {
-        v8::Local<v8::Value> dummy;
-        (void)script->Run(context).ToLocal(&dummy);
+    const ub::TryCatch tryCatch(context.GetIsolate());
+    if (auto script = CompileSource(context, std::move(prelude), "v8-compatibility.js")) {
+        (void)script->Run(context);
     }
 }
 

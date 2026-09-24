@@ -56,4 +56,19 @@ std::vector<std::string> ListFolders(const std::filesystem::path& fullPath, cons
     return results;
 }
 
+void ReturnNames(const ub::CallbackInfo& args, const std::vector<std::string>& names) {
+    const auto& context = args.GetContext();
+    auto arr = ub::Array::New(context, static_cast<uint32_t>(names.size()));
+    if (!arr) {
+        return;
+    }
+    for (uint32_t i = 0; i < names.size(); ++i) {
+        auto name = ub::String::NewFromUtf8(args.GetIsolate(), names[i]);
+        if (!name || !arr->Set(context, i, *name)) {
+            return;
+        }
+    }
+    args.GetReturnValue().Set(*arr);
+}
+
 }  // namespace d2bs::api::classes::directory_detail

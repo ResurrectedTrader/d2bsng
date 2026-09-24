@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+
 #include "JSDrawableBase.h"
 
 namespace d2bs::api::classes {
@@ -27,13 +29,13 @@ class JSBox : public JSDrawableBase<JSBox, BoxDrawable> {
     /// (entered = false, x and y are 0 on leave); return value ignored
     /// @returns {Box} - The new Box drawable.
     /// @throws {Error} - when called outside a running script (no owning script context).
-    static void New(const v8::FunctionCallbackInfo<v8::Value>& args) {
-        V8_CLASS_CTOR_PROLOGUE;
+    static std::shared_ptr<BoxDrawable> New(const ub::CallbackInfo& args) {
+        const auto& context = args.GetContext();
 
-        auto* script = ScriptEngine::Instance().GetScript(isolate);
+        auto* script = ScriptEngine::Instance().GetScript(&args.GetIsolate());
         if (!script) {
-            error::ThrowError(isolate, "Box: no owning script");
-            return;
+            error::ThrowError(args.GetIsolate(), "Box: no owning script");
+            return nullptr;
         }
 
         auto drawable = std::make_shared<BoxDrawable>();
@@ -41,121 +43,107 @@ class JSBox : public JSDrawableBase<JSBox, BoxDrawable> {
         extract::PointInto(args, 0, drawable->pos);
         extract::SizeInto(args, 2, drawable->size);
 
-        if (args.Length() > 4 && args[4]->IsNumber()) {
-            drawable->color.store(convert::ToUint32(isolate, args[4]));
+        if (args[4].IsNumber()) {
+            drawable->color.store(convert::ToUint32(context, args[4]));
         }
-        if (args.Length() > 5 && args[5]->IsNumber()) {
-            drawable->opacity.store(convert::ToUint32(isolate, args[5]));
+        if (args[5].IsNumber()) {
+            drawable->opacity.store(convert::ToUint32(context, args[5]));
         }
-        if (args.Length() > 6 && args[6]->IsNumber()) {
-            drawable->align.store(static_cast<Align>(convert::ToInt32(isolate, args[6])));
+        if (args[6].IsNumber()) {
+            drawable->align.store(static_cast<Align>(convert::ToInt32(context, args[6])));
         }
-        if (args.Length() > 7 && args[7]->IsBoolean()) {
-            drawable->isAutomap.store(args[7]->BooleanValue(isolate));
+        if (args[7].IsBoolean()) {
+            drawable->isAutomap.store(args[7].IsTrue());
         }
-        if (args.Length() > 8 && args[8]->IsFunction()) {
-            script->SetDrawableHandler(*drawable, DrawableHandler::Click, args[8].As<v8::Function>());
-        }
-        if (args.Length() > 9 && args[9]->IsFunction()) {
-            script->SetDrawableHandler(*drawable, DrawableHandler::Hover, args[9].As<v8::Function>());
-        }
+        SetConstructorHandlers(args, *script, *drawable, 8);
 
-        auto* rawDrawable = drawable.get();
-        SetupInstanceTracking(rawDrawable);
-        script->AddDrawable(std::move(drawable));
-
-        Wrap(args.This(), rawDrawable);
-        // The owning Script holds the shared_ptr. rawDrawable stays valid
-        // until remove() or TeardownIsolate drops that ref.
-        args.GetReturnValue().Set(args.This());
+        script->AddDrawable(drawable);
+        return drawable;
     }
 
-    static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
-        auto inst = tpl->InstanceTemplate();
-        auto proto = tpl->PrototypeTemplate();
-
-        ConfigureCommonProperties(isolate, inst, proto);
+    static void Configure(const ub::Class<BoxDrawable>& cls) {
+        ConfigureCommonProperties(cls);
 
         /// @description Box width in pixels (alias for the width property).
         /// @type {number}
         Property(
-            isolate, inst, "xsize",
-            +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Unwrap(info.Holder());
-                if (!drawable)
+            cls, "xsize",
+            +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Unwrap(info.This());
+                if (!drawable) {
                     return;
+                }
                 info.GetReturnValue().Set(drawable->size.load().width);
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Unwrap(info.Holder());
-                if (!drawable)
+            +[](const ub::Local<ub::Name>&, const ub::Local<ub::Value>& value, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Unwrap(info.This());
+                if (!drawable || !value.IsNumber()) {
                     return;
-                if (!value->IsNumber())
-                    return;
+                }
                 auto cur = drawable->size.load();
                 // Note: Size is unsigned; negative values coerce to large positive via ToUint32.
-                cur.width = convert::ToUint32(info.GetIsolate(), value);
+                cur.width = convert::ToUint32(info.GetContext(), value);
                 drawable->size.store(cur);
             });
 
         /// @description Box height in pixels (alias for the height property).
         /// @type {number}
         Property(
-            isolate, inst, "ysize",
-            +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Unwrap(info.Holder());
-                if (!drawable)
+            cls, "ysize",
+            +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Unwrap(info.This());
+                if (!drawable) {
                     return;
+                }
                 info.GetReturnValue().Set(drawable->size.load().height);
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Unwrap(info.Holder());
-                if (!drawable)
+            +[](const ub::Local<ub::Name>&, const ub::Local<ub::Value>& value, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Unwrap(info.This());
+                if (!drawable || !value.IsNumber()) {
                     return;
-                if (!value->IsNumber())
-                    return;
+                }
                 auto cur = drawable->size.load();
                 // Note: Size is unsigned; negative values coerce to large positive via ToUint32.
-                cur.height = convert::ToUint32(info.GetIsolate(), value);
+                cur.height = convert::ToUint32(info.GetContext(), value);
                 drawable->size.store(cur);
             });
 
         /// @description Box fill color as a game color index.
         /// @type {number}
         Property(
-            isolate, inst, "color",
-            +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Unwrap(info.Holder());
-                if (!drawable)
+            cls, "color",
+            +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Unwrap(info.This());
+                if (!drawable) {
                     return;
+                }
                 info.GetReturnValue().Set(drawable->color.load());
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Unwrap(info.Holder());
-                if (!drawable)
+            +[](const ub::Local<ub::Name>&, const ub::Local<ub::Value>& value, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Unwrap(info.This());
+                if (!drawable || !value.IsNumber()) {
                     return;
-                if (!value->IsNumber())
-                    return;
-                drawable->color.store(convert::ToUint32(info.GetIsolate(), value));
+                }
+                drawable->color.store(convert::ToUint32(info.GetContext(), value));
             });
 
         /// @description Box fill opacity.
         /// @type {number}
         Property(
-            isolate, inst, "opacity",
-            +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Unwrap(info.Holder());
-                if (!drawable)
+            cls, "opacity",
+            +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Unwrap(info.This());
+                if (!drawable) {
                     return;
+                }
                 info.GetReturnValue().Set(drawable->opacity.load());
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Unwrap(info.Holder());
-                if (!drawable)
+            +[](const ub::Local<ub::Name>&, const ub::Local<ub::Value>& value, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Unwrap(info.This());
+                if (!drawable || !value.IsNumber()) {
                     return;
-                if (!value->IsNumber())
-                    return;
-                drawable->opacity.store(convert::ToUint32(info.GetIsolate(), value));
+                }
+                drawable->opacity.store(convert::ToUint32(info.GetContext(), value));
             });
     }
 };

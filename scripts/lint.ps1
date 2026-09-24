@@ -70,7 +70,7 @@ function Maybe-RegenDb($dbPath, $vcxproj) {
     return (Get-Item $vcxproj).LastWriteTime -gt (Get-Item $dbPath).LastWriteTime
 }
 
-$needRegen = (Maybe-RegenDb $dbUtils 'src\utils\utils.vcxproj') -or (Maybe-RegenDb $dbContract 'src\contract\contract.vcxproj') -or (Maybe-RegenDb $dbCore 'src\core\core.vcxproj') -or (Maybe-RegenDb $dbNavigation 'src\navigation\navigation.vcxproj') -or (Maybe-RegenDb $dbServices 'src\services\services.vcxproj') -or (Maybe-RegenDb $dbJs 'src\frontends\runtime\runtime.vcxproj') -or (Maybe-RegenDb $dbLod114d 'src\backends\lod114d\lod114d.vcxproj') -or (Maybe-RegenDb $dbGlue 'src\glue\js-v8-lod114d\d2bs.vcxproj') -or (Maybe-RegenDb $dbTests 'tests\frontends\runtime\js_tests.vcxproj')
+$needRegen = (Maybe-RegenDb $dbUtils 'src\utils\utils.vcxproj') -or (Maybe-RegenDb $dbContract 'src\contract\contract.vcxproj') -or (Maybe-RegenDb $dbCore 'src\core\core.vcxproj') -or (Maybe-RegenDb $dbNavigation 'src\navigation\navigation.vcxproj') -or (Maybe-RegenDb $dbServices 'src\services\services.vcxproj') -or (Maybe-RegenDb $dbJs 'src\frontends\runtime\runtime.vcxproj') -or (Maybe-RegenDb $dbLod114d 'src\backends\lod114d\lod114d.vcxproj') -or (Maybe-RegenDb $dbGlue 'src\glue\js-v8-lod114d\d2bs-v8.vcxproj') -or (Maybe-RegenDb $dbTests 'tests\frontends\runtime\js_tests.vcxproj')
 if ($needRegen) {
     Write-Host 'Compile database missing or stale - regenerating...' -ForegroundColor Yellow
     $msbuild = $null
@@ -148,7 +148,8 @@ function Get-EnvToken {
     foreach ($cfg in @('.clang-tidy', 'tests\frontends\runtime\.clang-tidy', 'tests\frontends\runtime\pathfinding\reference\.clang-tidy', 'vcpkg.json')) {
         if (Test-Path $cfg) { $parts.Add($cfg + '=' + (Get-FileContentHash (Resolve-Path $cfg).Path)) }
     }
-    $parts.Add('v8=' + (Get-TreeFingerprint 'dependencies\v8\include'))
+    $parts.Add('v8=' + (Get-TreeFingerprint 'dependencies\v8'))
+    $parts.Add('unibind=' + (Get-TreeFingerprint 'dependencies\unibind'))
     $parts.Add('d2moo=' + (Get-TreeFingerprint 'dependencies\D2MOO\source'))
     if (-not $useDepCache) {
         $dirs = @('src'); if (Test-Path 'tests') { $dirs += 'tests' }
@@ -277,7 +278,7 @@ if (Test-Path $dbTests) {
     }
 }
 
-$cmdMap = Load-DbCommands @($dbUtils, $dbContract, $dbCore, $dbNavigation, $dbJs, $dbLod114d, $dbGlue, $dbTests)
+$cmdMap = Load-DbCommands @($dbUtils, $dbContract, $dbCore, $dbNavigation, $dbServices, $dbJs, $dbLod114d, $dbGlue, $dbTests)
 $tmpDir = Join-Path $env:TEMP "d2bs_lint_$(Get-Random)"
 New-Item -ItemType Directory -Path $tmpDir -Force | Out-Null
 

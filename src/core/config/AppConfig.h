@@ -14,7 +14,7 @@ namespace d2bs::config {
 
 class ConfigStore;
 
-// V8 inspector listening-port bounds and default. The sign of
+// Script debugger (Chrome DevTools inspector) listening-port bounds and default. The sign of
 // AppConfig::inspectorPort encodes enabled (positive) / disabled (non-positive)
 // to avoid a second flag; the magnitude is the port. 9229 is the Node.js
 // inspector default and is in chrome://inspect's default "Discover network
@@ -46,9 +46,11 @@ struct AppConfig {
     std::atomic<std::chrono::milliseconds> maxGameTime{std::chrono::milliseconds{0}};
     std::atomic<bool> enableUnsupported = false;
 
-    // V8 inspector (Chrome DevTools) debugging. Every script isolate always
-    // registers a debuggable target; this controls whether the localhost
-    // HTTP+WebSocket server that exposes them is running. The sign encodes
+    // Chrome DevTools debugging, on an engine that has an inspector (V8 does,
+    // SpiderMonkey does not; see docs/inspector.md). There, every script
+    // isolate always registers a debuggable target; this controls whether the
+    // localhost HTTP+WebSocket server that exposes them is running. On an
+    // engine without one the setting is kept but nothing listens. The sign encodes
     // enabled/disabled (positive = server listening on that port, non-positive =
     // stopped, magnitude remembers the last port) so no second flag is needed.
     // Disabled by default (0); opt-in since it opens a local debug port.
@@ -77,7 +79,7 @@ struct AppConfig {
     // Additional settings - set once during initialization from INI [settings] section.
     // Read-only after init - no synchronization provided.
     std::chrono::milliseconds gameReadyTimeout{5000};  // for WaitForGameReady (INI value is seconds)
-    size_t memoryLimit = size_t{100} * 1024 * 1024;    // bytes, V8 heap limit (INI value is MB)
+    size_t memoryLimit = size_t{100} * 1024 * 1024;    // bytes, per-script heap limit (INI value is MB)
 
     // A tuning string for whichever engine this build runs (INI
     // [settings]/EngineFlags), opaque to everything but that engine and applied

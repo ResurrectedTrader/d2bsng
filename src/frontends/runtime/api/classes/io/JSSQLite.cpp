@@ -2,42 +2,45 @@
 #include "JSDBStatement.h"
 #include "SQLiteBind.h"
 
+#include "api/core/Convert.h"
+#include "api/core/Error.h"
 #include "config/AppConfig.h"
 
 namespace d2bs::api::classes {
 
-static std::string PathToUtf8(const std::filesystem::path& path) {
-    // In C++20+, u8string() returns std::u8string (char8_t based)
-    // We need to convert it to std::string for SQLite's C API
+namespace {
+
+std::string PathToUtf8(const std::filesystem::path& path) {
+    // u8string() is std::u8string (char8_t); SQLite's C API wants char.
     auto u8path = path.u8string();
     return {reinterpret_cast<const char*>(u8path.data()), u8path.size()};
 }
 
-// NOLINTNEXTLINE(bugprone-exception-escape) - std::set operations theoretically throw but won't in practice
-void SQLiteData::Close() noexcept {
-    // Detach the statements before anything can return early. A statement's
-    // destructor reaches back through `parent` to unregister itself, so one
-    // still pointing here when this object dies would write through a freed
-    // pointer. Finalize() clears that pointer, which is what makes the order
-    // safe.
-    //
-    // On the !isOpen path this is a no-op: the set has already been drained and
-    // Finalize() is idempotent. It runs unconditionally so that staying safe
-    // does not depend on every future path clearing `isOpen` only after
-    // emptying the set.
-    //
-    // Take a copy of the set to avoid iterator invalidation
-    // (Finalize() calls parent->statements.erase(this))
-    auto stmtsCopy = statements;
-    for (auto* stmt : stmtsCopy) {
-        stmt->Finalize();
+// Finalize every live statement of `data`. Iterates a copy: Finalize() erases the statement from
+// `data.statements`.
+void FinalizeStatements(SQLiteData& data) {
+    auto statements = data.statements;
+    for (const auto& weak : statements) {
+        if (auto stmt = weak.lock()) {
+            stmt->Finalize();
+        }
     }
-    statements.clear();
+    data.statements.clear();
+}
 
-    if (!isOpen)
+}  // namespace
+
+// NOLINTNEXTLINE(bugprone-exception-escape) - vector copy / weak_ptr lock theoretically throw but won't in practice
+void SQLiteData::Close() noexcept {
+    // Runs unconditionally, even on the !isOpen path, so staying safe does not depend on every
+    // future path clearing `isOpen` only after emptying the list. A statement holds its database
+    // alive, so by the time this runs from the destructor no statement is live and this is a no-op.
+    FinalizeStatements(*this);
+
+    if (!isOpen) {
         return;
+    }
 
-    // Close the database
     if (handle) {
         sqlite3_close_v2(handle);
         handle = nullptr;
@@ -53,32 +56,30 @@ void SQLiteData::Close() noexcept {
 /// @returns {SQLite} - the constructed database object; throws on error.
 /// @throws {Error} - if path is a regular file path that escapes the script sandbox / is invalid
 /// @throws {Error} - if autoOpen is true and the database cannot be opened
-void JSSQLite::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    V8_CLASS_CTOR_PROLOGUE;
-
+std::unique_ptr<SQLiteData> JSSQLite::New(const ub::CallbackInfo& args) {
+    auto& isolate = args.GetIsolate();
+    const auto& context = args.GetContext();
     auto argc = args.Length();
 
-    std::filesystem::path path = ":memory:";  // Default to in-memory database
+    std::filesystem::path path = ":memory:";
     bool autoOpen = true;
 
-    // SQLite(path) or SQLite(path, autoOpen)
     if (argc > 0) {
-        if (!args[0]->IsString()) {
+        if (!args[0].IsString()) {
             error::ThrowTypeError(isolate, "Invalid parameters in SQLite constructor");
-            return;
+            return nullptr;
         }
-        auto pathStr = convert::ToString(isolate, args[0]);
+        auto pathStr = convert::ToString(context, args[0]);
 
         // Empty string in SQLite creates a temp file in the system temp directory,
         // which would bypass the script sandbox. Treat it as :memory: instead.
         if (pathStr.empty()) {
             path = ":memory:";
         } else if (pathStr[0] != ':') {
-            // Regular file path - must pass sandbox validation
             auto sandboxed = config::GetPathRelScript(pathStr);
             if (sandboxed.empty()) {
                 error::ThrowError(isolate, "Invalid file path");
-                return;
+                return nullptr;
             }
             path = sandboxed;
         } else {
@@ -86,8 +87,8 @@ void JSSQLite::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
             path = pathStr;
         }
 
-        if (argc > 1 && args[1]->IsBoolean()) {
-            autoOpen = args[1]->BooleanValue(isolate);
+        if (argc > 1 && args[1].IsBoolean()) {
+            autoOpen = args[1].IsTrue();
         }
     }
 
@@ -95,130 +96,100 @@ void JSSQLite::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     data->path = path;
 
     if (autoOpen) {
-        // Open database - use sqlite3_open for UTF-8 paths
         auto pathStr = PathToUtf8(path);
         if (SQLITE_OK != sqlite3_open(pathStr.c_str(), &data->handle)) {
             std::string msg = "Could not open database: ";
             msg += sqlite3_errmsg(data->handle);
             sqlite3_close(data->handle);
+            data->handle = nullptr;
             error::ThrowError(isolate, msg);
-            return;
+            return nullptr;
         }
         data->isOpen = true;
     }
 
-    InitInstance(isolate, args.This(), std::move(data));
-    args.GetReturnValue().Set(args.This());
+    return data;
 }
 
-void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
-    auto inst = tpl->InstanceTemplate();
-    auto proto = tpl->PrototypeTemplate();
-
+void JSSQLite::Configure(const ub::Class<SQLiteData>& cls) {
     // Properties
     /// @description The resolved database file path as a UTF-8 string.
     /// @type {string}
     Property(
-        isolate, inst, "path", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* isolate = info.GetIsolate();
-            auto self = info.Holder();
-
-            auto data = Unwrap(self);
+        cls, "path", +[](const ub::Local<ub::Name>& /*property*/, const ub::PropertyCallbackInfo& info) {
+            auto* data = Unwrap(info.This());
             if (!data) {
                 return;
             }
-
-            info.GetReturnValue().Set(convert::ToJS(isolate, PathToUtf8(data->path)));
+            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), PathToUtf8(data->path)));
         });
 
     /// @description The currently-open DBStatement objects belonging to this database.
     /// @type {DBStatement[]}
     Property(
-        isolate, inst, "statements",
-        +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* isolate = info.GetIsolate();
-            auto self = info.Holder();
-            auto context = isolate->GetCurrentContext();
+        cls, "statements", +[](const ub::Local<ub::Name>& /*property*/, const ub::PropertyCallbackInfo& info) {
+            const auto& context = info.GetContext();
 
-            auto data = Unwrap(self);
+            auto* data = Unwrap(info.This());
+            auto array = ub::Array::New(context, 0);
+            if (!array) {
+                return;
+            }
             if (!data) {
-                info.GetReturnValue().Set(v8::Array::New(isolate, 0));
+                info.GetReturnValue().Set(*array);
                 return;
             }
 
-            // Wrap as real DBStatement objects (non-owning). The native DBStatementData
-            // is owned by the parent SQLiteData, not by GC. We use Wrap() without MakeWeak
-            // so GC collection of a wrapper doesn't free the native data. A SetPrivate
-            // reference from each wrapper to the parent SQLite JS object prevents the parent
-            // from being GC'd while any statement wrapper is still reachable.
-            auto array = v8::Array::New(isolate, static_cast<int32_t>(data->statements.size()));
-            auto stmtTpl = JSDBStatement::GetTemplate(isolate);
-            auto parentKey = v8::Private::ForApi(isolate, convert::ToJS(isolate, "d2bs::DBStatement#parentDb"));
+            // Each wrapper holds a share of its statement, and the statement a share of this
+            // database, so a statement handed out here keeps the database alive by itself.
             uint32_t idx = 0;
-            for (auto* stmt : data->statements) {
-                if (!stmt->isOpen) {
+            for (const auto& weak : data->statements) {
+                auto stmt = weak.lock();
+                if (!stmt || !stmt->isOpen) {
                     continue;
                 }
-                auto maybeObj = stmtTpl->InstanceTemplate()->NewInstance(context);
-                if (maybeObj.IsEmpty()) {
+                auto obj = JSDBStatement::Wrap(context, std::move(stmt));
+                if (!obj) {
                     continue;
                 }
-                auto obj = maybeObj.ToLocalChecked();
-                JSDBStatement::Wrap(obj, stmt);
-                obj->SetPrivate(context, parentKey, self).Check();
-                array->Set(context, idx++, obj).Check();
+                if (!array->Set(context, idx++, *obj)) {
+                    return;
+                }
             }
 
-            info.GetReturnValue().Set(array);
+            info.GetReturnValue().Set(*array);
         });
 
     /// @description Whether the database connection is currently open.
     /// @type {boolean}
     Property(
-        isolate, inst, "isOpen", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* isolate = info.GetIsolate();
-            auto self = info.Holder();
-
-            auto data = Unwrap(self);
-            if (!data) {
-                info.GetReturnValue().SetFalse();
-                return;
-            }
-
-            info.GetReturnValue().Set(convert::ToJS(isolate, data->isOpen));
+        cls, "isOpen", +[](const ub::Local<ub::Name>& /*property*/, const ub::PropertyCallbackInfo& info) {
+            auto* data = Unwrap(info.This());
+            info.GetReturnValue().Set(data != nullptr && data->isOpen);
         });
 
     /// @description The rowid of the most recently inserted row on this connection.
     /// @type {number}
     Property(
-        isolate, inst, "lastRowId", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* isolate = info.GetIsolate();
-            auto self = info.Holder();
-
-            auto data = Unwrap(self);
+        cls, "lastRowId", +[](const ub::Local<ub::Name>& /*property*/, const ub::PropertyCallbackInfo& info) {
+            auto* data = Unwrap(info.This());
             if (!data || !data->handle) {
                 info.GetReturnValue().Set(0);
                 return;
             }
-
-            auto rowId = sqlite3_last_insert_rowid(data->handle);
-            info.GetReturnValue().Set(convert::ToJS(isolate, static_cast<double>(rowId)));
+            info.GetReturnValue().Set(static_cast<double>(sqlite3_last_insert_rowid(data->handle)));
         });
 
     /// @description The number of rows changed by the most recent statement on this connection.
     /// @type {number}
     Property(
-        isolate, inst, "changes", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* isolate = info.GetIsolate();
-            auto self = info.Holder();
-
-            auto data = Unwrap(self);
+        cls, "changes", +[](const ub::Local<ub::Name>& /*property*/, const ub::PropertyCallbackInfo& info) {
+            auto* data = Unwrap(info.This());
             if (!data || !data->handle) {
                 info.GetReturnValue().Set(0);
                 return;
             }
-
-            info.GetReturnValue().Set(convert::ToJS(isolate, sqlite3_changes(data->handle)));
+            info.GetReturnValue().Set(sqlite3_changes(data->handle));
         });
 
     // Instance Methods
@@ -229,20 +200,19 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
     /// @throws {Error} - if the database is not open
     /// @throws {Error} - if executing the SQL fails
     Method(
-        isolate, proto, "execute", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
-            auto self = args.This();
+        cls, "execute", +[](const ub::CallbackInfo& args) {
+            auto& isolate = args.GetIsolate();
 
             if (!error::CheckArgCount(args, 1, "execute")) {
                 return;
             }
 
-            if (!args[0]->IsString()) {
+            if (!args[0].IsString()) {
                 error::ThrowTypeError(isolate, "execute() requires a SQL string argument");
                 return;
             }
 
-            auto data = Unwrap(self);
+            auto* data = Unwrap(args.This());
             if (!data) {
                 error::ThrowError(isolate, "Invalid SQLite object");
                 return;
@@ -253,7 +223,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 return;
             }
 
-            std::string sql = convert::ToString(isolate, args[0]);
+            std::string sql = convert::ToString(args.GetContext(), args[0]);
             char* errMsg = nullptr;
 
             if (SQLITE_OK != sqlite3_exec(data->handle, sql.c_str(), nullptr, nullptr, &errMsg)) {
@@ -275,21 +245,20 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
     /// @throws {Error} - if preparing the SQL fails or the statement has no effect
     /// @throws {Error} - if a bound parameter value is unsupported / cannot be bound
     Method(
-        isolate, proto, "query", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
-            auto self = args.This();
-            auto context = isolate->GetCurrentContext();
+        cls, "query", +[](const ub::CallbackInfo& args) {
+            auto& isolate = args.GetIsolate();
+            const auto& context = args.GetContext();
 
             if (!error::CheckArgCount(args, 1, "query")) {
                 return;
             }
 
-            if (!args[0]->IsString()) {
+            if (!args[0].IsString()) {
                 error::ThrowTypeError(isolate, "query() requires a SQL string argument");
                 return;
             }
 
-            auto data = Unwrap(self);
+            auto data = UnwrapShared(args.This());
             if (!data) {
                 error::ThrowError(isolate, "Invalid SQLite object");
                 return;
@@ -300,9 +269,8 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 return;
             }
 
-            std::string sql = convert::ToString(isolate, args[0]);
+            std::string sql = convert::ToString(context, args[0]);
 
-            // Prepare statement
             sqlite3_stmt* stmtHandle = nullptr;
             if (SQLITE_OK !=
                 sqlite3_prepare_v2(data->handle, sql.c_str(), static_cast<int>(sql.length()), &stmtHandle, nullptr)) {
@@ -315,10 +283,9 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 return;
             }
 
-            // Bind any additional parameters (args[1], args[2], ...). Parameters
-            // are 1-indexed in SQLite; args[i] maps to paramIdx = i.
-            for (int32_t i = 1; i < args.Length(); i++) {
-                if (!BindValue(isolate, args[i], stmtHandle, i)) {
+            // Parameters are 1-indexed in SQLite; args[i] maps to paramIdx = i.
+            for (uint32_t i = 1; i < args.Length(); i++) {
+                if (!BindValue(context, args[i], stmtHandle, static_cast<int32_t>(i))) {
                     sqlite3_finalize(stmtHandle);
                     std::string msg = "Invalid bound parameter " + std::to_string(i);
                     error::ThrowError(isolate, msg);
@@ -326,24 +293,19 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 }
             }
 
-            // Create DBStatementData
-            auto stmtData = std::make_unique<DBStatementData>();
-            stmtData->handle = stmtHandle;
-            stmtData->parent = data;
-            stmtData->sql = sql;
-            stmtData->isOpen = true;
+            auto stmt = std::make_shared<DBStatementData>();
+            stmt->handle = stmtHandle;
+            stmt->parent = data;
+            stmt->sql = sql;
+            stmt->isOpen = true;
+            data->statements.emplace_back(stmt);
 
-            // Track statement in parent database
-            auto* stmtRaw = stmtData.get();
-            data->statements.insert(stmtRaw);
-
-            // Create and return DBStatement object
-            auto stmtObj = JSDBStatement::CreateInstance(isolate, context, std::move(stmtData));
-            if (stmtObj.IsEmpty()) {
-                data->statements.erase(stmtRaw);
+            // On failure the wrapper's share goes with it and the statement unregisters itself.
+            auto stmtObj = JSDBStatement::Wrap(context, std::move(stmt));
+            if (!stmtObj) {
                 return;
             }
-            args.GetReturnValue().Set(stmtObj);
+            args.GetReturnValue().Set(*stmtObj);
         });
 
     /// @description Opens the database connection, a no-op if already open.
@@ -351,11 +313,10 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
     /// @returns {boolean} - always true on success; throws on open failure
     /// @throws {Error} - if the database cannot be opened
     Method(
-        isolate, proto, "open", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
-            auto self = args.This();
+        cls, "open", +[](const ub::CallbackInfo& args) {
+            auto& isolate = args.GetIsolate();
 
-            auto data = Unwrap(self);
+            auto* data = Unwrap(args.This());
             if (!data) {
                 error::ThrowError(isolate, "Invalid SQLite object");
                 return;
@@ -382,26 +343,19 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
     /// @returns {boolean} - always true on success; throws on close error
     /// @throws {Error} - if closing the database fails
     Method(
-        isolate, proto, "close", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
-            auto self = args.This();
+        cls, "close", +[](const ub::CallbackInfo& args) {
+            auto& isolate = args.GetIsolate();
 
-            auto data = Unwrap(self);
+            auto* data = Unwrap(args.This());
             if (!data) {
                 error::ThrowError(isolate, "Invalid SQLite object");
                 return;
             }
 
             if (data->isOpen) {
-                // Close all statements first (copy set to avoid iterator invalidation)
-                auto stmtsCopy = data->statements;
-                for (auto* stmt : stmtsCopy) {
-                    stmt->Finalize();
-                }
-                data->statements.clear();
+                FinalizeStatements(*data);
 
-                // Close database - use sqlite3_close_v2 which guarantees eventual cleanup
-                // even if statements are still busy
+                // sqlite3_close_v2 guarantees eventual cleanup even if statements are still busy
                 auto rc = sqlite3_close_v2(data->handle);
                 if (rc != SQLITE_OK) {
                     std::string msg = "Could not close database: ";
@@ -422,19 +376,16 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
     /// @signature SQLite.version()
     /// @returns {string} - the SQLite version (e.g. "3.x.y")
     StaticMethod(
-        isolate, tpl, "version", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
-            args.GetReturnValue().Set(convert::ToJS(isolate, sqlite3_version));
+        cls, "version", +[](const ub::CallbackInfo& args) {
+            args.GetReturnValue().Set(convert::ToJS(args.GetIsolate(), sqlite3_version));
         });
 
     /// @description Returns the number of bytes of memory currently in use by the SQLite library.
     /// @signature SQLite.memoryUsage()
     /// @returns {number} - bytes of memory currently allocated by SQLite
     StaticMethod(
-        isolate, tpl, "memoryUsage", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
-            args.GetReturnValue().Set(convert::ToJS(isolate, static_cast<double>(sqlite3_memory_used())));
-        });
+        cls, "memoryUsage",
+        +[](const ub::CallbackInfo& args) { args.GetReturnValue().Set(static_cast<double>(sqlite3_memory_used())); });
 }
 
 }  // namespace d2bs::api::classes

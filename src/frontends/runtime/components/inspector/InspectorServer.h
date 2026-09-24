@@ -15,7 +15,7 @@ namespace d2bs::runtime::inspector {
 
 class InspectorTarget;
 
-// Process-wide HTTP + WebSocket server fronting the V8 inspector. A single
+// Process-wide HTTP + WebSocket server fronting the engine's inspector. A single
 // server on one localhost port both serves the Chrome DevTools /json discovery
 // endpoints and upgrades /<targetId> requests to WebSocket, routing CDP traffic
 // to the matching script's InspectorTarget. Started from ScriptEngine when

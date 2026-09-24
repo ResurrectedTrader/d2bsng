@@ -1,248 +1,150 @@
 #pragma once
 
+#include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <string>
-#include <vector>
-
-#include <v8.h>
+#include <string_view>
+#include <utility>
 
 #include "game/Types.h"
+#include "unibind/unibind.h"
 
-// Type conversion utilities for V8 <-> C++
-// All string operations use UTF-8
+// Native values into script values and back. The primitives take the isolate; anything that builds
+// an object takes the context it is built in.
 
 namespace d2bs::api::convert {
 
-// ============================================================================
-// To V8 conversions
-// ============================================================================
-
-inline v8::Local<v8::String> ToJS(v8::Isolate* isolate, const char* str) {
-    if (!str)
-        return v8::String::Empty(isolate);
-    v8::Local<v8::String> result;
-    if (v8::String::NewFromUtf8(isolate, str).ToLocal(&result))
-        return result;
-    return v8::String::Empty(isolate);
+// A string, or an empty handle if one could not be made (the engine is out of memory). Lossy: bytes
+// that are not UTF-8 each become U+FFFD rather than failing, since callers hand over game strings,
+// file contents and socket reads as readily as their own literals.
+inline ub::Local<ub::String> ToJS(ub::Isolate& isolate, std::string_view str) {
+    return ub::String::NewFromUtf8(isolate, str).value_or(ub::Local<ub::String>());
 }
 
-// Keep both std::string and std::string_view overloads to prevent ambiguity
-// with the filesystem::path overload (std::string implicitly converts to path).
-inline v8::Local<v8::String> ToJS(v8::Isolate* isolate, const std::string& str) {
-    v8::Local<v8::String> result;
-    if (v8::String::NewFromUtf8(isolate, str.c_str(), v8::NewStringType::kNormal, static_cast<int32_t>(str.length()))
-            .ToLocal(&result))
-        return result;
-    return v8::String::Empty(isolate);
+inline ub::Local<ub::String> ToJS(ub::Isolate& isolate, const char* str) {
+    return ToJS(isolate, str == nullptr ? std::string_view() : std::string_view(str));
 }
 
-inline v8::Local<v8::String> ToJS(v8::Isolate* isolate, std::string_view str) {
-    v8::Local<v8::String> result;
-    if (v8::String::NewFromUtf8(isolate, str.data(), v8::NewStringType::kNormal, static_cast<int32_t>(str.length()))
-            .ToLocal(&result))
-        return result;
-    return v8::String::Empty(isolate);
+inline ub::Local<ub::String> ToJS(ub::Isolate& isolate, const std::string& str) {
+    return ToJS(isolate, std::string_view(str));
 }
 
-// Convert filesystem path to UTF-8 V8 string (handles Unicode paths on Windows)
-inline v8::Local<v8::String> ToJS(v8::Isolate* isolate, const std::filesystem::path& path) {
-    auto u8Path = path.u8string();
-    v8::Local<v8::String> result;
-    if (v8::String::NewFromUtf8(isolate, reinterpret_cast<const char*>(u8Path.data()), v8::NewStringType::kNormal,
-                                static_cast<int32_t>(u8Path.size()))
-            .ToLocal(&result))
-        return result;
-    return v8::String::Empty(isolate);
+inline ub::Local<ub::String> ToJS(ub::Isolate& isolate, const std::filesystem::path& path) {
+    const auto u8Path = path.u8string();
+    return ToJS(isolate, std::string_view(reinterpret_cast<const char*>(u8Path.data()), u8Path.size()));
 }
 
-inline v8::Local<v8::Integer> ToJS(v8::Isolate* isolate, int32_t val) {
-    return v8::Integer::New(isolate, val);
+inline ub::Local<ub::Integer> ToJS(ub::Isolate& isolate, int32_t val) {
+    return ub::Integer::New(isolate, val);
 }
 
-inline v8::Local<v8::Integer> ToJS(v8::Isolate* isolate, uint32_t val) {
-    return v8::Integer::NewFromUnsigned(isolate, val);
+inline ub::Local<ub::Integer> ToJS(ub::Isolate& isolate, uint32_t val) {
+    return ub::Integer::NewFromUnsigned(isolate, val);
 }
 
-inline v8::Local<v8::Number> ToJS(v8::Isolate* isolate, double val) {
-    return v8::Number::New(isolate, val);
+inline ub::Local<ub::Number> ToJS(ub::Isolate& isolate, double val) {
+    return ub::Number::New(isolate, val);
 }
 
-inline v8::Local<v8::Boolean> ToJS(v8::Isolate* isolate, bool val) {
-    return v8::Boolean::New(isolate, val);
+inline ub::Local<ub::Boolean> ToJS(ub::Isolate& isolate, bool val) {
+    return ub::Boolean::New(isolate, val);
 }
 
 namespace detail {
 
-// Property names for the fixed-shape objects below. Interned so the engine doesn't
-// re-hash them into the string table on every coordinate handed to JS, and Eternal so
-// the handles survive without a HandleScope. getPath alone builds one object per path
-// point, so these were the hottest string allocations in the binding layer.
-//
-// Only the names are cached. Nothing here roots a context: an Eternal is never
-// releasable, so caching anything reachable from the realm (Object.prototype, say)
-// would pin the script's globals past TeardownIsolate's root-clearing and stop the
-// pre-Dispose GC from firing the weak callbacks that free native wrapper structs.
-struct KeyCache {
-    v8::Isolate* isolate = nullptr;
-    v8::Eternal<v8::Name> x;
-    v8::Eternal<v8::Name> y;
-    v8::Eternal<v8::Name> width;
-    v8::Eternal<v8::Name> height;
-    v8::Eternal<v8::Name> id;
-    v8::Eternal<v8::Name> layer;
-    v8::Eternal<v8::Name> value;
-    v8::Eternal<v8::Name> flags;
-    v8::Eternal<v8::Name> stateNo;
-    v8::Eternal<v8::Name> stats;
-};
-
-inline thread_local KeyCache keyCache;
-
-// Requires an entered HandleScope - every caller is inside a V8 callback.
-inline KeyCache& Keys(v8::Isolate* isolate) {
-    if (keyCache.isolate == isolate) {
-        return keyCache;
+// `{name: value, ...}` from a list of pairs. Empty if any step failed, which leaves the engine's
+// exception (if it raised one) pending for the caller to return through.
+template <class... Pairs>
+std::optional<ub::Local<ub::Object>> MakeObject(const ub::Context& context, const Pairs&... pairs) {
+    auto obj = ub::Object::New(context);
+    if (!obj) {
+        return std::nullopt;
     }
-    // Degrades to an empty name like the ToJS overloads above rather than going fatal. The only
-    // way this fails is heap exhaustion, and ToLocalChecked would take the whole process down
-    // through the isolate's fatal handler - killing every other script in it.
-    bool interned = true;
-    auto intern = [isolate, &interned](const char* name) {
-        v8::Local<v8::String> result;
-        if (v8::String::NewFromUtf8(isolate, name, v8::NewStringType::kInternalized).ToLocal(&result)) {
-            return result;
-        }
-        interned = false;
-        return v8::String::Empty(isolate);
-    };
-    keyCache.x.Set(isolate, intern("x"));
-    keyCache.y.Set(isolate, intern("y"));
-    keyCache.width.Set(isolate, intern("width"));
-    keyCache.height.Set(isolate, intern("height"));
-    keyCache.id.Set(isolate, intern("id"));
-    keyCache.layer.Set(isolate, intern("layer"));
-    keyCache.value.Set(isolate, intern("value"));
-    keyCache.flags.Set(isolate, intern("flags"));
-    keyCache.stateNo.Set(isolate, intern("stateNo"));
-    keyCache.stats.Set(isolate, intern("stats"));
-    // Published only once every name is real, and last, so a partial run leaves the cache
-    // invalid rather than valid with an empty slot - the next call retries.
-    if (interned) {
-        keyCache.isolate = isolate;
+    const bool ok = (obj->Set(context, pairs.first, pairs.second).value_or(false) && ...);
+    if (!ok) {
+        return std::nullopt;
     }
-    return keyCache;
+    return obj;
 }
 
 }  // namespace detail
 
-// Drop this thread's cached keys. Only this thread's copy needs clearing: an isolate is
-// created and torn down on its own thread, so no other thread holds a cache for it. Eternal
-// has no release, so invalidating other threads would orphan their slots rather than free
-// them.
-inline void ClearKeyCache(v8::Isolate* isolate) {
-    if (detail::keyCache.isolate == isolate) {
-        detail::keyCache.isolate = nullptr;
+inline std::optional<ub::Local<ub::Object>> ToJS(const ub::Context& context, game::Position pos) {
+    auto& isolate = context.GetIsolate();
+    return detail::MakeObject(context, std::pair{"x", ToJS(isolate, pos.x)}, std::pair{"y", ToJS(isolate, pos.y)});
+}
+
+inline std::optional<ub::Local<ub::Object>> ToJS(const ub::Context& context, game::Point pt) {
+    auto& isolate = context.GetIsolate();
+    return detail::MakeObject(context, std::pair{"x", ToJS(isolate, pt.x)}, std::pair{"y", ToJS(isolate, pt.y)});
+}
+
+inline std::optional<ub::Local<ub::Object>> ToJS(const ub::Context& context, game::Size sz) {
+    auto& isolate = context.GetIsolate();
+    return detail::MakeObject(context, std::pair{"width", ToJS(isolate, sz.width)},
+                              std::pair{"height", ToJS(isolate, sz.height)});
+}
+
+inline std::optional<ub::Local<ub::Object>> ToJS(const ub::Context& context, const game::StatEntry& stat) {
+    auto& isolate = context.GetIsolate();
+    return detail::MakeObject(context, std::pair{"id", ToJS(isolate, stat.statId)},
+                              std::pair{"layer", ToJS(isolate, stat.subIndex)},
+                              std::pair{"value", ToJS(isolate, stat.value)});
+}
+
+inline std::optional<ub::Local<ub::Object>> ToJS(const ub::Context& context, const game::StatListEntry& list) {
+    auto& isolate = context.GetIsolate();
+    auto stats = ub::Array::New(context, static_cast<uint32_t>(list.stats.size()));
+    if (!stats) {
+        return std::nullopt;
     }
-}
-
-// {x: uint32, y: uint32}
-inline v8::Local<v8::Object> ToJS(v8::Isolate* isolate, game::Position pos) {
-    auto& keys = detail::Keys(isolate);
-    auto context = isolate->GetCurrentContext();
-    auto obj = v8::Object::New(isolate);
-    obj->CreateDataProperty(context, keys.x.Get(isolate), ToJS(isolate, pos.x)).Check();
-    obj->CreateDataProperty(context, keys.y.Get(isolate), ToJS(isolate, pos.y)).Check();
-    return obj;
-}
-
-// {x: int32, y: int32}
-inline v8::Local<v8::Object> ToJS(v8::Isolate* isolate, game::Point pt) {
-    auto& keys = detail::Keys(isolate);
-    auto context = isolate->GetCurrentContext();
-    auto obj = v8::Object::New(isolate);
-    obj->CreateDataProperty(context, keys.x.Get(isolate), ToJS(isolate, pt.x)).Check();
-    obj->CreateDataProperty(context, keys.y.Get(isolate), ToJS(isolate, pt.y)).Check();
-    return obj;
-}
-
-// {width: uint32, height: uint32}
-inline v8::Local<v8::Object> ToJS(v8::Isolate* isolate, game::Size sz) {
-    auto& keys = detail::Keys(isolate);
-    auto context = isolate->GetCurrentContext();
-    auto obj = v8::Object::New(isolate);
-    obj->CreateDataProperty(context, keys.width.Get(isolate), ToJS(isolate, sz.width)).Check();
-    obj->CreateDataProperty(context, keys.height.Get(isolate), ToJS(isolate, sz.height)).Check();
-    return obj;
-}
-
-// {id: uint32, layer: uint32, value: int32}
-inline v8::Local<v8::Object> ToJS(v8::Isolate* isolate, const game::StatEntry& stat) {
-    auto& keys = detail::Keys(isolate);
-    auto context = isolate->GetCurrentContext();
-    auto obj = v8::Object::New(isolate);
-    obj->CreateDataProperty(context, keys.id.Get(isolate), ToJS(isolate, stat.statId)).Check();
-    obj->CreateDataProperty(context, keys.layer.Get(isolate), ToJS(isolate, stat.subIndex)).Check();
-    obj->CreateDataProperty(context, keys.value.Get(isolate), ToJS(isolate, stat.value)).Check();
-    return obj;
-}
-
-// {flags: uint32, stateNo: uint32, stats: StatEntry[]}
-inline v8::Local<v8::Object> ToJS(v8::Isolate* isolate, const game::StatListEntry& list) {
-    auto& keys = detail::Keys(isolate);
-    auto context = isolate->GetCurrentContext();
-    // One allocation, packed elements - the length-then-Set form starts holey and takes
-    // the generic store path per element.
-    std::vector<v8::Local<v8::Value>> elements;
-    elements.reserve(list.stats.size());
-    for (const auto& stat : list.stats) {
-        elements.emplace_back(ToJS(isolate, stat));
+    for (uint32_t i = 0; i < list.stats.size(); ++i) {
+        auto entry = ToJS(context, list.stats[i]);
+        if (!entry || !stats->Set(context, i, *entry).value_or(false)) {
+            return std::nullopt;
+        }
     }
-    auto stats = v8::Array::New(isolate, elements.data(), elements.size());
-    auto obj = v8::Object::New(isolate);
-    obj->CreateDataProperty(context, keys.flags.Get(isolate), ToJS(isolate, list.flags)).Check();
-    obj->CreateDataProperty(context, keys.stateNo.Get(isolate), ToJS(isolate, list.stateNo)).Check();
-    obj->CreateDataProperty(context, keys.stats.Get(isolate), stats).Check();
-    return obj;
+    return detail::MakeObject(context, std::pair{"flags", ToJS(isolate, list.flags)},
+                              std::pair{"stateNo", ToJS(isolate, list.stateNo)},
+                              std::pair{"stats", ub::Local<ub::Value>(*stats)});
 }
 
-// ============================================================================
-// From V8 conversions
-// ============================================================================
-
-inline std::string ToString(v8::Isolate* isolate, v8::Local<v8::Value> val) {
-    if (val.IsEmpty() || val->IsNullOrUndefined()) {
+// Script values into native ones, with the reference's leniency: an absent, null or undefined value,
+// or one whose conversion throws, is the type's zero value rather than an error. A conversion that
+// threw leaves its exception pending, as it would in the engine's own coercion.
+inline std::string ToString(const ub::Context& context, const ub::Local<ub::Value>& val) {
+    if (val.IsEmpty() || val.IsNullOrUndefined()) {
         return "";
     }
-    v8::String::Utf8Value utf8(isolate, val);
-    return *utf8 ? std::string(*utf8, utf8.length()) : "";
+    auto text = val.ToString(context);
+    return text ? text->Utf8Value() : std::string();
 }
 
-inline int32_t ToInt32(v8::Isolate* isolate, v8::Local<v8::Value> val) {
-    if (val.IsEmpty() || val->IsNullOrUndefined()) {
+inline int32_t ToInt32(const ub::Context& context, const ub::Local<ub::Value>& val) {
+    if (val.IsEmpty() || val.IsNullOrUndefined()) {
         return 0;
     }
-    return val->Int32Value(isolate->GetCurrentContext()).FromMaybe(0);
+    return val.ToInt32(context).value_or(0);
 }
 
-inline uint32_t ToUint32(v8::Isolate* isolate, v8::Local<v8::Value> val) {
-    if (val.IsEmpty() || val->IsNullOrUndefined()) {
+inline uint32_t ToUint32(const ub::Context& context, const ub::Local<ub::Value>& val) {
+    if (val.IsEmpty() || val.IsNullOrUndefined()) {
         return 0;
     }
-    return val->Uint32Value(isolate->GetCurrentContext()).FromMaybe(0);
+    return val.ToUint32(context).value_or(0);
 }
 
-inline double ToDouble(v8::Isolate* isolate, v8::Local<v8::Value> val) {
-    if (val.IsEmpty() || val->IsNullOrUndefined()) {
+inline double ToDouble(const ub::Context& context, const ub::Local<ub::Value>& val) {
+    if (val.IsEmpty() || val.IsNullOrUndefined()) {
         return 0.0;
     }
-    return val->NumberValue(isolate->GetCurrentContext()).FromMaybe(0.0);
+    return val.ToNumber(context).value_or(0.0);
 }
 
-inline bool ToBool(v8::Isolate* isolate, v8::Local<v8::Value> val) {
-    if (val.IsEmpty()) {
-        return false;
-    }
-    return val->BooleanValue(isolate);
+// Truthiness, which cannot throw - an empty handle is false.
+inline bool ToBool(const ub::Context& context, const ub::Local<ub::Value>& val) {
+    return !val.IsEmpty() && val.ToBoolean(context).value_or(false);
 }
 
 }  // namespace d2bs::api::convert

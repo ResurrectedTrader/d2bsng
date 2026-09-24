@@ -415,7 +415,7 @@ Analytics::~Analytics() {
     Stop();
 }
 
-void Analytics::Start() {
+void Analytics::Start(EngineDescription engine) {
     const auto launch = game::GetAnalyticsLaunchOptions();
 
     if (launch.disabled || IsTruthy(GetEnv(L"D2BS_ANALYTICS_DISABLE"))) {
@@ -444,6 +444,7 @@ void Analytics::Start() {
     // Published only once the CAS is won, so a losing caller can't race the
     // running reporter thread's read of it.
     host_ = std::move(host);
+    engine_ = std::move(engine);
     thread_ = std::jthread([this](const std::stop_token& stopToken) { Run(stopToken); });
 }
 
@@ -547,6 +548,8 @@ void Analytics::WatchProfiles(std::unique_lock<std::mutex>& lock, const std::sto
 bool Analytics::SendStartupEvent() {
     json props;
     props["backendVersion"] = game::GetBackendVersion();
+    props["engine"] = engine_.name;
+    props["engineVersion"] = engine_.version;
     props["arch"] = std::string(ARCH);
 
     // Version of the bot manager that spawned the game, when one did and it
@@ -571,7 +574,7 @@ bool Analytics::SendStartupEvent() {
     // groups and "contains"-filters cleanly in the dashboard.
     std::vector<std::string> features = game::GetActiveFeatures();
     const auto& appConfig = config::GetAppConfig();
-    if (appConfig.inspectorPort.load() > 0) {
+    if (engine_.hasDebugger && appConfig.inspectorPort.load() > 0) {
         features.emplace_back("inspector");
     }
     if (std::fabs(appConfig.speed.load() - 1.0F) > SPEED_EPSILON) {

@@ -1,12 +1,16 @@
 #pragma once
 
-#include <v8.h>
+#include <cstdint>
+#include <string_view>
+#include <tuple>
+
+#include "Receiver.h"
 #include "api/core/Class.h"
-#include "api/core/Convert.h"
 #include "api/core/Error.h"
 #include "config/AppConfig.h"
 #include "game/GameHelpers.h"
 #include "game/Party.h"
+#include "unibind/unibind.h"
 
 namespace d2bs::api::classes {
 
@@ -16,19 +20,13 @@ class JSParty : public ClassBase<JSParty, game::Party> {
    public:
     static constexpr std::string_view ClassName = "Party";
 
-    // Party objects are obtained via getParty() global function
-    V8_CLASS_NOT_CONSTRUCTABLE
-
-    static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
-        auto inst = tpl->InstanceTemplate();
-        auto proto = tpl->PrototypeTemplate();
-
+    static void Configure(const ub::Class<Native>& cls) {
         /// @description The party member's X grid coordinate (world position).
         /// @type {number}
         Property(
-            isolate, inst, "x", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
-                if (!*data) {
+            cls, "x", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSParty>(info);
+                if (data == nullptr || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(data->Pos().x);
@@ -37,9 +35,9 @@ class JSParty : public ClassBase<JSParty, game::Party> {
         /// @description The party member's Y grid coordinate (world position).
         /// @type {number}
         Property(
-            isolate, inst, "y", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
-                if (!*data) {
+            cls, "y", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSParty>(info);
+                if (data == nullptr || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(data->Pos().y);
@@ -48,9 +46,9 @@ class JSParty : public ClassBase<JSParty, game::Party> {
         /// @description The level/area ID the party member is currently in.
         /// @type {number}
         Property(
-            isolate, inst, "area", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
-                if (!*data) {
+            cls, "area", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSParty>(info);
+                if (data == nullptr || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(static_cast<int32_t>(data->LevelId()));
@@ -59,20 +57,20 @@ class JSParty : public ClassBase<JSParty, game::Party> {
         /// @description The party member's game/unit ID (GID).
         /// @type {number}
         Property(
-            isolate, inst, "gid", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
-                if (!*data) {
+            cls, "gid", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSParty>(info);
+                if (data == nullptr || !*data) {
                     return;
                 }
-                info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), static_cast<double>(data->Id())));
+                info.GetReturnValue().Set(static_cast<double>(data->Id()));
             });
 
         /// @description The party member's current life value.
         /// @type {number}
         Property(
-            isolate, inst, "life", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
-                if (!*data) {
+            cls, "life", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSParty>(info);
+                if (data == nullptr || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(static_cast<int32_t>(data->Life()));
@@ -81,9 +79,9 @@ class JSParty : public ClassBase<JSParty, game::Party> {
         /// @description The party member's party-relationship flags bitmask (e.g. partied / hostile state).
         /// @type {number}
         Property(
-            isolate, inst, "partyflag", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
-                if (!*data) {
+            cls, "partyflag", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSParty>(info);
+                if (data == nullptr || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(static_cast<int32_t>(data->PartyFlag()));
@@ -92,9 +90,9 @@ class JSParty : public ClassBase<JSParty, game::Party> {
         /// @description The ID of the party the member belongs to (shared by all members of the same party).
         /// @type {number}
         Property(
-            isolate, inst, "partyid", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
-                if (!*data) {
+            cls, "partyid", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSParty>(info);
+                if (data == nullptr || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(static_cast<int32_t>(data->PartyId()));
@@ -103,21 +101,21 @@ class JSParty : public ClassBase<JSParty, game::Party> {
         /// @description The party member's character name.
         /// @type {string}
         Property(
-            isolate, inst, "name", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
-                if (!*data) {
+            cls, "name", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSParty>(info);
+                if (data == nullptr || !*data) {
                     return;
                 }
-                info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), data->Name()));
+                std::ignore = info.GetReturnValue().Set(data->Name());
             });
 
         /// @description The party member's character class ID (0-6, e.g. Amazon/Sorceress/etc.).
         /// 0 = amazon, 1 = sorceress, 2 = necromancer, 3 = paladin, 4 = barbarian, 5 = druid, 6 = assassin.
         /// @type {number}
         Property(
-            isolate, inst, "classid", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
-                if (!*data) {
+            cls, "classid", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSParty>(info);
+                if (data == nullptr || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(static_cast<int32_t>(data->ClassId()));
@@ -126,9 +124,9 @@ class JSParty : public ClassBase<JSParty, game::Party> {
         /// @description The party member's character (experience) level.
         /// @type {number}
         Property(
-            isolate, inst, "level", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
-                if (!*data) {
+            cls, "level", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSParty>(info);
+                if (data == nullptr || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(static_cast<int32_t>(data->CharacterLevel()));
@@ -140,12 +138,15 @@ class JSParty : public ClassBase<JSParty, game::Party> {
         /// @returns {Party|boolean} - This Party object advanced to the next member, or false if the game is not ready
         /// or there is no next member.
         Method(
-            isolate, proto, "getNext", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+            cls, "getNext", +[](const ub::CallbackInfo& args) {
                 if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
                     error::WarnAndReturnFalse(args, "Game not ready");
                     return;
                 }
-                auto* data = Unwrap(args.This());
+                auto* data = Receiver<JSParty>(args);
+                if (data == nullptr) {
+                    return;
+                }
                 if (!*data) {
                     args.GetReturnValue().SetFalse();
                     return;

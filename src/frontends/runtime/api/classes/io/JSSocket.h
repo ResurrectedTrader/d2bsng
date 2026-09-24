@@ -1,10 +1,8 @@
 #pragma once
 
-#include <v8.h>
-#include <string>
+#include <cstdint>
+
 #include "api/core/Class.h"
-#include "api/core/Convert.h"
-#include "api/core/Error.h"
 
 namespace d2bs::api::classes {
 
@@ -27,9 +25,7 @@ class JSSocket : public ClassBase<JSSocket, SocketData> {
     static constexpr std::string_view ClassName = "Socket";
 
     // Socket objects are obtained via Socket.open() static method, not direct construction
-    V8_CLASS_NOT_CONSTRUCTABLE
-
-    static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl);
+    static void Configure(const ub::Class<SocketData>& cls);
 };
 
 }  // namespace d2bs::api::classes

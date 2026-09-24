@@ -135,7 +135,7 @@ class GameLoop {
     void ReloadPathsForProfile(const std::string& name);
 
     Snapshot previous_;
-    // Atomic so the V8/script-thread reader in `GameStartTime()` and the
+    // Atomic so the script-thread reader in `GameStartTime()` and the
     // game-thread writer in `EvaluateMaxGameTime()` don't tear an 8-byte
     // time_point. On 32-bit x86 this lowers to CMPXCHG8B (lock-free).
     std::atomic<std::chrono::steady_clock::time_point> gameStartedAt_;

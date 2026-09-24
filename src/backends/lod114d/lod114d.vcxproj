@@ -46,27 +46,22 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <!-- This project compiles against V8, so the FetchV8 target in
-       Directory.Build.props unpacks the archive before it builds. -->
-  <PropertyGroup>
-    <V8Required>true</V8Required>
-  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_X86_;_DEBUG;NOMINMAX;V8_GN_HEADER;_WINSOCK_DEPRECATED_NO_WARNINGS;SPDLOG_WCHAR_TO_UTF8_SUPPORT;SPDLOG_FMT_EXTERNAL;D2_VERSION_114D;D2_VERSION_MAJOR=1;D2_VERSION_MINOR=14;D2_VERSION_PATCH='D';D2_IS_MONOLITHIC=TRUE;D2_VERSION_EXPANSION=1;D2_VERSION_HAS_UBERS;D2COMMON_DLL_DECL=;D2GAME_DLL_DECL=;D2GFX_DLL_DECL=;D2WIN_DLL_DECL=;D2NET_DLL_DECL=;D2LANG_DLL_DECL=;D2MCPCLIENT_DLL_DECL=;D2DEBUGGER_DLL_DECL=;FOG_DLL_DECL=;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_X86_;_DEBUG;NOMINMAX;_WINSOCK_DEPRECATED_NO_WARNINGS;SPDLOG_WCHAR_TO_UTF8_SUPPORT;SPDLOG_FMT_EXTERNAL;D2_VERSION_114D;D2_VERSION_MAJOR=1;D2_VERSION_MINOR=14;D2_VERSION_PATCH='D';D2_IS_MONOLITHIC=TRUE;D2_VERSION_EXPANSION=1;D2_VERSION_HAS_UBERS;D2COMMON_DLL_DECL=;D2GAME_DLL_DECL=;D2GFX_DLL_DECL=;D2WIN_DLL_DECL=;D2NET_DLL_DECL=;D2LANG_DLL_DECL=;D2MCPCLIENT_DLL_DECL=;D2DEBUGGER_DLL_DECL=;FOG_DLL_DECL=;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src;$(ProjectDir);$(ProjectDir)game;$(V8IncludeDir);$(SolutionDir)dependencies\D2MOO\source\D2CommonDefinitions\include;$(SolutionDir)dependencies\D2MOO\source\D2Common\include;$(SolutionDir)dependencies\D2MOO\source\D2Game\include;$(SolutionDir)dependencies\D2MOO\source\D2Gfx\include;$(SolutionDir)dependencies\D2MOO\source\D2Win\include;$(SolutionDir)dependencies\D2MOO\source\D2Net\include;$(SolutionDir)dependencies\D2MOO\source\D2Lang\include;$(SolutionDir)dependencies\D2MOO\source\D2CMP\include;$(SolutionDir)dependencies\D2MOO\source\D2Hell\include;$(SolutionDir)dependencies\D2MOO\source\Storm\include;$(SolutionDir)dependencies\D2MOO\source\Fog\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <ExternalIncludeDirectories>$(V8IncludeDir);$(SolutionDir)dependencies\D2MOO\source\D2CommonDefinitions\include;$(SolutionDir)dependencies\D2MOO\source\D2Common\include;$(SolutionDir)dependencies\D2MOO\source\D2Game\include;$(SolutionDir)dependencies\D2MOO\source\D2Gfx\include;$(SolutionDir)dependencies\D2MOO\source\D2Win\include;$(SolutionDir)dependencies\D2MOO\source\D2Net\include;$(SolutionDir)dependencies\D2MOO\source\D2Lang\include;$(SolutionDir)dependencies\D2MOO\source\D2CMP\include;$(SolutionDir)dependencies\D2MOO\source\D2Hell\include;$(SolutionDir)dependencies\D2MOO\source\Storm\include;$(SolutionDir)dependencies\D2MOO\source\Fog\include;%(ExternalIncludeDirectories)</ExternalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src;$(ProjectDir);$(ProjectDir)game;$(SolutionDir)dependencies\D2MOO\source\D2CommonDefinitions\include;$(SolutionDir)dependencies\D2MOO\source\D2Common\include;$(SolutionDir)dependencies\D2MOO\source\D2Game\include;$(SolutionDir)dependencies\D2MOO\source\D2Gfx\include;$(SolutionDir)dependencies\D2MOO\source\D2Win\include;$(SolutionDir)dependencies\D2MOO\source\D2Net\include;$(SolutionDir)dependencies\D2MOO\source\D2Lang\include;$(SolutionDir)dependencies\D2MOO\source\D2CMP\include;$(SolutionDir)dependencies\D2MOO\source\D2Hell\include;$(SolutionDir)dependencies\D2MOO\source\Storm\include;$(SolutionDir)dependencies\D2MOO\source\Fog\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ExternalIncludeDirectories>$(SolutionDir)dependencies\D2MOO\source\D2CommonDefinitions\include;$(SolutionDir)dependencies\D2MOO\source\D2Common\include;$(SolutionDir)dependencies\D2MOO\source\D2Game\include;$(SolutionDir)dependencies\D2MOO\source\D2Gfx\include;$(SolutionDir)dependencies\D2MOO\source\D2Win\include;$(SolutionDir)dependencies\D2MOO\source\D2Net\include;$(SolutionDir)dependencies\D2MOO\source\D2Lang\include;$(SolutionDir)dependencies\D2MOO\source\D2CMP\include;$(SolutionDir)dependencies\D2MOO\source\D2Hell\include;$(SolutionDir)dependencies\D2MOO\source\Storm\include;$(SolutionDir)dependencies\D2MOO\source\Fog\include;%(ExternalIncludeDirectories)</ExternalIncludeDirectories>
       <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
       <TreatAngleIncludeAsExternal>true</TreatAngleIncludeAsExternal>
-      <ClangTidyAdditionalOptions>-D_X86_ -DNOMINMAX --extra-arg=-isystem$(V8IncludeDir)</ClangTidyAdditionalOptions>
+      <ClangTidyAdditionalOptions>-D_X86_ -DNOMINMAX</ClangTidyAdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -77,16 +72,16 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_X86_;NDEBUG;NOMINMAX;V8_GN_HEADER;_WINSOCK_DEPRECATED_NO_WARNINGS;SPDLOG_WCHAR_TO_UTF8_SUPPORT;SPDLOG_FMT_EXTERNAL;D2_VERSION_114D;D2_VERSION_MAJOR=1;D2_VERSION_MINOR=14;D2_VERSION_PATCH='D';D2_IS_MONOLITHIC=TRUE;D2_VERSION_EXPANSION=1;D2_VERSION_HAS_UBERS;D2COMMON_DLL_DECL=;D2GAME_DLL_DECL=;D2GFX_DLL_DECL=;D2WIN_DLL_DECL=;D2NET_DLL_DECL=;D2LANG_DLL_DECL=;D2MCPCLIENT_DLL_DECL=;D2DEBUGGER_DLL_DECL=;FOG_DLL_DECL=;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_X86_;NDEBUG;NOMINMAX;_WINSOCK_DEPRECATED_NO_WARNINGS;SPDLOG_WCHAR_TO_UTF8_SUPPORT;SPDLOG_FMT_EXTERNAL;D2_VERSION_114D;D2_VERSION_MAJOR=1;D2_VERSION_MINOR=14;D2_VERSION_PATCH='D';D2_IS_MONOLITHIC=TRUE;D2_VERSION_EXPANSION=1;D2_VERSION_HAS_UBERS;D2COMMON_DLL_DECL=;D2GAME_DLL_DECL=;D2GFX_DLL_DECL=;D2WIN_DLL_DECL=;D2NET_DLL_DECL=;D2LANG_DLL_DECL=;D2MCPCLIENT_DLL_DECL=;D2DEBUGGER_DLL_DECL=;FOG_DLL_DECL=;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src;$(ProjectDir);$(ProjectDir)game;$(V8IncludeDir);$(SolutionDir)dependencies\D2MOO\source\D2CommonDefinitions\include;$(SolutionDir)dependencies\D2MOO\source\D2Common\include;$(SolutionDir)dependencies\D2MOO\source\D2Game\include;$(SolutionDir)dependencies\D2MOO\source\D2Gfx\include;$(SolutionDir)dependencies\D2MOO\source\D2Win\include;$(SolutionDir)dependencies\D2MOO\source\D2Net\include;$(SolutionDir)dependencies\D2MOO\source\D2Lang\include;$(SolutionDir)dependencies\D2MOO\source\D2CMP\include;$(SolutionDir)dependencies\D2MOO\source\D2Hell\include;$(SolutionDir)dependencies\D2MOO\source\Storm\include;$(SolutionDir)dependencies\D2MOO\source\Fog\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <ExternalIncludeDirectories>$(V8IncludeDir);$(SolutionDir)dependencies\D2MOO\source\D2CommonDefinitions\include;$(SolutionDir)dependencies\D2MOO\source\D2Common\include;$(SolutionDir)dependencies\D2MOO\source\D2Game\include;$(SolutionDir)dependencies\D2MOO\source\D2Gfx\include;$(SolutionDir)dependencies\D2MOO\source\D2Win\include;$(SolutionDir)dependencies\D2MOO\source\D2Net\include;$(SolutionDir)dependencies\D2MOO\source\D2Lang\include;$(SolutionDir)dependencies\D2MOO\source\D2CMP\include;$(SolutionDir)dependencies\D2MOO\source\D2Hell\include;$(SolutionDir)dependencies\D2MOO\source\Storm\include;$(SolutionDir)dependencies\D2MOO\source\Fog\include;%(ExternalIncludeDirectories)</ExternalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src;$(ProjectDir);$(ProjectDir)game;$(SolutionDir)dependencies\D2MOO\source\D2CommonDefinitions\include;$(SolutionDir)dependencies\D2MOO\source\D2Common\include;$(SolutionDir)dependencies\D2MOO\source\D2Game\include;$(SolutionDir)dependencies\D2MOO\source\D2Gfx\include;$(SolutionDir)dependencies\D2MOO\source\D2Win\include;$(SolutionDir)dependencies\D2MOO\source\D2Net\include;$(SolutionDir)dependencies\D2MOO\source\D2Lang\include;$(SolutionDir)dependencies\D2MOO\source\D2CMP\include;$(SolutionDir)dependencies\D2MOO\source\D2Hell\include;$(SolutionDir)dependencies\D2MOO\source\Storm\include;$(SolutionDir)dependencies\D2MOO\source\Fog\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ExternalIncludeDirectories>$(SolutionDir)dependencies\D2MOO\source\D2CommonDefinitions\include;$(SolutionDir)dependencies\D2MOO\source\D2Common\include;$(SolutionDir)dependencies\D2MOO\source\D2Game\include;$(SolutionDir)dependencies\D2MOO\source\D2Gfx\include;$(SolutionDir)dependencies\D2MOO\source\D2Win\include;$(SolutionDir)dependencies\D2MOO\source\D2Net\include;$(SolutionDir)dependencies\D2MOO\source\D2Lang\include;$(SolutionDir)dependencies\D2MOO\source\D2CMP\include;$(SolutionDir)dependencies\D2MOO\source\D2Hell\include;$(SolutionDir)dependencies\D2MOO\source\Storm\include;$(SolutionDir)dependencies\D2MOO\source\Fog\include;%(ExternalIncludeDirectories)</ExternalIncludeDirectories>
       <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
       <TreatAngleIncludeAsExternal>true</TreatAngleIncludeAsExternal>
-      <ClangTidyAdditionalOptions>-D_X86_ -DNOMINMAX --extra-arg=-isystem$(V8IncludeDir)</ClangTidyAdditionalOptions>
+      <ClangTidyAdditionalOptions>-D_X86_ -DNOMINMAX</ClangTidyAdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>

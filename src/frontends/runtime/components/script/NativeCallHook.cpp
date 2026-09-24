@@ -8,11 +8,11 @@
 
 namespace d2bs::runtime::script {
 
-void OnNativeCall(v8::Isolate* isolate) {
+void OnNativeCall(ub::Isolate& isolate) {
     if (onEveryCallCaptureCount.load(std::memory_order_relaxed) == 0) {
         return;
     }
-    if (auto* script = ScriptEngine::Instance().GetScript(isolate);
+    if (auto* script = ScriptEngine::Instance().GetScript(&isolate);
         script != nullptr && script->GetStackCaptureMode() == StackCaptureMode::OnEveryCall) {
         script->RefreshLastStackTrace();
     }
@@ -21,7 +21,7 @@ void OnNativeCall(v8::Isolate* isolate) {
 namespace {
 
 // deque: callers keep pointers into these for the isolate's lifetime, and the entries hold atomics
-// so cannot move. Never destroyed - v8::Externals point into them past static destruction. The
+// so cannot move. Never destroyed - callback data points into them past static destruction. The
 // mutex covers registration and the panel's snapshot only; the trampolines never take it.
 struct Tables {
     std::mutex mutex;
@@ -49,14 +49,14 @@ T* Intern(std::deque<T>& table, Match match, Args&&... args) {
 
 }  // namespace
 
-NativeBinding* InternFunction(const std::string& name, v8::FunctionCallback callback) {
+NativeBinding* InternFunction(const std::string& name, ub::FunctionCallback callback) {
     return Intern(
         GetTables().functions, [&](const NativeBinding& e) { return e.callback == callback && e.name == name; }, name,
         callback);
 }
 
-PropertyAccessors* InternAccessors(const std::string& name, v8::AccessorNameGetterCallback getter,
-                                   v8::AccessorNameSetterCallbackV2 setter) {
+PropertyAccessors* InternAccessors(const std::string& name, ub::AccessorGetterCallback getter,
+                                   ub::AccessorSetterCallback setter) {
     return Intern(
         GetTables().accessors,
         [&](const PropertyAccessors& e) { return e.getter == getter && e.setter == setter && e.name == name; }, name,
@@ -115,21 +115,19 @@ void ResetNativeBindings() {
 
 // Timing is scoped below OnNativeCall in each trampoline: stack capture is expensive when armed
 // and is the console's cost, not the binding's.
-void MethodTrampoline(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    OnNativeCall(args.GetIsolate());
-    auto* binding =
-        static_cast<NativeBinding*>(args.DataV2().As<v8::External>()->Value(v8::kExternalPointerTypeTagDefault));
+void MethodTrampoline(const ub::CallbackInfo& info) {
+    OnNativeCall(info.GetIsolate());
+    auto* binding = info.Data<NativeBinding>();
     if (binding == nullptr || binding->callback == nullptr) {
         return;
     }
     const profiling::ScopedNativeCall timing(profiling::NativeCall::Function, binding->stats);
-    binding->callback(args);
+    binding->callback(info);
 }
 
-void PropertyGetterTrampoline(v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
+void PropertyGetterTrampoline(const ub::Local<ub::Name>& property, const ub::PropertyCallbackInfo& info) {
     OnNativeCall(info.GetIsolate());
-    auto* accessors =
-        static_cast<PropertyAccessors*>(info.DataV2().As<v8::External>()->Value(v8::kExternalPointerTypeTagDefault));
+    auto* accessors = info.Data<PropertyAccessors>();
     if (accessors == nullptr || accessors->getter == nullptr) {
         return;
     }
@@ -137,11 +135,10 @@ void PropertyGetterTrampoline(v8::Local<v8::Name> property, const v8::PropertyCa
     accessors->getter(property, info);
 }
 
-void PropertySetterTrampoline(v8::Local<v8::Name> property, v8::Local<v8::Value> value,
-                              const v8::PropertyCallbackInfo<v8::Boolean>& info) {
+void PropertySetterTrampoline(const ub::Local<ub::Name>& property, const ub::Local<ub::Value>& value,
+                              const ub::PropertyCallbackInfo& info) {
     OnNativeCall(info.GetIsolate());
-    auto* accessors =
-        static_cast<PropertyAccessors*>(info.DataV2().As<v8::External>()->Value(v8::kExternalPointerTypeTagDefault));
+    auto* accessors = info.Data<PropertyAccessors>();
     if (accessors == nullptr || accessors->setter == nullptr) {
         return;
     }

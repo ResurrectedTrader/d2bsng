@@ -1,185 +1,198 @@
 #include "JSHttpClient.h"
 
+#include <cstddef>
 #include <format>
+#include <optional>
+#include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
+#include "api/core/Convert.h"
+#include "api/core/Error.h"
 #include "http/Client.h"
 
 namespace d2bs::api::classes {
 
 namespace {
 
-// Extract a request body from a string, ArrayBuffer, or typed array / DataView.
-// Returns false (and throws a TypeError) for any other value.
-bool ExtractBody(v8::Isolate* isolate, v8::Local<v8::Value> value, std::vector<uint8_t>& out) {
-    if (value->IsString()) {
-        std::string text = convert::ToString(isolate, value);
+// Extract a request body from a string, an ArrayBuffer, or a typed array / DataView. Returns false
+// (and throws a TypeError) for any other value.
+bool ExtractBody(const ub::Context& context, const ub::Local<ub::Value>& value, std::vector<uint8_t>& out) {
+    if (value.IsString()) {
+        std::string text = convert::ToString(context, value);
         out.assign(text.begin(), text.end());
         return true;
     }
-    if (value->IsArrayBuffer()) {
-        auto store = value.As<v8::ArrayBuffer>()->GetBackingStore();
-        out.resize(store->ByteLength());
-        if (!out.empty()) {
-            std::memcpy(out.data(), store->Data(), out.size());
-        }
+    if (auto buffer = value.To<ub::ArrayBuffer>()) {
+        out.resize(ub::ByteLength(*buffer));
+        out.resize(ub::CopyBytes(*buffer, std::as_writable_bytes(std::span(out))));
         return true;
     }
-    if (value->IsArrayBufferView()) {  // typed array or DataView
-        auto view = value.As<v8::ArrayBufferView>();
-        auto store = view->Buffer()->GetBackingStore();
-        out.resize(view->ByteLength());
-        if (!out.empty()) {
-            std::memcpy(out.data(), static_cast<const uint8_t*>(store->Data()) + view->ByteOffset(), out.size());
-        }
+    if (auto view = value.To<ub::ArrayBufferView>()) {
+        out.resize(ub::ByteLength(*view));
+        out.resize(ub::CopyBytes(*view, std::as_writable_bytes(std::span(out))));
         return true;
     }
-    error::ThrowTypeError(isolate, "body must be a string, ArrayBuffer, or typed array");
+    error::ThrowTypeError(context.GetIsolate(), "body must be a string, ArrayBuffer, or typed array");
     return false;
 }
 
 // The small option readers below share these semantics: a missing or `undefined`
 // option is left at its default; a present-but-wrong-typed option is rejected with
-// a TypeError; a V8 error while reading propagates. Each returns false with a
-// pending exception on rejection/error (the V8 "bail now" idiom), true otherwise.
+// a TypeError; an engine error while reading propagates. Each returns false with a
+// pending exception on rejection/error (the "bail now" idiom), true otherwise.
 
-bool ReadStringOption(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Local<v8::Object> options,
-                      std::string_view name, std::string& out) {
-    v8::Local<v8::Value> value;
-    if (!options->Get(context, convert::ToJS(isolate, name)).ToLocal(&value)) {
+bool ReadStringOption(const ub::Context& context, const ub::Local<ub::Object>& options, std::string_view name,
+                      std::string& out) {
+    auto value = options.Get(context, name);
+    if (!value) {
         return false;
     }
     if (value->IsUndefined()) {
         return true;
     }
     if (!value->IsString()) {
-        error::ThrowTypeError(isolate, std::format("HttpClient: '{}' must be a string", name));
+        error::ThrowTypeError(context.GetIsolate(), std::format("HttpClient: '{}' must be a string", name));
         return false;
     }
-    out = convert::ToString(isolate, value);
+    out = convert::ToString(context, *value);
     return true;
 }
 
-bool ReadUint32Option(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Local<v8::Object> options,
-                      std::string_view name, uint32_t& out) {
-    v8::Local<v8::Value> value;
-    if (!options->Get(context, convert::ToJS(isolate, name)).ToLocal(&value)) {
+bool ReadUint32Option(const ub::Context& context, const ub::Local<ub::Object>& options, std::string_view name,
+                      uint32_t& out) {
+    auto value = options.Get(context, name);
+    if (!value) {
         return false;
     }
     if (value->IsUndefined()) {
         return true;
     }
     if (!value->IsNumber()) {
-        error::ThrowTypeError(isolate, std::format("HttpClient: '{}' must be a number", name));
+        error::ThrowTypeError(context.GetIsolate(), std::format("HttpClient: '{}' must be a number", name));
         return false;
     }
-    double number = convert::ToDouble(isolate, value);
+    double number = convert::ToDouble(context, *value);
     if (number < 0) {
-        error::ThrowRangeError(isolate, std::format("HttpClient: '{}' must not be negative", name));
+        error::ThrowRangeError(context.GetIsolate(), std::format("HttpClient: '{}' must not be negative", name));
         return false;
     }
     out = static_cast<uint32_t>(number);
     return true;
 }
 
-bool ReadBoolOption(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Local<v8::Object> options,
-                    std::string_view name, bool& out) {
-    v8::Local<v8::Value> value;
-    if (!options->Get(context, convert::ToJS(isolate, name)).ToLocal(&value)) {
+bool ReadBoolOption(const ub::Context& context, const ub::Local<ub::Object>& options, std::string_view name,
+                    bool& out) {
+    auto value = options.Get(context, name);
+    if (!value) {
         return false;
     }
     if (value->IsUndefined()) {
         return true;
     }
     if (!value->IsBoolean()) {
-        error::ThrowTypeError(isolate, std::format("HttpClient: '{}' must be a boolean", name));
+        error::ThrowTypeError(context.GetIsolate(), std::format("HttpClient: '{}' must be a boolean", name));
         return false;
     }
-    out = convert::ToBool(isolate, value);
+    out = value->IsTrue();
+    return true;
+}
+
+// Read the request headers out of `headers` (already known to be present). Returns false with a
+// pending exception on rejection / engine error.
+bool ReadHeaders(const ub::Context& context, const ub::Local<ub::Value>& headers, http::Request& request) {
+    auto headerObject = headers.To<ub::Object>();
+    if (!headerObject) {
+        error::ThrowTypeError(context.GetIsolate(), "HttpClient: 'headers' must be an object");
+        return false;
+    }
+    auto names = headerObject->GetOwnPropertyNames(context);
+    if (!names) {
+        return false;
+    }
+    for (uint32_t i = 0; i < names->Length(); ++i) {
+        auto key = names->Get(context, i);
+        if (!key) {
+            return false;
+        }
+        // An index-like key may come back as a number; property lookup wants a name.
+        auto keyName = key->ToString(context);
+        if (!keyName) {
+            return false;
+        }
+        auto value = headerObject->Get(context, *keyName);
+        if (!value) {
+            return false;
+        }
+        std::string headerName = keyName->Utf8Value();
+        if (!value->IsString() && !value->IsNumber()) {
+            error::ThrowTypeError(
+                context.GetIsolate(),
+                std::format("HttpClient: header '{}' must have a string or number value", headerName));
+            return false;
+        }
+        request.headers.emplace_back(std::move(headerName), convert::ToString(context, *value));
+    }
     return true;
 }
 
 // Read recognized fields out of the JS options object into `request`. Wrong-typed
 // options are rejected (not silently ignored). Returns false with a pending
-// exception on any rejection / V8 error; true otherwise.
-bool ApplyOptions(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Local<v8::Object> options,
-                  http::Request& request, bool allowMethod, bool allowBody, bool& binary) {
-    if (allowMethod && !ReadStringOption(isolate, context, options, "method", request.method)) {
+// exception on any rejection / engine error; true otherwise.
+bool ApplyOptions(const ub::Context& context, const ub::Local<ub::Object>& options, http::Request& request,
+                  bool allowMethod, bool allowBody, bool& binary) {
+    if (allowMethod && !ReadStringOption(context, options, "method", request.method)) {
         return false;
     }
 
-    v8::Local<v8::Value> headers;
-    if (!options->Get(context, convert::ToJS(isolate, "headers")).ToLocal(&headers)) {
+    auto headers = options.Get(context, "headers");
+    if (!headers) {
         return false;
     }
-    if (!headers->IsUndefined()) {
-        if (!headers->IsObject()) {
-            error::ThrowTypeError(isolate, "HttpClient: 'headers' must be an object");
-            return false;
-        }
-        auto headerObject = headers.As<v8::Object>();
-        v8::Local<v8::Array> names;
-        if (!headerObject->GetOwnPropertyNames(context).ToLocal(&names)) {
-            return false;
-        }
-        for (uint32_t i = 0; i < names->Length(); ++i) {
-            v8::Local<v8::Value> key;
-            if (!names->Get(context, i).ToLocal(&key)) {
-                return false;
-            }
-            v8::Local<v8::Value> value;
-            if (!headerObject->Get(context, key).ToLocal(&value)) {
-                return false;
-            }
-            if (!value->IsString() && !value->IsNumber()) {
-                error::ThrowTypeError(isolate, std::format("HttpClient: header '{}' must have a string or number value",
-                                                           convert::ToString(isolate, key)));
-                return false;
-            }
-            request.headers.emplace_back(convert::ToString(isolate, key), convert::ToString(isolate, value));
-        }
+    if (!headers->IsUndefined() && !ReadHeaders(context, *headers, request)) {
+        return false;
     }
 
     if (allowBody) {
-        v8::Local<v8::Value> body;
-        if (!options->Get(context, convert::ToJS(isolate, "body")).ToLocal(&body)) {
+        auto body = options.Get(context, "body");
+        if (!body) {
             return false;
         }
-        if (!body->IsNullOrUndefined() && !ExtractBody(isolate, body, request.body)) {
+        if (!body->IsNullOrUndefined() && !ExtractBody(context, *body, request.body)) {
             return false;
         }
     }
 
-    if (!ReadUint32Option(isolate, context, options, "timeout", request.timeoutMs)) {
+    if (!ReadUint32Option(context, options, "timeout", request.timeoutMs)) {
         return false;
     }
-    if (!ReadUint32Option(isolate, context, options, "totalTimeout", request.totalTimeoutMs)) {
+    if (!ReadUint32Option(context, options, "totalTimeout", request.totalTimeoutMs)) {
         return false;
     }
-    if (!ReadBoolOption(isolate, context, options, "followRedirects", request.followRedirects)) {
+    if (!ReadBoolOption(context, options, "followRedirects", request.followRedirects)) {
         return false;
     }
-    if (!ReadBoolOption(isolate, context, options, "insecure", request.insecure)) {
+    if (!ReadBoolOption(context, options, "insecure", request.insecure)) {
         return false;
     }
-    if (!ReadBoolOption(isolate, context, options, "binary", binary)) {
+    if (!ReadBoolOption(context, options, "binary", binary)) {
         return false;
     }
 
-    v8::Local<v8::Value> maxBytes;
-    if (!options->Get(context, convert::ToJS(isolate, "maxResponseBytes")).ToLocal(&maxBytes)) {
+    auto maxBytes = options.Get(context, "maxResponseBytes");
+    if (!maxBytes) {
         return false;
     }
     if (!maxBytes->IsUndefined()) {
         if (!maxBytes->IsNumber()) {
-            error::ThrowTypeError(isolate, "HttpClient: 'maxResponseBytes' must be a number");
+            error::ThrowTypeError(context.GetIsolate(), "HttpClient: 'maxResponseBytes' must be a number");
             return false;
         }
-        double bytes = convert::ToDouble(isolate, maxBytes);
+        double bytes = convert::ToDouble(context, *maxBytes);
         if (bytes <= 0) {
-            error::ThrowRangeError(isolate, "HttpClient: 'maxResponseBytes' must be positive");
+            error::ThrowRangeError(context.GetIsolate(), "HttpClient: 'maxResponseBytes' must be positive");
             return false;
         }
         request.maxResponseBytes = static_cast<size_t>(bytes);
@@ -188,117 +201,135 @@ bool ApplyOptions(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Loca
     return true;
 }
 
-// Build the plain JS response object returned to scripts.
-v8::Local<v8::Value> BuildResponseObject(v8::Isolate* isolate, v8::Local<v8::Context> context,
-                                         const http::Response& response, bool binary) {
-    v8::EscapableHandleScope scope(isolate);
-    auto object = v8::Object::New(isolate);
-
-    object->Set(context, convert::ToJS(isolate, "status"), convert::ToJS(isolate, response.status)).Check();
-    object->Set(context, convert::ToJS(isolate, "statusText"), convert::ToJS(isolate, response.statusText)).Check();
-    object
-        ->Set(context, convert::ToJS(isolate, "ok"),
-              convert::ToJS(isolate, response.status >= 200 && response.status < 300))
-        .Check();
-    object->Set(context, convert::ToJS(isolate, "url"), convert::ToJS(isolate, response.url)).Check();
-
-    auto headerObject = v8::Object::New(isolate);
-    for (const auto& [name, value] : response.headers) {
-        headerObject->Set(context, convert::ToJS(isolate, name), convert::ToJS(isolate, value)).Check();
+// Build the plain JS response object returned to scripts. Empty if the engine failed part way.
+std::optional<ub::Local<ub::Object>> BuildResponseObject(const ub::Context& context, const http::Response& response,
+                                                         bool binary) {
+    auto& isolate = context.GetIsolate();
+    auto object = ub::Object::New(context);
+    if (!object) {
+        return std::nullopt;
     }
-    object->Set(context, convert::ToJS(isolate, "headers"), headerObject).Check();
 
-    if (binary) {
-        auto buffer = v8::ArrayBuffer::New(isolate, response.body.size());
-        if (!response.body.empty()) {
-            std::memcpy(buffer->GetBackingStore()->Data(), response.body.data(), response.body.size());
+    auto statusText = ub::String::NewFromUtf8(isolate, response.statusText);
+    auto url = ub::String::NewFromUtf8(isolate, response.url);
+    if (!statusText || !url) {
+        return std::nullopt;
+    }
+    const bool isSet =
+        object->Set(context, "status", convert::ToJS(isolate, response.status)).value_or(false) &&
+        object->Set(context, "statusText", *statusText).value_or(false) &&
+        object->Set(context, "ok", convert::ToJS(isolate, response.status >= 200 && response.status < 300))
+            .value_or(false) &&
+        object->Set(context, "url", *url).value_or(false);
+    if (!isSet) {
+        return std::nullopt;
+    }
+
+    auto headerObject = ub::Object::New(context);
+    if (!headerObject) {
+        return std::nullopt;
+    }
+    for (const auto& [name, value] : response.headers) {
+        auto key = ub::String::NewFromUtf8(isolate, name);
+        auto text = ub::String::NewFromUtf8(isolate, value);
+        if (!key || !text || !headerObject->Set(context, *key, *text).value_or(false)) {
+            return std::nullopt;
         }
-        object->Set(context, convert::ToJS(isolate, "body"), buffer).Check();
+    }
+    if (!object->Set(context, "headers", *headerObject).value_or(false)) {
+        return std::nullopt;
+    }
+
+    std::optional<ub::Local<ub::Value>> body;
+    if (binary) {
+        body = ub::ArrayBuffer::New(context, std::as_bytes(std::span(response.body)));
     } else {
-        // View the body bytes as UTF-8 directly; ToJS copies them into the V8 heap, so an
-        // owning std::string here would just be a wasted full-size copy.
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) - byte buffer viewed as chars
         std::string_view text(reinterpret_cast<const char*>(response.body.data()), response.body.size());
-        object->Set(context, convert::ToJS(isolate, "body"), convert::ToJS(isolate, text)).Check();
+        body = ub::String::NewFromUtf8(isolate, text);
+    }
+    if (!body || !object->Set(context, "body", *body).value_or(false)) {
+        return std::nullopt;
     }
 
-    return scope.Escape(object);
+    return object;
 }
 
 // Shared driver for every static method.
 // - urlInOptions:    true for request(url is options.url); false for url-first helpers.
 // - bodyArgIndex:    index of a positional body argument, or -1 (body comes from options.body).
 // - optionsArgIndex: index of the options object for the url-first helpers.
-void RequestImpl(const v8::FunctionCallbackInfo<v8::Value>& args, std::string_view defaultMethod, bool urlInOptions,
-                 int bodyArgIndex, int optionsArgIndex) {
-    auto* isolate = args.GetIsolate();
-    auto context = isolate->GetCurrentContext();
+void RequestImpl(const ub::CallbackInfo& args, std::string_view defaultMethod, bool urlInOptions, int32_t bodyArgIndex,
+                 int32_t optionsArgIndex) {
+    auto& isolate = args.GetIsolate();
+    const auto& context = args.GetContext();
 
     http::Request request;
     request.method = std::string(defaultMethod);
     bool binary = false;
 
-    v8::Local<v8::Object> options;
-    bool haveOptions = false;
+    std::optional<ub::Local<ub::Object>> options;
 
     if (urlInOptions) {
-        if (args.Length() < 1 || !args[0]->IsObject()) {
+        options = args[0].To<ub::Object>();
+        if (args.Length() < 1 || !options) {
             error::ThrowTypeError(isolate, "HttpClient.request requires an options object");
             return;
         }
-        options = args[0].As<v8::Object>();
-        haveOptions = true;
-        v8::Local<v8::Value> url;
-        if (!options->Get(context, convert::ToJS(isolate, "url")).ToLocal(&url)) {
+        auto url = options->Get(context, "url");
+        if (!url) {
             return;
         }
         if (!url->IsString()) {
             error::ThrowTypeError(isolate, "HttpClient.request options must include a url string");
             return;
         }
-        request.url = convert::ToString(isolate, url);
+        request.url = convert::ToString(context, *url);
     } else {
-        if (args.Length() < 1 || !args[0]->IsString()) {
+        if (args.Length() < 1 || !args[0].IsString()) {
             error::ThrowTypeError(isolate, "url must be a string");
             return;
         }
-        request.url = convert::ToString(isolate, args[0]);
+        request.url = convert::ToString(context, args[0]);
         // A present-but-non-object options argument is a mistake, not a no-op.
-        if (optionsArgIndex >= 0 && args.Length() > optionsArgIndex && !args[optionsArgIndex]->IsNullOrUndefined()) {
-            if (!args[optionsArgIndex]->IsObject()) {
+        if (optionsArgIndex >= 0 && args.Length() > static_cast<uint32_t>(optionsArgIndex) &&
+            !args[optionsArgIndex].IsNullOrUndefined()) {
+            options = args[optionsArgIndex].To<ub::Object>();
+            if (!options) {
                 error::ThrowTypeError(isolate, "options must be an object");
                 return;
             }
-            options = args[optionsArgIndex].As<v8::Object>();
-            haveOptions = true;
         }
     }
 
     bool havePositionalBody = false;
-    if (bodyArgIndex >= 0 && args.Length() > bodyArgIndex && !args[bodyArgIndex]->IsNullOrUndefined()) {
-        if (!ExtractBody(isolate, args[bodyArgIndex], request.body)) {
+    if (bodyArgIndex >= 0 && args.Length() > static_cast<uint32_t>(bodyArgIndex) &&
+        !args[bodyArgIndex].IsNullOrUndefined()) {
+        if (!ExtractBody(context, args[bodyArgIndex], request.body)) {
             return;
         }
         havePositionalBody = true;
     }
 
-    if (haveOptions && !ApplyOptions(isolate, context, options, request, urlInOptions, !havePositionalBody, binary)) {
+    if (options && !ApplyOptions(context, *options, request, urlInOptions, !havePositionalBody, binary)) {
         return;
     }
 
     http::Response response;
-    std::string error = http::Perform(request, response);
-    if (!error.empty()) {
-        error::ThrowError(isolate, "HTTP request failed: " + error);
+    std::string failure = http::Perform(request, response);
+    if (!failure.empty()) {
+        error::ThrowError(isolate, "HTTP request failed: " + failure);
         return;
     }
 
-    args.GetReturnValue().Set(BuildResponseObject(isolate, context, response, binary));
+    if (auto object = BuildResponseObject(context, response, binary)) {
+        args.GetReturnValue().Set(*object);
+    }
 }
 
 }  // namespace
 
-void JSHttpClient::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
+void JSHttpClient::Configure(const ub::Class<HttpClientData>& cls) {
     /// @description Performs a blocking HTTP/HTTPS request described by an options object. This is the general form;
     /// get/post/put/delete/head are thin wrappers over it.
     /// @signature request(options: object)
@@ -317,7 +348,7 @@ void JSHttpClient::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functio
     /// @throws {RangeError} - if timeout/totalTimeout is negative, or maxResponseBytes is not positive.
     /// @throws {Error} - on transport failure (DNS, TLS, connection refused, per-op or total timeout, oversized body).
     StaticMethod(
-        isolate, tpl, "request", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+        cls, "request", +[](const ub::CallbackInfo& args) {
             RequestImpl(args, "GET", /*urlInOptions=*/true, /*bodyArgIndex=*/-1, /*optionsArgIndex=*/-1);
         });
 
@@ -330,7 +361,7 @@ void JSHttpClient::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functio
     /// @throws {TypeError} - if url is not a string, options is not an object, or an option has the wrong type.
     /// @throws {Error} - on transport failure.
     StaticMethod(
-        isolate, tpl, "get", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+        cls, "get", +[](const ub::CallbackInfo& args) {
             RequestImpl(args, "GET", /*urlInOptions=*/false, /*bodyArgIndex=*/-1, /*optionsArgIndex=*/1);
         });
 
@@ -342,7 +373,7 @@ void JSHttpClient::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functio
     /// @throws {TypeError} - if url is not a string, options is not an object, or an option has the wrong type.
     /// @throws {Error} - on transport failure.
     StaticMethod(
-        isolate, tpl, "head", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+        cls, "head", +[](const ub::CallbackInfo& args) {
             RequestImpl(args, "HEAD", /*urlInOptions=*/false, /*bodyArgIndex=*/-1, /*optionsArgIndex=*/1);
         });
 
@@ -355,7 +386,7 @@ void JSHttpClient::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functio
     /// @throws {TypeError} - if url is not a string, options is not an object, or an option has the wrong type.
     /// @throws {Error} - on transport failure.
     StaticMethod(
-        isolate, tpl, "delete", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+        cls, "delete", +[](const ub::CallbackInfo& args) {
             RequestImpl(args, "DELETE", /*urlInOptions=*/false, /*bodyArgIndex=*/-1, /*optionsArgIndex=*/1);
         });
 
@@ -370,7 +401,7 @@ void JSHttpClient::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functio
     /// has the wrong type.
     /// @throws {Error} - on transport failure.
     StaticMethod(
-        isolate, tpl, "post", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+        cls, "post", +[](const ub::CallbackInfo& args) {
             RequestImpl(args, "POST", /*urlInOptions=*/false, /*bodyArgIndex=*/1, /*optionsArgIndex=*/2);
         });
 
@@ -384,7 +415,7 @@ void JSHttpClient::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functio
     /// has the wrong type.
     /// @throws {Error} - on transport failure.
     StaticMethod(
-        isolate, tpl, "put", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+        cls, "put", +[](const ub::CallbackInfo& args) {
             RequestImpl(args, "PUT", /*urlInOptions=*/false, /*bodyArgIndex=*/1, /*optionsArgIndex=*/2);
         });
 }

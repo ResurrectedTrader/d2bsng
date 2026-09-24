@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+
 #include "JSDrawableBase.h"
 
 namespace d2bs::api::classes {
@@ -26,110 +28,98 @@ class JSText : public JSDrawableBase<JSText, TextDrawable> {
     /// (entered = false, x and y are 0 on leave); return value ignored
     /// @returns {Text} - The new Text drawable.
     /// @throws {Error} - when called outside a running script (no owning script context).
-    static void New(const v8::FunctionCallbackInfo<v8::Value>& args) {
-        V8_CLASS_CTOR_PROLOGUE;
+    static std::shared_ptr<TextDrawable> New(const ub::CallbackInfo& args) {
+        const auto& context = args.GetContext();
 
-        auto* script = ScriptEngine::Instance().GetScript(isolate);
+        auto* script = ScriptEngine::Instance().GetScript(&args.GetIsolate());
         if (!script) {
-            error::ThrowError(isolate, "Text: no owning script");
-            return;
+            error::ThrowError(args.GetIsolate(), "Text: no owning script");
+            return nullptr;
         }
 
         auto drawable = std::make_shared<TextDrawable>();
 
-        if (args.Length() > 0 && args[0]->IsString()) {
-            drawable->SetText(convert::ToString(isolate, args[0]));
+        if (args[0].IsString()) {
+            drawable->SetText(convert::ToString(context, args[0]));
         }
         extract::PointInto(args, 1, drawable->pos);
 
-        if (args.Length() > 3 && args[3]->IsNumber()) {
-            drawable->color.store(convert::ToUint32(isolate, args[3]));
+        if (args[3].IsNumber()) {
+            drawable->color.store(convert::ToUint32(context, args[3]));
         }
-        if (args.Length() > 4 && args[4]->IsNumber()) {
-            drawable->font.store(convert::ToInt32(isolate, args[4]));
+        if (args[4].IsNumber()) {
+            drawable->font.store(convert::ToInt32(context, args[4]));
         }
-        if (args.Length() > 5 && args[5]->IsNumber()) {
-            drawable->align.store(static_cast<Align>(convert::ToInt32(isolate, args[5])));
+        if (args[5].IsNumber()) {
+            drawable->align.store(static_cast<Align>(convert::ToInt32(context, args[5])));
         }
-        if (args.Length() > 6 && args[6]->IsBoolean()) {
-            drawable->isAutomap.store(args[6]->BooleanValue(isolate));
+        if (args[6].IsBoolean()) {
+            drawable->isAutomap.store(args[6].IsTrue());
         }
-        if (args.Length() > 7 && args[7]->IsFunction()) {
-            script->SetDrawableHandler(*drawable, DrawableHandler::Click, args[7].As<v8::Function>());
-        }
-        if (args.Length() > 8 && args[8]->IsFunction()) {
-            script->SetDrawableHandler(*drawable, DrawableHandler::Hover, args[8].As<v8::Function>());
-        }
+        SetConstructorHandlers(args, *script, *drawable, 7);
 
-        auto* rawDrawable = drawable.get();
-        SetupInstanceTracking(rawDrawable);
-        script->AddDrawable(std::move(drawable));
-
-        Wrap(args.This(), rawDrawable);
-        args.GetReturnValue().Set(args.This());
+        script->AddDrawable(drawable);
+        return drawable;
     }
 
-    static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
-        auto inst = tpl->InstanceTemplate();
-        auto proto = tpl->PrototypeTemplate();
-
-        ConfigureCommonProperties(isolate, inst, proto);
+    static void Configure(const ub::Class<TextDrawable>& cls) {
+        ConfigureCommonProperties(cls);
 
         /// @description The displayed text string of this Text overlay.
         /// @type {string}
         Property(
-            isolate, inst, "text",
-            +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Unwrap(info.Holder());
-                if (!drawable)
+            cls, "text",
+            +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Unwrap(info.This());
+                if (!drawable) {
                     return;
+                }
                 info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), drawable->GetText()));
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Unwrap(info.Holder());
-                if (!drawable)
+            +[](const ub::Local<ub::Name>&, const ub::Local<ub::Value>& value, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Unwrap(info.This());
+                if (!drawable || !value.IsString()) {
                     return;
-                if (!value->IsString())
-                    return;
-                drawable->SetText(convert::ToString(info.GetIsolate(), value));
+                }
+                drawable->SetText(convert::ToString(info.GetContext(), value));
             });
 
         /// @description The text color as a game color index.
         /// @type {number}
         Property(
-            isolate, inst, "color",
-            +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Unwrap(info.Holder());
-                if (!drawable)
+            cls, "color",
+            +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Unwrap(info.This());
+                if (!drawable) {
                     return;
+                }
                 info.GetReturnValue().Set(drawable->color.load());
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Unwrap(info.Holder());
-                if (!drawable)
+            +[](const ub::Local<ub::Name>&, const ub::Local<ub::Value>& value, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Unwrap(info.This());
+                if (!drawable || !value.IsNumber()) {
                     return;
-                if (!value->IsNumber())
-                    return;
-                drawable->color.store(convert::ToUint32(info.GetIsolate(), value));
+                }
+                drawable->color.store(convert::ToUint32(info.GetContext(), value));
             });
 
         /// @description The font index used to render the text.
         /// @type {number}
         Property(
-            isolate, inst, "font",
-            +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Unwrap(info.Holder());
-                if (!drawable)
+            cls, "font",
+            +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Unwrap(info.This());
+                if (!drawable) {
                     return;
+                }
                 info.GetReturnValue().Set(drawable->font.load());
             },
-            +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Unwrap(info.Holder());
-                if (!drawable)
+            +[](const ub::Local<ub::Name>&, const ub::Local<ub::Value>& value, const ub::PropertyCallbackInfo& info) {
+                auto* drawable = Unwrap(info.This());
+                if (!drawable || !value.IsNumber()) {
                     return;
-                if (!value->IsNumber())
-                    return;
-                drawable->font.store(convert::ToInt32(info.GetIsolate(), value));
+                }
+                drawable->font.store(convert::ToInt32(info.GetContext(), value));
             });
     }
 };

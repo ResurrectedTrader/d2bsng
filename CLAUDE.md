@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-d2bsng (D2 Botting System Next Generation) is a Windows DLL that exposes JavaScript scripting capabilities via Google's V8 engine for Diablo II automation. The JS API is implemented against Diablo II 1.14d (LoD): the game layer reads live game state through a typed imports layer built on D2MOO. Versions start at 2.x (legacy d2bs topped out at 1.6.x) so scripts can tell the two apart.
+d2bsng (D2 Botting System Next Generation) is a Windows DLL that exposes JavaScript scripting capabilities for Diablo II automation. The JS frontend is written against [unibind](https://github.com/ResurrectedTrader/unibind) (namespace `ub`), an engine-neutral embedding API, and names no engine; the engine is chosen at the glue link, so the same frontend ships as two DLLs - one on Google's V8 (the default) and one on Mozilla's SpiderMonkey. The JS API is implemented against Diablo II 1.14d (LoD): the game layer reads live game state through a typed imports layer built on D2MOO. Versions start at 2.x (legacy d2bs topped out at 1.6.x) so scripts can tell the two apart.
 
 ## Documentation
 
@@ -13,12 +13,11 @@ Design docs live in `docs/`. Read the one(s) covering whatever you are about to 
 - `docs/coords.md` - the two D2 coordinate spaces (subtiles vs game coords) and where the subtile -> game-coord conversion lives (game-layer stubs only).
 - `docs/game_thread_safety.md` - identity-based handles, per-frame pointer caching (`HandleCache`), and the game read/write lock model.
 - `docs/window_message_handling.md` - the `WH_GETMESSAGE` input hook (block / dispatch / injected-input tagging), the game-window WndProc subclasses, and the console raw-input summon.
-- `docs/inspector.md` - the V8 inspector (Chrome DevTools) attachment: the ixwebsocket transport, the InspectorServer / InspectorTarget / ScriptInspector split, the inbound-queue threading model, and releasing game locks during a breakpoint pause.
+- `docs/inspector.md` - the script debugger (Chrome DevTools) over `ub::Inspector`: available where the engine has an inspector (V8, not SpiderMonkey - `ub::Inspector::Supported()`), the ixwebsocket transport, the InspectorServer / InspectorTarget / ScriptInspector split, the inbound-queue threading model, and releasing game locks during a breakpoint pause.
 - `docs/compatibility.md` - the scripting compatibility-flag system: the `CompatibilityFlags` registry, the framework flag catalog, the `game::GetCompatibilityFlags()` extension point, the `Compatibility` JS object, the per-flag gating sites, and why the BOM strip and `delay` wrapper stay un-flagged.
 - `docs/realms.md` - custom Battle.net gateways: the `RealmRegistry` store, the `-realm` launch option, in-memory injection into D2's gateway list by detouring the Storm registry read/write helpers (no registry persistence), realm enumeration (`game::GetRealms`) exposed as the global `getRealms()`.
 - `docs/stash_tabs.md` - stash tabs: the game-agnostic `game::StashTab` identity handle (`game/StashTab.h`; backend-implemented `Type` / `Name` / `Gold` / `GetItems` / `Click` / `MoveGold`, `game::GetStashTabs`, `Unit::StashTab`), exposed as the `StashTab` JS class via `getStashTabs()` and `Unit.stashTab` (with `depositGold` / `withdrawGold` wrapping `MoveGold`), the per-tab gold attribution rule, why there is no "select tab", the character-state `pages` feed, and the `GoldActionMode` dialog codes.
 - `docs/plugy_stash.md` - PlugY's multi-page stash on 1.14d, the backend behind `docs/stash_tabs.md` when PlugY is present: how PlugY pages the stash (only the shown page lives in the inventory; the rest hang off a `PYPlayerData` tail appended to the player data, parked items are stored-mode with no parent inventory), the version-allowlisted detection in `backends/lod114d/game/PlugY.cpp`, running PlugY's `Init` from `Bridge::Init` when PlugY.dll was injected without PlugY.exe, the patch-site overlap check against d2bs's hooks, the blocking swap-in / click / ack-wait / swap-back sequence over PlugY's 0x3A channel, the shared gold pool, and how to remove the PlugY code again.
-- `docs/code_cache.md` - the script code cache: why per-script isolates make V8's own compilation cache useless across scripts, the memory + opt-in disk tiers of `runtime::script::CodeCache`, how it hooks into `CompileSource` (eager on a miss / consume on a hit / drop on a rejected blob), the key (post-transform source + origin + V8 build tag), the header-less on-disk entries and cross-instance sharing, and the `CodeCachePath` / `CodeCacheMemoryLimit` / `CodeCacheDiskLimit` settings.
 - `docs/analytics.md` - anonymous usage analytics (Aptabase): the `Analytics` component, the `session_start` / `profile_active` events (the latter carrying a per-install `profileHash`, never the profile name) and exactly what they do / do not collect, the compile-time app key (build-time only; the project key is the committed default in `Directory.Build.props`, overridable per-build via `-p:D2bsAnalyticsKey` / gitignored `d2bs.local.props` / `D2BS_ANALYTICS_KEY`, and an empty value compiles analytics out), the per-launch opt-out (`-noanalytics`/`D2BS_ANALYTICS_DISABLE`), the backend-agnostic `features` tag list via `game::GetActiveFeatures()`, the anonymous `installId` (derived per launch, never stored), and the `game::GetAnalyticsLaunchOptions()` / `game::GetBackendVersion()` contract accessors.
 
 ## Build Commands
@@ -37,19 +36,23 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File build.ps1 Release
 #   lint           - clang-tidy analysis (delegates to scripts/lint.ps1)
 #   fix            - Auto-fix clang-tidy violations
 #   test           - Build and run the test suite (js_tests.exe)
+#   deps           - Download unibind, V8 and SpiderMonkey without building (so an editor can
+#                    resolve includes in a fresh clone); with -Platform x64 only unibind
 #
 # Switches:
-#   -Platform Win32|x64 - Win32 (default) builds the 1.14d backend into Release\js-v8-lod114d\d2bs.dll;
-#                  x64 builds the platform-independent libraries into x64\Release\
+#   -Platform Win32|x64 - Win32 (default) builds everything, including one d2bs.dll per engine:
+#                    Release\js-v8-lod114d\d2bs.dll (V8) and Release\js-sm-lod114d\d2bs.dll
+#                    (SpiderMonkey); x64 builds the engine- and version-free libraries into x64\Release\
 #   -NoProfiling   - Compile the profiling counters (utils/Profiling.h) and the console's
 #                    Profiling panel out (MSBuild -p:D2bsProfiling=false; see Directory.Build.props)
+#   -Version / -AnalyticsKey - baked into the DLLs (CI passes both; see docs/analytics.md)
 ```
 
 The build script auto-detects the Visual Studio installation via vswhere and works from any directory. You can also build directly with MSBuild or in Visual Studio.
 
 ## Tests
 
-The test project (`tests/frontends/runtime/js_tests.vcxproj`) is a standalone console exe using [doctest](https://github.com/doctest/doctest). It compiles the real `src/navigation/Pathfinder.cpp` with fake game layer implementations (no DLL, no V8, no game). Tests do not link any static libs - they compile sources directly alongside test fakes.
+The test project (`tests/frontends/runtime/js_tests.vcxproj`) is a standalone console exe using [doctest](https://github.com/doctest/doctest). It compiles the real `src/navigation/Pathfinder.cpp` with fake game layer implementations (no DLL, no unibind, no engine, no game), plus a few other engine-free sources (`GameLoop.cpp`, `Commands.cpp`, the config and profile code) for their own tests. Tests do not link any static libs - they compile sources directly alongside test fakes.
 
 ```bash
 # Build and run all tests:
@@ -70,7 +73,7 @@ Release/js_tests.exe -tc="Benchmark*,Kurast*,Real*" -s
 
 ### What the tests cover
 
-Currently tests only cover the **pathfinding engine** (`src/navigation/`):
+Mostly the **pathfinding engine** (`src/navigation/`), plus smaller suites for launch-option parsing (`config/`), logging (`utils/`), profiles (`profile/`), the game lock (`game/`) and the game loop (`gameloop/`). The pathfinding coverage:
 
 - **Unit tests** (`tests/frontends/runtime/pathfinding/tests/`): CollisionLookup queries, walk A*, teleport A*, walk reduction, point mutation, edge cases, penalty avoidance
 - **Reference comparison** (`tests/frontends/runtime/pathfinding/tests/comparisons/`): exact-match and cost-equivalence tests comparing our A* output against an adapted reference A* implementation on identical collision grids
@@ -93,7 +96,7 @@ The script-visible JS API is documented by a generator pipeline under `scripts/`
 
 | Script | Flow | Notes |
 |--------|------|-------|
-| `extract_api.py` | `src/frontends/runtime/api/**` -> `api.json` | Walks the V8 bindings with **libclang**, emitting the full surface (classes, globals, constants, the `me` object, events, enums). Needs the same vcpkg + V8 + MSVC/SDK include set the build uses. The only script that needs libclang. |
+| `extract_api.py` | `src/frontends/runtime/api/**` -> `api.json` | Walks the bindings with **libclang**, emitting the full surface (classes, globals, constants, the `me` object, events, enums). It keys on the registration calls: `Property` / `Method` / `StaticMethod` inside a class's `Configure`, the class's `ClassName` and `New` (constructability), `function::Register` inside `Register*Functions`, `Define` inside `RegisterConstants`, and `InstanceProperty` inside `CreateMeObject`. Needs the same unibind + vcpkg + MSVC/SDK include set the build uses, and refuses to run until unibind's headers are unpacked (`build.ps1 deps`). The only script that needs libclang. |
 | `gen_dts.py` | `api.json` -> `d2bsng.d.ts` | Ambient TypeScript declarations (JSDoc on every member, typed `addEventListener` overloads) for editor completion. Pure-stdlib. |
 | `gen_api_docs.py` | (`api.json`) -> `index.html` | Emits the static docs **shell**: an embedded JS renderer + CSS, no CDN. An optional baked-in `api.json` is the offline / instant-paint dataset. Pure-stdlib. |
 | `build_docs_site.py` | releases -> `site/` | Deploy-time assembler: pulls every release's `api.json` server-side (via `gh`) into `data/<tag>.json` + a `versions.json` manifest, then wraps the shell. Pure-stdlib + `gh`. |
@@ -125,11 +128,12 @@ out-of-tree dependencies:
 - `dependencies/D2MOO` is a submodule and is not populated by `git worktree
   add`. Point it at the main checkout with a directory junction (not a copy or
   re-fetch).
-- `dependencies/v8/<version>/` (the V8 headers and monolith) is gitignored, so
-  it is not populated either - but the build downloads what it needs, so a
-  worktree builds without doing anything. Junctioning `dependencies/v8` to the
-  main checkout is worth it anyway: it reuses archives that are already on disk
-  instead of pulling a few hundred megabytes per worktree.
+- `dependencies/unibind/<version>/`, `dependencies/v8/<version>/` and
+  `dependencies/spidermonkey/<version>/` (the fetched archives) are gitignored,
+  so they are not populated either - but the build downloads what it needs, so
+  a worktree builds without doing anything. Junctioning them to the main
+  checkout is worth it anyway: it reuses archives that are already on disk
+  instead of pulling well over a gigabyte per worktree.
 
 Recipe (PowerShell, from the main checkout root):
 
@@ -137,9 +141,17 @@ Recipe (PowerShell, from the main checkout root):
 $main = (Get-Location).Path
 $wt   = "$main\.claude\worktrees\<name>"
 git worktree add -b <branch> $wt <base-ref>
-$v8ver = ([xml](Get-Content "$main\Directory.Build.props")).SelectSingleNode('//V8Version').InnerText.Trim()
-# V8 headers + monolith (gitignored) - junction from main to skip the download
-New-Item -ItemType Junction -Path "$wt\dependencies\v8\$v8ver" -Target "$main\dependencies\v8\$v8ver"
+$props = [xml](Get-Content "$main\Directory.Build.props")
+# Fetched archives (gitignored) - junction each version directory from main to skip the downloads.
+# name under dependencies\ -> the Directory.Build.props property holding its version
+$deps = @{ unibind = 'UnibindVersion'; v8 = 'V8Version'; spidermonkey = 'SpiderMonkeyVersion' }
+foreach ($name in $deps.Keys) {
+    $ver = $props.SelectSingleNode("//$($deps[$name])").InnerText.Trim()
+    if (Test-Path "$main\dependencies\$name\$ver") {
+        New-Item -ItemType Directory -Force "$wt\dependencies\$name" | Out-Null
+        New-Item -ItemType Junction -Path "$wt\dependencies\$name\$ver" -Target "$main\dependencies\$name\$ver"
+    }
+}
 # D2MOO submodule (empty placeholder) - remove, then junction from main
 # (alternatively: git -C $wt submodule update --init dependencies/D2MOO)
 [System.IO.Directory]::Delete("$wt\dependencies\D2MOO", $false)
@@ -152,17 +164,23 @@ won't collide with a running game that loaded the main checkout's `d2bs.dll`.
 
 Removing a worktree - **detach the junctions first**. Any recursive delete that
 follows them (`git worktree remove`, `rm -rf`, `Remove-Item -Recurse`) walks into
-the junction targets and deletes the *main* checkout's V8 tree (gitignored, slow
-to re-download) and D2MOO submodule contents. A non-recursive delete removes the
-junction itself and leaves the target intact - and fails harmlessly on a
-`dependencies\v8\<version>` the worktree's own build populated, which is a real
-directory that goes with the tree:
+the junction targets and deletes the *main* checkout's fetched unibind / V8 /
+SpiderMonkey trees (gitignored, slow to re-download) and D2MOO submodule
+contents. A non-recursive delete removes the junction itself and leaves the
+target intact - and fails harmlessly on a `dependencies\<name>\<version>` the
+worktree's own build populated, which is a real directory that goes with the
+tree:
 
 ```powershell
 $main = (Get-Location).Path
 $wt   = "$main\.claude\worktrees\<name>"
+$props = [xml](Get-Content "$main\Directory.Build.props")
+$deps = @{ unibind = 'UnibindVersion'; v8 = 'V8Version'; spidermonkey = 'SpiderMonkeyVersion' }
 # Detach the junctions BEFORE deleting anything - the target stays intact.
-[System.IO.Directory]::Delete("$wt\dependencies\v8\$v8ver", $false)
+foreach ($name in $deps.Keys) {
+    $ver = $props.SelectSingleNode("//$($deps[$name])").InnerText.Trim()
+    try { [System.IO.Directory]::Delete("$wt\dependencies\$name\$ver", $false) } catch {}
+}
 [System.IO.Directory]::Delete("$wt\dependencies\D2MOO", $false)
 git worktree remove $wt        # --force if the tree has uncommitted changes
 # git branch -D <branch>       # optional: also drop the worktree's branch
@@ -172,7 +190,7 @@ If `git worktree remove` refuses with "'.git' is not a .git file" - a worktree
 whose internal links were written by Cygwin git (`/cygdrive/...` paths that
 Git-for-Windows can't parse) - detach the junctions as above, then remove the
 tree and its admin entry by hand and prune. Delete from a Cygwin / Git-Bash
-shell (`rm -rf "$wt"`) if the fetched V8 headers - deeply nested under an
+shell (`rm -rf "$wt"`) if the fetched engine headers - deeply nested under an
 already-long worktree prefix - overflow MAX_PATH for `Remove-Item`:
 
 ```powershell
@@ -181,8 +199,9 @@ Remove-Item -Recurse -Force "$main\.git\worktrees\<name>"
 git worktree prune
 ```
 
-Either way, confirm `dependencies\v8\<version>` and `dependencies\D2MOO` in the
-main checkout still hold their files afterward.
+Either way, confirm `dependencies\unibind\<version>`, `dependencies\v8\<version>`,
+`dependencies\spidermonkey\<version>` and `dependencies\D2MOO` in the main
+checkout still hold their files afterward.
 
 ## Git
 
@@ -200,17 +219,21 @@ A `Co-Authored-By` trailer is fine; the session URL is not.
 
 ### Project Structure
 
-The codebase is split into eight build targets (seven static libs + one DLL) under `src/`, plus a test project. A frontend (JS) and a backend (1.14d) both compile against a shared `contract`, and a thin glue project links one of each into the final DLL. `utils`, `contract`, `core`, `navigation`, `services` and `runtime` hold no game-version-specific code and build for both Win32 and x64; the backend, its glue and the tests are Win32 only (the `.slnx` maps them).
+The codebase is split into nine build targets (seven static libs + two DLLs) under `src/`, plus a test project. A frontend (JS) and a backend (1.14d) both compile against a shared `contract`, and a thin glue project links one of each - plus a JavaScript engine - into a DLL. There are two glue projects, one per engine, over the same frontend and backend. `utils`, `contract`, `core`, `navigation`, `services` and `runtime` hold no game-version-specific and no engine-specific code and build for both Win32 and x64; the backend, both glues and the tests are Win32 only (the `.slnx` maps them).
 
 ```
 d2bsng/
-├── build.ps1               Build entry: build / Debug / format / check-format / lint / fix / test
+├── build.ps1               Build entry: build / Debug / format / check-format / lint / fix / test / deps
+├── Directory.Build.props   Build-wide settings: analytics key, profiling switch, LTO, and the unibind / V8 /
+│                           SpiderMonkey versions + the Fetch* targets that download them
 ├── vcpkg.json              Single shared vcpkg manifest (all deps)
 ├── dependencies/
-│   ├── v8/                 V8 engine (headers + monolith, fetched per version at build time)
+│   ├── unibind/            unibind headers + backend libs (fetched per version/arch/flavor at build time)
+│   ├── v8/                 V8 headers + monolith (fetched per version/flavor at build time)
+│   ├── spidermonkey/       SpiderMonkey headers + static lib (fetched per version/flavor at build time)
 │   └── D2MOO/              D2MOO submodule - game struct/function reference
-├── docs/                   Design docs (coords, thread-safety, window messages, inspector)
-├── scripts/                Maintainer tooling (lint.ps1, fetch_v8.ps1, API extraction + docs/d.ts/site generators, table generators)
+├── docs/                   Design docs (see "Documentation" above)
+├── scripts/                Maintainer tooling (lint.ps1, fetch_archive.ps1, API extraction + docs/d.ts/site generators, table generators)
 ├── src/
 │   ├── utils/              utils.lib - standalone utilities (crypto, threading, stackwalker, profiling counters)
 │   ├── contract/           contract.lib - the boundary both frontends and backends compile against
@@ -233,16 +256,22 @@ d2bsng/
 │   │   ├── profile/            ProfileService (profile lookup/switch logic)
 │   │   └── update/             GitHub-release update checker (6h poll -> version-banner marker)
 │   ├── frontends/          One directory per scripting frontend
-│   │   └── runtime/        runtime.lib - JavaScript scripting frontend (V8); depends on contract + core + navigation
-│   │       ├── api/            V8 bindings: classes/ (game, io, scripting, drawing), globals/, core/
+│   │   └── runtime/        runtime.lib - JavaScript frontend over unibind (ub::); names no engine
+│   │       ├── api/            Script-visible API
+│   │       │   ├── core/           Binding kit: Class.h (api::ClassBase over ub::Class), Function.h (global
+│   │       │   │                   functions), Convert.h / Extract.h (values <-> native), Error.h (throws,
+│   │       │   │                   arg checks), InstanceTracker.h (live-wrapper counts)
+│   │       │   ├── classes/        Classes: game/, io/, scripting/, drawing/ + ClassRegistry (install all, `me`)
+│   │       │   └── globals/        Global functions + constants, one Register*() per category
 │   │       ├── components/     Frontend internals:
-│   │       │   ├── script/         Script engine (V8 isolate mgmt) + compat shims
-│   │       │   ├── v8/             V8 host initialization
-│   │       │   ├── events/         Event system
+│   │       │   ├── script/         Script (one isolate + thread per script), ScriptEngine, CompileSource (+ compat
+│   │       │   │                   prelude), CodeCache, NativeCallHook (binding trampolines: stack capture + profiling)
+│   │       │   ├── engine/         Engine::GetPlatform - the one ub::Platform, and the engine fault handler
+│   │       │   ├── events/         Event system (events carry native payloads; MakeArgs builds script values)
 │   │       │   ├── gameloop/       Per-frame game-thread loop + lock release
 │   │       │   ├── console/        ImGui dev console (log/REPL/scripts/stacktraces/threads/profiling/settings)
-│   │       │   ├── inspector/      V8 inspector (Chrome DevTools) debug server
-│   │       │   ├── drawing/        Screen-hook drawables (Box/Frame/Line/Text/Image)
+│   │       │   ├── inspector/      Chrome DevTools server over ub::Inspector (does nothing on an engine without one)
+│   │       │   ├── drawing/        Screen-hook drawables (Box/Frame/Line/Text/Image) + version banner
 │   │       │   └── Host.h/.cpp     Frontend lifecycle (d2bs::runtime::Host) + GameCallbacks wiring
 │   ├── backends/           One directory per game-version backend
 │   │   └── lod114d/        lod114d.lib - 1.14d game backend (implements contract); depends on contract + core
@@ -251,13 +280,15 @@ d2bsng/
 │   │       ├── hooks/          Inline / IAT hooks, realm injection, intercepts
 │   │       ├── asm_thunks/     Hand-written ABI thunks
 │   │       └── console/        Port console host (window + GL + ImGui glue)
-│   └── glue/               One directory per frontend+backend combo (the shippable target)
-│       └── js-v8-lod114d/  d2bs.dll - glue: DllMain + wiring; links runtime + lod114d + navigation + contract + core + utils
-│           ├── dllmain.cpp     DLL entry point (Bridge::Init -> InstallAll -> runtime::Host::Initialize)
-│           └── version.rc      DLL version resource
+│   └── glue/               One directory per frontend+engine+backend combo (the shippable targets)
+│       ├── js-v8-lod114d/  d2bs-v8.vcxproj -> Release\js-v8-lod114d\d2bs.dll: runtime + lod114d + ... + unibind_backend_v8 + V8
+│       │   ├── dllmain.cpp     DLL entry point (Bridge::Init -> InstallAll -> runtime::Host::Initialize)
+│       │   └── version.rc      DLL version resource
+│       └── js-sm-lod114d/  d2bs-sm.vcxproj -> Release\js-sm-lod114d\d2bs.dll: same sources (../js-v8-lod114d/
+│                           dllmain.cpp + version.rc), linked with unibind_backend_spidermonkey + SpiderMonkey
 └── tests/
     └── frontends/
-        └── runtime/        js_tests.exe - doctest suite (pathfinding) + fakes
+        └── runtime/        js_tests.exe - doctest suite (pathfinding, config, game loop, ...) + fakes
 ```
 
 ### Build Targets
@@ -266,13 +297,16 @@ d2bsng/
 |--------|------|--------|----------|
 | **utils** | Static lib | `Release/utils.lib` | `src/utils/` - crypto, threading, stackwalker |
 | **contract** | Static lib | `Release/contract.lib` | `src/contract/` - game interface headers (`game/*.h`) + framework-owned utilities + shared DTOs (`config/ProfileData.h`, `config/ScriptPaths.h`). The boundary both frontends and backends compile against. Depends on utils. |
-| **core** | Static lib | `Release/core.lib` | `src/core/` - shared infra: config (AppConfig/Ini/CompatibilityFlags/Version/OptionParser), detour, speedhack, input, proxy. Depends on contract + utils. |
+| **core** | Static lib | `Release/core.lib` | `src/core/` - shared infra: config (AppConfig/Ini/CompatibilityFlags/Version/OptionParser), detour, speedhack, input, proxy, http. Depends on contract + utils. |
 | **navigation** | Static lib | `Release/navigation.lib` | `src/navigation/` - game algorithms over the contract: A* pathfinder + level-exit finder. Depends on contract + utils ONLY. Has unresolved game:: symbols. |
 | **services** | Static lib | `Release/services.lib` | `src/services/` - bot services over the contract: analytics, character-state IPC, DDE, profile switching, update checks. Depends on contract + core + utils. Has unresolved game:: symbols. |
-| **runtime** | Static lib | `Release/runtime.lib` | `src/frontends/runtime/` - JavaScript scripting frontend (api/, components/). Depends on contract + core + navigation + utils + V8. Has unresolved game:: symbols. |
-| **lod114d** | Static lib | `Release/lod114d.lib` | `src/backends/lod114d/` - 1.14d game backend implementing the contract (Win32 only). Depends on contract + core + utils. No frontend dependency. |
-| **d2bs** | DLL | `Release/js-v8-lod114d/d2bs.dll` | `src/glue/js-v8-lod114d/` - glue: DllMain + version.rc. Links runtime + lod114d + navigation + contract + core + utils, resolves all symbols. |
+| **runtime** | Static lib | `Release/runtime.lib` | `src/frontends/runtime/` - JavaScript frontend (api/, components/). Depends on contract + core + navigation + services + utils + unibind's headers. Has unresolved game:: symbols and unresolved unibind symbols (the backend library is a glue link input). |
+| **lod114d** | Static lib | `Release/lod114d.lib` | `src/backends/lod114d/` - 1.14d game backend implementing the contract (Win32 only). Depends on contract + core + utils. No frontend, unibind or engine dependency. |
+| **d2bs-v8** | DLL | `Release/js-v8-lod114d/d2bs.dll` | `src/glue/js-v8-lod114d/d2bs-v8.vcxproj` - glue: DllMain + version.rc. Links runtime + lod114d + navigation + services + contract + core + utils + `unibind_backend_v8.lib` + `v8_monolith.lib`, resolves all symbols. The default (V8) build. |
+| **d2bs-sm** | DLL | `Release/js-sm-lod114d/d2bs.dll` | `src/glue/js-sm-lod114d/d2bs-sm.vcxproj` - the same glue sources (it compiles `../js-v8-lod114d/dllmain.cpp` + `version.rc`) and the same libraries, linked with `unibind_backend_spidermonkey.lib` + `spidermonkey.lib` instead. `TargetName` is `d2bs`, because the loader looks for `d2bs.dll`. |
 | **js_tests** | Console EXE | `Release/js_tests.exe` | `tests/frontends/runtime/` - doctest tests with fake game layer |
+
+Each glue writes into `$(SolutionDir)$(Configuration)\<glue directory name>\`, so the two `d2bs.dll`s do not overwrite each other.
 
 ### How Linking Works
 
@@ -281,34 +315,39 @@ utils.lib       <- fully resolved, standalone
      v
 contract.lib    <- game interface headers (game/*.h) + shared DTOs. Depends on utils.
      v              (declares game::Unit::Pos() etc.; impl lives in a backend)
-core.lib        <- config / speedhack / proxy. Depends on contract + utils.
+core.lib        <- config / speedhack / proxy / http. Depends on contract + utils.
      v
      |         navigation.lib  <- A* pathfinder + exit finder. Game algorithms
      |         (map algorithms)   written against the contract, so they have
      |              v             UNRESOLVED game:: symbols too. Depends on
      |              |             contract + utils ONLY - never core, never a
-     |              |             frontend, never an engine header.
+     |              |             frontend, never unibind or an engine header.
      |              |
      |         services.lib    <- analytics, character-state IPC, DDE, profile
      |         (bot services)     switching, update checks. Also written against
      |              v             the contract, so also UNRESOLVED game::.
      |              |             Depends on contract + core + utils - never a
-     |              |             frontend, never an engine header.
+     |              |             frontend, never unibind or an engine header.
      +--------------+-------------+----------------------------+
      v                            v
-runtime.lib                     lod114d.lib    <- frontend and backend are mutually blind:
-(JS/V8 frontend)              (1.14d backend)   js has UNRESOLVED game:: symbols;
-has UNRESOLVED game::         implements them    lod114d implements them and calls UP only
-symbols; depends on          ; depends on        through the GameCallbacks function table
-contract + core +            contract + core
-navigation
+runtime.lib                        lod114d.lib    <- frontend and backend are mutually blind:
+(JS frontend over unibind)    (1.14d backend)   runtime has UNRESOLVED game:: symbols;
+UNRESOLVED game:: and ub::    implements them    lod114d implements them and calls UP only
+symbols; depends on           ; depends on       through the GameCallbacks function table
+contract + core +             contract + core
+navigation + services
      v                            v
      +-------------+--------------+
                    v
-               d2bs.dll   <- glue: DllMain + wiring. Links runtime + lod114d +
-                             navigation + services + contract + core + utils +
-                             v8_monolith.lib. LTO inlines the thin game::
-                             wrappers across all libs.
+     +-------------+-------------------------------+
+     v                                             v
+js-v8-lod114d\d2bs.dll                   js-sm-lod114d\d2bs.dll
+ + unibind_backend_v8.lib                 + unibind_backend_spidermonkey.lib
+ + v8_monolith.lib                        + spidermonkey.lib (+ its system libs)
+     <- glue: DllMain + wiring. Each links runtime + lod114d + navigation + services +
+        contract + core + utils, plus ONE unibind backend and its engine, which
+        resolves the ub:: symbols. LTO inlines the thin game:: wrappers across
+        all libs.
 ```
 
 ### Game Interface vs Implementation
@@ -319,7 +358,7 @@ The game abstraction is split across two directories:
 
 - **`src/backends/lod114d/game/`** - 1.14d implementation (12 `.cpp` files + internal headers like `RoomData.h` / `DrlgHelpers.h`). Part of `lod114d.lib`. The version-specific game-function/variable bindings, structs, and hooks live alongside it under `src/backends/lod114d/imports/` (typed import registry + per-DLL declarations), `src/backends/lod114d/imports/extras/` (structs not in D2MOO), `src/backends/lod114d/asm_thunks/`, and `src/backends/lod114d/hooks/`.
 
-To add support for a different game version: create a new backend lib (a sibling of `backends/lod114d/`) with its own `game/` implementation and vcxproj, depending on `contract` + `core` + `utils`, then a glue project under `glue/` that links it with a chosen frontend. To add a different frontend (a non-JS scripting host, or a C-ABI bridge that re-exports the contract for other languages): create a sibling of `frontends/runtime/` over the same `contract` + `core`, and reuse `navigation` for pathfinding and exit finding rather than reimplementing either. Frontend and backend never reference each other - only the glue does.
+To add support for a different game version: create a new backend lib (a sibling of `backends/lod114d/`) with its own `game/` implementation and vcxproj, depending on `contract` + `core` + `utils`, then a glue project under `glue/` that links it with the frontend and an engine (one glue per engine, as `js-v8-lod114d` / `js-sm-lod114d` do for 1.14d). A different JavaScript engine needs no new frontend: it needs a unibind backend library and a glue project that links it. To add a different frontend (a non-JS scripting host, or a C-ABI bridge that re-exports the contract for other languages): create a sibling of `frontends/runtime/` over the same `contract` + `core`, and reuse `navigation` (pathfinding, exit finding) and `services` (analytics, character state, DDE, profiles, updates) rather than reimplementing them. Frontend and backend never reference each other - only the glue does.
 
 ### Include Path Strategy
 
@@ -332,15 +371,16 @@ Each project has specific include directories that make cross-project includes w
 | **core** | `$(ProjectDir)` ; `$(SolutionDir)src\contract` ; `$(SolutionDir)src` |
 | **navigation** | `$(ProjectDir)` ; `$(SolutionDir)src\contract` ; `$(SolutionDir)src` |
 | **services** | `$(ProjectDir)` ; `$(SolutionDir)src\contract` ; `$(SolutionDir)src\core` ; `$(SolutionDir)src` |
-| **runtime** | `$(ProjectDir)` ; `$(SolutionDir)src\contract` ; `$(SolutionDir)src\core` ; `$(SolutionDir)src` ; V8 include |
-| **lod114d** (backend) | `$(SolutionDir)src\contract` ; `$(SolutionDir)src\core` ; `$(SolutionDir)src` ; `$(ProjectDir)` ; `$(ProjectDir)game` ; D2MOO include roots ; V8 include |
-| **d2bs** (glue DLL) | `$(SolutionDir)src\frontends\runtime` ; `$(SolutionDir)src\contract` ; `$(SolutionDir)src\core` ; `$(SolutionDir)src\backends\lod114d` ; `$(SolutionDir)src` |
-| **js_tests** | `$(ProjectDir)fakes\shims` ; `$(SolutionDir)src\contract` ; `$(SolutionDir)src\core` ; `$(SolutionDir)src\frontends\runtime` ; `$(SolutionDir)src` ; `$(ProjectDir)` |
+| **runtime** | `$(ProjectDir)` ; `$(SolutionDir)src\contract` ; `$(SolutionDir)src\core` ; `$(SolutionDir)src\services` ; `$(SolutionDir)src` ; `$(UnibindIncludeDir)` (also an external include dir, so its headers are system headers to the compiler and lint) |
+| **lod114d** (backend) | `$(SolutionDir)src\contract` ; `$(SolutionDir)src\core` ; `$(SolutionDir)src` ; `$(ProjectDir)` ; `$(ProjectDir)game` ; D2MOO include roots |
+| **d2bs-v8** / **d2bs-sm** (glue DLLs) | `$(SolutionDir)src\frontends\runtime` ; `$(SolutionDir)src\contract` ; `$(SolutionDir)src\core` ; `$(SolutionDir)src\backends\lod114d` ; `$(SolutionDir)src` |
+| **js_tests** | `$(ProjectDir)fakes\shims` ; `$(SolutionDir)src\contract` ; `$(SolutionDir)src\core` ; `$(SolutionDir)src\services` ; `$(SolutionDir)src\frontends\runtime` ; `$(SolutionDir)src` ; `$(ProjectDir)` |
 
 All includes use project-root-relative paths - never use relative paths like `../`:
 ```cpp
 #include "game/Unit.h"                    // Interface header (from contract)
-#include "api/core/Class.h"             // Frontend internal (js)
+#include "api/core/Class.h"               // Frontend internal (js)
+#include "unibind/unibind.h"              // unibind (runtime only; never an engine header)
 #include "config/AppConfig.h"             // Config (from core)
 #include "config/ProfileData.h"           // Shared DTO (from contract)
 #include "navigation/Pathfinder.h"        // Map algorithm (from navigation)
@@ -412,24 +452,26 @@ that a stripped include was actually unused.
 These are the intended dependencies. A few deliberate exceptions are noted inline - each one lets a layer reuse an existing type or helper instead of duplicating it, which is the cheaper trade-off than the indirection that removing the edge would require.
 
 - **utils/** depends on: standard library, Windows headers, third-party libs (spdlog, stackwalker).
-- **contract/** (the boundary) depends on: utils + standard library only. NEVER on core, the frontend, V8, or any backend. Holds the game interface (`game/*.h`), the framework-owned utilities (Finders/GameLock/GameThread/HandleCache/Types), and the shared DTOs (`config/ProfileData.h`, `config/ScriptPaths.h`). `game/Menu.h` includes `config/ProfileData.h` (same project) so `Login()` takes the profile struct by const-ref.
-- **core/** (shared infra) depends on: contract + utils. Holds config (AppConfig/Ini/CompatibilityFlags/Version/OptionParser), detour (the Detours slot/batch API every hook in the tree goes through), speedhack, proxy (SOCKS5 hook), http (the WinHTTP request engine, which takes the proxy bypass), input (the game-window input hook). NEVER on the frontend or a backend.
-- **navigation/** (map algorithms) depends on: **contract + utils, and nothing else**. Not core, not a frontend, not `api/`, not V8 or any other engine header - the `#include` list is `game/*`, `utils/*` and the standard library. It holds the derived, game-version-agnostic algorithms over the contract's primitives: the A* pathfinder (`d2bs::pathfinding`) and the level-exit finder (`d2bs::navigation::GetExits` + `ExitInfo`). That narrow dependency set IS the library's purpose: these are algorithms every frontend wants and no backend needs, so they belong to neither. Anything that needs a setting, a log sink, a script callback or an engine value is a frontend concern and stays in the frontend. Like a frontend, it leaves `game::` symbols unresolved until the glue link.
-- **services/** (bot services) depends on: contract + core + utils. Holds the bot's own background features - anonymous analytics, the character-state snapshot sent to the D2BotNG manager, the DDE service, profile lookup/switching, and the GitHub-release update checker. None of them is frame-driven or script-driven, and none names an engine type, so they belong to no frontend: a second frontend links this library rather than reimplementing it. Like a frontend, it leaves `game::` symbols unresolved until the glue link. NEVER on a frontend, `api/`, or a backend.
-- **frontends/runtime/** (JavaScript frontend) depends on: contract + core + navigation + services + utils + V8. Reaches the game only through `game::` contract symbols (resolved at the glue link) and pushes its hooks down through the `GameCallbacks` table; it NEVER references a concrete backend.
-  - **frontends/runtime/api/** depends on: contract (game/ interface + DTOs), core, navigation, services, components/, utils/, V8.
-  - **frontends/runtime/components/** depends on: contract, core, navigation, utils/, V8. Exception: `components/script/` includes `api/` - the script engine is the JS-API composition root (it owns V8 isolate setup and registers the `api/` ClassRegistry + globals), and a few components reuse `api::convert`.
-- **backends/lod114d/** (1.14d backend) depends on: contract + core + utils, plus sibling port headers (imports/, hooks/, asm_thunks/). Implements the `game::` contract symbols and calls UP into the frontend ONLY through the `GameCallbacks` pointers it is handed at init (`hooks::GetActiveCallbacks()`). NEVER on the frontend, api/, or V8. Config reads go through `core`; console output and rendering go through the `onConsoleMessage` / `onConsoleDrawFrame` callbacks.
-- **glue/js-v8-lod114d/** (glue) depends on: runtime + lod114d + navigation + services + contract + core + utils. The only project that sees both a frontend and a backend; owns `DllMain` and the bring-up wiring.
+- **contract/** (the boundary) depends on: utils + standard library only. NEVER on core, the frontend, unibind, an engine, or any backend. Holds the game interface (`game/*.h`), the framework-owned utilities (Finders/GameLock/GameThread/HandleCache/Types), and the shared DTOs (`config/ProfileData.h`, `config/ScriptPaths.h`). `game/Menu.h` includes `config/ProfileData.h` (same project) so `Login()` takes the profile struct by const-ref.
+- **core/** (shared infra) depends on: contract + utils. Holds config (AppConfig/Ini/CompatibilityFlags/Version/OptionParser), detour (the Detours slot/batch API every hook in the tree goes through), speedhack, proxy (SOCKS5 hook), http (the WinHTTP request engine, which takes the proxy bypass), input (the game-window input hook). NEVER on the frontend, unibind, an engine, or a backend.
+- **navigation/** (map algorithms) depends on: **contract + utils, and nothing else**. Not core, not a frontend, not `api/`, not unibind or any engine header - the `#include` list is `game/*`, `utils/*` and the standard library. It holds the derived, game-version-agnostic algorithms over the contract's primitives: the A* pathfinder (`d2bs::pathfinding`) and the level-exit finder (`d2bs::navigation::GetExits` + `ExitInfo`). That narrow dependency set IS the library's purpose: these are algorithms every frontend wants and no backend needs, so they belong to neither. Anything that needs a setting, a log sink, a script callback or an engine value is a frontend concern and stays in the frontend. Like a frontend, it leaves `game::` symbols unresolved until the glue link.
+- **services/** (bot services) depends on: contract + core + utils. Holds the bot's own background features - anonymous analytics, the character-state snapshot sent to the D2BotNG manager, the DDE service, profile lookup/switching, and the GitHub-release update checker. None of them is frame-driven or script-driven, and none names a script value, so they belong to no frontend: a second frontend links this library rather than reimplementing it. Like a frontend, it leaves `game::` symbols unresolved until the glue link. NEVER on a frontend, `api/`, unibind, an engine, or a backend.
+- **frontends/runtime/** (JavaScript frontend) depends on: contract + core + navigation + services + utils + unibind's headers. **Never an engine header** - no `v8.h`, no `jsapi.h`, nothing from `dependencies/v8` or `dependencies/spidermonkey`; every script value is a `ub::` type, and which engine answers is decided by the glue's link. Reaches the game only through `game::` contract symbols (resolved at the glue link) and pushes its hooks down through the `GameCallbacks` table; it NEVER references a concrete backend.
+  - **frontends/runtime/api/** depends on: contract (game/ interface + DTOs), core, navigation, services, components/, utils/, unibind.
+  - **frontends/runtime/components/** depends on: contract, core, navigation, services, utils/, unibind. Exceptions that reach into `api/`: `components/script/Script.cpp` is the JS-API composition root (it sets up the isolate and registers the `api/` ClassRegistry + globals + constants, and reads the InstanceTracker), and `components/events/Events.h` builds event arguments with `api::convert`. The rule every component keeps: a script value (`ub::Local` / `ub::Global`) is made, held and released only on its script's thread, so the game thread never holds one - events carry native payloads and build their arguments in `MakeArgs` on the script thread, and drawables keep their handlers on the owning `Script`.
+  - Engine differences are answered where unibind answers them, never by naming the engine: `ub::Inspector::Supported()` (only V8 has an inspector), the optional fields of `ub::HeapStatistics`, and `ub::Platform::BackendName()` / `BackendVersion()` for display only. An operation one engine lacks is a link error in that engine's glue, not a runtime branch.
+- **backends/lod114d/** (1.14d backend) depends on: contract + core + utils, plus sibling port headers (imports/, hooks/, asm_thunks/). Implements the `game::` contract symbols and calls UP into the frontend ONLY through the `GameCallbacks` pointers it is handed at init (`hooks::GetActiveCallbacks()`). NEVER on the frontend, api/, unibind, or an engine. Config reads go through `core`; console output and rendering go through the `onConsoleMessage` / `onConsoleDrawFrame` callbacks.
+- **glue/js-v8-lod114d/** and **glue/js-sm-lod114d/** (glue) depend on: runtime + lod114d + navigation + services + contract + core + utils, plus one unibind backend library and its engine as link inputs. The only projects that see both a frontend and a backend; they own `DllMain` and the bring-up wiring (one shared `dllmain.cpp` / `version.rc`, in `js-v8-lod114d/`).
 
 ### Key Design Decisions
 
-- **Platform**: the 1.14d backend and `d2bs.dll` are Win32, because the game is 32-bit. `utils`, `contract`, `core`, `navigation` and `runtime` carry no game-version-specific code and build for both Win32 and x64, so a 64-bit target can reuse them; the test project is Win32.
+- **Platform**: the 1.14d backend and both `d2bs.dll`s are Win32, because the game is 32-bit (and the engine archives are x86 only). `utils`, `contract`, `core`, `navigation`, `services` and `runtime` carry no game-version-specific or engine-specific code and build for both Win32 and x64, so a 64-bit target can reuse them (unibind's archive is fetched per architecture, `UnibindArch` following `$(Platform)`); the test project is Win32.
+- **One frontend, engine chosen at link time**: the frontend compiles once against unibind; the V8 and SpiderMonkey DLLs differ only in link inputs.
 - **ClangCL compiler**: Uses LLVM/Clang with MSVC compatibility
 - **Static linking**: VCPKG dependencies and CRT statically linked (MT/MTd runtime)
 - **C++23**: Uses latest C++ standard
 - **LTO enabled**: the projects set `WholeProgramOptimization=true` in Release, and `Directory.Build.props` turns that into `-flto` for clang-cl (the ClangCL toolset ignores the property on its own), so objects are bitcode and lld-link optimises the whole program - wrapper methods inline across TUs and static libs.
-- **Parallel builds**: `Directory.Build.props` sets `MultiProcessorCompilation` for every project and `build.ps1` passes MSBuild `-m`, so sources compile across all cores and independent projects (lod114d, js, js_tests) build concurrently; `EnforceProcessCountAcrossBuilds` caps the total compiler process count at the core count.
+- **Parallel builds**: `Directory.Build.props` sets `MultiProcessorCompilation` for every project and `build.ps1` passes MSBuild `-m`, so sources compile across all cores and independent projects (lod114d, js, js_tests, the two glues) build concurrently; `EnforceProcessCountAcrossBuilds` caps the total compiler process count at the core count.
 
 ### Dependencies (via VCPKG)
 
@@ -439,10 +481,22 @@ Single `vcpkg.json` at solution root, shared by all main projects:
 - sqlite3: Database support
 - detours: Microsoft Detours - function hooking
 - imgui (opengl2 + win32 bindings): dev console UI
-
-V8 (JavaScript engine) is not a vcpkg dependency, and none of it is in the repository. The `FetchV8` target in `Directory.Build.props` (which declares the version, repo and asset name) downloads one published archive and unpacks its headers *and* monolith into `dependencies/v8/$(V8Version)/x86-$(V8Flavor)/`, before anything compiles against them - only when that directory is absent, and only for the configuration being built. The directory is the unit: the archive is extracted to a staging sibling and renamed into place in one move, so it is either complete or not there. Both the include path and the library path are derived from `$(V8Version)`, so a version bump repoints every path and re-fetches rather than silently reusing the old library. Projects opt in with `<V8Required>true</V8Required>` (js, lod114d, d2bs); `js_tests` does not, so it fetches nothing. `build.ps1 deps` runs just that target.
+- ixwebsocket (no default features, so no TLS): the Chrome DevTools transport
+- magic-enum, nlohmann-json
 
 The test project (`tests/frontends/runtime/`) has its own `vcpkg.json` with just `doctest` (header-only test framework).
+
+### Fetched archives: unibind, V8, SpiderMonkey
+
+unibind and the two engines are not vcpkg dependencies, and none of them is in the repository. Each is one published GitHub-release archive, downloaded by a target in `Directory.Build.props` through `scripts/fetch_archive.ps1`:
+
+| Target | Opt-in property (set by) | Unpacks into | Holds |
+|--------|--------------------------|--------------|-------|
+| `FetchUnibind` | `UnibindRequired` (runtime, d2bs-v8, d2bs-sm) | `dependencies/unibind/$(UnibindVersion)/$(UnibindArch)-$(EngineFlavor)/` | `include/unibind/*.h`, `lib/unibind_backend_v8.lib`, `lib/unibind_backend_spidermonkey.lib` (checked against the published `.sha256`) |
+| `FetchV8` | `V8Required` (d2bs-v8) | `dependencies/v8/$(V8Version)/x86-$(EngineFlavor)/` | V8 headers + `v8_monolith.lib` |
+| `FetchSpiderMonkey` | `SpiderMonkeyRequired` (d2bs-sm) | `dependencies/spidermonkey/$(SpiderMonkeyVersion)/x86-$(EngineFlavor)/` | SpiderMonkey headers + `spidermonkey.lib` |
+
+Each runs before anything compiles or links against it, only when its directory is absent, and only for the configuration being built. The directory is the unit: the archive is extracted to a staging sibling and renamed into place in one move, so it is either complete or not there. The include and library paths (`UnibindIncludeDir`, `UnibindLibDir`, `V8Dir`, `SpiderMonkeyDir`) are derived from the version, so a version bump repoints every path and re-fetches rather than silently reusing an old library. `EngineFlavor` follows `$(Configuration)` (a debug unibind links the debug engines); `EngineToolset` is the MSVC toolset the archives were built with - a floor, not a match. The backend (`lod114d`) and `js_tests` fetch nothing. `build.ps1 deps` runs just these targets (with `-Platform x64`, only unibind's).
 
 ## Game Abstraction Layer
 
@@ -450,7 +504,7 @@ The game layer decouples the JS API from direct game memory access, enabling mul
 
 ### Design Principles
 
-1. **No V8 dependency**: The game interface uses only standard C++ types. No V8 headers, no API layer headers.
+1. **No engine dependency**: The game interface uses only standard C++ types. No unibind or engine headers, no API layer headers.
 2. **Thin wrappers**: Each wrapper class is `sizeof(void*)` - one pointer, no vtable. Zero overhead with LTO.
 3. **Gaps marked with TODO**: Methods read live game state; the few unimplemented spots are marked `TODO(implement)` with comments describing what is needed.
 4. **Opaque pointers**: Wrappers hold a single `void*`. The framework interface stays game-version-agnostic; typed D2MOO structs are used only inside the implementation layer (`src/backends/lod114d/`), never at the framework boundary.
@@ -516,7 +570,7 @@ Within each handle header (`Unit.h`, `Room.h`, etc.), a comment separator marks 
 
 ## Reference Implementation
 
-The `reference/d2bs/` directory contains the original d2bs implementation (SpiderMonkey-based) used for cross-referencing when implementing the V8 API. Key files:
+The `reference/d2bs/` directory contains the original d2bs implementation (SpiderMonkey-based) used for cross-referencing when implementing the JS API. Key files:
 
 - `JS*.cpp` / `JS*.h` - JavaScript API implementations (JSUnit, JSControl, JSFile, etc.)
 - `D2Structs.h` - Game structure definitions
@@ -660,7 +714,7 @@ Use sized integer types from `<cstdint>` instead of unsized types:
 - Use `int32_t`, `int64_t` instead of `int`, `long`
 - Use `uint32_t`, `uint64_t` instead of `unsigned int`, `unsigned long`
 - Use `size_t` for sizes and indices when interfacing with STL
-- Exceptions: V8 API callbacks may require `int` in their signatures
+- Exceptions: third-party signatures (Win32, sqlite, ImGui) may require `int`
 
 ### Arrays
 
@@ -680,9 +734,15 @@ class Foo {
 inline uint32_t* Ping = nullptr;
 ```
 
-### V8 Value Creation
+### Script Values (`api/core/Convert.h`, `Extract.h`, `Error.h`)
 
-Prefer `api::convert::ToJS(isolate, value)` over direct V8 factory calls (`v8::String::NewFromUtf8`, `v8::Integer::New`, `v8::Number::New`, `v8::Boolean::New`). `ToJS` provides consistent error handling and supports: `const char*`, `std::string`, `std::string_view`, `std::filesystem::path`, `int32_t`, `uint32_t`, `double`, `bool`. Also has overloads for `Point` / `Position` / `Size` that emit `{x, y}` / `{width, height}` v8 objects.
+The frontend speaks unibind (`ub::`) only - never an engine type. Use the helpers in `api/core/` rather than raw `ub::` factories:
+
+- **Native -> script**: `convert::ToJS(isolate, value)` for `const char*`, `std::string`, `std::string_view`, `std::filesystem::path`, `int32_t`, `uint32_t`, `double`, `bool` (strings are lossy UTF-8: invalid bytes become U+FFFD; an empty handle means the engine is out of memory). `convert::ToJS(context, value)` for `Point` / `Position` / `Size` / `StatEntry` / `StatListEntry` returns `std::optional<ub::Local<ub::Object>>` - `{x, y}`, `{width, height}`, ... - empty if a step failed with the engine's exception pending. For a plain number or bool return, `GetReturnValue().Set(nativeValue)` needs no conversion.
+- **Script -> native**: `convert::ToString` / `ToInt32` / `ToUint32` / `ToDouble` / `ToBool(context, value)`, with the reference's leniency (absent / null / undefined, or a throwing conversion, is the zero value). `extract::Point` / `Position` / `Size` read an `{x, y}` / `{width, height}` object or two adjacent arguments (`extract::Point(args, 0)`), returning `std::optional`; `extract::PointInto` / `SizeInto` write straight into a drawable's atomic.
+- **Throwing and argument checks**: `error::ThrowError` / `ThrowTypeError` / `ThrowRangeError(isolate, message)`, `error::CheckArgCount` / `CheckIsNumber` / `CheckIsString(args, ...)`, `error::WarnAndReturnFalse(args, message)` (log + return `false`, the reference's soft failure). A throw takes effect when the callback returns to the engine, so return right after one.
+
+Every `ub::` operation that can fail returns a `std::optional`; check it (`value_or(false)`, `if (auto x = ...)`) rather than assuming success.
 
 ### Geometric Primitives
 
@@ -699,11 +759,11 @@ All four default-construct to zero (default member initializers) and provide `op
 **Use the `::Zero` constants for explicit zero values** - clearer than `Point{}` / `{.x = 0, .y = 0}`:
 ```cpp
 // Good
-auto p = extract::Point(args, 0).value_or(d2bs::game::Point::Zero);
-return d2bs::game::Position::Zero;
+auto p = extract::Point(args, 0).value_or(game::Point::Zero);
+return game::Position::Zero;
 
 // Avoid
-auto p = extract::Point(args, 0).value_or(d2bs::game::Point{});
+auto p = extract::Point(args, 0).value_or(game::Point{});
 return {.x = 0, .y = 0};
 ```
 
@@ -739,40 +799,73 @@ data.resize(size.Area(), fill);
 data.resize(static_cast<size_t>(size.width) * size.height, fill);
 ```
 
-### V8 Class Bindings
+### Class Bindings (`api/core/Class.h`)
 
-All classes use `ClassBase<T>` CRTP pattern with inline lambdas:
+Every script-visible class derives from `api::ClassBase<Derived, NativeType>`, a CRTP base over `ub::Class<NativeType>`. Derived supplies a `ClassName` and a `Configure` that declares its members with `+[]` lambdas; the members' `///` comments are what `scripts/extract_api.py` reads:
 
 ```cpp
-class JSExample : public ClassBase<JSExample, ExampleData> {
-public:
-    static constexpr std::string_view ClassName = "Example";
-    V8_CLASS_NOT_CONSTRUCTABLE(Example)  // or provide New()
-    static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl);
+class JSExit : public ClassBase<JSExit, navigation::ExitInfo> {
+   public:
+    static constexpr std::string_view ClassName = "Exit";
+
+    static void Configure(const ub::Class<Native>& cls) {
+        /// @description The exit's X coordinate in world coordinates.
+        /// @type {number}
+        Property(
+            cls, "x", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSExit>(info);  // TypeError "Illegal invocation" + null on a foreign receiver
+                if (data == nullptr) {
+                    return;
+                }
+                info.GetReturnValue().Set(data->pos.x);
+            });
+    }
 };
 ```
 
-**Method/Property registration** uses `+[]` lambdas:
-```cpp
-Method(isolate, proto, "methodName", +[](const v8::FunctionCallbackInfo<v8::Value>& args) { ... });
-Property(isolate, inst, "propName", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) { ... });
-```
+- **Members**: `Property(cls, name, getter[, setter])` (read-only with one lambda, read-write with two) as an own property of every instance, `Method(cls, name, fn)` on the prototype, `StaticMethod(cls, name, fn)` on the constructor, `SymbolMethod(cls, ub::WellKnownSymbol::..., name, fn)` for `Symbol.iterator`. Signatures: getter `(const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo&)`, setter `(const ub::Local<ub::Name>&, const ub::Local<ub::Value>&, const ub::PropertyCallbackInfo&)`, method `(const ub::CallbackInfo&)`. All of them are routed through the `components/script/NativeCallHook` trampolines (per-script stack capture, the Profiling panel's per-binding stats, named `"Class.member"`), so never bypass them with a raw `cls.Accessor` / `cls.Method`.
+- **Own properties**: `Property` declares its accessor on the class's instance template (`cls.InstanceTemplate()`), not the prototype, so it is an own property of each instance. Scripts rely on that: kolbot copies game objects with `for...in` + `hasOwnProperty` (`copyObj`), and `Object.keys` / `JSON.stringify` see only own properties. Keep it there.
+- **The receiver**: read `info.This()` / `args.This()`, never a holder. `Receiver<JSFoo>(info)` (`api/classes/game/Receiver.h`) unwraps it and throws on a foreign receiver; `Unwrap(value)` returns null silently, `UnwrapShared(value)` a share of the native, `IsInstance(value)` a bool.
+- **Construction**: without a `New` the class is not constructable from script (and appears so in the docs). With one, `static std::unique_ptr<Native> New(const ub::CallbackInfo& args)` or `static std::shared_ptr<Native> New(...)` builds the native, returning null after throwing to refuse. Calling without `new` is a TypeError unless the class also declares `static constexpr bool CALLABLE_WITHOUT_NEW = true;`, in which case `New` tells the two apart with `args.IsConstructCall()` - `JSProfile` does this, gated on the `profileCallWithoutNew` compatibility flag:
+
+  ```cpp
+  static constexpr bool CALLABLE_WITHOUT_NEW = true;
+  static std::unique_ptr<ProfileData> New(const ub::CallbackInfo& args);
+  // in New:
+  if (!args.IsConstructCall() && !config::CompatibilityFlags::Instance().IsEnabled("profileCallWithoutNew")) {
+      error::ThrowTypeError(isolate, "Profile must be called with 'new'");
+      return nullptr;
+  }
+  ```
+- **Handing out instances**: `JSFoo::Wrap(context, std::make_shared<Native>(...))` returns `std::optional<ub::Local<ub::Object>>` without running `New`:
+
+  ```cpp
+  if (auto result = Wrap(context, std::make_shared<game::Unit>(*invItem))) {
+      args.GetReturnValue().Set(*result);
+  }
+  ```
+- **Registration**: a new class is added to `api/classes/ClassRegistry.cpp` twice - `Install<JSFoo>(context, "Foo")` in `RegisterAllClasses` (puts the constructor on the global object) and `JSFoo::ClearCache()` in `ClearAllClassCaches` (the declared class is cached per thread and isolate, and must be forgotten when the isolate goes). Members that exist only on `me` are declared in `CreateMeObject` with `JSUnit::InstanceProperty(context, me, name, getter[, setter])`, which uses the same trampolines.
+- **Instance counting** is automatic: every wrapper's share is counted in `InstanceTracker` (the console's Scripts panel) through the share's deleter.
 
 ### Class Ownership Model
 
-| Category | Classes | Uses MakeWeak | Constructor |
-|----------|---------|---------------|-------------|
-| Game Data | Room, Party, Unit, Area, Exit, PresetUnit, Control, StashTab | YES | NOT_CONSTRUCTABLE |
-| Script-Owned | File, FileTools, Directory, SQLite, DBStatement, Profile, Socket, HttpClient, Sandbox | YES | Factory/CONSTRUCTABLE |
-| External Managed | Script | NO | NOT_CONSTRUCTABLE |
-| Screen Hooks | Frame, Box, Line, Text, Image | Owned by DrawableRegistry | CONSTRUCTABLE |
+`ub::Class<T>` holds each instance's native as a `std::shared_ptr<T>`; the native goes with its last share, whether that is the wrapper (collected by the GC) or something else that kept one.
+
+| Category | Classes | Native | Constructor |
+|----------|---------|--------|-------------|
+| Game Data | Unit, Room, Area, Exit, PresetUnit, Party, Control, StashTab | Identity handle / value copy (`game::Unit`, `navigation::ExitInfo`, ...); resolved per call | none - handed out by `getUnit()` etc. via `Wrap` |
+| Script-Owned I/O | File, Folder, Socket, DBStatement | `*Data` struct owning the OS / library resource | none - made by a static factory (`File.open`, `Socket.open`), a global (`dopen`) or another object (`SQLite.query`; a statement keeps its database alive) |
+| Script-Owned, constructable | SQLite, Profile, Sandbox | `*Data` struct | `New` returning `std::unique_ptr` (Profile is `CALLABLE_WITHOUT_NEW`) |
+| Screen Hooks | Frame, Box, Line, Text, Image | `std::shared_ptr<*Drawable>` also held by the owning `Script` (`AddDrawable`) and read by the game thread | `New` returning `std::shared_ptr` |
+| Script handle | D2BSScript | `ScriptHandle` naming a running script | none - `getScript()` etc. |
+| Namespaces | FileTools, HttpClient, Compatibility, TxtTables | never instantiated | none - static methods only |
 
 ### Game Thread Safety
 
 Game types are identity-based handles with per-frame pointer caching (`HandleCache`). See `docs/game_thread_safety.md` for full details.
 
 - **GameReadLock** (in `ResolvePtr()`) - automatic, per-resolve. Scripts never block each other.
-- **Bridge::Lock()** - explicit, for V8 callbacks that iterate game data or do multi-step traversals. Place as the first line of the callback.
+- **Bridge::Lock()** - explicit, for binding callbacks that iterate game data or do multi-step traversals. Take it before the traversal, after the cheap argument checks.
 - **GameWriteLock** - game thread only. Held continuously across the frame body; released during `GameLoop::OnSleep`'s drain loop in `idleSleepInterval` slices so script readers can acquire `GameReadLock`, then reacquired before returning to the game's frame work. Bootstrap via `firstSleep_` first-tick handling.
 - **GameThread::Execute()** - post work to game thread from scripts. For menu operations requiring game thread (login, createGame, etc.).
 
@@ -782,32 +875,35 @@ When implementing stubs: simple property reads just work (ResolvePtr handles loc
 
 **JS API -> Game Layer delegation:**
 ```cpp
-// Property getter pattern
-auto* myUnit = Unwrap(info.Holder());
-if (!myUnit) return;
-auto unit = myUnit->Resolve();
-if (!unit) return;
-info.GetReturnValue().Set(unit.Pos().x);
+// Property getter: the native IS the game handle; it resolves (under a GameReadLock) per call
+auto* data = Receiver<JSUnit>(info);
+if (data == nullptr || !*data) {
+    return;
+}
+info.GetReturnValue().Set(data->Pos().x);
 
-// Method with WaitForGameReady
-if (!d2bs::game::WaitForGameReady()) {
-    v8_exception::ThrowError(args.GetIsolate(), "Game not ready");
+// Method that needs the game: WaitForGameReady, soft-fail like the reference
+if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+    error::WarnAndReturnFalse(args, "Game not ready");
     return;
 }
 
+// Multi-step traversal: hold one read lock across it, then wrap the result
+auto lock = game::Bridge::Lock();
+auto invItem = data->FindFirstInventoryItem(cursor);
+if (invItem) {
+    if (auto result = Wrap(context, std::make_shared<game::Unit>(*invItem))) {
+        args.GetReturnValue().Set(*result);
+    }
+}
+
 // Control methods require menu state
-if (d2bs::game::GetGameState() != d2bs::game::GameState::Menu) return;
+if (game::GetGameState() != game::GameState::Menu) {
+    return;
+}
 ```
 
-**MyUnit::Resolve() sentinel for `me` object:**
-```cpp
-// unitId=0, type=0 resolves to the current player unit
-if (unitId == 0 && type == 0) return d2bs::game::Unit::Player();
-```
-
-**PrivateType values** (match reference bitmask: `PRIVATE_ITEM & PRIVATE_UNIT == PRIVATE_UNIT`):
-- `PrivateType::Unit = 0x01` - regular units from `getUnit()` and `getItems()`
-- `PrivateType::Item = 0x03` - inventory items from `getItem()` (uses `InvUnit` with owner info)
+**The `me` object** is a `Unit` wrapper around `game::Unit::Player()` - the unitId=0, type=0 sentinel whose `ResolvePtr()` returns the current player unit - plus `me`-only members declared with `JSUnit::InstanceProperty` in `ClassRegistry.cpp`'s `CreateMeObject`.
 
 **Where search/filter logic lives:**
 
@@ -829,30 +925,49 @@ Prefer narrow fixes (just the import + d2bs callers) over wide ones (touching th
 
 **JS API stability:**
 
-The JS-visible surface lives in `src/frontends/runtime/api/` (`globals/*.cpp` for free functions, `classes/*.cpp` for V8-exposed classes). When refactoring C++ helpers consumed by these adapters (e.g. changing `GetTradeInfo` from a struct return to `std::optional<std::string>`), audit the adapter for any output-shape change. Internal C++ evolution (struct -> optional, int -> bool, helper inlining) is fine; observable JS behavior changes are not, unless explicitly approved. When in doubt, `git diff -- src/frontends/runtime/api/` after a refactor and read every JS-visible Set/SetNull/SetReturnValue path.
+The JS-visible surface lives in `src/frontends/runtime/api/` (`globals/*.cpp` for free functions, `classes/**` for script-visible classes). When refactoring C++ helpers consumed by these adapters (e.g. changing `GetTradeInfo` from a struct return to `std::optional<std::string>`), audit the adapter for any output-shape change. Internal C++ evolution (struct -> optional, int -> bool, helper inlining) is fine; observable JS behavior changes are not, unless explicitly approved. When in doubt, `git diff -- src/frontends/runtime/api/` after a refactor and read every JS-visible Set/SetNull/SetReturnValue path.
 
 ### Native Data Structs
 
-Each V8 class has a corresponding `*Data` struct:
+A class that owns a resource has a `*Data` struct as its native (game classes use the game handle or value type directly). The destructor releases the resource, because the native goes whenever its last share does - on whichever thread that is:
 
 ```cpp
 struct SQLiteData {
     sqlite3* handle = nullptr;
     std::filesystem::path path;
     bool isOpen = false;
-    void Close();      // Idempotent cleanup
-    ~SQLiteData() { Close(); }
+    // Statements prepared on this connection. Weak: a statement keeps its database alive, not the other way round.
+    std::vector<std::weak_ptr<DBStatementData>> statements;
+
+    void Close() noexcept;  // Idempotent cleanup - closes all statements and the database
+    ~SQLiteData() noexcept { Close(); }
 };
 ```
 
 ### Global Functions
 
-Organized by category in `src/frontends/runtime/api/globals/`:
+Organized by category in `src/frontends/runtime/api/globals/`, one `Register*Functions(const ub::Context&)` per file (called from `Script::SetupIsolate`). Each function is a `function::Register` call (`api/core/Function.h`) with its `///` doc block above it; `Register` routes it through the same NativeCallHook trampoline as class members:
+
+```cpp
+/// @description Pauses the calling script for the given milliseconds while still processing its events.
+/// @signature delay(ms: number)
+/// @param ms {number} - milliseconds to wait; clamped to a minimum of 1
+/// @returns {undefined}
+function::Register(
+    context, "delay", +[](const ub::CallbackInfo& args) {
+        if (!error::CheckArgCount(args, 1, "delay")) {
+            return;
+        }
+        uint32_t ms = std::max(convert::ToUint32(args.GetContext(), args[0]), 1U);
+        // ...
+    });
+```
+
 - `CoreFunctions.cpp` - print, delay, getTickCount, include, load, sendPacket, sendClick, setSpeed/getSpeed, etc.
 - `GameFunctions.cpp` - getUnit, getPath, getRoom, clickMap, acceptTrade, etc.
 - `MenuFunctions.cpp` - login, createGame, joinGame, getLocation, timers, events
 - `HashFunctions.cpp` - md5, sha1, sha256, sha384, sha512 (with file variants)
-- `Constants.cpp/h` - JS-visible constants (FILE_READ, FILE_WRITE, FILE_APPEND, ProfileType)
+- `Constants.cpp/h` - JS-visible constants (FILE_READ, FILE_WRITE, FILE_APPEND, ProfileType), declared read-only with `Define(context, target, name, value)` in `RegisterConstants`
 - `TxtTables.h` / `TxtLookup.h` - generated Diablo II .txt table/column schema (data behind getBaseStat)
 
 ## Style Enforcement
@@ -906,11 +1021,10 @@ FindPathOnGrid(coll, {.x = 5, .y = 5}, {.x = 45, .y = 45}, ...);
 **No C-style arrays** - Use `std::array` for all local/member arrays:
 ```cpp
 // BAD:
-v8::Local<v8::Value> argv[] = {arg1, arg2};
-func->Call(context, recv, 2, argv);
+ub::Local<ub::Value> argv[] = {arg1, arg2};
 // GOOD:
-std::array<v8::Local<v8::Value>, 2> argv = {arg1, arg2};
-func->Call(context, recv, argv.size(), argv.data());
+const std::array<ub::Local<ub::Value>, 2> argv = {arg1, arg2};
+auto result = fn.Call(context, ub::Undefined(isolate), argv);
 ```
 
 **`unique_ptr` with forward-declared types** - If a header forward-declares a type and holds it in `std::unique_ptr`, the destructor must be defined in the `.cpp` file where the type is complete:

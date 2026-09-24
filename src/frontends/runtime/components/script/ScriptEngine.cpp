@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <ranges>
+#include <string>
 
 #include "components/engine/Engine.h"
 #include "components/inspector/InspectorServer.h"
@@ -25,8 +26,9 @@ void ScriptEngine::Initialize() {
 
     // Start the V8 inspector server when enabled (inspectorPort > 0), before any
     // script registers a target. Every script isolate attaches a target
-    // regardless; the server just exposes them when running.
-    if (const int32_t port = config::GetAppConfig().inspectorPort.load(); port > 0) {
+    // regardless; the server just exposes them when running. SpiderMonkey has no
+    // inspector, so there is nothing to serve.
+    if (const int32_t port = config::GetAppConfig().inspectorPort.load(); port > 0 && ub::Inspector::Supported()) {
         if (runtime::inspector::InspectorServer::Instance().Start(static_cast<uint16_t>(port))) {
             logger_->info("V8 inspector listening on http://127.0.0.1:{} - open chrome://inspect", port);
         } else {
@@ -86,7 +88,7 @@ void ScriptEngine::Shutdown() {
 
     runtime::inspector::InspectorServer::Instance().Stop();
 
-    // V8 platform shutdown is handled by Engine singleton destructor
+    // The engine platform is never taken down; see components/engine/Engine.cpp.
     initialized_ = false;
     logger_->info("ScriptEngine shutdown complete");
 }
@@ -176,14 +178,11 @@ std::shared_ptr<Script> ScriptEngine::GetScriptByPath(const std::filesystem::pat
     return nullptr;
 }
 
-Script* ScriptEngine::GetScript(v8::Isolate* iso) {
+Script* ScriptEngine::GetScript(ub::Isolate* iso) {
     if (!iso) {
-        iso = v8::Isolate::TryGetCurrent();
+        return currentScript_;
     }
-    if (!iso) {
-        return nullptr;
-    }
-    return static_cast<Script*>(iso->GetData(0));
+    return iso->GetEmbedderData<Script>();
 }
 
 std::vector<std::shared_ptr<Script>> ScriptEngine::GetAllScripts() {

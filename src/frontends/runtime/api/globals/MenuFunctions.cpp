@@ -1,5 +1,8 @@
 #include "MenuFunctions.h"
 
+#include <string>
+#include <utility>
+
 #include "api/core/Convert.h"
 #include "api/core/Error.h"
 #include "api/core/Function.h"
@@ -11,7 +14,7 @@
 
 namespace d2bs::api::globals {
 
-void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> global) {
+void RegisterMenuFunctions(const ub::Context& context) {
     /// @description Logs in at the menu using a stored profile, driving the UI through character selection.
     /// @signature login()
     /// @signature login(profileName: string)
@@ -21,8 +24,9 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @throws {Error} - Named profile does not exist.
     /// @throws {Error} - Login attempt fails.
     function::Register(
-        isolate, global, "login", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
+        context, "login", +[](const ub::CallbackInfo& args) {
+            auto& isolate = args.GetIsolate();
+            const auto& context = args.GetContext();
 
             // Reference: only works when client is in menu state
             if (game::GetGameState() != game::GameState::Menu) {
@@ -30,8 +34,8 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
 
             std::string profileName;
-            if (args.Length() > 0 && args[0]->IsString()) {
-                profileName = convert::ToString(isolate, args[0]);
+            if (args.Length() > 0 && args[0].IsString()) {
+                profileName = convert::ToString(context, args[0]);
             } else {
                 profileName = config::GetAppConfig().GetProfileName();
                 if (profileName.empty()) {
@@ -61,19 +65,23 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature getRealms()
     /// @returns {Array<{name:string, host:string}>} - one entry per realm; `host` is the server hostname or IP.
     function::Register(
-        isolate, global, "getRealms", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
-            auto context = isolate->GetCurrentContext();
+        context, "getRealms", +[](const ub::CallbackInfo& args) {
+            auto& isolate = args.GetIsolate();
+            const auto& context = args.GetContext();
             const auto realms = game::GetRealms();
-            auto arr = v8::Array::New(isolate, static_cast<int32_t>(realms.size()));
+            auto arr = ub::Array::New(context, static_cast<uint32_t>(realms.size()));
+            if (!arr) {
+                return;
+            }
             uint32_t i = 0;
             for (const auto& realm : realms) {
-                auto obj = v8::Object::New(isolate);
-                obj->Set(context, convert::ToJS(isolate, "name"), convert::ToJS(isolate, realm.name)).Check();
-                obj->Set(context, convert::ToJS(isolate, "host"), convert::ToJS(isolate, realm.host)).Check();
-                arr->Set(context, i++, obj).Check();
+                auto obj = convert::detail::MakeObject(context, std::pair{"name", convert::ToJS(isolate, realm.name)},
+                                                       std::pair{"host", convert::ToJS(isolate, realm.host)});
+                if (!obj || !arr->Set(context, i++, *obj).value_or(false)) {
+                    return;
+                }
             }
-            args.GetReturnValue().Set(arr);
+            args.GetReturnValue().Set(*arr);
         });
 
     /// @description Selects a profile's character in the character-selection screen.
@@ -82,18 +90,19 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @returns {boolean} - true if the character was selected, false otherwise.
     /// @throws {Error} - Profile cannot be resolved to a character.
     function::Register(
-        isolate, global, "selectCharacter", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
+        context, "selectCharacter", +[](const ub::CallbackInfo& args) {
+            auto& isolate = args.GetIsolate();
+            const auto& context = args.GetContext();
 
             // Reference JSMenu.cpp:45-46 throws one message for both wrong arg
             // count and wrong arg type; reproduce verbatim so scripts that
             // string-match the error keep working.
-            if (args.Length() != 1 || !args[0]->IsString()) {
+            if (args.Length() != 1 || !args[0].IsString()) {
                 error::ThrowError(isolate, "Invalid parameters specified to selectCharacter");
                 return;
             }
 
-            std::string profileName = convert::ToString(isolate, args[0]);
+            std::string profileName = convert::ToString(context, args[0]);
             auto charname = services::profile::ResolveCharacter(profileName);
             if (!charname) {
                 error::ThrowError(isolate, "Invalid profile specified");
@@ -112,8 +121,9 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @returns {boolean} - Result of the creation attempt; undefined if not at the menu. Throws on invalid arguments.
     /// @throws {Error} - Character type is outside the valid class range (0-6).
     function::Register(
-        isolate, global, "createCharacter", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
+        context, "createCharacter", +[](const ub::CallbackInfo& args) {
+            auto& isolate = args.GetIsolate();
+            const auto& context = args.GetContext();
 
             // Reference: only works when client is in menu state
             if (game::GetGameState() != game::GameState::Menu) {
@@ -133,17 +143,17 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            std::string name = convert::ToString(isolate, args[0]);
-            int32_t type = convert::ToInt32(isolate, args[1]);
+            std::string name = convert::ToString(context, args[0]);
+            int32_t type = convert::ToInt32(context, args[1]);
 
             bool hardcore = false;
-            if (args.Length() > 2 && args[2]->IsBoolean()) {
-                hardcore = args[2]->BooleanValue(isolate);
+            if (args.Length() > 2 && args[2].IsBoolean()) {
+                hardcore = args[2].IsTrue();
             }
 
             bool ladder = false;
-            if (args.Length() > 3 && args[3]->IsBoolean()) {
-                ladder = args[3]->BooleanValue(isolate);
+            if (args.Length() > 3 && args[3].IsBoolean()) {
+                ladder = args[3].IsTrue();
             }
 
             // Validate character class (0-6)
@@ -167,8 +177,9 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @throws {Error} - Difficulty is outside 0-3.
     /// @throws {Error} - Create attempt fails.
     function::Register(
-        isolate, global, "createGame", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
+        context, "createGame", +[](const ub::CallbackInfo& args) {
+            auto& isolate = args.GetIsolate();
+            const auto& context = args.GetContext();
             args.GetReturnValue().SetNull();
 
             // Reference: only works when client is in menu state
@@ -184,7 +195,7 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            std::string name = convert::ToString(isolate, args[0]);
+            std::string name = convert::ToString(context, args[0]);
 
             // Validate name length
             if (name.length() > 15) {
@@ -195,11 +206,11 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             // Get optional password
             std::string pass;
             if (args.Length() > 1) {
-                if (!args[1]->IsString()) {
+                if (!args[1].IsString()) {
                     error::ThrowTypeError(isolate, "Invalid arguments specified to createGame");
                     return;
                 }
-                pass = convert::ToString(isolate, args[1]);
+                pass = convert::ToString(context, args[1]);
                 if (pass.length() > 15) {
                     error::ThrowError(isolate, "Invalid game name or password length");
                     return;
@@ -209,11 +220,11 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             // Get optional difficulty (0-2, default 3 for highest available)
             int32_t diff = 3;
             if (args.Length() > 2) {
-                if (!args[2]->IsNumber()) {
+                if (!args[2].IsNumber()) {
                     error::ThrowTypeError(isolate, "Invalid arguments specified to createGame");
                     return;
                 }
-                diff = convert::ToInt32(isolate, args[2]);
+                diff = convert::ToInt32(context, args[2]);
             }
 
             if (diff < 0 || diff > static_cast<int32_t>(game::Difficulty::HighestAvailable)) {
@@ -235,8 +246,9 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @throws {Error} - Game name or password exceeds 15 characters.
     /// @throws {Error} - Join attempt fails.
     function::Register(
-        isolate, global, "joinGame", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
+        context, "joinGame", +[](const ub::CallbackInfo& args) {
+            auto& isolate = args.GetIsolate();
+            const auto& context = args.GetContext();
             args.GetReturnValue().SetNull();
 
             // Reference: only works when client is in menu state
@@ -252,7 +264,7 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            std::string name = convert::ToString(isolate, args[0]);
+            std::string name = convert::ToString(context, args[0]);
 
             // Validate name length
             if (name.length() > 15) {
@@ -263,11 +275,11 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             // Get optional password
             std::string pass;
             if (args.Length() > 1) {
-                if (!args[1]->IsString()) {
+                if (!args[1].IsString()) {
                     error::ThrowTypeError(isolate, "Invalid arguments specified to joinGame");
                     return;
                 }
-                pass = convert::ToString(isolate, args[1]);
+                pass = convert::ToString(context, args[1]);
                 if (pass.length() > 15) {
                     error::ThrowError(isolate, "Invalid game name or password length");
                     return;
@@ -295,8 +307,9 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @throws {Error} - spdifficulty is outside 0-3.
     /// @throws {Error} - mode string does not map to a known profile type.
     function::Register(
-        isolate, global, "addProfile", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
+        context, "addProfile", +[](const ub::CallbackInfo& args) {
+            auto& isolate = args.GetIsolate();
+            const auto& context = args.GetContext();
 
             // Require at least 6 arguments
             if (args.Length() < 6) {
@@ -311,29 +324,29 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
 
             // Validate all 6 required string arguments
-            for (int32_t i = 0; i < 6; i++) {
-                if (!args[i]->IsString()) {
+            for (uint32_t i = 0; i < 6; i++) {
+                if (!args[i].IsString()) {
                     error::ThrowError(isolate, "Invalid argument passed to addProfile");
                     return;
                 }
             }
 
-            std::string profileName = convert::ToString(isolate, args[0]);
-            std::string mode = convert::ToString(isolate, args[1]);
-            std::string gateway = convert::ToString(isolate, args[2]);
-            std::string username = convert::ToString(isolate, args[3]);
-            std::string password = convert::ToString(isolate, args[4]);
-            std::string charname = convert::ToString(isolate, args[5]);
+            std::string profileName = convert::ToString(context, args[0]);
+            std::string mode = convert::ToString(context, args[1]);
+            std::string gateway = convert::ToString(context, args[2]);
+            std::string username = convert::ToString(context, args[3]);
+            std::string password = convert::ToString(context, args[4]);
+            std::string charname = convert::ToString(context, args[5]);
 
             // Get optional spdifficulty (default 3). Reject non-number arg consistently
             // with the string-arg validation above - silently dropping it hides script bugs.
             int32_t spdifficulty = 3;
             if (args.Length() == 7) {
-                if (!args[6]->IsNumber()) {
+                if (!args[6].IsNumber()) {
                     error::ThrowError(isolate, "Invalid argument passed to addProfile");
                     return;
                 }
-                spdifficulty = convert::ToInt32(isolate, args[6]);
+                spdifficulty = convert::ToInt32(context, args[6]);
             }
 
             // Validate spdifficulty range
@@ -376,7 +389,7 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature getLocation()
     /// @returns {number|null} - Numeric out-of-game location id when at the menu; null otherwise.
     function::Register(
-        isolate, global, "getLocation", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+        context, "getLocation", +[](const ub::CallbackInfo& args) {
             // Reference: only works when client is in menu state
             if (game::GetGameState() != game::GameState::Menu) {
                 args.GetReturnValue().SetNull();

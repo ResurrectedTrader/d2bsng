@@ -17,9 +17,19 @@ class logger;
 
 namespace d2bs::services::analytics {
 
+// The script engine this build links, as the frontend reports it: this library
+// sits below the frontend and cannot ask the engine itself.
+struct EngineDescription {
+    std::string name;
+    std::string version;
+    // Whether the engine has a remote debugger, so the "inspector" feature tag
+    // reflects one that can actually be listening rather than only the setting.
+    bool hasDebugger = false;
+};
+
 // Fire-and-forget anonymous usage analytics. On startup it emits a
 // "session_start" event to Aptabase describing the running build (d2bsng
-// version, OS, locale, backend version, architecture) plus an anonymous install
+// version, OS, locale, backend version, script engine, architecture) plus an anonymous install
 // id and, when a bot manager supplies one, a user id for correlation. It then
 // emits one "profile_active" event per distinct profile the launch runs, keyed
 // by a per-install hash of the profile name (never the name itself), which is
@@ -40,7 +50,7 @@ class Analytics {
     // Idempotent - a second call while running is a no-op, as is a call when
     // opted out or when no app key is configured. The event is sent after a
     // short settle delay.
-    void Start();
+    void Start(EngineDescription engine);
 
     // Request the reporter thread to stop and join it. Idempotent. A POST in
     // flight is not cancellable, so this blocks until it finishes or hits its
@@ -86,6 +96,7 @@ class Analytics {
     // Resolved in Start() (the framework-init thread), then read-only on the
     // reporter thread - the thread spawn provides the happens-before edge.
     std::string host_;  // ingest base URL derived from the key's region
+    EngineDescription engine_;
 
     // Derived once on the reporter thread after the settle delay (both are
     // needed by every event), then only read there.

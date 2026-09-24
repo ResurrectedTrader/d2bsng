@@ -3,8 +3,8 @@ name: Release
 # Manual only (Actions -> Release -> Run workflow). Computes the next version
 # ONCE, bakes it into the DLL, builds + tests (the `build` job) while the API
 # surface is extracted in parallel (the `api` job), then - if both pass - tags
-# that version and publishes d2bs.dll + .pdb + d2bsng.d.ts + api.json, then
-# deploys the docs.
+# that version and publishes d2bs.dll + .pdb (V8), d2bs-spidermonkey.zip (the
+# SpiderMonkey d2bs.dll + .pdb), d2bsng.d.ts + api.json, then deploys the docs.
 #
 # The version is decided up front (the `version` job) and reused for both the
 # baked-in D2BS_VERSION and the git tag, so they can never drift. The release
@@ -101,27 +101,40 @@ jobs:
           & "$vcpkgDir\vcpkg.exe" integrate install
           if ($LASTEXITCODE -ne 0) { throw "vcpkg integrate failed" }
           "VCPKG_ROOT=$vcpkgDir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-      # The build fetches V8 itself - headers and monolith, out of one archive,
-      # into dependencies/v8/<version>/ (Directory.Build.props declares the
-      # version; scripts/fetch_v8.ps1 unpacks it before anything compiles). So
-      # there is nothing to download here. All this does is stop a runner from
-      # pulling over a gigabyte on every run, and it reads the version out of
-      # the build rather than restating it, so the key cannot drift from what
-      # the build actually wants - and a version bump is a new key and a new
-      # directory rather than a stale hit.
-      - name: Resolve V8 version
-        id: v8
+      # The build fetches unibind, V8 and SpiderMonkey itself, each out of one
+      # archive into dependencies/<name>/<version>/ (Directory.Build.props
+      # declares the versions; scripts/fetch_archive.ps1 unpacks them before
+      # anything compiles). So there is nothing to download here. All this does
+      # is stop a runner from pulling a couple of gigabytes on every run, and it
+      # reads the versions out of the build rather than restating them, so a key
+      # cannot drift from what the build actually wants - and a version bump is
+      # a new key and a new directory rather than a stale hit.
+      - name: Resolve dependency versions
+        id: deps
         shell: pwsh
         run: |
           $props = [xml](Get-Content Directory.Build.props -Raw)
-          $node = $props.SelectSingleNode('//V8Version')
-          if (-not $node) { throw "V8Version not found in Directory.Build.props" }
-          "version=$($node.InnerText.Trim())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          foreach ($name in 'V8Version', 'SpiderMonkeyVersion', 'UnibindVersion') {
+            $node = $props.SelectSingleNode("//$name")
+            if (-not $node) { throw "$name not found in Directory.Build.props" }
+            "$($name.ToLower())=$($node.InnerText.Trim())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          }
       - name: Cache V8
         uses: actions/cache@v4
         with:
-          path: dependencies/v8/${{ steps.v8.outputs.version }}
-          key: v8-${{ runner.os }}-${{ steps.v8.outputs.version }}
+          path: dependencies/v8/${{ steps.deps.outputs.v8version }}
+          key: v8-${{ runner.os }}-${{ steps.deps.outputs.v8version }}
+      - name: Cache SpiderMonkey
+        uses: actions/cache@v4
+        with:
+          path: dependencies/spidermonkey/${{ steps.deps.outputs.spidermonkeyversion }}
+          key: spidermonkey-${{ runner.os }}-${{ steps.deps.outputs.spidermonkeyversion }}
+      - name: Cache unibind
+        uses: actions/cache@v4
+        with:
+          path: dependencies/unibind/${{ steps.deps.outputs.unibindversion }}
+          key: unibind-${{ runner.os }}-${{ steps.deps.outputs.unibindversion }}
+      # Both glue DLLs: Release/js-v8-lod114d/d2bs.dll and Release/js-sm-lod114d/d2bs.dll.
       - name: Build (Release)
         shell: pwsh
         env:
@@ -147,20 +160,36 @@ jobs:
         run: |
           .\Release\js_tests.exe
           if ($LASTEXITCODE -ne 0) { throw "tests failed" }
+      # Both builds are d2bs.dll, because that is the name the loader looks
+      # for. The V8 one - the default - ships as the bare d2bs.dll + .pdb it
+      # always has, so existing download links keep working; the SpiderMonkey
+      # one ships as d2bs-spidermonkey.zip holding its own d2bs.dll + .pdb, so
+      # the name survives there too and the two cannot be mixed up on disk.
+      # THIRD-PARTY-NOTICES.txt carries the licences of what both DLLs link
+      # (unibind, V8, SpiderMonkey and what they bundle): it ships beside the
+      # V8 DLL as its own asset and inside the SpiderMonkey zip.
+      - name: Stage release binaries
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item Release/js-v8-lod114d/d2bs.dll, Release/js-v8-lod114d/d2bs.pdb, THIRD-PARTY-NOTICES.txt dist/
+          Compress-Archive -Path Release/js-sm-lod114d/d2bs.dll, Release/js-sm-lod114d/d2bs.pdb, THIRD-PARTY-NOTICES.txt -DestinationPath dist/d2bs-spidermonkey.zip
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: d2bs-binaries
           path: |
-            Release/js-v8-lod114d/d2bs.dll
-            Release/js-v8-lod114d/d2bs.pdb
+            dist/d2bs.dll
+            dist/d2bs.pdb
+            dist/d2bs-spidermonkey.zip
+            dist/THIRD-PARTY-NOTICES.txt
           retention-days: 1
           if-no-files-found: error
 
   api:
     name: API docs
     # Extracts the API surface with libclang and renders d2bsng.d.ts. It reads
-    # only headers (the bindings' sources, the vendored V8 includes, the vcpkg
+    # only headers (the bindings' sources, unibind's headers, the vcpkg
     # packages, MSVC + SDK), never the built DLL, so it runs alongside `build`
     # rather than after it. api.json + d.ts ship as release assets; the docs
     # site is assembled later (deploy-docs) from all releases.
@@ -203,6 +232,15 @@ jobs:
         run: |
           & "$env:VCPKG_ROOT\vcpkg.exe" install --triplet x86-windows-static --x-manifest-root="$env:GITHUB_WORKSPACE" --x-install-root="$env:GITHUB_WORKSPACE\vcpkg_installed\x86-windows-static"
           if ($LASTEXITCODE -ne 0) { throw "vcpkg install failed" }
+      # The bindings include unibind's headers, which the build would fetch;
+      # nothing builds here, so run just that target.
+      - name: Fetch unibind headers
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $msbuild = & $vswhere -latest -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\amd64\MSBuild.exe' | Select-Object -First 1
+          & $msbuild src\frontends\runtime\runtime.vcxproj -t:FetchUnibind -p:Configuration=Release -p:Platform=Win32 -p:UnibindRequired=true -v:m -nologo
+          if ($LASTEXITCODE -ne 0) { throw "unibind fetch failed" }
       - name: Generate API JSON + d.ts
         shell: pwsh
         run: |
@@ -309,6 +347,8 @@ jobs:
           gh release create "$v" --notes-file notes.md --title "$v" \
             "dist/d2bs.dll#d2bs.dll" \
             "dist/d2bs.pdb#d2bs.pdb" \
+            "dist/d2bs-spidermonkey.zip#d2bs-spidermonkey.zip" \
+            "dist/THIRD-PARTY-NOTICES.txt#THIRD-PARTY-NOTICES.txt" \
             "dist/d2bsng.d.ts#d2bsng.d.ts" \
             "dist/api.json#api.json"
 
@@ -330,7 +370,7 @@ jobs:
           # UTF-8 sequence that jq would reject.
           {
             head -c 3500 notes.md | iconv -c -f UTF-8 -t UTF-8
-            printf '\n\n**Download:** [d2bs.dll](%s/d2bs.dll) | [d2bsng.d.ts](%s/d2bsng.d.ts) (TypeScript definitions)\n' "$dl" "$dl"
+            printf '\n\n**Download:** [d2bs.dll](%s/d2bs.dll) | [d2bs-spidermonkey.zip](%s/d2bs-spidermonkey.zip) (SpiderMonkey build) | [d2bsng.d.ts](%s/d2bsng.d.ts) (TypeScript definitions) | [third-party notices](%s/THIRD-PARTY-NOTICES.txt)\n' "$dl" "$dl" "$dl" "$dl"
             printf '**API reference:** https://resurrectedtrader.github.io/d2bsng/\n'
           } > body.md
           # -Rs slurps the file as one JSON string, so no escaping by hand.

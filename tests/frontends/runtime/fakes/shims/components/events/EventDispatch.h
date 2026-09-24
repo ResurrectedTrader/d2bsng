@@ -3,7 +3,7 @@
 // Test shim for src/frontends/runtime/components/events/EventDispatch.h
 //
 // Test-only shim for components/events/EventDispatch.h. The real header pulls
-// in <v8.h> via ScriptBroadcastEventDispatch, which the test binary does not
+// in the script engine via ScriptBroadcastEventDispatch, which the test binary does not
 // link. GameLoop.cpp only touches the three dispatchers below, so that's all we
 // declare here; the capturing implementations live in
 // tests/frontends/runtime/fakes/GameLoopCollaborators.cpp.

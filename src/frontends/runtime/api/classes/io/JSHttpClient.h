@@ -1,11 +1,8 @@
 #pragma once
 
-#include <v8.h>
 #include <string_view>
 
 #include "api/core/Class.h"
-#include "api/core/Convert.h"
-#include "api/core/Error.h"
 
 namespace d2bs::api::classes {
 
@@ -37,9 +34,7 @@ class JSHttpClient : public ClassBase<JSHttpClient, HttpClientData> {
     static constexpr std::string_view ClassName = "HttpClient";
 
     // HttpClient is a namespace-like holder of static methods, never constructed.
-    V8_CLASS_NOT_CONSTRUCTABLE
-
-    static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl);
+    static void Configure(const ub::Class<HttpClientData>& cls);
 };
 
 }  // namespace d2bs::api::classes

@@ -2,8 +2,7 @@
 
 // Test-only shim for src/frontends/runtime/components/drawing/Drawable.h.
 //
-// The real header pulls in <v8.h> via the Drawable struct (Global handles
-// for onClick/onHover, collection operations that iterate ScriptEngine).
+// The real DrawAll walks every script's drawables through ScriptEngine.
 // GameLoop.cpp only calls Drawable::DrawAll with a GameState, so the shim
 // exposes just that entry point.
 

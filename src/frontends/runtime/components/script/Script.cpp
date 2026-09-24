@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cassert>
 #include <chrono>
 #include <fstream>
 #include <ranges>
@@ -11,7 +10,6 @@
 #include <vector>
 
 #include "api/classes/ClassRegistry.h"
-#include "api/core/Convert.h"
 #include "api/core/InstanceTracker.h"
 #include "api/globals/Constants.h"
 #include "api/globals/CoreFunctions.h"
@@ -28,12 +26,14 @@
 #include "components/script/CompileSource.h"
 #include "components/script/NativeCallHook.h"
 #include "components/script/ScriptEngine.h"
+#include "components/script/ScriptLogger.h"
 #include "config/AppConfig.h"
 #include "game/GameHelpers.h"
 #include "game/GameLock.h"
 #include "speedhack/Speedhack.h"
 #include "utils/DeferGuard.h"
 #include "utils/Profiling.h"
+#include "utils/threadutils.h"
 #include "utils/utils.h"
 
 namespace d2bs {
@@ -46,7 +46,7 @@ enum class IdlePhase : size_t { Pump, Handlers, Wait, Paused };
 
 constexpr std::array IDLE_PHASES = {
     profiling::PhaseInfo{.name = "event pump",
-                         .what = "V8 tasks, inspector messages, heap stats - everything but the handlers",
+                         .what = "engine jobs, debugger messages, heap stats - everything but the handlers",
                          .warn = 5.0,
                          .bad = 15.0},
     profiling::PhaseInfo{.name = "handlers (JS)", .what = "event and timer callbacks run from delay()"},
@@ -74,7 +74,7 @@ Script::Script(std::filesystem::path path, ScriptMode mode, std::vector<std::vec
       args_(std::move(args)),
       logger_(utils::GetLogger(path_.filename().string())) {}
 
-std::shared_ptr<spdlog::logger> GetLogger(v8::Isolate* isolate) {
+std::shared_ptr<spdlog::logger> GetLogger(ub::Isolate* isolate) {
     if (auto* script = ScriptEngine::Instance().GetScript(isolate)) {
         return script->GetLogger();
     }
@@ -167,54 +167,25 @@ std::thread::id Script::GetThreadId() const {
     return thread_.get_id();
 }
 
-v8::Local<v8::Context> Script::GetContext() const {
-    // Isolate-thread-only: the TryGetCurrent() fallback below resolves the context
-    // against whatever isolate is current, which is correct only on this script's
-    // own thread. Debug guard for the contract documented on the declaration.
-    assert(std::this_thread::get_id() == thread_.get_id() && "GetContext is isolate-thread-only");
-    if (context_.IsEmpty()) {
-        return {};
-    }
-    auto iso = isolate_.load();
-    // TeardownIsolate exchanges isolate_ to null before resetting context_, yet
-    // the isolate is still entered (Isolate::Scope active) while ~ScriptInspector
-    // reads the context here for contextDestroyed. Fall back to the current
-    // isolate so that path still resolves the live context.
-    v8::Isolate* raw = iso ? iso.get() : v8::Isolate::TryGetCurrent();
-    if (!raw) {
-        return {};
-    }
-    return context_.Get(raw);
-}
-
 void Script::Evaluate(const std::string& code) {
     auto event = std::make_shared<EvaluateEvent>(code);
     ExecuteEvent(event);
 }
 
-void Script::AttachInspector() {
-    auto iso = isolate_.load();
-    if (!iso) {
-        return;
-    }
-    v8::Isolate::Scope isolateScope(iso.get());
-    v8::HandleScope handleScope(iso.get());
-    if (GetContext().IsEmpty()) {
-        return;
-    }
-    // Label shown in chrome://inspect. Prefix with the active profile (when set)
-    // so multi-box users can tell which bot a target belongs to. The console
-    // script carries a real path (its lookup fallback), so classify by mode.
+void Script::AttachDebugger(ub::Isolate& isolate) {
+    // Label shown in the debugger's target list. Prefix with the active profile
+    // (when set) so multi-box users can tell which bot a target belongs to. The
+    // console script carries a real path (its lookup fallback), so classify by mode.
     const bool isConsole = mode_ == ScriptMode::Console;
     std::string name = isConsole ? std::string("Console") : GetName();
     const std::string profile = config::GetAppConfig().GetProfileName();
     std::string title = profile.empty() ? name : (profile + " / " + name);
     // The url is the base-relative path as a file:// URL, like every script URL
-    // DevTools sees (resourceNameToUrl maps script origins the same way): the
-    // install path stays out of DevTools and the URLs are stable across machines.
+    // the debugger sees (it maps script origins the same way): the install path
+    // stays out of the debugger and the URLs are stable across machines.
     std::string url =
         isConsole ? std::string("d2bs://console") : config::GetAppConfig().GetScriptPaths().FileUrl(path_);
-    inspector_ = std::make_unique<runtime::inspector::ScriptInspector>(this, std::move(title), std::move(url));
+    inspector_ = runtime::inspector::ScriptInspector::Create(*this, context_, std::move(title), std::move(url));
 }
 
 void Script::ThreadMain(const std::stop_token& stopToken) {
@@ -223,13 +194,16 @@ void Script::ThreadMain(const std::stop_token& stopToken) {
     // last external reference.  Without this, `this` is destroyed mid-function.
     auto self = shared_from_this();
 
+    ScriptEngine::currentScript_ = this;
+    const DeferGuard clearCurrent([] { ScriptEngine::currentScript_ = nullptr; });
+
     // Store native Win32 thread ID for JS threadid property (avoids hash truncation)
     nativeThreadId_.store(GetCurrentThreadId(), std::memory_order_relaxed);
 
     thread_utils::SetThreadDescription(GetName());
 
     // Script threads run user JS; their Date.now / delay / setTimeout
-    // should observe the global time multiplier. V8's internal worker
+    // should observe the global time multiplier. The engine's internal worker
     // pool runs on threads we never touch, so those stay on real time.
     speedhack::OptInCurrentThread();
 
@@ -273,171 +247,110 @@ namespace {
 // Install a `console` accessor that routes by caller (see the call site in
 // SetupIsolate for the rationale). Returns false on failure. Must run with
 // `context` entered.
-bool InstallConsoleRouting(v8::Isolate* iso, v8::Local<v8::Context> context) {
-    // Native flag-reader the shim closes over: true while the inspector is
-    // running a REPL evaluate (set around dispatchProtocolMessage).
-    auto evaluating = v8::Function::New(
-                          context,
-                          +[](const v8::FunctionCallbackInfo<v8::Value>& info) {
-                              info.GetReturnValue().Set(runtime::inspector::ScriptInspector::IsEvaluating());
-                          })
-                          .ToLocalChecked();
-    if (context->Global()->Set(context, api::convert::ToJS(iso, "__d2bsInspectorEvaluating"), evaluating).IsNothing()) {
+bool InstallConsoleRouting(const ub::Context& context) {
+    // Native flag-reader the shim closes over: true while the debugger is
+    // evaluating an expression its client typed.
+    auto evaluating = ub::Function::New(
+        context, +[](const ub::CallbackInfo& info) {
+            info.GetReturnValue().Set(runtime::inspector::ScriptInspector::IsEvaluating());
+        });
+    if (!evaluating || !context.GlobalObject().Set(context, "__d2bsDebuggerEvaluating", *evaluating).value_or(false)) {
         return false;
     }
-    // Stash V8's built-in (inspector-wired) console, then redefine `console` as
-    // an accessor: a REPL evaluate gets V8's console (so console.log lands in the
-    // DevTools Console panel), while normal script execution gets whatever
-    // console the script installs - captured by the setter. kolbot's
-    // `global.console = global.console || polyfill()` reads undefined at script
-    // time (depth 0) and installs its print-routed polyfill, which the setter
-    // captures. The native helper is deleted once the shim closes over it.
+    // Stash the engine's built-in console, if it has one, and redefine `console`
+    // as an accessor: a debugger evaluate gets the engine's console (so
+    // console.log lands in the debugger client's console), while normal script
+    // execution gets whatever console the script installs - captured by the
+    // setter. kolbot's `global.console = global.console || polyfill()` reads
+    // undefined at script time and installs its print-routed polyfill, which
+    // the setter captures. On an engine with no built-in console there is
+    // nothing to route to, and `console` is simply the script's. The native
+    // helper is deleted once the shim closes over it.
     static constexpr std::string_view CONSOLE_SHIM = R"JS(
 (function () {
-  const v8console = globalThis.console;
+  const engineConsole = globalThis.console;
   let scriptConsole;
-  const inspectorEvaluating = globalThis.__d2bsInspectorEvaluating;
-  delete globalThis.__d2bsInspectorEvaluating;
+  const debuggerEvaluating = globalThis.__d2bsDebuggerEvaluating;
+  delete globalThis.__d2bsDebuggerEvaluating;
   Object.defineProperty(globalThis, 'console', {
     configurable: true,
-    get() { return inspectorEvaluating() ? v8console : scriptConsole; },
+    get() { return engineConsole !== undefined && debuggerEvaluating() ? engineConsole : scriptConsole; },
     set(v) { scriptConsole = v; },
   });
 })();
 )JS";
-    v8::Local<v8::Script> shim;
-    if (!v8::Script::Compile(context, api::convert::ToJS(iso, CONSOLE_SHIM).As<v8::String>()).ToLocal(&shim)) {
-        return false;
-    }
-    return !shim->Run(context).IsEmpty();
+    return ub::Evaluate(context, CONSOLE_SHIM).has_value();
 }
 
 }  // namespace
 
 void Script::SetupIsolate() {
-    // Ensure V8 platform is initialized (singleton)
     (void)Engine::GetPlatform();
 
-    auto allocator = std::shared_ptr<v8::ArrayBuffer::Allocator>(v8::ArrayBuffer::Allocator::NewDefaultAllocator());
+    auto created = ub::Isolate::New(ub::IsolateOptions{.heapLimitBytes = config::GetAppConfig().memoryLimit});
+    if (!created) {
+        logger_->error("Failed to create the script's isolate");
+        return;
+    }
+    // Shared so cross-thread callers (Stop, PostEvent) can hold it for the
+    // length of one call; TeardownIsolate waits those out and destroys it here.
+    std::shared_ptr<ub::Isolate> iso(std::move(created));
+    // Resolves ScriptEngine::GetScript(isolate) for every callback.
+    iso->SetEmbedderData(*this);
+    isolate_.store(iso);
 
-    v8::Isolate::CreateParams createParams;
-    createParams.array_buffer_allocator = allocator.get();
+    const ub::HandleScope handleScope(*iso);
+    auto context = ub::Context::New(*iso);
+    if (!context) {
+        logger_->error("Failed to create the script's context");
+        return;
+    }
+    context_ = std::move(*context);
+    const ub::ContextScope contextScope(context_);
+    const ub::TryCatch tryCatch(*iso);
 
-    auto& appConfig = config::GetAppConfig();
-    if (appConfig.memoryLimit > 0) {
-        createParams.constraints.ConfigureDefaultsFromHeapSize(0, appConfig.memoryLimit);
+    // Class constructors (Unit, Room, File, etc.), global functions and
+    // constants (FILE_READ, ...), installed on the global object.
+    if (!api::classes::RegisterAllClasses(context_)) {
+        logger_->error("Failed to register classes: {}", tryCatch.Message(context_).value_or("<no message>"));
+        return;
+    }
+    api::globals::RegisterCoreFunctions(context_);
+    api::globals::RegisterGameFunctions(context_);
+    api::globals::RegisterMenuFunctions(context_);
+    api::globals::RegisterHashFunctions(context_);
+    api::globals::RegisterConstants(context_);
+
+    // Always attach this script to the debugger, if the engine has one. Done
+    // before the console shim below so that shim captures the engine's
+    // debugger-wired console for the debugger's evaluate path. Attaching costs
+    // nothing measurable until a client connects, and the server only exposes
+    // the target when running (toggled by inspectorPort's sign via the Settings
+    // panel / SetInspector).
+    AttachDebugger(*iso);
+
+    // Route `console` by caller. V8 installs a built-in `console` on every
+    // context, wired to its debugger; SpiderMonkey has none. Kolbot's
+    // Polyfill.js installs its own print-routed console via
+    // `global.console = global.console || (...)()`, which only fires if
+    // `console` reads falsy at script time. We want both: a script's
+    // console.log -> the script's polyfill (d2bs console), and console.log
+    // typed in the debugger client -> the engine's console. Since both share one
+    // global, InstallConsoleRouting makes `console` an accessor that returns the
+    // engine's console while the debugger is evaluating (ScriptInspector::IsEvaluating)
+    // and the script's console otherwise. See docs/inspector.md.
+    if (!InstallConsoleRouting(context_)) {
+        logger_->error("Failed to install console routing: {}", tryCatch.Message(context_).value_or("<no message>"));
+        return;
     }
 
-    auto* iso = v8::Isolate::New(createParams);
-
-    // V8 calls these on internal CHECK/DCHECK failures and OOM. Default action
-    // is OS::Abort which bypasses our SetUnhandledExceptionFilter - wire them
-    // through spdlog::critical so the crash lands in the console, dump a
-    // crash log next to Game.exe, then exit with a distinctive code.
-    iso->SetFatalErrorHandler(+[](const char* location, const char* message) {
-        auto dump = std::format("V8 fatal error at '{}': {}\n{}\n", location ? location : "<null>",
-                                message ? message : "<null>", thread_utils::GetThreadStacktrace());
-        thread_utils::CrashAndExit(dump, 0xD2B50001);
-    });
-    iso->SetOOMErrorHandler(+[](const char* location, const v8::OOMDetails& details) {
-        auto dump = std::format("V8 OOM at '{}': {} (heap_oom={})\n{}\n", location ? location : "<null>",
-                                details.detail ? details.detail : "<null>", details.is_heap_oom,
-                                thread_utils::GetThreadStacktrace());
-        thread_utils::CrashAndExit(dump, 0xD2B50002);
-    });
-
-    // Wrap in shared_ptr with a custom deleter that captures the allocator,
-    // guaranteeing it outlives Dispose().  The raw pointer `iso` remains valid
-    // for the rest of this function (and RunScript/TeardownIsolate on the same
-    // thread) because the shared_ptr stored in isolate_ keeps it alive.
-    // Cross-thread callers (Stop, PostEvent) load their own shared_ptr copy,
-    // which prevents Dispose from running until they're done.
-    //
-    // The deleter also performs the InstanceTracker leak check.  The check
-    // must run *after* Dispose because the JS heap's roots - compilation
-    // cache, microtask queue, queued tasks - are only fully released by
-    // Dispose; pre-Dispose checks see those objects as alive even though V8
-    // will free them moments later.  threadId captures the script's own
-    // thread (we're on it now); cross-thread holders of the shared_ptr won't
-    // fire this callback until they drop their copy.
-    auto threadId = std::this_thread::get_id();
-    auto logger = logger_;
-    // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) - false positive: allocator captured by shared_ptr deleter
-    isolate_.store(
-        std::shared_ptr<v8::Isolate>(iso, [alloc = std::move(allocator), threadId, logger](v8::Isolate* ptr) {
-            v8::platform::NotifyIsolateShutdown(Engine::GetPlatform(), ptr);
-            ptr->Dispose();
-            // alloc destroyed here - allocator guaranteed to outlive Dispose()
-
-            auto& tracker = api::InstanceTracker::Instance();
-            auto remaining = tracker.Snapshot(threadId);
-            for (const auto& [name, count] : remaining) {
-                logger->error("Instance leak: {} {} instance(s) not freed", count, name);
-            }
-            tracker.ClearThread(threadId);
-        }));
-    // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
-
-    v8::Isolate::Scope isolateScope(iso);
-    v8::HandleScope handleScope(iso);
-
-    // Create global object template
-    auto global = v8::ObjectTemplate::New(iso);
-
-    // Register all class constructors (Unit, Room, File, etc.)
-    api::classes::RegisterAllClasses(iso, global);
-
-    // Register all global functions
-    api::globals::RegisterCoreFunctions(iso, global);
-    api::globals::RegisterGameFunctions(iso, global);
-    api::globals::RegisterMenuFunctions(iso, global);
-    api::globals::RegisterHashFunctions(iso, global);
-
-    // Register global constants (FILE_READ, FILE_WRITE, FILE_APPEND)
-    api::globals::RegisterConstants(iso, global);
-
-    // Create context with the configured global template
-    auto context = v8::Context::New(iso, nullptr, global);
-    context_.Reset(iso, context);
-
-    // Store Script pointer in isolate slot for ScriptEngine::GetScript()
-    iso->SetData(0, this);
-
-    // Always register this isolate as a Chrome DevTools target. Done before the
-    // console shim below so that shim captures V8's inspector-wired console for
-    // the DevTools REPL path. Attaching has no measurable overhead until a client
-    // connects, and the InspectorServer only exposes the target when running
-    // (toggled by inspectorPort's sign via the Settings panel / SetInspector).
-    AttachInspector();
-
-    // Create the 'me' global object (player unit with extra properties)
-    {
-        v8::Context::Scope contextScope(context);
-
-        // Route `console` by caller. V8 installs a built-in `console` on every
-        // context, wired to the inspector. Kolbot's Polyfill.js installs its own
-        // print-routed console via `global.console = global.console || (...)()`,
-        // which only fires if `console` reads falsy at script time. We want both:
-        // a script's console.log -> the script's polyfill (d2bs console), and
-        // console.log typed in the DevTools console -> V8's console (DevTools
-        // panel). Since both share one global, InstallConsoleRouting makes
-        // `console` an accessor that returns V8's console while the inspector is
-        // evaluating (ScriptInspector::IsEvaluating, set around
-        // dispatchProtocolMessage) and the script's console otherwise. See
-        // docs/inspector.md.
-        if (!InstallConsoleRouting(iso, context)) {
-            logger_->error("Failed to install console routing");
-            return;
-        }
-
-        auto me = api::classes::CreateMeObject(iso, context);
-        if (me.IsEmpty()) {
-            logger_->error("Failed to create 'me' global object");
-            return;
-        }
-        context->Global()->Set(context, api::convert::ToJS(iso, "me"), me).Check();
-        runtime::script::ApplyCompatibilityPrelude(iso, context);
+    // The 'me' global object (player unit with extra properties).
+    auto me = api::classes::CreateMeObject(context_);
+    if (!me || !context_.GlobalObject().Set(context_, "me", *me).value_or(false)) {
+        logger_->error("Failed to create 'me' global object");
+        return;
     }
+    runtime::script::ApplyCompatibilityPrelude(context_);
 }
 
 void Script::TeardownIsolate() {
@@ -451,19 +364,29 @@ void Script::TeardownIsolate() {
     // isolate_ has its own atomic sync - no need to cover the exchange with
     // drawablesMutex_. Cross-thread callers (Stop/PostEvent) racing the
     // exchange see nullptr post-swap and bail out.
-    auto iso = isolate_.exchange(std::shared_ptr<v8::Isolate>());
+    auto iso = isolate_.exchange(std::shared_ptr<ub::Isolate>());
     if (!iso) {
         return;
     }
-    auto* raw = iso.get();
+    // Callers that loaded the isolate before the exchange hold a copy for the
+    // length of one call. Wait them out: an isolate may only be destroyed on
+    // its own thread, and once they are gone nothing can post to it any more.
+    // Nothing may hold a copy for longer - a copy that never goes stalls the
+    // script's thread here, so a slow wait is logged.
+    const auto waitStart = std::chrono::steady_clock::now();
+    bool warned = false;
+    while (iso.use_count() > 1) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (!warned && std::chrono::steady_clock::now() - waitStart > std::chrono::seconds(1)) {
+            logger_->warn("Teardown waiting on {} other reference(s) to the isolate", iso.use_count() - 1);
+            warned = true;
+        }
+    }
 
-    // Enter the isolate before destroying v8::Global handles - their destructors
-    // and the class cache cleanup require the isolate to be current.
+    // Everything holding a root or a realm goes before the isolate does.
+    std::unordered_map<PendingJob*, std::unique_ptr<PendingJob>> unrun;
     {
-        v8::Isolate::Scope isolateScope(raw);
-        v8::HandleScope handleScope(raw);
-
-        // Clear all events before disposing isolate (releases v8::Global handles)
+        const ub::HandleScope handleScope(*iso);
         {
             std::scoped_lock lock(eventFunctionsMutex_);
             ClearEventFunctionsLocked();
@@ -475,49 +398,68 @@ void Script::TeardownIsolate() {
             }
             delayedEvents_.clear();
         }
+        {
+            std::scoped_lock lock(pendingJobsMutex_);
+            unrun = std::exchange(pendingJobs_, {});
+        }
+        for (const auto& job : unrun | std::views::values) {
+            if (auto delayed = std::dynamic_pointer_cast<DelayedEvent>(job->event)) {
+                delayed->Invalidate();
+            }
+        }
 
-        // Tear down the inspector while the isolate and context are still alive
-        // (V8Inspector::contextDestroyed needs the live context).
-        inspector_.reset();
-
+        if (inspector_) {
+            const ub::ContextScope contextScope(context_);
+            inspector_.reset();
+        }
         context_.Reset();
 
-        // Clear per-isolate template caches before disposing
-        api::classes::ClearAllClassCaches(raw);
-
-        // Top-level context with no nested contexts - kNoDependants lets V8
-        // be more aggressive about reclaiming the context.
-        raw->ContextDisposedNotification(v8::ContextDependants::kNoDependants);
-
-        // Encourage V8 to run weak callbacks before Dispose - anything
-        // freed here saves work; anything still pinned (V8 compilation
-        // cache, queued tasks) is released by Dispose and reported by the
-        // post-Dispose leak check installed in SetupIsolate's deleter.
-        RequestGarbageCollection();
-        raw->LowMemoryNotification();
+        api::classes::ClearAllClassCaches();
     }
-    // Isolate::Scope exited - IsInUse() is now false.
-    // `iso` drops here.  If Stop() on another thread still holds a copy, the
-    // custom deleter (NotifyIsolateShutdown + Dispose) is deferred until that
-    // copy drops - both are safe from any thread.
+
+    // With the realm and every root gone, nothing the script made is reachable,
+    // so collect until every wrapper has been finalized. Both engines collect on
+    // request in practice, and finalize during the collection; the bound is for
+    // the case where one does not. Jobs are deliberately not pumped: they would
+    // run promise continuations in a realm that is being torn down. What is
+    // still counted after that is held from outside the heap - a native keeping
+    // a root to its own wrapper, or one still owned by another thread - which is
+    // a leak worth naming, and it is named here, while the counts still say so:
+    // destroying the isolate releases every remaining wrapper regardless.
+    auto& tracker = api::InstanceTracker::Instance();
+    const auto threadId = std::this_thread::get_id();
+    constexpr int32_t MAX_COLLECTION_ROUNDS = 8;
+    for (int32_t round = 0; round < MAX_COLLECTION_ROUNDS && !tracker.Snapshot(threadId).empty(); ++round) {
+        iso->RequestGarbageCollection();
+    }
+    for (const auto& [name, count] : tracker.Snapshot(threadId)) {
+        logger_->error("Instance leak: {} {} instance(s) not freed", count, name);
+    }
+
+    // Releases whatever wrappers the collections above did not, and drops the
+    // posted jobs that never ran.
+    iso.reset();
+    // Tells each event that never ran that it was dropped.
+    unrun.clear();
+
+    tracker.ClearThread(threadId);
 }
 
 void Script::RunScript() {
-    auto* iso = isolate_.load().get();
-    v8::Isolate::Scope isolateScope(iso);
-    v8::HandleScope handleScope(iso);
-    auto context = GetContext();
-    v8::Context::Scope contextScope(context);
+    auto iso = isolate_.load();
+    if (!iso || context_.IsEmpty()) {
+        return;
+    }
+    const ub::HandleScope handleScope(*iso);
+    const ub::ContextScope contextScope(context_);
 
-    v8::TryCatch tryCatch(iso);
+    ub::TryCatch tryCatch(*iso);
 
     // Console script with empty path uses a built-in event loop
     if (mode_ == ScriptMode::Console && path_.empty()) {
         auto src = "function main() { print('D2BS :: Started Console'); while(true) { delay(10000); } }";
-        v8::Local<v8::Script> script;
-        if (runtime::script::CompileSource(iso, context, src, "Console").ToLocal(&script)) {
-            v8::Local<v8::Value> dummy;
-            (void)script->Run(context).ToLocal(&dummy);
+        if (auto script = runtime::script::CompileSource(context_, src, "Console")) {
+            (void)script->Run(context_);
         }
         // Fall through to call main() below
     } else if (!path_.empty()) {
@@ -530,12 +472,12 @@ void Script::RunScript() {
         std::string source((std::istreambuf_iterator(file)), std::istreambuf_iterator<char>());
         file.close();
 
-        // Use the absolute path as the V8 origin so kolbot's require.js
+        // Use the absolute path as the script origin so kolbot's require.js
         // stack-trace regex (matches ".*?d2bs\(kolbot\...)") sees the d2bs\
         // segment of the install path. The base-relative form
         // (ScriptPaths::RelativeScriptPath) is only the display name / URL.
-        v8::Local<v8::Script> script;
-        if (!runtime::script::CompileSource(iso, context, std::move(source), path_.string()).ToLocal(&script)) {
+        auto script = runtime::script::CompileSource(context_, std::move(source), path_.string());
+        if (!script) {
             if (tryCatch.HasCaught() && !tryCatch.HasTerminated()) {
                 ReportException(tryCatch);
             }
@@ -543,8 +485,7 @@ void Script::RunScript() {
         }
 
         // Execute top-level code
-        v8::Local<v8::Value> result;
-        if (!script->Run(context).ToLocal(&result)) {
+        if (!script->Run(context_)) {
             if (tryCatch.HasCaught() && !tryCatch.HasTerminated()) {
                 ReportException(tryCatch);
             }
@@ -555,39 +496,30 @@ void Script::RunScript() {
         return;
     }
 
-    // Call main() if it exists
-    auto mainStr = api::convert::ToJS(iso, "main");
-    v8::Local<v8::Value> mainVal;
-    if (context->Global()->Get(context, mainStr).ToLocal(&mainVal) && mainVal->IsFunction()) {
-        auto mainFn = mainVal.As<v8::Function>();
+    // Promise continuations the top level queued run here, when the outermost
+    // call returns, rather than at the first delay().
+    iso->PumpJobs();
 
+    // Call main() if it exists
+    auto mainVal = context_.GlobalObject().Get(context_, "main");
+    if (auto mainFn = mainVal ? mainVal->To<ub::Function>() : std::nullopt) {
         // Deserialize arguments passed from load()
-        std::vector<v8::Local<v8::Value>> mainArgs;
+        std::vector<ub::Local<ub::Value>> mainArgs;
         for (const auto& argBytes : args_) {
-            auto deserializer = v8::ValueDeserializer(iso, argBytes.data(), argBytes.size());
-            if (deserializer.ReadHeader(context).FromMaybe(false)) {
-                v8::Local<v8::Value> arg;
-                if (deserializer.ReadValue(context).ToLocal(&arg)) {
-                    mainArgs.push_back(arg);
-                } else {
-                    logger_->error("Failed to deserialize script argument");
-                    return;
-                }
-            } else {
-                logger_->error("Failed to read script argument header");
+            auto arg = ub::Deserialize(context_, argBytes);
+            if (!arg) {
+                logger_->error("Failed to deserialize script argument");
                 return;
             }
+            mainArgs.push_back(*arg);
         }
 
-        v8::Local<v8::Value> mainResult;
-        if (!mainFn
-                 ->Call(context, context->Global(), static_cast<int32_t>(mainArgs.size()),
-                        mainArgs.empty() ? nullptr : mainArgs.data())
-                 .ToLocal(&mainResult)) {
+        if (!mainFn->Call(context_, context_.GlobalObject(), mainArgs)) {
             if (tryCatch.HasCaught() && !tryCatch.HasTerminated()) {
                 ReportException(tryCatch);
             }
         }
+        iso->PumpJobs();
     }
 
     // Populate cached heap stats after initial execution so they're available
@@ -595,35 +527,26 @@ void Script::RunScript() {
     UpdateHeapStats(std::chrono::steady_clock::now());
 }
 
-void Script::ReportException(v8::TryCatch& tryCatch) {
-    auto* iso = isolate_.load().get();
-    if (!iso)
-        return;
-
+void Script::ReportException(const ub::TryCatch& tryCatch) {
     // Don't log termination exceptions - they're normal during stop()
-    if (tryCatch.HasTerminated())
+    if (context_.IsEmpty() || tryCatch.HasTerminated()) {
         return;
+    }
 
-    v8::HandleScope scope(iso);
-    auto message = tryCatch.Message();
-    if (message.IsEmpty()) {
+    const ub::HandleScope scope(context_.GetIsolate());
+    auto message = tryCatch.Message(context_);
+    // Also covers a syntax error, which has no stack frame to name a position.
+    auto location = tryCatch.Location(context_);
+    if (!message && !location) {
         logger_->error("Unknown error");
         return;
     }
 
-    v8::String::Utf8Value errorStr(iso, message->Get());
-    auto context = GetContext();
-    int32_t lineNum = message->GetLineNumber(context).FromMaybe(-1);
-    v8::String::Utf8Value fileName(iso, message->GetScriptResourceName());
-
-    logger_->error("{}:{}: {}", *fileName ? *fileName : "<unknown>", lineNum, *errorStr ? *errorStr : "<no message>");
-
-    v8::Local<v8::String> sourceLine;
-    if (message->GetSourceLine(context).ToLocal(&sourceLine)) {
-        v8::String::Utf8Value lineStr(iso, sourceLine);
-        if (*lineStr) {
-            logger_->error("  {}", *lineStr);
-        }
+    const bool hasFile = location && !location->scriptName.empty();
+    logger_->error("{}:{}: {}", hasFile ? location->scriptName : "<unknown>", location ? location->lineNumber : -1,
+                   message.value_or("<no message>"));
+    if (location && location->sourceLine && !location->sourceLine->empty()) {
+        logger_->error("  {}", *location->sourceLine);
     }
 
     // Reference parity: reference/d2bs/ScriptEngine.cpp:446 - if quitOnError is set
@@ -647,13 +570,11 @@ void Script::UpdateHeapStats(std::chrono::steady_clock::time_point now, bool for
         return;
     }
 
-    auto* iso = isolate_.load().get();
+    auto iso = isolate_.load();
     if (!iso)
         return;
 
-    auto stats = std::make_shared<v8::HeapStatistics>();
-    iso->GetHeapStatistics(stats.get());
-    cachedHeapStats_.store(std::move(stats));
+    cachedHeapStats_.store(std::make_shared<ub::HeapStatistics>(iso->GetHeapStatistics()));
     lastHeapStatsUpdate_ = now;
 }
 
@@ -668,6 +589,21 @@ void Script::SetStackCaptureMode(StackCaptureMode mode) {
         runtime::script::onEveryCallCaptureCount.fetch_add(1, std::memory_order_relaxed);
     } else if (prev == StackCaptureMode::OnEveryCall) {
         runtime::script::onEveryCallCaptureCount.fetch_sub(1, std::memory_order_relaxed);
+    }
+
+    // Switched on from the console: take a first snapshot now rather than at
+    // the next yield, which a script spinning in JS may never reach. The
+    // interrupt only reads the stack, which is all an interrupt may do.
+    if (prev == StackCaptureMode::Off && std::this_thread::get_id() != thread_.get_id()) {
+        if (auto iso = isolate_.load()) {
+            iso->RequestInterrupt(
+                +[](ub::Isolate& isolate, ub::CallbackData /*data*/) {
+                    if (auto* script = isolate.GetEmbedderData<Script>()) {
+                        script->RefreshLastStackTrace();
+                    }
+                },
+                {});
+        }
     }
 }
 
@@ -710,56 +646,36 @@ void Script::RequestGarbageCollection() const {
     if (!iso) {
         return;
     }
-    // Same-thread fast path. TeardownIsolate calls into here for its leak-
-    // detection loop; on the script's own thread the interrupt would just
-    // queue (we're past the event loop) and never fire.
+    // Same-thread: ask directly - an interrupt requested from here would wait
+    // for the next checkpoint inside running script.
     if (std::this_thread::get_id() == thread_.get_id()) {
-        iso->MemoryPressureNotification(v8::MemoryPressureLevel::kCritical);
-        iso->RequestGarbageCollectionForTesting(v8::Isolate::kFullGarbageCollection);
+        iso->RequestGarbageCollection();
         return;
     }
-    // Cross-thread: schedule on the isolate's own thread. The callback
-    // re-resolves the Script via ScriptEngine::GetScript(iso) so we don't
-    // depend on `this` still being alive when the interrupt eventually fires.
-    iso->RequestInterrupt(
-        +[](v8::Isolate* iso, void* /*data*/) {
-            iso->MemoryPressureNotification(v8::MemoryPressureLevel::kCritical);
-            iso->RequestGarbageCollectionForTesting(v8::Isolate::kFullGarbageCollection);
-        },
-        nullptr);
+    // Cross-thread: schedule on the isolate's own thread. The callback is
+    // handed the isolate, so nothing here depends on `this` still being alive
+    // when the interrupt eventually fires.
+    iso->RequestInterrupt(+[](ub::Isolate& isolate, ub::CallbackData /*data*/) { isolate.RequestGarbageCollection(); },
+                          {});
 }
 
 void Script::RefreshLastStackTrace(int32_t maxFrames) {
-    auto* iso = isolate_.load().get();
-    if (iso == nullptr) {
+    auto iso = isolate_.load();
+    if (!iso) {
         return;
     }
 
-    v8::HandleScope scope(iso);
-    const v8::Local<v8::StackTrace> trace =
-        v8::StackTrace::CurrentStackTrace(iso, maxFrames, v8::StackTrace::kDetailed);
-    const int32_t frameCount = trace->GetFrameCount();
-
+    const auto trace = ub::CaptureStackFrames(*iso, static_cast<uint32_t>(std::max(maxFrames, 0)));
     const std::string baseStr = config::GetAppConfig().GetScriptPaths().basePath.string();
 
     std::vector<StackFrame> frames;
-    frames.reserve(static_cast<size_t>(frameCount));
-    for (int32_t i = 0; i < frameCount; ++i) {
-        const v8::Local<v8::StackFrame> v8frame = trace->GetFrame(iso, static_cast<uint32_t>(i));
-        const v8::String::Utf8Value funcName(iso, v8frame->GetFunctionName());
-        const v8::String::Utf8Value scriptName(iso, v8frame->GetScriptName());
-        StackFrame f;
-        if (*funcName != nullptr && funcName.length() > 0) {
-            f.functionName.assign(*funcName, funcName.length());
-        }
-        if (*scriptName != nullptr && scriptName.length() > 0) {
-            // Trim base path so stack traces show e.g. "libs/common/Town.js" not the full install path.
-            const std::string_view raw{*scriptName, (scriptName.length())};
-            f.scriptName = TrimScriptBase(raw, baseStr);
-        }
-        f.line = v8frame->GetLineNumber();
-        f.column = v8frame->GetColumn();
-        frames.push_back(std::move(f));
+    frames.reserve(trace.size());
+    for (const auto& frame : trace) {
+        frames.push_back({.functionName = frame.functionName,
+                          // Trim base path so stack traces show e.g. "libs/common/Town.js" not the full install path.
+                          .scriptName = TrimScriptBase(frame.scriptName, baseStr),
+                          .line = frame.lineNumber,
+                          .column = frame.columnNumber});
     }
 
     auto snapshot = std::make_shared<StackTraceSnapshot>();
@@ -771,24 +687,21 @@ void Script::RefreshLastStackTrace(int32_t maxFrames) {
 // Event System
 // ============================================================================
 
-void Script::RegisterEvent(const std::string& eventName, v8::Local<v8::Function> func) {
+void Script::RegisterEvent(const std::string& eventName, const ub::Local<ub::Function>& func) {
     if (eventName.empty())
         return;
-    auto* iso = isolate_.load().get();
+    auto iso = isolate_.load();
     if (!iso)
         return;
     std::scoped_lock lock(eventFunctionsMutex_);
     // Published before the insert: dispatchers read the count without this mutex, so bumping it
     // after would leave a window where the handler exists but the probe still reads zero.
     events::ListenerCount::For(eventName).Add(1);
-    eventFunctions_[eventName].emplace_back(iso, func);
+    eventFunctions_[eventName].emplace_back(*iso, func);
 }
 
-void Script::UnregisterEvent(const std::string& eventName, v8::Local<v8::Function> func) {
+void Script::UnregisterEvent(const std::string& eventName, const ub::Local<ub::Function>& func) {
     if (eventName.empty())
-        return;
-    auto* iso = isolate_.load().get();
-    if (!iso)
         return;
     std::scoped_lock lock(eventFunctionsMutex_);
     auto it = eventFunctions_.find(eventName);
@@ -796,7 +709,7 @@ void Script::UnregisterEvent(const std::string& eventName, v8::Local<v8::Functio
         return;
 
     const auto removed = std::erase_if(
-        it->second, [&func, iso](const v8::Global<v8::Function>& function) { return function.Get(iso) == func; });
+        it->second, [&func](const ub::Global<ub::Function>& function) { return function.StrictEquals(func); });
     events::ListenerCount::For(eventName).Add(-static_cast<int32_t>(removed));
     if (it->second.empty()) {
         eventFunctions_.erase(it);
@@ -848,10 +761,9 @@ bool Script::RemoveDelayedEvent(uint32_t eventId) {
 }
 
 void Script::ExecuteEvents(std::chrono::milliseconds duration) {
-    auto* iso = isolate_.load().get();
+    auto iso = isolate_.load();
     if (!iso)
         return;
-    auto* platform = Engine::GetPlatform();
     auto stopToken = thread_.get_stop_token();
 
     // Idle-wait granularity (INI IdleSleepIntervalMs): wall-ms slept per idle pass.
@@ -872,10 +784,11 @@ void Script::ExecuteEvents(std::chrono::milliseconds duration) {
     while (true) {
         idle_.Enter(IdlePhase::Pump);
 
-        while (v8::platform::PumpMessageLoop(platform, iso)) {}
+        // Promise continuations, then posted events and timers that have fallen due.
+        iso->PumpJobs();
 
-        // Pump any queued Chrome DevTools (inspector) messages on the isolate
-        // thread alongside V8's own task queue.
+        // Handle whatever the debugger client has sent, on the isolate thread
+        // alongside the engine's own queue.
         if (inspector_) {
             inspector_->DrainIncoming();
         }
@@ -912,14 +825,19 @@ void Script::ExecuteEvents(std::chrono::milliseconds duration) {
 }
 
 bool Script::ExecuteEvent(const std::shared_ptr<BaseEvent>& event) {
-    auto* iso = isolate_.load().get();
+    auto iso = isolate_.load();
     if (!iso)
         return false;
 
     if (thread_.get_id() == std::this_thread::get_id()) {
-        // Same thread - execute synchronously
-        v8::HandleScope scope(iso);
-        std::vector<v8::Local<v8::Function>> fns;
+        if (context_.IsEmpty()) {
+            return false;
+        }
+        // Same thread - execute synchronously. A posted job runs outside any
+        // call, so the context is entered here rather than assumed.
+        const ub::HandleScope scope(*iso);
+        const ub::ContextScope contextScope(context_);
+        std::vector<ub::Local<ub::Function>> fns;
         {
             // Copy handlers out from under the lock to avoid re-entrance deadlocks
             std::scoped_lock lock(eventFunctionsMutex_);
@@ -927,7 +845,7 @@ bool Script::ExecuteEvent(const std::shared_ptr<BaseEvent>& event) {
             if (it != eventFunctions_.end()) {
                 fns.reserve(it->second.size());
                 for (auto& globalFn : it->second) {
-                    fns.push_back(globalFn.Get(iso));
+                    fns.push_back(globalFn.Get(*iso));
                 }
             }
         }
@@ -938,7 +856,7 @@ bool Script::ExecuteEvent(const std::shared_ptr<BaseEvent>& event) {
             // Pumped from inside delay(): the handler is the script's work, not delay's.
             const auto phase = idle_.Nest(IdlePhase::Handlers);
             const profiling::ScopedNativeExclusion handlerIsJs;
-            event->Execute(iso, fns);
+            event->Execute(context_, fns);
         }
 
         // Re-post interval timers AFTER execution to prevent unbounded accumulation.
@@ -955,9 +873,35 @@ bool Script::ExecuteEvent(const std::shared_ptr<BaseEvent>& event) {
         return true;
     }
 
-    // Different thread - post to script's foreground task runner.
-    // The task is picked up by PumpMessageLoop during delay() calls.
+    // Different thread - post it as a job on the script's isolate.
+    // The job is run by PumpJobs during delay() calls.
     return PostEvent(event);
+}
+
+Script::PendingJob::~PendingJob() {
+    // Keeps BlockableEvent::remaining_ honest when the event is dropped unrun
+    // or the isolate tears down mid-dispatch.
+    if (!isDelivered) {
+        event->OnDropped();
+    }
+}
+
+void Script::RunPendingJob(ub::Isolate& isolate, ub::CallbackData data) {
+    auto* script = isolate.GetEmbedderData<Script>();
+    auto* key = data.As<PendingJob>();
+    if (script == nullptr || key == nullptr) {
+        return;
+    }
+    std::unique_ptr<PendingJob> job;
+    {
+        std::scoped_lock lock(script->pendingJobsMutex_);
+        auto node = script->pendingJobs_.extract(key);
+        if (node.empty()) {
+            return;
+        }
+        job = std::move(node.mapped());
+    }
+    job->isDelivered = script->ExecuteEvent(job->event);
 }
 
 bool Script::PostEvent(const std::shared_ptr<BaseEvent>& event, uint32_t delayMs) {
@@ -973,19 +917,20 @@ bool Script::PostEvent(const std::shared_ptr<BaseEvent>& event, uint32_t delayMs
         return false;
     }
 
-    auto* platform = Engine::GetPlatform();
-    auto runner = platform->GetForegroundTaskRunner(iso.get());
-    // Ensures BlockableEvent::remaining_ is decremented even if the task is dropped or the isolate tears down
-    // mid-dispatch.
-    auto guard = std::make_shared<DeferGuard>([event] { event->OnDropped(); });
-    runner->PostDelayedTask(std::make_unique<LambdaTask>([weak = weak_from_this(), event, guard] {
-                                if (auto self = weak.lock()) {
-                                    if (self->ExecuteEvent(event)) {
-                                        guard->Dismiss();
-                                    }
-                                }
-                            }),
-                            static_cast<double>(delayMs) / 1000.0);
+    // Registered before it is posted, and while `iso` is held: TeardownIsolate
+    // waits for this copy to drop before collecting what never ran.
+    auto job = std::make_unique<PendingJob>(event);
+    auto* key = job.get();
+    {
+        std::scoped_lock lock(pendingJobsMutex_);
+        pendingJobs_.emplace(key, std::move(job));
+    }
+    if (!iso->PostDelayedJob(&Script::RunPendingJob, ub::CallbackData::For(*key),
+                             static_cast<double>(delayMs) / 1000.0)) {
+        std::scoped_lock lock(pendingJobsMutex_);
+        pendingJobs_.erase(key);
+        return false;
+    }
     return true;
 }
 
@@ -1005,12 +950,11 @@ bool Script::Include(const std::filesystem::path& absolutePath) {
         return true;
     }
 
-    auto* iso = isolate_.load().get();
-    if (!iso)
+    auto iso = isolate_.load();
+    if (!iso || context_.IsEmpty())
         return false;
 
-    auto context = GetContext();
-    v8::TryCatch tryCatch(iso);
+    ub::TryCatch tryCatch(*iso);
 
     // Read file
     std::ifstream file(absolutePath, std::ios::binary);
@@ -1022,8 +966,8 @@ bool Script::Include(const std::filesystem::path& absolutePath) {
     file.close();
 
     // Match RunScript: absolute path so kolbot's require.js stack-trace regex finds the d2bs\ segment.
-    v8::Local<v8::Script> script;
-    if (!runtime::script::CompileSource(iso, context, std::move(source), absolutePath.string()).ToLocal(&script)) {
+    auto script = runtime::script::CompileSource(context_, std::move(source), absolutePath.string());
+    if (!script) {
         logger_->warn("Failed to compile include: {}", absolutePath.string());
         if (tryCatch.HasCaught() && !tryCatch.HasTerminated()) {
             ReportException(tryCatch);
@@ -1035,8 +979,7 @@ bool Script::Include(const std::filesystem::path& absolutePath) {
     // Execute
     inProgressIncludes_.emplace(normalized);
 
-    v8::Local<v8::Value> result;
-    if (script->Run(context).ToLocal(&result)) {
+    if (script->Run(context_)) {
         includes_.emplace(normalized);
     } else {
         logger_->warn("Failed to execute include: {}", absolutePath.string());
@@ -1108,32 +1051,32 @@ std::vector<std::shared_ptr<runtime::drawing::Drawable>> Script::GetDrawables() 
 }
 
 void Script::SetDrawableHandler(runtime::drawing::Drawable& drawable, DrawableHandler which,
-                                v8::Local<v8::Function> handler) {
+                                const ub::Local<ub::Function>& handler) {
     std::unique_lock lock(drawablesMutex_);
     auto iso = isolate_.load();
     const bool isInstalled = !handler.IsEmpty() && iso;
     if (isInstalled) {
         auto& slot = drawableHandlers_[&drawable];
-        (which == DrawableHandler::Click ? slot.click : slot.hover).Reset(iso.get(), handler);
+        (which == DrawableHandler::Click ? slot.click : slot.hover) = ub::Global<ub::Function>(*iso, handler);
     } else if (auto it = drawableHandlers_.find(&drawable); it != drawableHandlers_.end()) {
         (which == DrawableHandler::Click ? it->second.click : it->second.hover).Reset();
     }
     (which == DrawableHandler::Click ? drawable.hasClick : drawable.hasHover).store(isInstalled);
 }
 
-v8::MaybeLocal<v8::Function> Script::GetDrawableHandler(const runtime::drawing::Drawable& drawable,
-                                                        DrawableHandler which) {
+std::optional<ub::Local<ub::Function>> Script::GetDrawableHandler(const runtime::drawing::Drawable& drawable,
+                                                                  DrawableHandler which) {
     std::shared_lock lock(drawablesMutex_);
     auto it = drawableHandlers_.find(&drawable);
     auto iso = isolate_.load();
     if (it == drawableHandlers_.end() || !iso) {
-        return {};
+        return std::nullopt;
     }
     const auto& slot = (which == DrawableHandler::Click) ? it->second.click : it->second.hover;
     if (slot.IsEmpty()) {
-        return {};
+        return std::nullopt;
     }
-    return slot.Get(iso.get());
+    return slot.Get(*iso);
 }
 
 bool Script::DispatchDrawableClick(std::shared_ptr<const runtime::drawing::Drawable> drawable, game::ClickButton button,

@@ -1,9 +1,10 @@
 #pragma once
 
-#include <v8.h>
+#include <memory>
+
 #include "api/core/Class.h"
-#include "api/core/Error.h"
 #include "config/ProfileData.h"
+#include "unibind/unibind.h"
 
 namespace d2bs::api::classes {
 
@@ -25,11 +26,14 @@ using config::ProfileType;
 class JSProfile : public ClassBase<JSProfile, ProfileData> {
    public:
     static constexpr std::string_view ClassName = "Profile";
+    // `Profile(...)` without `new` is the reference's spelling; New refuses it unless the
+    // profileCallWithoutNew compatibility flag is on.
+    static constexpr bool CALLABLE_WITHOUT_NEW = true;
 
     // Constructor - creates or retrieves a profile
-    static void New(const v8::FunctionCallbackInfo<v8::Value>& args);
+    static std::unique_ptr<ProfileData> New(const ub::CallbackInfo& args);
 
-    static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl);
+    static void Configure(const ub::Class<ProfileData>& cls);
 };
 
 }  // namespace d2bs::api::classes

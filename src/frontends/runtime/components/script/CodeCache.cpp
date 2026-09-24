@@ -44,14 +44,18 @@ constexpr uint64_t PRUNE_AFTER_BYTES = 32ULL * 1024 * 1024;
 
 constexpr size_t BYTES_PER_MB = 1024 * 1024;
 
-// CachedDataVersionTag covers the V8 version and the *effective* flag set -
-// including flags V8 derives by implication, which a hash of our own EngineFlags
-// string would miss (Engine appends --expose-gc and, conditionally,
-// --single-threaded). Reading it requires V8's flags to already be applied, so
-// depend on Engine explicitly rather than on the caller having gone first.
+// Which engine and build, plus the settings that decide the engine's flags: the
+// user's EngineFlags string, and single-threaded mode, which the engine layer
+// turns into a flag of its own. The engine's version string alone would let two
+// instances that share a directory but not flags name the same entries, and
+// unibind (whose blob key is the engine's own build identity, flags included)
+// would then refuse each other's blobs on every compile, forever.
 uint64_t CurrentBuildTag() {
-    (void)Engine::GetPlatform();
-    return v8::ScriptCompiler::CachedDataVersionTag();
+    const auto& cfg = config::GetAppConfig();
+    uint64_t tag = Fnv1a64(ub::Platform::BackendName());
+    tag = Fnv1a64(ub::Platform::BackendVersion(), (tag ^ 0xFFU) * FNV64_PRIME);
+    tag = Fnv1a64(cfg.engineFlags, (tag ^ 0xFFU) * FNV64_PRIME);
+    return (tag ^ static_cast<uint64_t>(cfg.engineSingleThreaded)) * FNV64_PRIME;
 }
 
 }  // namespace
@@ -114,16 +118,16 @@ CodeCache::Blob CodeCache::Lookup(uint64_t key) {
     return blob;
 }
 
-void CodeCache::Store(uint64_t key, v8::Local<v8::UnboundScript> script) {
+void CodeCache::Store(uint64_t key, const ub::Script& script) {
     if (memoryLimit_ == 0 && diskDir_.empty()) {
         // Both tiers off - serializing would be pure cost on every compile.
         return;
     }
-    const std::unique_ptr<v8::ScriptCompiler::CachedData> data(v8::ScriptCompiler::CreateCodeCache(script));
-    if (!data || data->data == nullptr || data->length <= 0 || static_cast<size_t>(data->length) > MAX_ENTRY_BYTES) {
+    auto data = script.CreateCodeCache();
+    if (!data || data->empty() || data->size() > MAX_ENTRY_BYTES) {
         return;
     }
-    auto blob = std::make_shared<const std::vector<uint8_t>>(data->data, data->data + data->length);
+    auto blob = std::make_shared<const std::vector<uint8_t>>(std::move(*data));
     Insert(key, blob);
     WriteDisk(key, *blob);
 }
@@ -174,17 +178,12 @@ std::filesystem::path CodeCache::DiskPath(uint64_t hash) const {
     return diskDir_ / std::format("{:016x}.cache", hash);
 }
 
-// A disk entry is the blob verbatim - no framing of ours. V8's cached data
-// carries its own magic, version, flag hash and checksum, and a mismatch on any
-// of them surfaces as `rejected` on the consuming compile, so a wrapper
-// repeating those would be dead weight.
-//
-// What V8 does NOT check is the source text: its source hash is built from the
-// source *length* and the origin options, not the characters. So the key is the
-// only thing standing between two same-length sources that hash alike and one
-// executing the other's bytecode. MakeKey folds in the length precisely so a
-// collision needs matching lengths as well; at 64 bits that is not a risk worth
-// re-adding a header for, but it is the reason the key must not be weakened.
+// A disk entry is the blob verbatim - no framing of ours. unibind already puts
+// its own header on every blob (magic, format, a hash of the source text, origin
+// and engine build identity, and the payload's length and hash) and refuses one
+// that does not match before the engine sees it, which surfaces as
+// UsedCodeCache() == false on the consuming compile. A wrapper repeating those
+// would be dead weight.
 CodeCache::Blob CodeCache::ReadDisk(uint64_t hash) const {
     if (diskDir_.empty()) {
         return nullptr;
@@ -264,7 +263,7 @@ void CodeCache::EraseDisk(uint64_t hash) const {
 }
 
 // Entries whose key no longer matches anything - a script that changed, or a
-// whole generation stranded by a V8 upgrade changing the build tag - are never
+// whole generation stranded by an engine upgrade changing the build tag - are never
 // named again and are reclaimed here.
 //
 // Eviction is by write time, not use: a read never touches the file, and

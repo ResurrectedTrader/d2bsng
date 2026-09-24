@@ -1,7 +1,8 @@
 # Compatibility flags
 
 The scripting engine ships a set of SpiderMonkey/kolbot-era compatibility
-behaviors so legacy scripts run unchanged on V8. Each behavior is a named
+behaviors so legacy scripts run unchanged on the engine a build embeds (V8 or
+SpiderMonkey). Each behavior is a named
 **compatibility flag**; all flags default to **enabled**. Scripts inspect and
 toggle them through the global `Compatibility` object, and a game-version port
 can contribute its own flags to the same set.
@@ -39,6 +40,11 @@ framework calls `RegisterDefaults()`, then registers every entry returned by
 | `jsStrictShim` | `js_strict(true);` -> prepend `"use strict";` (CompileSource) |
 | `constRunnableRewrite` | `const X = new Runnable` -> `var X = new Runnable` (CompileSource) |
 | `profileCallWithoutNew` | calling `Profile(...)` without `new` (JSProfile) |
+
+The prelude and the source rewrites run the same on either engine. The
+`errorStackTrace` formatter hooks `Error.prepareStackTrace`, which only V8 calls;
+SpiderMonkey formats `Error.stack` as `func@file:line:col` natively, which is the
+shape the formatter reproduces.
 
 Each flag is a documented `Register("name")` call in
 `CompatibilityFlags::RegisterDefaults()`: the call registers the name (enabled by
@@ -79,9 +85,9 @@ The flags are read at different points, so a runtime toggle has different reach
 per flag:
 
 - **Prelude flags** (`stringContains`, `errorStackTrace`, `errorSpiderMonkeyProps`,
-  `objectToSource`) are read in `ApplyCompatibilityPrelude`, once per V8 context
-  when a script starts. Toggling affects scripts started afterwards, not a
-  context already running.
+  `objectToSource`) are read in `ApplyCompatibilityPrelude`, once per script
+  context when a script starts. Toggling affects scripts started afterwards, not
+  a context already running.
 - **CompileSource flags** (`jsStrictShim`, `constRunnableRewrite`) are read when a
   script's source is compiled. Toggling affects code compiled afterwards.
 - **`profileCallWithoutNew`** is checked live in `JSProfile::New`, so it takes

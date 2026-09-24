@@ -1,11 +1,10 @@
 #pragma once
 
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <system_error>
 #include <vector>
-
-#include <v8.h>
 
 #include "api/core/Class.h"
 #include "api/core/Convert.h"
@@ -18,6 +17,7 @@ namespace d2bs::api::classes {
 namespace directory_detail {
 std::vector<std::string> ListFiles(const std::filesystem::path& fullPath, const std::string& pattern);
 std::vector<std::string> ListFolders(const std::filesystem::path& fullPath, const std::string& pattern);
+void ReturnNames(const ub::CallbackInfo& args, const std::vector<std::string>& names);
 }  // namespace directory_detail
 
 // Internal directory data structure
@@ -27,28 +27,22 @@ struct DirectoryData {
     explicit DirectoryData(const std::filesystem::path& dirPath) : path(dirPath) {}
 };
 
-// JSDirectory - V8 wrapper for directory operations
+// JSDirectory - script wrapper for directory operations
 class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
    public:
     static constexpr std::string_view ClassName = "Folder";
 
     // Directory objects are created via dopen() or Directory.create(), not direct construction
-    V8_CLASS_NOT_CONSTRUCTABLE
-
-    static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
-        auto inst = tpl->InstanceTemplate();
-        auto proto = tpl->PrototypeTemplate();
-
+    static void Configure(const ub::Class<DirectoryData>& cls) {
         /// @description Directory name/path stored on this Folder, relative to the scripts folder.
         /// @type {string}
         Property(
-            isolate, inst, "name", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* isolate = info.GetIsolate();
-                auto self = info.Holder();
-                auto* data = Unwrap(self);
+            cls, "name", +[](const ub::Local<ub::Name>& /*property*/, const ub::PropertyCallbackInfo& info) {
+                auto& isolate = info.GetIsolate();
+                auto* data = Unwrap(info.This());
 
                 if (!data) {
-                    info.GetReturnValue().SetEmptyString();
+                    info.GetReturnValue().Set(convert::ToJS(isolate, ""));
                     return;
                 }
 
@@ -63,11 +57,10 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
         /// @throws {Error} - When the resolved path is invalid.
         /// @throws {Error} - When the directory could not be created.
         Method(
-            isolate, proto, "create", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                auto* isolate = args.GetIsolate();
-                auto context = isolate->GetCurrentContext();
-                auto self = args.This();
-                auto* data = Unwrap(self);
+            cls, "create", +[](const ub::CallbackInfo& args) {
+                auto& isolate = args.GetIsolate();
+                const auto& context = args.GetContext();
+                auto* data = Unwrap(args.This());
 
                 if (!data) {
                     error::ThrowError(isolate, "Invalid directory object");
@@ -78,12 +71,12 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
                     return;
                 }
 
-                if (!args[0]->IsString()) {
+                if (!args[0].IsString()) {
                     error::ThrowTypeError(isolate, "No path passed to dir.create()");
                     return;
                 }
 
-                std::string name = convert::ToString(isolate, args[0]);
+                std::string name = convert::ToString(context, args[0]);
 
                 if (name.empty()) {
                     error::ThrowError(isolate, "Invalid directory name");
@@ -107,11 +100,11 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
 
                 // Create and return new Directory object for the subdirectory
                 // Store just the subdirectory name (not full relative path) matching reference behavior
-                auto newData = std::make_unique<DirectoryData>(name);
-                auto newDir = CreateInstance(isolate, context, std::move(newData));
-                if (newDir.IsEmpty())
+                auto newDir = Wrap(context, std::make_shared<DirectoryData>(name));
+                if (!newDir) {
                     return;
-                args.GetReturnValue().Set(newDir);
+                }
+                args.GetReturnValue().Set(*newDir);
             });
 
         /// @description Removes this directory, which must be empty.
@@ -122,10 +115,9 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
         /// @throws {Error} - When removal fails.
         /// @throws {Error} - When the path is not found.
         Method(
-            isolate, proto, "remove", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                auto* isolate = args.GetIsolate();
-                auto self = args.This();
-                auto* data = Unwrap(self);
+            cls, "remove", +[](const ub::CallbackInfo& args) {
+                auto& isolate = args.GetIsolate();
+                auto* data = Unwrap(args.This());
 
                 if (!data) {
                     error::ThrowError(isolate, "Invalid directory object");
@@ -156,7 +148,7 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
                     return;
                 }
 
-                args.GetReturnValue().Set(convert::ToJS(isolate, true));
+                args.GetReturnValue().Set(true);
             });
 
         /// @description Lists file names in this directory matching a glob pattern.
@@ -164,14 +156,12 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
         /// @param pattern {string} - Optional glob pattern to match files against; defaults to "*.*".
         /// @returns {string[]} - Matching file names; empty array when the object or path is invalid.
         Method(
-            isolate, proto, "getFiles", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                auto* isolate = args.GetIsolate();
-                auto context = isolate->GetCurrentContext();
-                auto self = args.This();
-                auto* data = Unwrap(self);
+            cls, "getFiles", +[](const ub::CallbackInfo& args) {
+                const auto& context = args.GetContext();
+                auto* data = Unwrap(args.This());
 
                 if (!data) {
-                    args.GetReturnValue().Set(v8::Array::New(isolate, 0));
+                    directory_detail::ReturnNames(args, {});
                     return;
                 }
 
@@ -182,22 +172,16 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
                 // Default pattern matches reference behavior (PathMatchSpecW)
                 std::string pattern = "*.*";
                 if (args.Length() > 0) {
-                    pattern = convert::ToString(isolate, args[0]);
+                    pattern = convert::ToString(context, args[0]);
                 }
 
                 auto fullPath = config::GetPathRelScript(data->path.string());
                 if (fullPath.empty()) {
-                    args.GetReturnValue().Set(v8::Array::New(isolate, 0));
+                    directory_detail::ReturnNames(args, {});
                     return;
                 }
 
-                auto files = directory_detail::ListFiles(fullPath, pattern);
-
-                auto arr = v8::Array::New(isolate, static_cast<int32_t>(files.size()));
-                for (uint32_t i = 0; i < files.size(); ++i) {
-                    arr->Set(context, i, convert::ToJS(isolate, files[i])).Check();
-                }
-                args.GetReturnValue().Set(arr);
+                directory_detail::ReturnNames(args, directory_detail::ListFiles(fullPath, pattern));
             });
 
         /// @description Lists subdirectory names in this directory matching a glob pattern.
@@ -205,14 +189,12 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
         /// @param pattern {string} - Optional glob pattern to match folders against; defaults to "*.*".
         /// @returns {string[]} - Matching subdirectory names; empty array when the object or path is invalid.
         Method(
-            isolate, proto, "getFolders", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                auto* isolate = args.GetIsolate();
-                auto context = isolate->GetCurrentContext();
-                auto self = args.This();
-                auto* data = Unwrap(self);
+            cls, "getFolders", +[](const ub::CallbackInfo& args) {
+                const auto& context = args.GetContext();
+                auto* data = Unwrap(args.This());
 
                 if (!data) {
-                    args.GetReturnValue().Set(v8::Array::New(isolate, 0));
+                    directory_detail::ReturnNames(args, {});
                     return;
                 }
 
@@ -223,22 +205,16 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
                 // Default pattern matches reference behavior (PathMatchSpecW)
                 std::string pattern = "*.*";
                 if (args.Length() > 0) {
-                    pattern = convert::ToString(isolate, args[0]);
+                    pattern = convert::ToString(context, args[0]);
                 }
 
                 auto fullPath = config::GetPathRelScript(data->path.string());
                 if (fullPath.empty()) {
-                    args.GetReturnValue().Set(v8::Array::New(isolate, 0));
+                    directory_detail::ReturnNames(args, {});
                     return;
                 }
 
-                auto folders = directory_detail::ListFolders(fullPath, pattern);
-
-                auto arr = v8::Array::New(isolate, static_cast<int32_t>(folders.size()));
-                for (uint32_t i = 0; i < folders.size(); ++i) {
-                    arr->Set(context, i, convert::ToJS(isolate, folders[i])).Check();
-                }
-                args.GetReturnValue().Set(arr);
+                directory_detail::ReturnNames(args, directory_detail::ListFolders(fullPath, pattern));
             });
     }
 };

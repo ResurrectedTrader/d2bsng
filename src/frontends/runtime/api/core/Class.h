@@ -1,291 +1,213 @@
 #pragma once
 
-#include <v8.h>
 #include <cstdint>
 #include <memory>
-#include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
-#include <unordered_map>
-#include "Convert.h"
-#include "Error.h"
+
 #include "InstanceTracker.h"
 #include "components/script/NativeCallHook.h"
+#include "unibind/unibind.h"
 
 namespace d2bs::api {
 
-namespace detail {
-
-// Seeds each class's type tag (see ClassBase::typeTag_). ClassRegistry uses it to assert at
-// compile time that no two classes hash alike.
-constexpr uint32_t Fnv1a(std::string_view text) {
-    uint32_t hash = 2166136261U;
-    for (const char ch : text) {
-        hash ^= static_cast<uint8_t>(ch);
-        hash *= 16777619U;
-    }
-    return hash;
-}
-
-}  // namespace detail
-
-// CRTP base template for V8 class bindings
-// Derived classes must provide:
+// CRTP base for a script-visible class whose instances carry a native `NativeType`.
+//
+// Derived provides:
 //   - static constexpr std::string_view ClassName
-//   - static void New(const v8::FunctionCallbackInfo<v8::Value>& args)
-//   - static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl)
-
+//   - static void Configure(const ub::Class<NativeType>& cls), declaring its members through the
+//     Property / Method / StaticMethod helpers below
+// and, if script may construct it:
+//   - static std::unique_ptr<NativeType> New(const ub::CallbackInfo& args)
+//     or static std::shared_ptr<NativeType> New(const ub::CallbackInfo& args)
+//     returning null after throwing to refuse the construction. Without one the class is not
+//     constructable from script. Calling it without `new` is a TypeError unless Derived also
+//     declares `static constexpr bool CALLABLE_WITHOUT_NEW = true;`, in which case a plain call
+//     makes an instance too and New tells the two apart with `args.IsConstructCall()`.
+//
+// Instances own a share of their native: ub::Class holds a std::shared_ptr, and the native goes
+// with its last share. Every wrapper - constructed or handed out by Wrap - is counted in the
+// InstanceTracker for the console's Scripts panel, through the deleter of the share it holds.
 template <typename Derived, typename NativeType>
 class ClassBase {
-    struct TemplateCache {
-        std::unordered_map<v8::Isolate*, v8::Global<v8::FunctionTemplate>> templates;
-        std::mutex mutex;
-    };
-
-    static TemplateCache& GetCache() {
-        static TemplateCache cache;
-        return cache;
-    }
-
-    // Address-only marker, one per Derived. Stored in internal field 1 so Unwrap identifies its
-    // own instances with a pointer compare rather than a template-chain check.
-    //
-    // Its value is seeded from the class name, which is what keeps the tags at distinct
-    // addresses: the DLL links with /OPT:ICF (EnableCOMDATFolding in d2bs.vcxproj), which folds
-    // COMDATs holding identical bytes. Uniform contents would let every class share one address
-    // and Unwrap would then accept any wrapper of any class. ClassName is therefore required to
-    // be unique across classes.
-    // NOLINTNEXTLINE(cert-err58-cpp) - constinit makes this compile-time; the check misses that
-    inline static constinit uint32_t typeTag_ = detail::Fnv1a(Derived::ClassName);
-
-    // V8 weak callbacks require a two-pass mechanism:
-    // - First pass: Reset handle and schedule second pass (no other V8 API calls allowed)
-    // - Second pass: Actual cleanup - delete native struct and callback data
-    // TeardownIsolate calls LowMemoryNotification() before disposal to ensure
-    // all weak callbacks fire and native data is properly freed.
-    //
-    // The tracker row rides along so the count returns to the row that took it whichever thread
-    // runs the callback. Today that is always the script thread, but only because V8 posts second
-    // pass callbacks to the foreground task runner and TeardownIsolate forces a synchronous drain
-    // before disposal - Isolate::Dispose itself drains nothing, so a callback still queued there
-    // is dropped rather than run late. Recording the row keeps none of that load-bearing.
-    static void MakeWeak(v8::Isolate* isolate, v8::Local<v8::Object> obj, NativeType* ptr, InstanceTracker::Row& row) {
-        struct WeakCallbackData {
-            v8::Global<v8::Object> handle;
-            NativeType* native;
-            InstanceTracker::Row* row;
-        };
-
-        auto* data = new WeakCallbackData{v8::Global<v8::Object>(isolate, obj), ptr, &row};
-
-        data->handle.SetWeak(
-            data,
-            [](const v8::WeakCallbackInfo<WeakCallbackData>& info) {
-                info.GetParameter()->handle.Reset();
-                info.SetSecondPassCallback([](const v8::WeakCallbackInfo<WeakCallbackData>& callbackInfo) {
-                    auto* d = callbackInfo.GetParameter();
-                    auto& owningRow = *d->row;
-                    delete d->native;
-                    delete d;
-                    InstanceTracker::Instance().Decrement(owningRow, InstanceClassId());
-                });
-            },
-            v8::WeakCallbackType::kParameter);
-    }
-
-    static constexpr int32_t NATIVE_PTR_FIELD = 0;
-    static constexpr int32_t TYPE_TAG_FIELD = 1;
-    static constexpr int32_t INTERNAL_FIELD_COUNT = 2;
-
    public:
-    // Instance-tracker row for this class, resolved once. ClassId takes a lock and scans the name
-    // table, which must not happen per object - this is on the construction path of every wrapper.
+    using Native = NativeType;
+
+    // The class for this isolate, declared on first use. One isolate per script thread, so a
+    // thread-local slot is a per-isolate one; it is keyed on the isolate as well, so a thread that
+    // hosts a second isolate after the first is gone declares afresh rather than reusing a class
+    // from a dead heap.
+    static ub::Class<NativeType> Get(ub::Isolate& isolate) {
+        auto& slot = Slot();
+        if (slot.isolate != &isolate || !slot.cls) {
+            auto cls = ub::Class<NativeType>::New(isolate, Derived::ClassName);
+            if constexpr (requires(const ub::CallbackInfo& info) { Derived::New(info); }) {
+                if constexpr (requires { Derived::CALLABLE_WITHOUT_NEW; }) {
+                    static_assert(Derived::CALLABLE_WITHOUT_NEW, "declare it only to set it");
+                    cls.template ConstructOrCall<&Construct>();
+                } else {
+                    cls.template Construct<&Construct>();
+                }
+            }
+            Derived::Configure(cls);
+            slot.isolate = &isolate;
+            slot.cls = cls;
+        }
+        return *slot.cls;
+    }
+
+    // Forget this thread's class. Called while the isolate is torn down, so a later isolate on the
+    // same thread cannot be handed a class whose record went with the old heap.
+    static void ClearCache() { Slot() = {}; }
+
+    // The native behind `value`, or null if it is not an instance of this class. Exact: an
+    // instance of another class, or a plain object, is null.
+    template <class U>
+    [[nodiscard]] static NativeType* Unwrap(const ub::Local<U>& value) noexcept {
+        return ub::Class<NativeType>::Unwrap(value);
+    }
+
+    // A share of the native behind `value`, for keeping it past the wrapper.
+    template <class U>
+    [[nodiscard]] static std::shared_ptr<NativeType> UnwrapShared(const ub::Local<U>& value) noexcept {
+        return ub::Class<NativeType>::UnwrapShared(value);
+    }
+
+    template <class U>
+    [[nodiscard]] static bool IsInstance(const ub::Local<U>& value) noexcept {
+        return Unwrap(value) != nullptr;
+    }
+
+    // A new wrapper holding a share of `native`, without running the constructor.
+    static std::optional<ub::Local<ub::Object>> Wrap(const ub::Context& context, std::shared_ptr<NativeType> native) {
+        return Get(context.GetIsolate()).Wrap(context, Counted(std::move(native)));
+    }
+
+    // Instance-tracker row for this class, resolved once: ClassId takes a lock and scans the name
+    // table, which must not happen per object.
     static int32_t InstanceClassId() {
         static const int32_t ID = InstanceTracker::ClassId(Derived::ClassName);
         return ID;
     }
 
-    // Returns (or creates) the cached FunctionTemplate for this isolate.
-    static v8::Local<v8::FunctionTemplate> GetTemplate(v8::Isolate* isolate) {
-        auto& cache = GetCache();
-        std::scoped_lock lock(cache.mutex);
-        auto it = cache.templates.find(isolate);
-        if (it == cache.templates.end()) {
-            auto tpl = v8::FunctionTemplate::New(isolate, Derived::New);
-            tpl->SetClassName(convert::ToJS(isolate, Derived::ClassName));
-            tpl->InstanceTemplate()->SetInternalFieldCount(INTERNAL_FIELD_COUNT);
-            Derived::ConfigureTemplate(isolate, tpl);
-            it = cache.templates.emplace(isolate, v8::Global<v8::FunctionTemplate>(isolate, tpl)).first;
-        }
-        return it->second.Get(isolate);
+    // "Unit.x" rather than "x" in the Profiling panel's binding table.
+    [[nodiscard]] static std::string BindingName(std::string_view name) {
+        return std::string(Derived::ClassName) + "." + std::string(name);
     }
 
-    // Clear cached template for this isolate (call before disposal).
-    static void ClearCache(v8::Isolate* isolate) {
-        auto& cache = GetCache();
-        std::scoped_lock lock(cache.mutex);
-        cache.templates.erase(isolate);
-    }
-
-    // Check if a value is an instance of this class
-    static bool IsInstance(v8::Local<v8::Value> value) {
-        if (value.IsEmpty() || !value->IsObject()) {
-            return false;
-        }
-        // Every caller is inside a V8 callback, so the current isolate owns this value.
-        auto* isolate = v8::Isolate::GetCurrent();
-        return GetTemplate(isolate)->HasInstance(value);
-    }
-
-    // Unwrap native pointer from V8 object.
-    //
-    // Runs on every property read and method call, so it identifies the receiver by the
-    // type tag in field 1 rather than by IsInstance's template-chain walk. The count check
-    // has to come first - V8's inline field accessor does no bounds check, so probing field
-    // 1 on a plain object would read out of bounds.
-    //
-    // This is a type check, not a hardening boundary. Most accessors go straight to
-    // `if (!*data)`, which dereferences the result, so a nullptr return still faults - and
-    // V8 14 removed AccessorSignature, so a script that lifts a getter onto a foreign
-    // receiver can reach that. Deliberate, and not defended against: scripts are trusted
-    // here (they already have sockets, files and raw packet access).
-    static NativeType* Unwrap(v8::Local<v8::Object> obj) {
-        if (obj.IsEmpty() || obj->InternalFieldCount() < INTERNAL_FIELD_COUNT ||
-            obj->GetAlignedPointerFromInternalField(TYPE_TAG_FIELD, v8::kEmbedderDataTypeTagDefault) != &typeTag_) {
-            return nullptr;
-        }
-        return static_cast<NativeType*>(
-            obj->GetAlignedPointerFromInternalField(NATIVE_PTR_FIELD, v8::kEmbedderDataTypeTagDefault));
-    }
-
-    // Wrap native pointer into V8 object's internal fields. Stamping the tag here (rather
-    // than in InitInstance) covers the direct Wrap() callers too, so no instance of this
-    // class can exist without one.
-    static void Wrap(v8::Local<v8::Object> obj, NativeType* ptr) {
-        obj->SetAlignedPointerInInternalField(NATIVE_PTR_FIELD, ptr, v8::kEmbedderDataTypeTagDefault);
-        obj->SetAlignedPointerInInternalField(TYPE_TAG_FIELD, &typeTag_, v8::kEmbedderDataTypeTagDefault);
-    }
-
-    // Initialize a V8 object with native data and weak GC callback (constructor path).
-    static void InitInstance(v8::Isolate* isolate, v8::Local<v8::Object> obj, std::unique_ptr<NativeType> data) {
-        auto& row = InstanceTracker::Instance().Increment(InstanceClassId());
-        auto* raw = data.release();
-        Wrap(obj, raw);
-        MakeWeak(isolate, obj, raw, row);
-    }
-
-    // Create a new instance from heap-allocated data; on failure, data is freed automatically.
-    static v8::Local<v8::Object> CreateInstance(v8::Isolate* isolate, v8::Local<v8::Context> context,
-                                                std::unique_ptr<NativeType> data) {
-        v8::EscapableHandleScope scope(isolate);
-        auto tpl = GetTemplate(isolate);
-        auto maybeInstance = tpl->InstanceTemplate()->NewInstance(context);
-        if (maybeInstance.IsEmpty())
-            return {};
-        auto obj = maybeInstance.ToLocalChecked();
-        InitInstance(isolate, obj, std::move(data));
-        return scope.Escape(obj);
-    }
-
-    // Property on one already-built instance rather than on the class template. The `me`
-    // global is a JSUnit instance carrying extra own accessors; registering them here rather
-    // than with a raw SetNativeDataProperty puts them on the same trampoline as Property(),
-    // so per-call stack capture reaches them.
+    // An accessor on one already-made object rather than on the class. The `me` global is a Unit
+    // instance carrying members no other unit has; declaring them here rather than with a raw
+    // SetAccessor puts them on the same trampoline as Property(), so per-call stack capture and
+    // the Profiling panel reach them.
     template <typename Getter>
-    static void InstanceProperty(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Local<v8::Object> obj,
-                                 const char* name, Getter getter) {
-        const v8::AccessorNameGetterCallback getterFn = +getter;
+    static bool InstanceProperty(const ub::Context& context, const ub::Local<ub::Object>& object, std::string_view name,
+                                 Getter getter) {
+        const ub::AccessorGetterCallback getterFn = +getter;
         auto* accessors = runtime::script::InternAccessors(BindingName(name), getterFn, nullptr);
-        obj->SetNativeDataProperty(context, convert::ToJS(isolate, name), &runtime::script::PropertyGetterTrampoline,
-                                   nullptr, v8::External::New(isolate, accessors, v8::kExternalPointerTypeTagDefault),
-                                   v8::PropertyAttribute::ReadOnly)
-            .Check();
+        return object
+            .SetAccessor(context, name, &runtime::script::PropertyGetterTrampoline, nullptr,
+                         ub::CallbackData::For(*accessors))
+            .value_or(false);
     }
 
     template <typename Getter, typename Setter>
-    static void InstanceProperty(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Local<v8::Object> obj,
-                                 const char* name, Getter getter, Setter setter) {
-        const v8::AccessorNameGetterCallback getterFn = +getter;
-        const v8::AccessorNameSetterCallbackV2 setterFn = +setter;
+    static bool InstanceProperty(const ub::Context& context, const ub::Local<ub::Object>& object, std::string_view name,
+                                 Getter getter, Setter setter) {
+        const ub::AccessorGetterCallback getterFn = +getter;
+        const ub::AccessorSetterCallback setterFn = +setter;
         auto* accessors = runtime::script::InternAccessors(BindingName(name), getterFn, setterFn);
-        obj->SetNativeDataProperty(context, convert::ToJS(isolate, name), &runtime::script::PropertyGetterTrampoline,
-                                   &runtime::script::PropertySetterTrampoline,
-                                   v8::External::New(isolate, accessors, v8::kExternalPointerTypeTagDefault))
-            .Check();
+        return object
+            .SetAccessor(context, name, &runtime::script::PropertyGetterTrampoline,
+                         &runtime::script::PropertySetterTrampoline, ub::CallbackData::For(*accessors))
+            .value_or(false);
     }
 
    protected:
-    // "Unit.x" rather than "x" in the Profiling panel's binding table.
-    [[nodiscard]] static std::string BindingName(const char* name) {
-        return std::string(Derived::ClassName) + "." + name;
-    }
-
-    // ========================================================================
-    // Property registration with lambda getters/setters
-    // V8 v14+ uses SetNativeDataProperty with AccessorNameGetterCallback
-    // ========================================================================
-
-    // Read-only property with getter lambda.
-    // Routes through NativeCallHook trampolines so per-script stack capture
-    // sees every getter invocation.
+    // Read-only property. Routed through the NativeCallHook trampolines so per-script stack capture
+    // and the Profiling panel see every read.
+    //
+    // Declared on the instance template, so it is an own property of every instance: scripts copy
+    // game objects with for...in + hasOwnProperty (kolbot's copyObj), Object.keys or
+    // JSON.stringify, and an accessor on the prototype would be invisible to all three.
     template <typename Getter>
-    static void Property(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> inst, const char* name, Getter getter) {
-        const v8::AccessorNameGetterCallback getterFn = +getter;
+    static void Property(const ub::Class<NativeType>& cls, std::string_view name, Getter getter) {
+        const ub::AccessorGetterCallback getterFn = +getter;
         auto* accessors = runtime::script::InternAccessors(BindingName(name), getterFn, nullptr);
-        inst->SetNativeDataProperty(convert::ToJS(isolate, name), &runtime::script::PropertyGetterTrampoline, nullptr,
-                                    v8::External::New(isolate, accessors, v8::kExternalPointerTypeTagDefault));
+        cls.InstanceTemplate().SetAccessor(name, &runtime::script::PropertyGetterTrampoline, nullptr,
+                                           ub::CallbackData::For(*accessors));
     }
 
-    // Read-write property with getter and setter lambdas.
+    // Read-write property.
     template <typename Getter, typename Setter>
-    static void Property(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> inst, const char* name, Getter getter,
-                         Setter setter) {
-        const v8::AccessorNameGetterCallback getterFn = +getter;
-        const v8::AccessorNameSetterCallbackV2 setterFn = +setter;
+    static void Property(const ub::Class<NativeType>& cls, std::string_view name, Getter getter, Setter setter) {
+        const ub::AccessorGetterCallback getterFn = +getter;
+        const ub::AccessorSetterCallback setterFn = +setter;
         auto* accessors = runtime::script::InternAccessors(BindingName(name), getterFn, setterFn);
-        inst->SetNativeDataProperty(convert::ToJS(isolate, name), &runtime::script::PropertyGetterTrampoline,
-                                    &runtime::script::PropertySetterTrampoline,
-                                    v8::External::New(isolate, accessors, v8::kExternalPointerTypeTagDefault));
+        cls.InstanceTemplate().SetAccessor(name, &runtime::script::PropertyGetterTrampoline,
+                                           &runtime::script::PropertySetterTrampoline,
+                                           ub::CallbackData::For(*accessors));
     }
 
-    // Instance method. Wrapped via MethodTrampoline; user's function pointer
-    // travels through V8's `data` slot.
+    // Instance method, on the prototype.
     template <typename Func>
-    static void Method(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> proto, const char* name, Func func) {
-        const v8::FunctionCallback fnPtr = +func;
-        auto data = v8::External::New(isolate, runtime::script::InternFunction(BindingName(name), fnPtr),
-                                      v8::kExternalPointerTypeTagDefault);
-        proto->Set(isolate, name, v8::FunctionTemplate::New(isolate, &runtime::script::MethodTrampoline, data),
-                   v8::DontEnum);
+    static void Method(const ub::Class<NativeType>& cls, std::string_view name, Func func) {
+        const ub::FunctionCallback fn = +func;
+        auto* binding = runtime::script::InternFunction(BindingName(name), fn);
+        cls.Method(name, &runtime::script::MethodTrampoline, ub::CallbackData::For(*binding));
     }
 
-    // Static method on the constructor function.
+    // Method under a well-known symbol - `Symbol.iterator` is the reason this exists.
     template <typename Func>
-    static void StaticMethod(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl, const char* name, Func func) {
-        const v8::FunctionCallback fnPtr = +func;
-        auto data = v8::External::New(isolate, runtime::script::InternFunction(BindingName(name), fnPtr),
-                                      v8::kExternalPointerTypeTagDefault);
-        tpl->Set(isolate, name, v8::FunctionTemplate::New(isolate, &runtime::script::MethodTrampoline, data),
-                 v8::DontEnum);
+    static void SymbolMethod(const ub::Class<NativeType>& cls, ub::WellKnownSymbol key, std::string_view name,
+                             Func func) {
+        const ub::FunctionCallback fn = +func;
+        auto* binding = runtime::script::InternFunction(BindingName(name), fn);
+        cls.SymbolMethod(key, &runtime::script::MethodTrampoline, ub::CallbackData::For(*binding));
+    }
+
+    // Static method, on the constructor.
+    template <typename Func>
+    static void StaticMethod(const ub::Class<NativeType>& cls, std::string_view name, Func func) {
+        const ub::FunctionCallback fn = +func;
+        auto* binding = runtime::script::InternFunction(BindingName(name), fn);
+        cls.StaticMethod(name, &runtime::script::MethodTrampoline, ub::CallbackData::For(*binding));
+    }
+
+   private:
+    struct CacheSlot {
+        ub::Isolate* isolate = nullptr;
+        std::optional<ub::Class<NativeType>> cls;
+    };
+
+    static CacheSlot& Slot() {
+        static thread_local CacheSlot slot;
+        return slot;
+    }
+
+    // A share whose release gives the tracker back its count. The original share rides inside the
+    // deleter, so whoever else holds the native keeps it alive exactly as before; this one only
+    // adds the bookkeeping. The row is recorded rather than looked up again so the count returns
+    // to the thread that took it whichever thread lets the last share go.
+    static std::shared_ptr<NativeType> Counted(std::shared_ptr<NativeType> native) {
+        if (!native) {
+            return nullptr;
+        }
+        NativeType* raw = native.get();
+        auto& row = InstanceTracker::Instance().Increment(InstanceClassId());
+        return {raw, [held = std::move(native), row = &row](NativeType* /*native*/) mutable {
+                    held.reset();
+                    InstanceTracker::Instance().Decrement(*row, InstanceClassId());
+                }};
+    }
+
+    static std::shared_ptr<NativeType> Construct(const ub::CallbackInfo& info) {
+        auto made = Derived::New(info);
+        if (!made) {
+            return nullptr;
+        }
+        return Counted(std::shared_ptr<NativeType>(std::move(made)));
     }
 };
-
-// Helper macro for common constructor pattern
-// Uses the ClassName constexpr from ClassBase<Derived, NativeType>
-#define V8_CLASS_CTOR_PROLOGUE                                                                              \
-    auto* isolate = args.GetIsolate();                                                                      \
-    if (!args.IsConstructCall()) {                                                                          \
-        error::ThrowTypeError(isolate, std::string(ClassName) + " must be called with 'new'"); /* NOLINT */ \
-        return;                                                                                             \
-    }
-
-// Helper macro for classes that should not be directly constructed
-// These classes are obtained via global functions (e.g., getUnit(), getArea())
-#define V8_CLASS_NOT_CONSTRUCTABLE                                                                 \
-    static void New(const v8::FunctionCallbackInfo<v8::Value>& args) {                             \
-        auto* isolate = args.GetIsolate();                                                         \
-        error::ThrowError(isolate, std::string(ClassName) + " is not constructable"); /* NOLINT */ \
-        return;                                                                                    \
-    }
 
 }  // namespace d2bs::api

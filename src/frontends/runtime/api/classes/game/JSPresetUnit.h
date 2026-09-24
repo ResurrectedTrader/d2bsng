@@ -1,9 +1,11 @@
 #pragma once
 
-#include <v8.h>
+#include <string_view>
+
+#include "Receiver.h"
 #include "api/core/Class.h"
-#include "api/core/Error.h"
-#include "game/Room.h"
+#include "game/Types.h"
+#include "unibind/unibind.h"
 
 namespace d2bs::api::classes {
 
@@ -14,64 +16,82 @@ class JSPresetUnit : public ClassBase<JSPresetUnit, game::PresetUnitInfo> {
    public:
     static constexpr std::string_view ClassName = "PresetUnit";
 
-    V8_CLASS_NOT_CONSTRUCTABLE
-
-    static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
-        auto inst = tpl->InstanceTemplate();
+    static void Configure(const ub::Class<Native>& cls) {
         /// @description Unit type code identifying the kind of preset object.
         /// 1 = monster, 2 = object, 5 = tile.
         /// @type {number}
         Property(
-            isolate, inst, "type", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+            cls, "type", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSPresetUnit>(info);
+                if (data == nullptr) {
+                    return;
+                }
                 info.GetReturnValue().Set(data->type);
             });
 
         /// @description X coordinate of the containing room in room-grid units.
         /// @type {number}
         Property(
-            isolate, inst, "roomx", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+            cls, "roomx", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSPresetUnit>(info);
+                if (data == nullptr) {
+                    return;
+                }
                 info.GetReturnValue().Set(data->roomPos.x);
             });
 
         /// @description Y coordinate of the containing room in room-grid units.
         /// @type {number}
         Property(
-            isolate, inst, "roomy", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+            cls, "roomy", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSPresetUnit>(info);
+                if (data == nullptr) {
+                    return;
+                }
                 info.GetReturnValue().Set(data->roomPos.y);
             });
 
         /// @description X position within the room, in game world coordinates (see docs/coords.md).
         /// @type {number}
         Property(
-            isolate, inst, "x", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+            cls, "x", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSPresetUnit>(info);
+                if (data == nullptr) {
+                    return;
+                }
                 info.GetReturnValue().Set(data->posInRoom.x);
             });
 
         /// @description Y position within the room, in game world coordinates (see docs/coords.md).
         /// @type {number}
         Property(
-            isolate, inst, "y", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+            cls, "y", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSPresetUnit>(info);
+                if (data == nullptr) {
+                    return;
+                }
                 info.GetReturnValue().Set(data->posInRoom.y);
             });
 
         /// @description Class ID of the specific unit (object, monster, or tile ID).
         /// @type {number}
         Property(
-            isolate, inst, "id", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+            cls, "id", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSPresetUnit>(info);
+                if (data == nullptr) {
+                    return;
+                }
                 info.GetReturnValue().Set(data->id);
             });
 
         /// @description Level (area) number where the preset unit resides.
         /// @type {number}
         Property(
-            isolate, inst, "level", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+            cls, "level", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSPresetUnit>(info);
+                if (data == nullptr) {
+                    return;
+                }
                 info.GetReturnValue().Set(data->level);
             });
     }

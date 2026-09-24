@@ -1,12 +1,17 @@
 #pragma once
 
-#include <v8.h>
+#include <cstdint>
+#include <memory>
+#include <string_view>
+#include <tuple>
+
 #include "JSExit.h"
+#include "Receiver.h"
 #include "api/core/Class.h"
-#include "api/core/Convert.h"
 #include "api/core/Error.h"
 #include "game/Level.h"
 #include "navigation/ExitFinder.h"
+#include "unibind/unibind.h"
 
 namespace d2bs::api::classes {
 
@@ -16,45 +21,51 @@ class JSArea : public ClassBase<JSArea, game::Level> {
    public:
     static constexpr std::string_view ClassName = "Area";
 
-    // Area objects are obtained via getArea() global function, not direct construction
-    V8_CLASS_NOT_CONSTRUCTABLE
-
-    static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
-        auto inst = tpl->InstanceTemplate();
+    static void Configure(const ub::Class<Native>& cls) {
         /// @description Exits leading out of this area, each as an Exit object.
         /// @type {Array<Exit>}
         Property(
-            isolate, inst, "exits", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+            cls, "exits", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSArea>(info);
+                if (data == nullptr) {
+                    return;
+                }
+                const auto& context = info.GetContext();
                 if (!*data) {
-                    info.GetReturnValue().Set(v8::Array::New(info.GetIsolate(), 0));
+                    if (auto empty = ub::Array::New(context)) {
+                        info.GetReturnValue().Set(*empty);
+                    }
                     return;
                 }
 
-                auto* isolate = info.GetIsolate();
-
                 auto exits = navigation::GetExits(*data);
-                auto context = isolate->GetCurrentContext();
-                auto array = v8::Array::New(isolate, static_cast<int32_t>(exits.size()));
-
-                for (uint32_t i = 0; i < exits.size(); ++i) {
-                    auto exitObj =
-                        JSExit::CreateInstance(isolate, context, std::make_unique<navigation::ExitInfo>(exits[i]));
-                    if (exitObj.IsEmpty()) {
-                        error::ThrowError(isolate, "Failed to build exit array");
-                        return;
-                    }
-                    array->Set(context, i, exitObj).Check();
+                auto array = ub::Array::New(context, static_cast<uint32_t>(exits.size()));
+                if (!array) {
+                    return;
                 }
 
-                info.GetReturnValue().Set(array);
+                for (uint32_t i = 0; i < exits.size(); ++i) {
+                    auto exitObj = JSExit::Wrap(context, std::make_shared<navigation::ExitInfo>(exits[i]));
+                    if (!exitObj) {
+                        error::ThrowError(info.GetIsolate(), "Failed to build exit array");
+                        return;
+                    }
+                    if (!array->Set(context, i, *exitObj).value_or(false)) {
+                        return;
+                    }
+                }
+
+                info.GetReturnValue().Set(*array);
             });
 
         /// @description Level number identifying this area, matching the Areas constant.
         /// @type {number}
         Property(
-            isolate, inst, "id", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+            cls, "id", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSArea>(info);
+                if (data == nullptr) {
+                    return;
+                }
                 if (!*data) {
                     info.GetReturnValue().Set(0);
                     return;
@@ -65,14 +76,16 @@ class JSArea : public ClassBase<JSArea, game::Level> {
         /// @description Human-readable level name for this area.
         /// @type {string}
         Property(
-            isolate, inst, "name", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
-                auto* isolate = info.GetIsolate();
-                if (!*data) {
-                    info.GetReturnValue().SetEmptyString();
+            cls, "name", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSArea>(info);
+                if (data == nullptr) {
                     return;
                 }
-                info.GetReturnValue().Set(convert::ToJS(isolate, data->Name()));
+                if (!*data) {
+                    std::ignore = info.GetReturnValue().SetEmptyString();
+                    return;
+                }
+                std::ignore = info.GetReturnValue().Set(data->Name());
             });
 
         // reference d2bs parity: area.x/y/xsize/ysize are exposed as subtiles; Level::Bounds() returns game-coords (see
@@ -80,8 +93,11 @@ class JSArea : public ClassBase<JSArea, game::Level> {
         /// @description X origin of the area in subtiles.
         /// @type {number}
         Property(
-            isolate, inst, "x", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+            cls, "x", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSArea>(info);
+                if (data == nullptr) {
+                    return;
+                }
                 if (!*data) {
                     info.GetReturnValue().Set(0);
                     return;
@@ -92,8 +108,11 @@ class JSArea : public ClassBase<JSArea, game::Level> {
         /// @description Y origin of the area in subtiles.
         /// @type {number}
         Property(
-            isolate, inst, "y", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+            cls, "y", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSArea>(info);
+                if (data == nullptr) {
+                    return;
+                }
                 if (!*data) {
                     info.GetReturnValue().Set(0);
                     return;
@@ -104,8 +123,11 @@ class JSArea : public ClassBase<JSArea, game::Level> {
         /// @description Width of the area in subtiles.
         /// @type {number}
         Property(
-            isolate, inst, "xsize", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+            cls, "xsize", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSArea>(info);
+                if (data == nullptr) {
+                    return;
+                }
                 if (!*data) {
                     info.GetReturnValue().Set(0);
                     return;
@@ -116,8 +138,11 @@ class JSArea : public ClassBase<JSArea, game::Level> {
         /// @description Height of the area in subtiles.
         /// @type {number}
         Property(
-            isolate, inst, "ysize", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+            cls, "ysize", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSArea>(info);
+                if (data == nullptr) {
+                    return;
+                }
                 if (!*data) {
                     info.GetReturnValue().Set(0);
                     return;

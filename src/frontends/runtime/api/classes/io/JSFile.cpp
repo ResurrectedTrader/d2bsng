@@ -1,6 +1,7 @@
 #include "JSFile.h"
 
 #include <cstdio>
+#include <cstring>
 #include <string>
 
 #include <fmt/format.h>
@@ -11,7 +12,7 @@
 
 namespace d2bs::api::classes::file_detail {
 
-FILE* FileOpenRelScript(v8::Isolate* isolate, const std::string& relativePath, const wchar_t* mode) {
+FILE* FileOpenRelScript(ub::Isolate& isolate, const std::string& relativePath, const wchar_t* mode) {
     auto fullPath = config::GetPathRelScript(relativePath);
     if (fullPath.empty()) {
         error::ThrowError(isolate, "Invalid file name");
@@ -45,40 +46,37 @@ std::string ReadLine(FILE* fptr) {
     return buffer;
 }
 
-bool WriteValue(FILE* fptr, v8::Isolate* isolate, v8::Local<v8::Value> value, bool isBinary) {
-    if (value->IsNullOrUndefined()) {
+bool WriteValue(FILE* fptr, const ub::Context& context, const ub::Local<ub::Value>& value, bool isBinary) {
+    if (value.IsNullOrUndefined()) {
         int32_t zero = 0;
         return fwrite(&zero, sizeof(int32_t), 1, fptr) == 1;
     }
 
-    if (value->IsString()) {
-        std::string str = convert::ToString(isolate, value);
+    if (value.IsString()) {
+        std::string str = convert::ToString(context, value);
         return fwrite(str.data(), sizeof(char), str.size(), fptr) == str.size();
     }
 
-    if (value->IsNumber()) {
-        auto context = isolate->GetCurrentContext();
+    if (value.IsNumber()) {
         if (isBinary) {
-            if (value->IsInt32()) {
-                int32_t ival = value->Int32Value(context).FromMaybe(0);
+            if (value.IsInt32()) {
+                int32_t ival = convert::ToInt32(context, value);
                 return fwrite(&ival, sizeof(int32_t), 1, fptr) == 1;
             }
-            double dval = value->NumberValue(context).FromMaybe(0.0);
+            double dval = convert::ToDouble(context, value);
             return fwrite(&dval, sizeof(double), 1, fptr) == 1;
         }
         // Text mode
-        if (value->IsInt32()) {
-            int32_t ival = value->Int32Value(context).FromMaybe(0);
-            std::string str = fmt::format("{}", ival);
+        if (value.IsInt32()) {
+            std::string str = fmt::format("{}", convert::ToInt32(context, value));
             return fwrite(str.data(), sizeof(char), str.size(), fptr) == str.size();
         }
-        double dval = value->NumberValue(context).FromMaybe(0.0);
-        std::string str = fmt::format("{:.16f}", dval);
+        std::string str = fmt::format("{:.16f}", convert::ToDouble(context, value));
         return fwrite(str.data(), sizeof(char), str.size(), fptr) == str.size();
     }
 
-    if (value->IsBoolean()) {
-        bool bval = value->BooleanValue(isolate);
+    if (value.IsBoolean()) {
+        bool bval = value.IsTrue();
         if (isBinary) {
             return fwrite(&bval, sizeof(bool), 1, fptr) == 1;
         }

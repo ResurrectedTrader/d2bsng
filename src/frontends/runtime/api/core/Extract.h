@@ -1,128 +1,115 @@
 #pragma once
 
 #include <atomic>
+#include <cstdint>
 #include <optional>
-
-#include <v8.h>
 
 #include "api/core/Convert.h"
 #include "game/Types.h"
+#include "unibind/unibind.h"
 
-// Extraction utilities for taking C++ values out of V8 args / objects.
-//
-// Names drop the Extract prefix - the namespace carries the verb.
-// Inside this namespace, function names shadow the type names, so uses of the
-// types must be qualified (d2bs::game::Point etc.).
+// Game geometry out of script values: an `{x, y}` / `{width, height}` object, or a pair of
+// adjacent arguments.
 
 namespace d2bs::api::extract {
 
-// ============================================================================
-// From a v8::Value (object input, e.g. {x, y} or {width, height})
-// ============================================================================
+namespace detail {
 
-inline std::optional<game::Position> Position(v8::Isolate* isolate, v8::Local<v8::Value> val) {
-    if (val.IsEmpty() || !val->IsObject())
+// Two numeric properties of an object, or nothing if it is not an object, a read threw, or either
+// is not a number.
+inline std::optional<std::pair<ub::Local<ub::Value>, ub::Local<ub::Value>>> Pair(const ub::Context& context,
+                                                                                 const ub::Local<ub::Value>& val,
+                                                                                 std::string_view first,
+                                                                                 std::string_view second) {
+    if (val.IsEmpty() || !val.IsObject()) {
         return std::nullopt;
-    auto context = isolate->GetCurrentContext();
-    auto obj = val.As<v8::Object>();
-    v8::Local<v8::Value> xv;
-    v8::Local<v8::Value> yv;
-    if (!obj->Get(context, convert::ToJS(isolate, "x")).ToLocal(&xv))
+    }
+    auto obj = val.To<ub::Object>();
+    if (!obj) {
         return std::nullopt;
-    if (!obj->Get(context, convert::ToJS(isolate, "y")).ToLocal(&yv))
+    }
+    auto a = obj->Get(context, first);
+    auto b = obj->Get(context, second);
+    if (!a || !b || !a->IsNumber() || !b->IsNumber()) {
         return std::nullopt;
-    if (!xv->IsNumber() || !yv->IsNumber())
-        return std::nullopt;
-    return game::Position{.x = convert::ToUint32(isolate, xv), .y = convert::ToUint32(isolate, yv)};
+    }
+    return std::pair{*a, *b};
 }
 
-inline std::optional<game::Point> Point(v8::Isolate* isolate, v8::Local<v8::Value> val) {
-    if (val.IsEmpty() || !val->IsObject())
+}  // namespace detail
+
+inline std::optional<game::Position> Position(const ub::Context& context, const ub::Local<ub::Value>& val) {
+    auto xy = detail::Pair(context, val, "x", "y");
+    if (!xy) {
         return std::nullopt;
-    auto context = isolate->GetCurrentContext();
-    auto obj = val.As<v8::Object>();
-    v8::Local<v8::Value> xv;
-    v8::Local<v8::Value> yv;
-    if (!obj->Get(context, convert::ToJS(isolate, "x")).ToLocal(&xv))
-        return std::nullopt;
-    if (!obj->Get(context, convert::ToJS(isolate, "y")).ToLocal(&yv))
-        return std::nullopt;
-    if (!xv->IsNumber() || !yv->IsNumber())
-        return std::nullopt;
-    return game::Point{.x = convert::ToInt32(isolate, xv), .y = convert::ToInt32(isolate, yv)};
+    }
+    return game::Position{.x = convert::ToUint32(context, xy->first), .y = convert::ToUint32(context, xy->second)};
 }
 
-inline std::optional<game::Size> Size(v8::Isolate* isolate, v8::Local<v8::Value> val) {
-    if (val.IsEmpty() || !val->IsObject())
+inline std::optional<game::Point> Point(const ub::Context& context, const ub::Local<ub::Value>& val) {
+    auto xy = detail::Pair(context, val, "x", "y");
+    if (!xy) {
         return std::nullopt;
-    auto context = isolate->GetCurrentContext();
-    auto obj = val.As<v8::Object>();
-    v8::Local<v8::Value> wv;
-    v8::Local<v8::Value> hv;
-    if (!obj->Get(context, convert::ToJS(isolate, "width")).ToLocal(&wv))
-        return std::nullopt;
-    if (!obj->Get(context, convert::ToJS(isolate, "height")).ToLocal(&hv))
-        return std::nullopt;
-    if (!wv->IsNumber() || !hv->IsNumber())
-        return std::nullopt;
-    return game::Size{.width = convert::ToUint32(isolate, wv), .height = convert::ToUint32(isolate, hv)};
+    }
+    return game::Point{.x = convert::ToInt32(context, xy->first), .y = convert::ToInt32(context, xy->second)};
 }
 
-// ============================================================================
-// From positional args (both args[idx] and args[idx+1] must be numeric)
-// ============================================================================
-
-// Positional overloads rely on convert::ToUint32/ToInt32 to coerce strings/booleans
-// per V8 semantics - matching the pre-refactor behavior where scripts like
-// `getPath(area, "10", "20", ...)` silently worked via implicit coercion.
-// Only the arg-count bound is enforced here.
-inline std::optional<game::Position> Position(const v8::FunctionCallbackInfo<v8::Value>& args, int idx) {
-    if (args.Length() <= idx + 1)
+inline std::optional<game::Size> Size(const ub::Context& context, const ub::Local<ub::Value>& val) {
+    auto wh = detail::Pair(context, val, "width", "height");
+    if (!wh) {
         return std::nullopt;
-    auto* isolate = args.GetIsolate();
-    return game::Position{.x = convert::ToUint32(isolate, args[idx]), .y = convert::ToUint32(isolate, args[idx + 1])};
+    }
+    return game::Size{.width = convert::ToUint32(context, wh->first), .height = convert::ToUint32(context, wh->second)};
 }
 
-inline std::optional<game::Point> Point(const v8::FunctionCallbackInfo<v8::Value>& args, int idx) {
-    if (args.Length() <= idx + 1)
+// Two adjacent arguments starting at `idx`.
+inline std::optional<game::Position> Position(const ub::CallbackInfo& args, uint32_t idx) {
+    if (args.Length() <= idx + 1) {
         return std::nullopt;
-    auto* isolate = args.GetIsolate();
-    return game::Point{.x = convert::ToInt32(isolate, args[idx]), .y = convert::ToInt32(isolate, args[idx + 1])};
+    }
+    const auto& context = args.GetContext();
+    return game::Position{.x = convert::ToUint32(context, args[idx]), .y = convert::ToUint32(context, args[idx + 1])};
 }
 
-inline std::optional<game::Size> Size(const v8::FunctionCallbackInfo<v8::Value>& args, int idx) {
-    if (args.Length() <= idx + 1)
+inline std::optional<game::Point> Point(const ub::CallbackInfo& args, uint32_t idx) {
+    if (args.Length() <= idx + 1) {
         return std::nullopt;
-    auto* isolate = args.GetIsolate();
-    return game::Size{.width = convert::ToUint32(isolate, args[idx]),
-                      .height = convert::ToUint32(isolate, args[idx + 1])};
+    }
+    const auto& context = args.GetContext();
+    return game::Point{.x = convert::ToInt32(context, args[idx]), .y = convert::ToInt32(context, args[idx + 1])};
 }
 
-// ============================================================================
-// Partial-update helpers for Drawable atomics.
-//
-// Read the current atomic, overlay per-arg IsNumber() writes, store back.
-// Preserves "new Box(5) leaves y at its default" semantics: each arg is only
-// applied if the corresponding args[idx]/args[idx+1] IsNumber().
-// ============================================================================
+inline std::optional<game::Size> Size(const ub::CallbackInfo& args, uint32_t idx) {
+    if (args.Length() <= idx + 1) {
+        return std::nullopt;
+    }
+    const auto& context = args.GetContext();
+    return game::Size{.width = convert::ToUint32(context, args[idx]),
+                      .height = convert::ToUint32(context, args[idx + 1])};
+}
 
-inline void PointInto(const v8::FunctionCallbackInfo<v8::Value>& args, int idx, std::atomic<game::Point>& out) {
-    auto* isolate = args.GetIsolate();
+// Overwrite whichever halves of `out` the arguments at `idx` / `idx + 1` supply as numbers.
+inline void PointInto(const ub::CallbackInfo& args, uint32_t idx, std::atomic<game::Point>& out) {
+    const auto& context = args.GetContext();
     auto cur = out.load();
-    if (args.Length() > idx && args[idx]->IsNumber())
-        cur.x = convert::ToInt32(isolate, args[idx]);
-    if (args.Length() > idx + 1 && args[idx + 1]->IsNumber())
-        cur.y = convert::ToInt32(isolate, args[idx + 1]);
+    if (args.Length() > idx && args[idx].IsNumber()) {
+        cur.x = convert::ToInt32(context, args[idx]);
+    }
+    if (args.Length() > idx + 1 && args[idx + 1].IsNumber()) {
+        cur.y = convert::ToInt32(context, args[idx + 1]);
+    }
     out.store(cur);
 }
 
-inline void SizeInto(const v8::FunctionCallbackInfo<v8::Value>& args, int idx, std::atomic<game::Size>& out) {
-    auto* isolate = args.GetIsolate();
+inline void SizeInto(const ub::CallbackInfo& args, uint32_t idx, std::atomic<game::Size>& out) {
+    const auto& context = args.GetContext();
     auto cur = out.load();
-    if (args.Length() > idx && args[idx]->IsNumber())
-        cur.width = convert::ToUint32(isolate, args[idx]);
-    if (args.Length() > idx + 1 && args[idx + 1]->IsNumber())
-        cur.height = convert::ToUint32(isolate, args[idx + 1]);
+    if (args.Length() > idx && args[idx].IsNumber()) {
+        cur.width = convert::ToUint32(context, args[idx]);
+    }
+    if (args.Length() > idx + 1 && args[idx + 1].IsNumber()) {
+        cur.height = convert::ToUint32(context, args[idx + 1]);
+    }
     out.store(cur);
 }
 

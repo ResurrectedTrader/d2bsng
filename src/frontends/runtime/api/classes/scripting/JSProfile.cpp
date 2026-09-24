@@ -1,7 +1,11 @@
 #include "JSProfile.h"
 
 #include <algorithm>
+#include <memory>
+#include <string>
 
+#include "api/core/Convert.h"
+#include "api/core/Error.h"
 #include "config/AppConfig.h"
 #include "config/CompatibilityFlags.h"
 #include "game/Menu.h"
@@ -35,29 +39,17 @@ namespace d2bs::api::classes {
 /// @throws {Error} - no-arg form when no active profile name is set ("No active profile!").
 /// @throws {Error} - the named (or active) profile is not in the INI ("Profile does not exist").
 /// @throws {Error} - args match no valid form, or the ProfileType is wrong for the arg count ("Invalid parameters.").
-void JSProfile::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    auto* isolate = args.GetIsolate();
-    auto context = isolate->GetCurrentContext();
+std::unique_ptr<ProfileData> JSProfile::New(const ub::CallbackInfo& args) {
+    auto& isolate = args.GetIsolate();
+    const auto& context = args.GetContext();
 
     // SpiderMonkey allowed `Profile()` without `new`; kolbot relies on this.
-    // When enabled (Compatibility flag: profileCallWithoutNew), auto-redirect to
-    // a construct call so the rest of this body runs against a real instance;
-    // when disabled, require `new` like an ordinary class.
-    if (!args.IsConstructCall()) {
-        if (!config::CompatibilityFlags::Instance().IsEnabled("profileCallWithoutNew")) {
-            error::ThrowTypeError(isolate, "Profile must be called with 'new'");
-            return;
-        }
-        std::vector<v8::Local<v8::Value>> argv(args.Length());
-        for (int32_t i = 0; i < args.Length(); ++i) {
-            argv[i] = args[i];
-        }
-        auto func = GetTemplate(isolate)->GetFunction(context).ToLocalChecked();
-        v8::Local<v8::Object> instance;
-        if (func->NewInstance(context, static_cast<int32_t>(argv.size()), argv.data()).ToLocal(&instance)) {
-            args.GetReturnValue().Set(instance);
-        }
-        return;
+    // When enabled (Compatibility flag: profileCallWithoutNew), a plain call
+    // constructs exactly as `new` does; when disabled, require `new` like an
+    // ordinary class.
+    if (!args.IsConstructCall() && !config::CompatibilityFlags::Instance().IsEnabled("profileCallWithoutNew")) {
+        error::ThrowTypeError(isolate, "Profile must be called with 'new'");
+        return nullptr;
     }
 
     auto argc = args.Length();
@@ -76,69 +68,69 @@ void JSProfile::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
         auto name = config::GetAppConfig().GetProfileName();
         if (name.empty()) {
             error::ThrowError(isolate, "No active profile!");
-            return;
+            return nullptr;
         }
         auto loaded = services::profile::Load(name);
         if (!loaded) {
             error::ThrowError(isolate, "Profile does not exist");
-            return;
+            return nullptr;
         }
         *data = std::move(*loaded);
     }
     // Profile(name) - get the named profile.
     // Same divergence from reference as above: we throw on missing instead
     // of returning an "ERROR"-filled stub.
-    else if (argc == 1 && args[0]->IsString()) {
-        std::string name = convert::ToString(isolate, args[0]);
+    else if (argc == 1 && args[0].IsString()) {
+        std::string name = convert::ToString(context, args[0]);
         auto loaded = services::profile::Load(name);
         if (!loaded) {
             error::ThrowError(isolate, "Profile does not exist");
-            return;
+            return nullptr;
         }
         *data = std::move(*loaded);
     }
     // Profile(ProfileType.singlePlayer, charname, diff)
-    else if (argc == 3 && args[0]->IsInt32()) {
-        int32_t type = args[0]->Int32Value(context).FromMaybe(0);
+    else if (argc == 3 && args[0].IsInt32()) {
+        int32_t type = convert::ToInt32(context, args[0]);
         if (type == static_cast<int32_t>(ProfileType::SinglePlayer)) {
-            std::string charname = convert::ToString(isolate, args[1]);
+            std::string charname = convert::ToString(context, args[1]);
             // 0=Normal, 1=Nightmare, 2=Hell, 3=hardest available
-            int32_t diff = std::clamp(args[2]->Int32Value(context).FromMaybe(0), 0, 3);
+            int32_t diff = std::clamp(convert::ToInt32(context, args[2]), 0, 3);
             data->type = ProfileType::SinglePlayer;
             data->character = charname;
             data->difficulty = static_cast<game::Difficulty>(diff);
         }
         // Profile(ProfileType.tcpIpHost, charname, diff)
         else if (type == static_cast<int32_t>(ProfileType::TcpIpHost)) {
-            std::string charname = convert::ToString(isolate, args[1]);
+            std::string charname = convert::ToString(context, args[1]);
             // 0=Normal, 1=Nightmare, 2=Hell, 3=hardest available
-            int32_t diff = std::clamp(args[2]->Int32Value(context).FromMaybe(0), 0, 3);
+            int32_t diff = std::clamp(convert::ToInt32(context, args[2]), 0, 3);
             data->type = ProfileType::TcpIpHost;
             data->character = charname;
             data->difficulty = static_cast<game::Difficulty>(diff);
         }
         // Profile(ProfileType.tcpIpJoin, charname, ip)
         else if (type == static_cast<int32_t>(ProfileType::TcpIpJoin)) {
-            std::string charname = convert::ToString(isolate, args[1]);
-            std::string ip = convert::ToString(isolate, args[2]);
+            std::string charname = convert::ToString(context, args[1]);
+            std::string ip = convert::ToString(context, args[2]);
             data->type = ProfileType::TcpIpJoin;
             data->character = charname;
             data->ip = ip;
         } else {
             error::ThrowError(isolate, "Invalid parameters.");
-            return;
+            return nullptr;
         }
     }
     // Profile(ProfileType.battleNet, account, pass, charname, gateway)
     // Profile(ProfileType.openBattleNet, account, pass, charname, gateway)
-    else if (argc == 5 && args[0]->IsInt32()) {
-        int32_t type = args[0]->Int32Value(context).FromMaybe(0);
+    else if (argc == 5 && args[0].IsInt32()) {
+        int32_t type = convert::ToInt32(context, args[0]);
         if (type == static_cast<int32_t>(ProfileType::BattleNet) ||
             type == static_cast<int32_t>(ProfileType::OpenBattleNet)) {
-            std::string account = convert::ToString(isolate, args[1]);
-            std::string pass = convert::ToString(isolate, args[2]);
-            std::string charname = convert::ToString(isolate, args[3]);
-            std::string gateway = convert::ToString(isolate, args[4]);
+            std::string account = convert::ToString(context, args[1]);
+            std::string pass = convert::ToString(context, args[2]);
+            std::string charname = convert::ToString(context, args[3]);
+            std::string gateway = convert::ToString(context, args[4]);
             data->type = static_cast<ProfileType>(type);
             data->username = account;
             data->password = pass;
@@ -146,121 +138,98 @@ void JSProfile::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
             data->gateway = gateway;
         } else {
             error::ThrowError(isolate, "Invalid parameters.");
-            return;
+            return nullptr;
         }
     } else {
         error::ThrowError(isolate, "Invalid parameters.");
-        return;
+        return nullptr;
     }
 
-    InitInstance(isolate, args.This(), std::move(data));
-    args.GetReturnValue().Set(args.This());
+    return data;
 }
 
-void JSProfile::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
-    auto inst = tpl->InstanceTemplate();
-    auto proto = tpl->PrototypeTemplate();
-
+void JSProfile::Configure(const ub::Class<ProfileData>& cls) {
     // Properties
     /// @description The profile's connection type.
     /// @type {ProfileType}
     Property(
-        isolate, inst, "type", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* isolate = info.GetIsolate();
-            auto self = info.Holder();
-            auto data = Unwrap(self);
+        cls, "type", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+            auto* data = Unwrap(info.This());
             if (!data) {
                 return;
             }
-            info.GetReturnValue().Set(convert::ToJS(isolate, static_cast<int32_t>(data->type)));
+            info.GetReturnValue().Set(static_cast<int32_t>(data->type));
         });
     /// @description The host IP address for tcpIpJoin profiles; empty string for others.
     /// @type {string}
     Property(
-        isolate, inst, "ip", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* isolate = info.GetIsolate();
-            auto self = info.Holder();
-            auto data = Unwrap(self);
+        cls, "ip", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+            auto* data = Unwrap(info.This());
             if (!data) {
                 return;
             }
-            info.GetReturnValue().Set(convert::ToJS(isolate, data->ip));
+            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), data->ip));
         });
     /// @description The account/username for battleNet/openBattleNet profiles; empty string for others.
     /// @type {string}
     Property(
-        isolate, inst, "username", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* isolate = info.GetIsolate();
-            auto self = info.Holder();
-            auto data = Unwrap(self);
+        cls, "username", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+            auto* data = Unwrap(info.This());
             if (!data) {
                 return;
             }
-            info.GetReturnValue().Set(convert::ToJS(isolate, data->username));
+            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), data->username));
         });
     /// @description The realm gateway name for battleNet/openBattleNet profiles; empty string for others.
     /// @type {string}
     Property(
-        isolate, inst, "gateway", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* isolate = info.GetIsolate();
-            auto self = info.Holder();
-            auto data = Unwrap(self);
+        cls, "gateway", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+            auto* data = Unwrap(info.This());
             if (!data) {
                 return;
             }
-            info.GetReturnValue().Set(convert::ToJS(isolate, data->gateway));
+            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), data->gateway));
         });
     /// @description The character name associated with the profile; empty string if not set.
     /// @type {string}
     Property(
-        isolate, inst, "character", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* isolate = info.GetIsolate();
-            auto self = info.Holder();
-            auto data = Unwrap(self);
+        cls, "character", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+            auto* data = Unwrap(info.This());
             if (!data) {
                 return;
             }
-            info.GetReturnValue().Set(convert::ToJS(isolate, data->character));
+            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), data->character));
         });
     /// @description The profile's configured difficulty.
     /// @type {Difficulty}
     Property(
-        isolate, inst, "difficulty",
-        +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* isolate = info.GetIsolate();
-            auto self = info.Holder();
-            auto data = Unwrap(self);
+        cls, "difficulty", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+            auto* data = Unwrap(info.This());
             if (!data) {
                 return;
             }
-            info.GetReturnValue().Set(convert::ToJS(isolate, static_cast<int32_t>(data->difficulty)));
+            info.GetReturnValue().Set(static_cast<int32_t>(data->difficulty));
         });
     /// @description Maximum time to wait for login, in milliseconds (default 5000).
     /// @type {number}
     Property(
-        isolate, inst, "maxLoginTime",
-        +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* isolate = info.GetIsolate();
-            auto self = info.Holder();
-            auto data = Unwrap(self);
+        cls, "maxLoginTime", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+            auto* data = Unwrap(info.This());
             if (!data) {
                 return;
             }
             // JS sees milliseconds as an integer count (reference exposed ms too).
-            info.GetReturnValue().Set(convert::ToJS(isolate, static_cast<int32_t>(data->maxLoginTime.count())));
+            info.GetReturnValue().Set(static_cast<int32_t>(data->maxLoginTime.count()));
         });
     /// @description Maximum time to wait at the character-select screen, in milliseconds (default 5000).
     /// @type {number}
     Property(
-        isolate, inst, "maxCharacterSelectTime",
-        +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* isolate = info.GetIsolate();
-            auto self = info.Holder();
-            auto data = Unwrap(self);
+        cls, "maxCharacterSelectTime", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+            auto* data = Unwrap(info.This());
             if (!data) {
                 return;
             }
-            info.GetReturnValue().Set(convert::ToJS(isolate, static_cast<int32_t>(data->maxCharTime.count())));
+            info.GetReturnValue().Set(static_cast<int32_t>(data->maxCharTime.count()));
         });
 
     // Instance Methods
@@ -269,9 +238,9 @@ void JSProfile::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
     /// @returns {undefined} - nothing on success; throws an Error carrying the login message on failure.
     /// @throws {Error} - login did not reach Success; the error carries the login status message.
     Method(
-        isolate, proto, "login", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
-            auto data = Unwrap(args.This());
+        cls, "login", +[](const ub::CallbackInfo& args) {
+            auto& isolate = args.GetIsolate();
+            auto* data = Unwrap(args.This());
             if (!data) {
                 error::ThrowError(isolate, "Invalid profile object");
                 return;

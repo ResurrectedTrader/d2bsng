@@ -1,9 +1,12 @@
 #pragma once
 
-#include <v8.h>
+#include <cstdint>
+#include <string_view>
+
+#include "Receiver.h"
 #include "api/core/Class.h"
-#include "api/core/Error.h"
 #include "navigation/ExitFinder.h"
+#include "unibind/unibind.h"
 
 namespace d2bs::api::classes {
 
@@ -13,55 +16,70 @@ class JSExit : public ClassBase<JSExit, navigation::ExitInfo> {
    public:
     static constexpr std::string_view ClassName = "Exit";
 
-    V8_CLASS_NOT_CONSTRUCTABLE
-
-    static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
-        auto inst = tpl->InstanceTemplate();
+    static void Configure(const ub::Class<Native>& cls) {
         /// @description The exit's X coordinate in world coordinates.
         /// @type {number}
         Property(
-            isolate, inst, "x", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+            cls, "x", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSExit>(info);
+                if (data == nullptr) {
+                    return;
+                }
                 info.GetReturnValue().Set(data->pos.x);
             });
 
         /// @description The exit's Y coordinate in world coordinates.
         /// @type {number}
         Property(
-            isolate, inst, "y", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+            cls, "y", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSExit>(info);
+                if (data == nullptr) {
+                    return;
+                }
                 info.GetReturnValue().Set(data->pos.y);
             });
 
         /// @description The destination this exit leads to, interpreted according to `type`.
         /// @type {number}
         Property(
-            isolate, inst, "target", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+            cls, "target", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSExit>(info);
+                if (data == nullptr) {
+                    return;
+                }
                 info.GetReturnValue().Set(data->target);
             });
 
         /// @description The kind of exit: 1 (linkage) or 2 (tile).
         /// @type {number}
         Property(
-            isolate, inst, "type", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+            cls, "type", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSExit>(info);
+                if (data == nullptr) {
+                    return;
+                }
                 info.GetReturnValue().Set(static_cast<uint32_t>(data->type));
             });
 
         /// @description The tile id associated with this exit.
         /// @type {number}
         Property(
-            isolate, inst, "tileid", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+            cls, "tileid", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSExit>(info);
+                if (data == nullptr) {
+                    return;
+                }
                 info.GetReturnValue().Set(data->tileId);
             });
 
         /// @description The level number this exit belongs to.
         /// @type {number}
         Property(
-            isolate, inst, "level", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+            cls, "level", +[](const ub::Local<ub::Name>&, const ub::PropertyCallbackInfo& info) {
+                auto* data = Receiver<JSExit>(info);
+                if (data == nullptr) {
+                    return;
+                }
                 info.GetReturnValue().Set(data->level);
             });
     }

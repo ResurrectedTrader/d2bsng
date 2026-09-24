@@ -1,14 +1,14 @@
 #pragma once
 
-#include <v8.h>
-
+#include <cstdint>
+#include <optional>
 #include <string_view>
 
 #include "api/core/Class.h"
 #include "api/core/Convert.h"
-#include "api/core/Error.h"
 #include "api/globals/TxtTableAccess.h"
 #include "game/GameHelpers.h"
+#include "unibind/unibind.h"
 
 namespace d2bs::api::classes {
 
@@ -24,24 +24,28 @@ struct TxtTablesData {};
 class JSTxtTables : public ClassBase<JSTxtTables, TxtTablesData> {
    public:
     static constexpr std::string_view ClassName = "TxtTables";
-    V8_CLASS_NOT_CONSTRUCTABLE
 
-    static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
+    static void Configure(const ub::Class<Native>& cls) {
         using namespace d2bs::api::globals;  // ResolveTableArg / ResolveTxtColumns / ResolveTxtCell / BuildTxtRow
 
         /// @description List every known data (.txt) table name.
         /// @signature TxtTables.names()
         /// @returns {Array<string>} - the table names, usable as the `table` argument to the other methods
         StaticMethod(
-            isolate, tpl, "names", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                auto* isolate = args.GetIsolate();
-                auto context = isolate->GetCurrentContext();
-                auto arr = v8::Array::New(isolate, game::TXT_TABLE_NAMES.size());
+            cls, "names", +[](const ub::CallbackInfo& args) {
+                auto& isolate = args.GetIsolate();
+                const auto& context = args.GetContext();
+                auto arr = ub::Array::New(context, static_cast<uint32_t>(game::TXT_TABLE_NAMES.size()));
+                if (!arr) {
+                    return;
+                }
                 uint32_t i = 0;
                 for (const auto& name : game::TXT_TABLE_NAMES) {
-                    arr->Set(context, i++, convert::ToJS(isolate, name)).Check();
+                    if (!arr->Set(context, i++, convert::ToJS(isolate, name)).value_or(false)) {
+                        return;
+                    }
                 }
-                args.GetReturnValue().Set(arr);
+                args.GetReturnValue().Set(*arr);
             });
 
         /// @description Number of rows in a table.
@@ -49,17 +53,16 @@ class JSTxtTables : public ClassBase<JSTxtTables, TxtTablesData> {
         /// @param table {string|number} - table name, or index into TxtTables.names()
         /// @returns {number|undefined} - the row count, or undefined if the table is unknown or its data is not loaded
         StaticMethod(
-            isolate, tpl, "size", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                auto* isolate = args.GetIsolate();
+            cls, "size", +[](const ub::CallbackInfo& args) {
                 if (args.Length() < 1) {
                     return;
                 }
-                auto table = ResolveTableArg(isolate, args[0]);
+                auto table = ResolveTableArg(args.GetContext(), args[0]);
                 if (!table) {
                     return;
                 }
                 if (auto count = game::GetTxtTableRowCount(*table)) {
-                    args.GetReturnValue().Set(convert::ToJS(isolate, *count));
+                    args.GetReturnValue().Set(*count);
                 }
             });
 
@@ -68,13 +71,13 @@ class JSTxtTables : public ClassBase<JSTxtTables, TxtTablesData> {
         /// @param table {string|number} - table name, or index into TxtTables.names()
         /// @returns {Array<string>|undefined} - the column names, or undefined if the table is unknown
         StaticMethod(
-            isolate, tpl, "columns", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                auto* isolate = args.GetIsolate();
-                auto context = isolate->GetCurrentContext();
+            cls, "columns", +[](const ub::CallbackInfo& args) {
+                auto& isolate = args.GetIsolate();
+                const auto& context = args.GetContext();
                 if (args.Length() < 1) {
                     return;
                 }
-                auto table = ResolveTableArg(isolate, args[0]);
+                auto table = ResolveTableArg(context, args[0]);
                 if (!table) {
                     return;
                 }
@@ -82,12 +85,17 @@ class JSTxtTables : public ClassBase<JSTxtTables, TxtTablesData> {
                 if (!columns) {
                     return;
                 }
-                auto arr = v8::Array::New(isolate, static_cast<int32_t>(columns->size()));
+                auto arr = ub::Array::New(context, static_cast<uint32_t>(columns->size()));
+                if (!arr) {
+                    return;
+                }
                 uint32_t i = 0;
                 for (const auto& column : *columns) {
-                    arr->Set(context, i++, convert::ToJS(isolate, column)).Check();
+                    if (!arr->Set(context, i++, convert::ToJS(isolate, column)).value_or(false)) {
+                        return;
+                    }
                 }
-                args.GetReturnValue().Set(arr);
+                args.GetReturnValue().Set(*arr);
             });
 
         /// @description Read a whole row as an object mapping each column name to its value.
@@ -97,17 +105,17 @@ class JSTxtTables : public ClassBase<JSTxtTables, TxtTablesData> {
         /// @returns {object|undefined} - a {column: value} object, or undefined if the table is unknown or the row is
         /// out of range
         StaticMethod(
-            isolate, tpl, "row", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                auto* isolate = args.GetIsolate();
+            cls, "row", +[](const ub::CallbackInfo& args) {
+                const auto& context = args.GetContext();
                 if (args.Length() < 2) {
                     return;
                 }
-                auto table = ResolveTableArg(isolate, args[0]);
+                auto table = ResolveTableArg(context, args[0]);
                 if (!table) {
                     return;
                 }
-                uint32_t row = convert::ToUint32(isolate, args[1]);
-                args.GetReturnValue().Set(BuildTxtRow(isolate, isolate->GetCurrentContext(), *table, row));
+                uint32_t row = convert::ToUint32(context, args[1]);
+                Return(args, BuildTxtRow(context, *table, row));
             });
 
         /// @description Read a single cell (the same lookup as getBaseStat with a column).
@@ -117,18 +125,32 @@ class JSTxtTables : public ClassBase<JSTxtTables, TxtTablesData> {
         /// @param column {string|number} - column name, or index into the table's columns
         /// @returns {number|string|undefined} - the cell value, or undefined if unresolved or the cell is empty
         StaticMethod(
-            isolate, tpl, "value", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                auto* isolate = args.GetIsolate();
+            cls, "value", +[](const ub::CallbackInfo& args) {
+                const auto& context = args.GetContext();
                 if (args.Length() < 3) {
                     return;
                 }
-                auto table = ResolveTableArg(isolate, args[0]);
+                auto table = ResolveTableArg(context, args[0]);
                 if (!table) {
                     return;
                 }
-                uint32_t row = convert::ToUint32(isolate, args[1]);
-                args.GetReturnValue().Set(ResolveTxtCell(isolate, *table, row, args[2]));
+                uint32_t row = convert::ToUint32(context, args[1]);
+                Return(args, ResolveTxtCell(context, *table, row, args[2]));
             });
+    }
+
+   private:
+    // A missing value (an empty handle, or nothing at all) leaves the result undefined.
+    static void Return(const ub::CallbackInfo& args, const ub::Local<ub::Value>& value) {
+        if (!value.IsEmpty()) {
+            args.GetReturnValue().Set(value);
+        }
+    }
+
+    static void Return(const ub::CallbackInfo& args, const std::optional<ub::Local<ub::Value>>& value) {
+        if (value) {
+            Return(args, *value);
+        }
     }
 };
 

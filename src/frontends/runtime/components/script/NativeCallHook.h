@@ -5,14 +5,13 @@
 #include <string_view>
 #include <vector>
 
-#include <v8.h>
-
+#include "unibind/unibind.h"
 #include "utils/Profiling.h"
 
-// Trampolines between V8 and the native callbacks registered through ClassBase / function::Register. Each
-// one runs OnNativeCall first (console stack capture), then times the callback for the Profiling
-// panel. V8's single `data` slot carries a pointer to the interned NativeBinding / PropertyAccessors
-// entry, which holds the callback(s), the name, and the cumulative stats.
+// Trampolines between the engine and the native callbacks registered through ClassBase / the
+// global-function helpers. Each one runs OnNativeCall first (console stack capture), then times the
+// callback for the Profiling panel. The callback's data carries the interned NativeBinding /
+// PropertyAccessors entry, which holds the callback(s), the name, and the cumulative stats.
 
 namespace d2bs::runtime::script {
 
@@ -21,39 +20,39 @@ namespace d2bs::runtime::script {
 inline std::atomic onEveryCallCaptureCount{0};
 
 // Refreshes the owning Script's last-known stack trace when it has per-call capture enabled.
-void OnNativeCall(v8::Isolate* isolate);
+void OnNativeCall(ub::Isolate& isolate);
 
 struct NativeBinding {
-    NativeBinding(std::string name, v8::FunctionCallback callback) : name(std::move(name)), callback(callback) {}
+    NativeBinding(std::string name, ub::FunctionCallback callback) : name(std::move(name)), callback(callback) {}
 
     std::string name;
-    v8::FunctionCallback callback;
+    ub::FunctionCallback callback;
     profiling::NativeStats stats;
 };
 
 struct PropertyAccessors {
-    PropertyAccessors(std::string name, v8::AccessorNameGetterCallback getter, v8::AccessorNameSetterCallbackV2 setter)
+    PropertyAccessors(std::string name, ub::AccessorGetterCallback getter, ub::AccessorSetterCallback setter)
         : name(std::move(name)), getter(getter), setter(setter) {}
 
     std::string name;
-    v8::AccessorNameGetterCallback getter;
-    v8::AccessorNameSetterCallbackV2 setter;
+    ub::AccessorGetterCallback getter;
+    ub::AccessorSetterCallback setter;
     profiling::NativeStats getStats;
     profiling::NativeStats setStats;
 };
 
-// Interned per (name, callbacks): template setup re-runs for every isolate, and the stats have to
-// survive a script restart. Entries are never destroyed - v8::Externals point into them - and the
-// returned pointer is stable. Keyed on the name too, so two properties sharing one generic accessor
-// pair keep separate stats.
-NativeBinding* InternFunction(const std::string& name, v8::FunctionCallback callback);
-PropertyAccessors* InternAccessors(const std::string& name, v8::AccessorNameGetterCallback getter,
-                                   v8::AccessorNameSetterCallbackV2 setter);
+// Interned per (name, callbacks): class setup re-runs for every isolate, and the stats have to
+// survive a script restart. Entries are never destroyed - every isolate's callback data points
+// into them - and the returned pointer is stable. Keyed on the name too, so two properties sharing
+// one generic accessor pair keep separate stats.
+NativeBinding* InternFunction(const std::string& name, ub::FunctionCallback callback);
+PropertyAccessors* InternAccessors(const std::string& name, ub::AccessorGetterCallback getter,
+                                   ub::AccessorSetterCallback setter);
 
-void MethodTrampoline(const v8::FunctionCallbackInfo<v8::Value>& args);
-void PropertyGetterTrampoline(v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info);
-void PropertySetterTrampoline(v8::Local<v8::Name> property, v8::Local<v8::Value> value,
-                              const v8::PropertyCallbackInfo<v8::Boolean>& info);
+void MethodTrampoline(const ub::CallbackInfo& info);
+void PropertyGetterTrampoline(const ub::Local<ub::Name>& property, const ub::PropertyCallbackInfo& info);
+void PropertySetterTrampoline(const ub::Local<ub::Name>& property, const ub::Local<ub::Value>& value,
+                              const ub::PropertyCallbackInfo& info);
 
 #ifdef D2BS_PROFILING
 
