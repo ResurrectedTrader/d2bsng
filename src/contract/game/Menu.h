@@ -5,6 +5,8 @@
 
 #include "config/ProfileData.h"
 #include "game/Types.h"
+// ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
+#include "game/MenuEnumNames.h"
 
 namespace d2bs::game {
 

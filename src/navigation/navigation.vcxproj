@@ -86,11 +86,15 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="ExitFinder.cpp" />
+    <ClCompile Include="ExitFinderEnumNames.cpp" />
     <ClCompile Include="Pathfinder.cpp" />
+    <ClCompile Include="PathfinderEnumNames.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ExitFinder.h" />
+    <ClInclude Include="ExitFinderEnumNames.h" />
     <ClInclude Include="Pathfinder.h" />
+    <ClInclude Include="PathfinderEnumNames.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\contract\contract.vcxproj">

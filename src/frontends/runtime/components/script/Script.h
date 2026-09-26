@@ -17,6 +17,8 @@
 #include "ScriptTypes.h"
 #include "game/Types.h"
 #include "utils/Profiling.h"
+// ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
+#include "components/script/ScriptEnumNames.h"
 
 namespace d2bs::runtime::drawing {
 struct Drawable;

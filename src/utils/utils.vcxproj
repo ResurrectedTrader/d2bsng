@@ -65,7 +65,7 @@
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(SolutionDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
       <TreatAngleIncludeAsExternal>true</TreatAngleIncludeAsExternal>
     </ClCompile>
@@ -83,14 +83,16 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <AdditionalIncludeDirectories>$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(SolutionDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
       <TreatAngleIncludeAsExternal>true</TreatAngleIncludeAsExternal>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="crypto.cpp" />
+    <ClCompile Include="EnumNaming.cpp" />
     <ClCompile Include="Profiling.cpp" />
+    <ClCompile Include="ProfilingEnumNames.cpp" />
     <ClCompile Include="Strings.cpp" />
     <ClCompile Include="threadutils.cpp" />
     <ClCompile Include="utils.cpp" />
@@ -99,7 +101,9 @@
     <ClInclude Include="CaseInsensitiveMap.h" />
     <ClInclude Include="crypto.h" />
     <ClInclude Include="DeferGuard.h" />
+    <ClInclude Include="EnumNaming.h" />
     <ClInclude Include="Profiling.h" />
+    <ClInclude Include="ProfilingEnumNames.h" />
     <ClInclude Include="Strings.h" />
     <ClInclude Include="threadutils.h" />
     <ClInclude Include="utils.h" />

@@ -129,6 +129,17 @@ jobs:
       - name: Build (Release, x64 libraries)
         shell: pwsh
         run: .\build.ps1 Release -Platform x64
+      # The EnumName tables are generated from the enum headers and checked in;
+      # this fails a change that edited an enumeration without rerunning the
+      # generator. Here rather than in ci.yml because libclang needs the vcpkg
+      # and V8 headers the build just put in place. The clang-format pin formats
+      # the output as check-format expects; keep it in sync with
+      # $PINNED_CLANG_FORMAT in build.ps1.
+      - name: Check generated enum names
+        shell: pwsh
+        run: |
+          pip install --quiet libclang "clang-format==20.1.8"
+          python scripts/gen_enum_names.py --check
       # Always save: the key is run_id-unique so it never collides, and we want
       # the freshly-populated binary cache persisted even if a later step fails.
       - name: Save vcpkg binary cache

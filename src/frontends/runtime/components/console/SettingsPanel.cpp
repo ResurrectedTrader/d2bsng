@@ -1,7 +1,6 @@
 #include "components/console/SettingsPanel.h"
 
 #include <imgui.h>
-#include <magic_enum/magic_enum.hpp>
 
 #include <chrono>
 #include <optional>
@@ -91,16 +90,11 @@ void DisplayRow(const char* label, const char* fmt, ...) {
     EndRow();
 }
 
-// Display-only row naming an enum value via magic_enum (the C++ identifier).
-// Falls back to the numeric value if the value is outside the enum's range.
+// Display-only row naming an enum value (its EnumName).
 template <typename E>
 void EnumRow(const char* label, E value) {
-    const auto name = magic_enum::enum_name(value);
-    if (name.empty()) {
-        DisplayRow(label, "%u", static_cast<uint32_t>(value));
-    } else {
-        DisplayRow(label, "%.*s", static_cast<int>(name.size()), name.data());
-    }
+    const std::string name = EnumName(value);
+    DisplayRow(label, "%s", name.c_str());
 }
 
 }  // namespace
@@ -162,9 +156,8 @@ void SettingsPanel::Draw() {
             EnumRow("Game state", gameState);
             if (gameState == game::GameState::Menu) {
                 const auto oog = game::GetOutOfGameLocation();
-                const auto oogName = magic_enum::enum_name(oog);
-                DisplayRow("OOG location", "%u (%.*s)", static_cast<uint32_t>(oog), static_cast<int>(oogName.size()),
-                           oogName.data());
+                const std::string oogName = EnumName(oog);
+                DisplayRow("OOG location", "%u (%s)", static_cast<uint32_t>(oog), oogName.c_str());
             }
             EnumRow("Difficulty", game::GetDifficulty());
             DisplayRow("Mode", "%s", game::GetGameType() == 0 ? "Classic" : "Expansion");

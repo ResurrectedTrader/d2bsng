@@ -6,6 +6,9 @@
 #include <string_view>
 #include <vector>
 
+// ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
+#include "game/ConsoleEnumNames.h"
+
 // Backend-visible interface for console output, visibility, and color-code helpers. Inline helpers are defined here
 // because game/ has no .cpp files.
 

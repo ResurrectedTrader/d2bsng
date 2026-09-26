@@ -13,6 +13,8 @@
 #include <thread>
 
 #include "utils/utils.h"
+// ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
+#include "dde/DdeServiceEnumNames.h"
 
 namespace d2bs::services::dde {
 

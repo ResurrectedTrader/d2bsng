@@ -7,7 +7,6 @@
     "sqlite3",
     "stackwalker",
     "detours",
-    "magic-enum",
     "nlohmann-json",
     {
       "name": "imgui",

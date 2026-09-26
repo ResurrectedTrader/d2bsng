@@ -91,6 +91,7 @@
     <ClCompile Include="config\OptionParser.cpp" />
     <ClCompile Include="config\RealmRegistry.cpp" />
     <ClCompile Include="detour\Hook.cpp" />
+    <ClCompile Include="detour\HookEnumNames.cpp" />
     <ClCompile Include="input\InputHook.cpp" />
     <ClCompile Include="http\Client.cpp" />
     <ClCompile Include="proxy\Socks5Proxy.cpp" />
@@ -105,6 +106,7 @@
     <ClInclude Include="config\RealmRegistry.h" />
     <ClInclude Include="config\Version.h" />
     <ClInclude Include="detour\Hook.h" />
+    <ClInclude Include="detour\HookEnumNames.h" />
     <ClInclude Include="input\InputHook.h" />
     <ClInclude Include="http\Client.h" />
     <ClInclude Include="proxy\ProxyBypass.h" />

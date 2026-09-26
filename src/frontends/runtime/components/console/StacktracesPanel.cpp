@@ -2,7 +2,6 @@
 
 #include <fmt/format.h>
 #include <imgui.h>
-#include <magic_enum/magic_enum.hpp>
 
 #include <algorithm>
 #include <memory>
@@ -110,7 +109,7 @@ void StacktracesPanel::Draw() {
             // Disambiguating "##i" suffix because multiple scripts can share
             // a name (e.g. several stopped consoles) and ImGui keys Selectable
             // identity by visible label otherwise.
-            const std::string label = fmt::format("{} [{}]##{}", s->GetName(), magic_enum::enum_name(s->GetState()), i);
+            const std::string label = fmt::format("{} [{}]##{}", s->GetName(), s->GetState(), i);
             if (ImGui::Selectable(label.c_str(), tid == selectedTid_ && selected.get() == s.get())) {
                 if (selected != nullptr && selected.get() != s.get()) {
                     selected->SetStackCaptureMode(StackCaptureMode::Off);

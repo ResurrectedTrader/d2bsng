@@ -327,7 +327,7 @@ Each project has specific include directories that make cross-project includes w
 
 | Project | Include Directories |
 |---------|-------------------|
-| **utils** | `$(ProjectDir)` |
+| **utils** | `$(ProjectDir)` ; `$(SolutionDir)src` |
 | **contract** | `$(ProjectDir)` ; `$(SolutionDir)src` |
 | **core** | `$(ProjectDir)` ; `$(SolutionDir)src\contract` ; `$(SolutionDir)src` |
 | **navigation** | `$(ProjectDir)` ; `$(SolutionDir)src\contract` ; `$(SolutionDir)src` |
@@ -634,6 +634,24 @@ constexpr uint32_t STAT_FIXED_POINT_FIRST = STAT_HITPOINTS;
 **Scope it to its use.** A constant used by one file stays in that file's anonymous
 namespace - no shared header, no namespace qualification at the call site. Promote it
 only when a second file needs the same value, and then delete every copy.
+
+### Enum names
+
+Every enumeration defined at namespace scope in a `src/` header prints by name: pass
+the value straight to `std::format` / `std::format_to` or an spdlog / fmt call, or call
+`EnumName(value)` (found by argument-dependent lookup - no qualifier) where a
+`std::string` is needed. Don't write a switch or a lookup table for it, and don't
+`static_cast` an enum to print it unless you want the number.
+
+The names come from `scripts/gen_enum_names.py`, which parses the headers with libclang
+and writes a checked-in `<Header>EnumNames.h` / `.cpp` pair beside each header that
+defines an enumeration, adds the header's include of it, and lists both in the owning
+`.vcxproj`. The shared lookup and the `std::formatter` live in `utils/EnumNaming.h`.
+**Rerun the script after adding, removing or changing an enumeration** (`pip install
+libclang` once); CI's `--check` fails otherwise. A covered enumeration must be
+forward-declarable - scoped, or unscoped with a fixed underlying type - and that type
+must be a builtin or standard integer type. Enumerations nested in a class or declared
+in a `.cpp` get no names.
 
 ### Naming
 

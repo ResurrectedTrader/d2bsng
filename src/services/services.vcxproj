@@ -89,7 +89,9 @@
     <ClCompile Include="characterstate\CharacterState.cpp" />
     <ClCompile Include="characterstate\Fingerprint.cpp" />
     <ClCompile Include="characterstate\UnitJson.cpp" />
+    <ClCompile Include="characterstate\UnitJsonEnumNames.cpp" />
     <ClCompile Include="dde\DdeService.cpp" />
+    <ClCompile Include="dde\DdeServiceEnumNames.cpp" />
     <ClCompile Include="profile\ProfileService.cpp" />
     <ClCompile Include="update\UpdateChecker.cpp" />
   </ItemGroup>
@@ -98,7 +100,9 @@
     <ClInclude Include="characterstate\CharacterState.h" />
     <ClInclude Include="characterstate\Fingerprint.h" />
     <ClInclude Include="characterstate\UnitJson.h" />
+    <ClInclude Include="characterstate\UnitJsonEnumNames.h" />
     <ClInclude Include="dde\DdeService.h" />
+    <ClInclude Include="dde\DdeServiceEnumNames.h" />
     <ClInclude Include="profile\ProfileService.h" />
     <ClInclude Include="update\UpdateChecker.h" />
   </ItemGroup>
