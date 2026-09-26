@@ -1,8 +1,8 @@
 #include <doctest/doctest.h>
 
-#include "navigation/Pathfinder.h"
+#include "components/navigation/Pathfinder.h"
 
-using namespace d2bs::navigation;
+using namespace d2bs::runtime::navigation;
 
 TEST_CASE("MutatePoint moves blocked point to walkable neighbor") {
     CollisionLookup coll;

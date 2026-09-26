@@ -10,6 +10,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include "navigation/Pathfinder.h"
+#include "components/navigation/Pathfinder.h"
 
-using d2bs::navigation::Point;
+using d2bs::runtime::navigation::Point;

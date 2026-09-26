@@ -7,13 +7,13 @@
 #include <string>
 #include <string_view>
 
+#include "components/profile/ProfileService.h"
 #include "components/script/ScriptEngine.h"
 #include "config/AppConfig.h"
 #include "config/ProfileData.h"
 #include "game/GameHelpers.h"
 #include "game/Menu.h"
 #include "game/Types.h"
-#include "profile/ProfileService.h"
 #include "speedhack/Speedhack.h"
 
 namespace d2bs::runtime::console {
@@ -117,7 +117,7 @@ void SettingsPanel::Draw() {
     // Reload the active profile only when the name changes - LoadActive reads the INI.
     if (profileName != cachedProfileName_) {
         cachedProfileName_ = profileName;
-        cachedProfile_ = services::profile::LoadActive();
+        cachedProfile_ = profile::LoadActive();
     }
 
     if (ImGui::CollapsingHeader("Profile")) {

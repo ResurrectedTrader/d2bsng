@@ -64,7 +64,7 @@ std::optional<MapFixture> MapFixture::Load(const std::filesystem::path& path) {
 
     MapFixture fixture;
     fixture.levelId = header.levelId;
-    fixture.grid = navigation::LevelGrid(header.rect);
+    fixture.grid = runtime::navigation::LevelGrid(header.rect);
     fixture.grid.data = std::move(data);
     return fixture;
 }

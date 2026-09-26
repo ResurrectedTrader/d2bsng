@@ -3,11 +3,11 @@
 #include "api/core/Convert.h"
 #include "api/core/Error.h"
 #include "api/core/Function.h"
+#include "components/profile/ProfileService.h"
 #include "config/AppConfig.h"
 #include "config/ProfileData.h"
 #include "game/GameHelpers.h"
 #include "game/Menu.h"
-#include "profile/ProfileService.h"
 
 namespace d2bs::api::globals {
 
@@ -40,7 +40,7 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 }
             }
 
-            auto profile = services::profile::Load(profileName);
+            auto profile = runtime::profile::Load(profileName);
             if (!profile) {
                 error::ThrowError(isolate, "Profile does not exist!");
                 return;
@@ -94,7 +94,7 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
 
             std::string profileName = convert::ToString(isolate, args[0]);
-            auto charname = services::profile::ResolveCharacter(profileName);
+            auto charname = runtime::profile::ResolveCharacter(profileName);
             if (!charname) {
                 error::ThrowError(isolate, "Invalid profile specified");
                 return;
@@ -368,7 +368,7 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             // Return value discarded; reference sets rval=null regardless of
             // whether the profile already existed.
-            services::profile::Add(data);
+            runtime::profile::Add(data);
             args.GetReturnValue().SetNull();
         });
 

@@ -6,7 +6,7 @@
 #include "game/Types.h"
 #include "game/Unit.h"
 
-namespace d2bs::services::characterstate {
+namespace d2bs::runtime::characterstate {
 
 // Per-tick change-detection hashes: VisitUnit through a hashing sink, allocation-free
 // because this runs every tick (see docs/character-capture-fingerprint-cost.md).
@@ -22,4 +22,4 @@ size_t UnitHash(const game::Unit& unit);
 // at least unitType + classId). Used for the no-merc case.
 size_t EmptyUnitHash();
 
-}  // namespace d2bs::services::characterstate
+}  // namespace d2bs::runtime::characterstate

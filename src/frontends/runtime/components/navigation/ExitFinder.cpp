@@ -27,7 +27,7 @@
 // so cells in neighbour levels resolve without any per-call setup. The
 // pathfinder and exit finder share one act-wide collision view.
 
-#include "navigation/ExitFinder.h"
+#include "components/navigation/ExitFinder.h"
 
 #include <algorithm>
 #include <array>
@@ -36,21 +36,21 @@
 #include <utility>
 #include <vector>
 
+#include "components/navigation/Pathfinder.h"
 #include "game/GameLock.h"
 #include "game/Level.h"
 #include "game/Room.h"
 #include "game/Types.h"
-#include "navigation/Pathfinder.h"
 
-namespace d2bs::navigation {
+namespace d2bs::runtime::navigation {
 
 using game::GameReadLock;
 using game::Point;
 using game::Position;
 using game::Rect;
 using game::UnitType;
-using navigation::BuildLevelGrid;
-using navigation::CollisionLookup;
+using runtime::navigation::BuildLevelGrid;
+using runtime::navigation::CollisionLookup;
 
 namespace {
 
@@ -323,4 +323,4 @@ std::vector<ExitInfo> GetExits(game::Level level) {
     return exits;
 }
 
-}  // namespace d2bs::navigation
+}  // namespace d2bs::runtime::navigation

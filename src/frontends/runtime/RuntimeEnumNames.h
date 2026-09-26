@@ -23,6 +23,36 @@ enum class FileMode : int32_t;
 
 }  // namespace d2bs::api::globals
 
+namespace d2bs::runtime::characterstate {
+
+enum class Detail : uint8_t;
+
+// A human-readable name for an enum value: the enumerator that has it (the first declared one
+// for aliases), else the single-bit enumerators that together make it up exactly as "A|B",
+// else "Type(value)". std::format and fmt / spdlog print the same.
+[[nodiscard]] std::string EnumName(Detail value);
+
+// NOLINTBEGIN(readability-identifier-naming) - fmt's customisation point name
+[[nodiscard]] std::string format_as(Detail value);
+// NOLINTEND(readability-identifier-naming)
+
+}  // namespace d2bs::runtime::characterstate
+
+namespace d2bs::runtime::dde {
+
+enum class Transaction : uint32_t;
+
+// A human-readable name for an enum value: the enumerator that has it (the first declared one
+// for aliases), else the single-bit enumerators that together make it up exactly as "A|B",
+// else "Type(value)". std::format and fmt / spdlog print the same.
+[[nodiscard]] std::string EnumName(Transaction value);
+
+// NOLINTBEGIN(readability-identifier-naming) - fmt's customisation point name
+[[nodiscard]] std::string format_as(Transaction value);
+// NOLINTEND(readability-identifier-naming)
+
+}  // namespace d2bs::runtime::dde
+
 namespace d2bs::runtime::drawing {
 
 enum class Align : uint8_t;
@@ -52,6 +82,24 @@ enum class FramePhase : size_t;
 // NOLINTEND(readability-identifier-naming)
 
 }  // namespace d2bs::runtime::gameloop
+
+namespace d2bs::runtime::navigation {
+
+enum class ExitType : uint32_t;
+enum class ReductionType : int32_t;
+
+// A human-readable name for an enum value: the enumerator that has it (the first declared one
+// for aliases), else the single-bit enumerators that together make it up exactly as "A|B",
+// else "Type(value)". std::format and fmt / spdlog print the same.
+[[nodiscard]] std::string EnumName(ExitType value);
+[[nodiscard]] std::string EnumName(ReductionType value);
+
+// NOLINTBEGIN(readability-identifier-naming) - fmt's customisation point name
+[[nodiscard]] std::string format_as(ExitType value);
+[[nodiscard]] std::string format_as(ReductionType value);
+// NOLINTEND(readability-identifier-naming)
+
+}  // namespace d2bs::runtime::navigation
 
 namespace d2bs {
 

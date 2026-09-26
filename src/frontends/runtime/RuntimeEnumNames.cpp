@@ -7,8 +7,12 @@
 #include <utility>
 
 #include "api/globals/Constants.h"
+#include "components/characterstate/UnitJson.h"
+#include "components/dde/DdeService.h"
 #include "components/drawing/Drawable.h"
 #include "components/gameloop/GameLoop.h"
+#include "components/navigation/ExitFinder.h"
+#include "components/navigation/Pathfinder.h"
 #include "components/script/Script.h"
 #include "components/script/ScriptTypes.h"
 #include "utils/EnumNaming.h"
@@ -33,6 +37,47 @@ std::string format_as(FileMode value) {
 // NOLINTEND(readability-identifier-naming)
 
 }  // namespace d2bs::api::globals
+
+namespace d2bs::runtime::characterstate {
+
+std::string EnumName(Detail value) {
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(Detail::Structural), .name = "Structural"},
+        {.bits = utils::EnumBits(Detail::Full), .name = "Full"},
+    });
+    return utils::NameEnumValue("Detail", ENTRIES, std::to_underlying(value));
+}
+
+// NOLINTBEGIN(readability-identifier-naming) - fmt's customisation point name
+
+std::string format_as(Detail value) {
+    return EnumName(value);
+}
+
+// NOLINTEND(readability-identifier-naming)
+
+}  // namespace d2bs::runtime::characterstate
+
+namespace d2bs::runtime::dde {
+
+std::string EnumName(Transaction value) {
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(Transaction::Request), .name = "Request"},
+        {.bits = utils::EnumBits(Transaction::Poke), .name = "Poke"},
+        {.bits = utils::EnumBits(Transaction::Evaluate), .name = "Evaluate"},
+    });
+    return utils::NameEnumValue("Transaction", ENTRIES, std::to_underlying(value));
+}
+
+// NOLINTBEGIN(readability-identifier-naming) - fmt's customisation point name
+
+std::string format_as(Transaction value) {
+    return EnumName(value);
+}
+
+// NOLINTEND(readability-identifier-naming)
+
+}  // namespace d2bs::runtime::dde
 
 namespace d2bs::runtime::drawing {
 
@@ -81,6 +126,40 @@ std::string format_as(FramePhase value) {
 // NOLINTEND(readability-identifier-naming)
 
 }  // namespace d2bs::runtime::gameloop
+
+namespace d2bs::runtime::navigation {
+
+std::string EnumName(ExitType value) {
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(ExitType::Linkage), .name = "Linkage"},
+        {.bits = utils::EnumBits(ExitType::Tile), .name = "Tile"},
+    });
+    return utils::NameEnumValue("ExitType", ENTRIES, std::to_underlying(value));
+}
+
+std::string EnumName(ReductionType value) {
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(ReductionType::Walk), .name = "Walk"},
+        {.bits = utils::EnumBits(ReductionType::Teleport), .name = "Teleport"},
+        {.bits = utils::EnumBits(ReductionType::None), .name = "None"},
+        {.bits = utils::EnumBits(ReductionType::JSCallback), .name = "JSCallback"},
+    });
+    return utils::NameEnumValue("ReductionType", ENTRIES, std::to_underlying(value));
+}
+
+// NOLINTBEGIN(readability-identifier-naming) - fmt's customisation point name
+
+std::string format_as(ExitType value) {
+    return EnumName(value);
+}
+
+std::string format_as(ReductionType value) {
+    return EnumName(value);
+}
+
+// NOLINTEND(readability-identifier-naming)
+
+}  // namespace d2bs::runtime::navigation
 
 namespace d2bs {
 

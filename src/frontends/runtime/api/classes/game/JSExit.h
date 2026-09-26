@@ -3,13 +3,13 @@
 #include <v8.h>
 #include "api/core/Class.h"
 #include "api/core/Error.h"
-#include "navigation/ExitFinder.h"
+#include "components/navigation/ExitFinder.h"
 
 namespace d2bs::api::classes {
 
 // Exit class - represents an exit point from one area to another
 // Exits are obtained from Area.exits property
-class JSExit : public ClassBase<JSExit, navigation::ExitInfo> {
+class JSExit : public ClassBase<JSExit, runtime::navigation::ExitInfo> {
    public:
     static constexpr std::string_view ClassName = "Exit";
 
