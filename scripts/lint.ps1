@@ -1,7 +1,11 @@
 # lint.ps1 - Parallel clang-tidy runner with dependency-aware per-file caching
-# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\lint.ps1 [-Jobs N] [-NoCache]
+# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\lint.ps1 [-Jobs N] [-NoCache] [-Fix]
 #
-# Cache is stored next to the compile databases (src/*/Release/lint_cache/, tests/frontends/runtime/Release/lint_cache/).
+# The projects are discovered, not listed: every .vcxproj under src/ and tests/ is
+# linted through the compile database MSBuild writes for it, and the files linted
+# are the ones that database says the project compiles.
+#
+# Cache is stored next to each compile database (<project>\[<platform>\]Release\lint_cache\).
 # A translation unit is re-linted only when its own content, one of its included
 # *project* headers' content, or its compile command changes (clang-scan-deps
 # discovers the headers). Toolchain / config / dependency changes invalidate
@@ -11,7 +15,8 @@
 
 param(
     [int]$Jobs = 0,       # 0 = auto-detect (cores - 1)
-    [switch]$NoCache       # Skip cache, re-lint everything
+    [switch]$NoCache,     # Skip cache, re-lint everything
+    [switch]$Fix          # Apply clang-tidy fixes (serial, uncached) instead of reporting
 )
 
 Set-StrictMode -Version Latest
@@ -52,26 +57,35 @@ if (-not $useDepCache) {
     Write-Host "clang-scan-deps not found - using coarse (whole-header) cache invalidation." -ForegroundColor Yellow
 }
 
-# --- Compile databases ---
-$dbUtils = 'src\utils\Release\utils.ClangTidy'
-$dbContract = 'src\contract\Release\contract.ClangTidy'
-$dbCore = 'src\core\Release\core.ClangTidy'
-$dbNavigation = 'src\navigation\Release\navigation.ClangTidy'
-$dbServices = 'src\services\Release\services.ClangTidy'
-$dbJs = 'src\frontends\runtime\Release\runtime.ClangTidy'
-$dbLod114d = 'src\backends\lod114d\Release\lod114d.ClangTidy'
-$dbGlue = 'src\glue\js-v8-lod114d\Release\d2bs.ClangTidy'
-$dbTests = 'tests\frontends\runtime\Release\js_tests.ClangTidy'
+# --- Projects and their compile databases ---
+# MSBuild's RunCodeAnalysis writes <project>\[<platform>\]Release\<project>.ClangTidy\
+# compile_commands.json (Win32 gets no platform directory). Each project is linted on
+# Win32 when it has a Win32 configuration, otherwise on the one platform it has.
+$projects = @(Get-ChildItem -Path 'src', 'tests' -Recurse -File -Filter '*.vcxproj' -ErrorAction SilentlyContinue | ForEach-Object {
+    $platforms = @([regex]::Matches([System.IO.File]::ReadAllText($_.FullName), 'Include="Release\|([^"]+)"') |
+        ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+    if ($platforms.Count -eq 0) { return }
+    $platform = if ($platforms -contains 'Win32') { 'Win32' } else { $platforms[0] }
+    $outDir = if ($platform -eq 'Win32') { 'Release' } else { Join-Path $platform 'Release' }
+    [PSCustomObject]@{
+        Vcxproj  = $_.FullName
+        Dir      = $_.DirectoryName
+        Platform = $platform
+        Db       = Join-Path $_.DirectoryName (Join-Path $outDir ($_.BaseName + '.ClangTidy'))
+        CacheDir = Join-Path $_.DirectoryName (Join-Path $outDir 'lint_cache')
+    }
+})
+if ($projects.Count -eq 0) { Write-Host 'No .vcxproj found under src\ or tests\.' -ForegroundColor Red; exit 1 }
 
-# Auto-regenerate if .vcxproj is newer than the compile DB
-function Maybe-RegenDb($dbPath, $vcxproj) {
-    if (-not (Test-Path $dbPath)) { return $true }
-    if (-not (Test-Path $vcxproj)) { return $false }
-    return (Get-Item $vcxproj).LastWriteTime -gt (Get-Item $dbPath).LastWriteTime
+# Regenerate when a database is missing or older than its .vcxproj.
+function Test-DbStale($project) {
+    $cc = Join-Path $project.Db 'compile_commands.json'
+    if (-not (Test-Path $cc)) { return $true }
+    return (Get-Item $project.Vcxproj).LastWriteTime -gt (Get-Item $cc).LastWriteTime
 }
 
-$needRegen = (Maybe-RegenDb $dbUtils 'src\utils\utils.vcxproj') -or (Maybe-RegenDb $dbContract 'src\contract\contract.vcxproj') -or (Maybe-RegenDb $dbCore 'src\core\core.vcxproj') -or (Maybe-RegenDb $dbNavigation 'src\navigation\navigation.vcxproj') -or (Maybe-RegenDb $dbServices 'src\services\services.vcxproj') -or (Maybe-RegenDb $dbJs 'src\frontends\runtime\runtime.vcxproj') -or (Maybe-RegenDb $dbLod114d 'src\backends\lod114d\lod114d.vcxproj') -or (Maybe-RegenDb $dbGlue 'src\glue\js-v8-lod114d\d2bs.vcxproj') -or (Maybe-RegenDb $dbTests 'tests\frontends\runtime\js_tests.vcxproj')
-if ($needRegen) {
+$stalePlatforms = @($projects | Where-Object { Test-DbStale $_ } | ForEach-Object { $_.Platform } | Sort-Object -Unique)
+if ($stalePlatforms.Count -gt 0) {
     Write-Host 'Compile database missing or stale - regenerating...' -ForegroundColor Yellow
     $msbuild = $null
     if ($vsPath) {
@@ -98,9 +112,12 @@ if ($needRegen) {
     } catch {
         Write-Host "Note: clang-tidy stub unavailable ($($_.Exception.Message)); DB generation will run the full clang-tidy analysis." -ForegroundColor Yellow
     }
-    & $msbuild -p:Configuration=Release -p:Platform=Win32 -p:RunCodeAnalysis=true -p:D2bsInstallDir= $tidyStub -m -nologo -v:quiet 2>$null
-    if (-not (Test-Path $dbJs)) {
-        Write-Host "Failed to generate compile database." -ForegroundColor Red
+    foreach ($platform in $stalePlatforms) {
+        & $msbuild -p:Configuration=Release -p:Platform=$platform -p:RunCodeAnalysis=true -p:D2bsInstallDir= $tidyStub -m -nologo -v:quiet 2>$null
+    }
+    $missing = @($projects | Where-Object { -not (Test-Path (Join-Path $_.Db 'compile_commands.json')) })
+    if ($missing.Count -gt 0) {
+        Write-Host "Failed to generate compile database for: $(($missing | ForEach-Object { $_.Vcxproj }) -join ', ')" -ForegroundColor Red
         exit 1
     }
     Write-Host "Compile database ready." -ForegroundColor Green
@@ -119,18 +136,59 @@ function Get-Prop($obj, $name) {
     if ($obj -and ($obj.PSObject.Properties.Name -contains $name)) { return $obj.$name }
     return $null
 }
-$srcPrefix = Norm ((Join-Path $repoRoot 'src') + '\')
-$testsPrefix = Norm ((Join-Path $repoRoot 'tests') + '\')
-function Test-ProjectHeader([string]$p) {
+foreach ($project in $projects) {
+    $project | Add-Member -NotePropertyName Prefix -NotePropertyValue ((Norm $project.Dir).TrimEnd('\') + '\')
+}
+# Longest prefix first, so a project nested inside another owns its own files.
+$projectsByDepth = @($projects | Sort-Object { $_.Prefix.Length } -Descending)
+function Get-OwningProject([string]$p) {
     $n = Norm $p
-    return $n.StartsWith($srcPrefix) -or $n.StartsWith($testsPrefix)
+    foreach ($project in $projectsByDepth) { if ($n.StartsWith($project.Prefix)) { return $project } }
+    return $null
+}
+function Test-ProjectHeader([string]$p) {
+    return [bool](Get-OwningProject $p)
 }
 
-# Fingerprint a vendored header tree by path+size+mtime (no content reads, ~150ms
-# for V8+D2MOO). Catches re-vendoring, submodule re-pin, and dirty working-tree edits.
+# --- Compile commands ---
+# Each project's database lists exactly what it compiles. A source compiled by several
+# projects (the tests build navigation's Pathfinder.cpp) is linted once, with the
+# project whose directory holds it.
+$cmdMap = @{}
+$units = @()
+foreach ($project in $projects) {
+    $cc = Join-Path $project.Db 'compile_commands.json'
+    foreach ($e in (Get-Content $cc -Raw | ConvertFrom-Json)) {
+        $f = $e.file
+        if (-not [System.IO.Path]::IsPathRooted($f)) { $f = Join-Path $e.directory $f }
+        $f = [System.IO.Path]::GetFullPath($f)
+        if ((Get-OwningProject $f) -ne $project -or $cmdMap.ContainsKey((Norm $f))) { continue }
+        $cmdMap[(Norm $f)] = $e
+        $units += [PSCustomObject]@{ Path = $f; Db = $project.Db; CacheDir = $project.CacheDir }
+    }
+}
+
+# Include directories that belong to no project - vendored trees (V8, D2MOO) and the
+# vcpkg install - are excluded from per-TU hashing and fingerprinted as a whole below.
+$includeDirs = @{}
+foreach ($e in $cmdMap.Values) {
+    foreach ($m in [regex]::Matches($e.command, '(?:[/-]I|[/-]external:I|-isystem|[/-]imsvc)\s*(?:"([^"]+)"|(\S+))')) {
+        $dir = if ($m.Groups[1].Success) { $m.Groups[1].Value } else { $m.Groups[2].Value }
+        if (-not [System.IO.Path]::IsPathRooted($dir)) { $dir = Join-Path $e.directory $dir }
+        $includeDirs[(Norm ([System.IO.Path]::GetFullPath($dir))).TrimEnd('\')] = $true
+    }
+}
+$vendoredDirs = @($includeDirs.Keys | Where-Object {
+    $dir = $_ + '\'
+    -not (Test-ProjectHeader $dir) -and -not @($projects | Where-Object { $_.Prefix.StartsWith($dir) }).Count
+} | Sort-Object)
+$vendoredDirs = @($vendoredDirs | Where-Object { $d = $_; -not @($vendoredDirs | Where-Object { $d.StartsWith($_ + '\') }).Count })
+
+# Fingerprint a vendored header tree by path+size+mtime (no content reads). Catches
+# re-vendoring, submodule re-pin, package upgrades, and dirty working-tree edits.
 function Get-TreeFingerprint($dir) {
     if (-not (Test-Path $dir)) { return '' }
-    $items = Get-ChildItem -Recurse -File -Filter '*.h' $dir -ErrorAction SilentlyContinue |
+    $items = Get-ChildItem -Path $dir -Recurse -File -Include '*.h', '*.hpp', '*.hxx', '*.inl', '*.inc' -ErrorAction SilentlyContinue |
         Sort-Object FullName |
         ForEach-Object { "$($_.FullName.ToLower())|$($_.Length)|$($_.LastWriteTimeUtc.Ticks)" }
     return Get-StringHash (($items) -join "`n")
@@ -138,21 +196,21 @@ function Get-TreeFingerprint($dir) {
 
 # --- Environment token: toolchain / config / third-party deps ---
 # Covers everything that can change a TU's analysis but is NOT in its own compile
-# command or project headers: the clang-tidy version, .clang-tidy configs, the vcpkg
-# manifest, and a metadata fingerprint of the vendored V8 / D2MOO header trees.
-# Those trees are excluded from per-TU hashing, so they are tracked here instead - a
-# re-vendor, submodule re-pin, or dirty edit rolls the whole cache.
+# command or project headers: the clang-tidy version, every .clang-tidy config and
+# vcpkg manifest, and a metadata fingerprint of each vendored include tree. A config
+# edit, re-vendor, submodule re-pin or package upgrade rolls the whole cache.
 function Get-EnvToken {
     $parts = New-Object System.Collections.Generic.List[string]
     try { $parts.Add(((& $clangTidy --version 2>$null) -join ' ')) } catch { $parts.Add($clangTidy) }
-    foreach ($cfg in @('.clang-tidy', 'tests\frontends\runtime\.clang-tidy', 'tests\frontends\runtime\pathfinding\reference\.clang-tidy', 'vcpkg.json')) {
-        if (Test-Path $cfg) { $parts.Add($cfg + '=' + (Get-FileContentHash (Resolve-Path $cfg).Path)) }
+    $configs = @(Get-Item '.clang-tidy', 'vcpkg.json' -ErrorAction SilentlyContinue) +
+        @($projects | ForEach-Object { Get-ChildItem -Path $_.Dir -Recurse -File -Filter '.clang-tidy' -ErrorAction SilentlyContinue }) +
+        @($projects | ForEach-Object { Get-Item (Join-Path $_.Dir 'vcpkg.json') -ErrorAction SilentlyContinue })
+    foreach ($cfg in ($configs | Sort-Object FullName -Unique)) {
+        $parts.Add((Norm $cfg.FullName) + '=' + (Get-FileContentHash $cfg.FullName))
     }
-    $parts.Add('v8=' + (Get-TreeFingerprint 'dependencies\v8\include'))
-    $parts.Add('d2moo=' + (Get-TreeFingerprint 'dependencies\D2MOO\source'))
+    foreach ($dir in $vendoredDirs) { $parts.Add($dir + '=' + (Get-TreeFingerprint $dir)) }
     if (-not $useDepCache) {
-        $dirs = @('src'); if (Test-Path 'tests') { $dirs += 'tests' }
-        $ticks = Get-ChildItem -Recurse $dirs -Filter '*.h' | ForEach-Object { $_.LastWriteTimeUtc.Ticks }
+        $ticks = $projects | ForEach-Object { Get-ChildItem -Path $_.Dir -Recurse -File -Include '*.h', '*.hpp', '*.inc' } | ForEach-Object { $_.LastWriteTimeUtc.Ticks }
         $max = if ($ticks) { ($ticks | Measure-Object -Maximum).Maximum } else { [long]0 }
         $parts.Add('hdrmax=' + $max)
     }
@@ -195,21 +253,6 @@ function Save-CacheResult($file, $key, $deps, $exitCode, $errors) {
     } | ConvertTo-Json -Compress -Depth 5 | Set-Content $cachePath -Encoding UTF8
 }
 
-# Load file -> compile-command entry from every DB (for keys + dependency scanning).
-function Load-DbCommands($dbDirs) {
-    $map = @{}
-    foreach ($dbDir in $dbDirs) {
-        $cc = Join-Path $dbDir 'compile_commands.json'
-        if (-not (Test-Path $cc)) { continue }
-        foreach ($e in (Get-Content $cc -Raw | ConvertFrom-Json)) {
-            $f = $e.file
-            if (-not [System.IO.Path]::IsPathRooted($f)) { $f = Join-Path $e.directory $f }
-            $map[(Norm $f)] = $e
-        }
-    }
-    return $map
-}
-
 # Run clang-scan-deps once over the given entries; return file(lower) -> @(project headers).
 function Get-DepsForFiles($scanEntries, $scratchDir) {
     $map = @{}
@@ -220,64 +263,38 @@ function Get-DepsForFiles($scanEntries, $scratchDir) {
     [System.IO.File]::WriteAllText($cc, $json)
     $make = & $scanDeps --format=make --compilation-database=$cc 2>$null
     # make output: one rule per TU ("target: src hdr hdr ..."). Join continuations,
-    # then attribute each rule's project headers to its .cpp source.
+    # then attribute each rule's project headers to the scanned source it names -
+    # matched against the scanned files rather than by extension, so a unit whose
+    # main file is a header is attributed (and cached) too.
+    $sources = @{}
+    foreach ($e in @($scanEntries)) { $sources[(Norm $e.file)] = $true }
     $text = ($make -join "`n") -replace '\\\r?\n', ' '
     foreach ($rule in ($text -split "`r?`n")) {
         if ($rule -notmatch '\S') { continue }
         $tokens = $rule.Trim() -split '\s+'
-        $src = $tokens | Where-Object { $_ -match '\.cpp$' } | Select-Object -First 1
+        $src = $tokens | Where-Object { $sources.ContainsKey((Norm $_)) } | Select-Object -First 1
         if (-not $src) { continue }
         $hdrs = $tokens |
-            Where-Object { (Test-ProjectHeader $_) -and ($_ -match '\.(h|hpp|hxx|inc)$') } |
+            Where-Object { (Test-ProjectHeader $_) -and ($_ -match '\.(h|hpp|hxx|inc)$') -and (Norm $_) -ne (Norm $src) } |
             ForEach-Object { ($_ -replace '/', '\') } | Sort-Object -Unique
         $map[(Norm $src)] = @($hdrs)
     }
     return $map
 }
 
-# --- Collect files ---
-$files = @()
-$dbUtilsFull = (Resolve-Path $dbUtils).Path
-$dbContractFull = (Resolve-Path $dbContract).Path
-$dbCoreFull = (Resolve-Path $dbCore).Path
-$dbNavigationFull = (Resolve-Path $dbNavigation).Path
-$dbServicesFull = (Resolve-Path $dbServices).Path
-$dbJsFull = (Resolve-Path $dbJs).Path
-$dbLod114dFull = (Resolve-Path $dbLod114d).Path
-$dbGlueFull = (Resolve-Path $dbGlue).Path
+$files = $units
 
-Get-ChildItem -Recurse 'src\utils' -Filter '*.cpp' | ForEach-Object {
-    $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbUtilsFull; CacheDir = 'src\utils\Release\lint_cache' }
-}
-Get-ChildItem -Recurse 'src\contract' -Filter '*.cpp' | ForEach-Object {
-    $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbContractFull; CacheDir = 'src\contract\Release\lint_cache' }
-}
-Get-ChildItem -Recurse 'src\core' -Filter '*.cpp' | ForEach-Object {
-    $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbCoreFull; CacheDir = 'src\core\Release\lint_cache' }
-}
-Get-ChildItem -Recurse 'src\navigation' -Filter '*.cpp' | ForEach-Object {
-    $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbNavigationFull; CacheDir = 'src\navigation\Release\lint_cache' }
-}
-Get-ChildItem -Recurse 'src\services' -Filter '*.cpp' | ForEach-Object {
-    $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbServicesFull; CacheDir = 'src\services\Release\lint_cache' }
-}
-Get-ChildItem -Recurse 'src\frontends\runtime' -Filter '*.cpp' | ForEach-Object {
-    $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbJsFull; CacheDir = 'src\frontends\runtime\Release\lint_cache' }
-}
-Get-ChildItem -Recurse 'src\backends\lod114d' -Filter '*.cpp' | ForEach-Object {
-    $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbLod114dFull; CacheDir = 'src\backends\lod114d\Release\lint_cache' }
-}
-Get-ChildItem -Recurse 'src\glue\js-v8-lod114d' -Filter '*.cpp' | ForEach-Object {
-    $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbGlueFull; CacheDir = 'src\glue\js-v8-lod114d\Release\lint_cache' }
-}
-if (Test-Path $dbTests) {
-    $dbTestsFull = (Resolve-Path $dbTests).Path
-    Get-ChildItem -Recurse 'tests' -Filter '*.cpp' | ForEach-Object {
-        $files += [PSCustomObject]@{ Path = $_.FullName; Db = $dbTestsFull; CacheDir = 'tests\frontends\runtime\Release\lint_cache' }
+if ($Fix) {
+    # Serial: fixes to a shared header from two TUs at once would race.
+    Write-Host "clang-tidy --fix over $($files.Count) files..."
+    foreach ($f in $files) {
+        Write-Host "Fixing: $($f.Path)"
+        & $clangTidy --fix -p $f.Db $f.Path
     }
+    Pop-Location
+    exit 0
 }
 
-$cmdMap = Load-DbCommands @($dbUtils, $dbContract, $dbCore, $dbNavigation, $dbJs, $dbLod114d, $dbGlue, $dbTests)
 $tmpDir = Join-Path $env:TEMP "d2bs_lint_$(Get-Random)"
 New-Item -ItemType Directory -Path $tmpDir -Force | Out-Null
 
