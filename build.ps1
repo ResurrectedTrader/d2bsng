@@ -184,35 +184,8 @@ switch ($mode) {
         exit $LASTEXITCODE
     }
     'fix' {
-        $clangTidy = Get-LlvmTool 'clang-tidy.exe'
-        if (-not $clangTidy) {
-            Write-Host 'clang-tidy not found. Install LLVM tools via Visual Studio or put clang-tidy.exe on PATH.' -ForegroundColor Red
-            exit 1
-        }
-        $dbByDir = [ordered]@{
-            'src\frontends\runtime'    = 'src\frontends\runtime\Release\runtime.ClangTidy'
-            'src\backends\lod114d'   = 'src\backends\lod114d\Release\lod114d.ClangTidy'
-            'src\glue\js-v8-lod114d' = 'src\glue\js-v8-lod114d\Release\d2bs.ClangTidy'
-            'src\contract'           = 'src\contract\Release\contract.ClangTidy'
-            'src\core'               = 'src\core\Release\core.ClangTidy'
-            'src\navigation'         = 'src\navigation\Release\navigation.ClangTidy'
-            'src\services'           = 'src\services\Release\services.ClangTidy'
-            'src\utils'              = 'src\utils\Release\utils.ClangTidy'
-        }
-        if (-not (Test-Path $dbByDir['src\backends\lod114d'])) {
-            Write-Host 'Compilation database not found. Run ".\build.ps1 lint" first to generate it.' -ForegroundColor Red
-            exit 1
-        }
-        Write-Host 'Running clang-tidy --fix on source files...'
-        foreach ($dir in $dbByDir.Keys) {
-            $db = $dbByDir[$dir]
-            Get-ChildItem -Path $dir -Recurse -File -Filter '*.cpp' | ForEach-Object {
-                Write-Host "Fixing: $($_.FullName)"
-                & $clangTidy --fix -p $db $_.FullName
-            }
-        }
-        Write-Host 'Done.'
-        exit 0
+        & (Join-Path $PSScriptRoot 'scripts\lint.ps1') -Fix
+        exit $LASTEXITCODE
     }
     'deps' {
         # Runs only the FetchV8 target, on the project that needs the headers
