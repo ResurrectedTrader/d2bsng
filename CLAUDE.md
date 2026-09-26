@@ -637,6 +637,39 @@ forward-declarable - scoped, or unscoped with a fixed underlying type - and that
 must be a builtin or standard integer type. Enumerations nested in a class or declared
 in a `.cpp` get no names.
 
+### Namespaces
+
+A namespace says where its code lives: **`d2bs::<project>::<subdirectory>`**, where the
+project is the library (`utils`, `core`, `runtime`, `lod114d`, ...) and the subdirectory is
+the directory under the project root holding the file.
+
+| Code in | Namespace |
+|---|---|
+| `src/core/config/` | `d2bs::core::config` |
+| `src/frontends/runtime/components/profile/` | `d2bs::runtime::profile` |
+| `src/frontends/runtime/api/classes/` | `d2bs::runtime::api::classes` |
+| `src/backends/lod114d/imports/extras/` | `d2bs::lod114d::imports::extras` |
+| a project's root (`utils/Profiling.h`, `runtime/components/Host.h`) | `d2bs::utils`, `d2bs::runtime` |
+
+- **Grouping directories don't appear.** The frontend's `components/` only groups its
+  components, so `components/profile/` is `runtime::profile`, not
+  `runtime::components::profile`. A frontend or backend project is named by its own
+  directory (`runtime`, `lod114d`); `frontends/` and `backends/` never appear.
+- **The contract is the exception.** It is the vocabulary every project shares, so it keeps
+  short names: `d2bs::game` (`game/`) and `d2bs::config` (`config/`). A backend's
+  implementations of contract declarations (`game::Unit::Pos`, `game::GetGameState`) are in
+  `d2bs::game` too, because that is where they are declared; the backend's own helpers - in
+  its `game/` directory or elsewhere - follow the rule (`d2bs::lod114d::game::plugy`).
+- **Deeper is fine, shallower is not.** A directory may split its code into sub-namespaces
+  named for what they hold (`api::convert`, `navigation::collision`, `console::theme`); code
+  never sits in a parent's namespace (a component's types go in `d2bs::runtime::script`, not
+  `d2bs::runtime` or bare `d2bs`).
+- **File-local code** goes in an anonymous namespace; header-private helpers in a nested
+  `detail`.
+- **Qualify minimally** from where you are (see "Redundant qualifiers" above): inside `d2bs::runtime::gameloop`,
+  write `profile::Switch`, not `runtime::profile::Switch`; from another project, `runtime::`
+  is as far as lookup needs.
+
 ### Naming
 
 - **Methods/Functions**: PascalCase (e.g., `Start()`, `GetState()`, `RemoveAllForIsolate()`)
