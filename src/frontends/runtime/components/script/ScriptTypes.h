@@ -3,7 +3,7 @@
 #include <cstdint>
 
 // ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
-#include "components/script/ScriptTypesEnumNames.h"
+#include "RuntimeEnumNames.h"
 
 namespace d2bs {
 

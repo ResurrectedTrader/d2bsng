@@ -86,23 +86,17 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="config\ProfileData.cpp" />
-    <ClCompile Include="config\ProfileDataEnumNames.cpp" />
-    <ClCompile Include="game\ConsoleEnumNames.cpp" />
-    <ClCompile Include="game\ConstantsEnumNames.cpp" />
+    <ClCompile Include="ContractEnumNames.cpp" />
     <ClCompile Include="game\GameLock.cpp" />
-    <ClCompile Include="game\MenuEnumNames.cpp" />
-    <ClCompile Include="game\TypesEnumNames.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="config\ProfileData.h" />
-    <ClInclude Include="config\ProfileDataEnumNames.h" />
     <ClInclude Include="config\ScriptPaths.h" />
+    <ClInclude Include="ContractEnumNames.h" />
     <ClInclude Include="game\Bridge.h" />
     <ClInclude Include="game\Compatibility.h" />
     <ClInclude Include="game\Console.h" />
-    <ClInclude Include="game\ConsoleEnumNames.h" />
     <ClInclude Include="game\Constants.h" />
-    <ClInclude Include="game\ConstantsEnumNames.h" />
     <ClInclude Include="game\Control.h" />
     <ClInclude Include="game\Finders.h" />
     <ClInclude Include="game\GameCallbacks.h" />
@@ -112,13 +106,11 @@
     <ClInclude Include="game\HandleCache.h" />
     <ClInclude Include="game\Level.h" />
     <ClInclude Include="game\Menu.h" />
-    <ClInclude Include="game\MenuEnumNames.h" />
     <ClInclude Include="game\Party.h" />
     <ClInclude Include="game\Room.h" />
     <ClInclude Include="game\Sprite.h" />
     <ClInclude Include="game\StashTab.h" />
     <ClInclude Include="game\Types.h" />
-    <ClInclude Include="game\TypesEnumNames.h" />
     <ClInclude Include="game\Unit.h" />
   </ItemGroup>
   <ItemGroup>

@@ -11,7 +11,7 @@
 #include "game/Sprite.h"
 #include "game/Types.h"
 // ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
-#include "components/drawing/DrawableEnumNames.h"
+#include "RuntimeEnumNames.h"
 
 namespace d2bs::runtime::drawing {
 

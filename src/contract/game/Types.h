@@ -11,7 +11,7 @@
 #include <vector>
 
 // ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
-#include "game/TypesEnumNames.h"
+#include "ContractEnumNames.h"
 
 namespace d2bs::game {
 

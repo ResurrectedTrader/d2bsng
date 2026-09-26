@@ -644,9 +644,13 @@ the value straight to `std::format` / `std::format_to` or an spdlog / fmt call, 
 `static_cast` an enum to print it unless you want the number.
 
 The names come from `scripts/gen_enum_names.py`, which parses the headers with libclang
-and writes a checked-in `<Header>EnumNames.h` / `.cpp` pair beside each header that
-defines an enumeration, adds the header's include of it, and lists both in the owning
-`.vcxproj`. The shared lookup and the `std::formatter` live in `utils/EnumNaming.h`.
+and writes one checked-in pair per project at its root, named after it
+(`contract/ContractEnumNames.h` / `.cpp`): the header forward-declares the project's
+enumerations and declares their `EnumName` / `format_as`, the `.cpp` holds the name
+tables. It adds the pair's include to every header that defines an enumeration and
+lists the pair in the `.vcxproj`; `.gitattributes` marks the pairs generated, so GitHub
+collapses them in diffs. The shared lookup and the `std::formatter` live in
+`utils/EnumNaming.h`.
 **Rerun the script after adding, removing or changing an enumeration** (`pip install
 libclang` once); CI's `--check` fails otherwise. A covered enumeration must be
 forward-declarable - scoped, or unscoped with a fixed underlying type - and that type

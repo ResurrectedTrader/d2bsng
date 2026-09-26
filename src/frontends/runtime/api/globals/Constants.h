@@ -4,7 +4,7 @@
 
 #include "config/ProfileData.h"
 // ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
-#include "api/globals/ConstantsEnumNames.h"
+#include "RuntimeEnumNames.h"
 
 namespace d2bs::api::globals {
 

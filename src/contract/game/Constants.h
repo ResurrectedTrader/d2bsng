@@ -4,7 +4,7 @@
 #include <limits>
 
 // ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
-#include "game/ConstantsEnumNames.h"
+#include "ContractEnumNames.h"
 
 namespace d2bs::game {
 

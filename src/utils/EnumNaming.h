@@ -1,11 +1,11 @@
 #pragma once
 
 // The shared half of enumeration naming. scripts/gen_enum_names.py generates, per
-// source directory, an EnumNames.h / .cpp pair that gives every namespace-scope
+// project, a <Project>EnumNames.h / .cpp pair that gives every namespace-scope
 // enumeration an EnumName(value) overload and a format_as (fmt's hook), both in the
 // enumeration's own namespace; each header that defines enumerations includes its
-// directory's EnumNames.h. This header supplies the name-table lookup those use and
-// the std::formatter, so an enumeration formats by name through std::format and
+// project's pair. This header supplies the name-table lookup those use and the
+// std::formatter, so an enumeration formats by name through std::format and
 // fmt / spdlog alike, and EnumName(value) returns the same string.
 
 #include <concepts>

@@ -100,7 +100,6 @@
   <ItemGroup>
     <!-- API Globals -->
     <ClCompile Include="api\globals\Constants.cpp" />
-    <ClCompile Include="api\globals\ConstantsEnumNames.cpp" />
     <ClCompile Include="api\globals\CoreFunctions.cpp" />
     <ClCompile Include="api\globals\GameFunctions.cpp" />
     <ClCompile Include="api\globals\HashFunctions.cpp" />
@@ -123,10 +122,8 @@
     <ClCompile Include="api\classes\scripting\JSScript.cpp" />
     <!-- Drawing -->
     <ClCompile Include="components\drawing\Drawable.cpp" />
-    <ClCompile Include="components\drawing\DrawableEnumNames.cpp" />
     <ClCompile Include="components\drawing\VersionBanner.cpp" />
     <!-- Script Components -->
-    <ClCompile Include="components\gameloop\GameLoopEnumNames.cpp" />
     <ClCompile Include="components\script\CodeCache.cpp" />
     <ClCompile Include="components\script\Commands.cpp" />
     <ClCompile Include="components\script\CompileSource.cpp" />
@@ -155,13 +152,10 @@
     <ClCompile Include="components\Host.cpp" />
     <!-- GameLoop -->
     <ClCompile Include="components\gameloop\GameLoop.cpp" />
-    <ClCompile Include="components\script\ScriptEnumNames.cpp" />
-    <ClCompile Include="components\script\ScriptTypesEnumNames.cpp" />
+    <ClCompile Include="RuntimeEnumNames.cpp" />
   </ItemGroup>
   <ItemGroup>
     <!-- V8 Host -->
-    <ClInclude Include="api\globals\ConstantsEnumNames.h" />
-    <ClInclude Include="components\drawing\DrawableEnumNames.h" />
     <ClInclude Include="components\engine\Engine.h" />
     <!-- Event System -->
     <ClInclude Include="components\events\BaseEvent.h" />
@@ -234,14 +228,12 @@
     <ClInclude Include="api\classes\scripting\JSSandbox.h" />
     <ClInclude Include="api\classes\scripting\JSScript.h" />
     <!-- Script Components -->
-    <ClInclude Include="components\gameloop\GameLoopEnumNames.h" />
     <ClInclude Include="components\script\CodeCache.h" />
     <ClInclude Include="components\script\Commands.h" />
     <ClInclude Include="components\script\CompileSource.h" />
     <ClInclude Include="components\script\NativeCallHook.h" />
     <ClInclude Include="components\script\Script.h" />
     <ClInclude Include="components\script\ScriptEngine.h" />
-    <ClInclude Include="components\script\ScriptEnumNames.h" />
     <ClInclude Include="components\script\ScriptLogger.h" />
     <ClInclude Include="components\script\ScriptTypes.h" />
     <!-- Inspector (V8 / Chrome DevTools) -->
@@ -252,7 +244,7 @@
     <ClInclude Include="components\Host.h" />
     <!-- GameLoop -->
     <ClInclude Include="components\gameloop\GameLoop.h" />
-    <ClInclude Include="components\script\ScriptTypesEnumNames.h" />
+    <ClInclude Include="RuntimeEnumNames.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\contract\contract.vcxproj">

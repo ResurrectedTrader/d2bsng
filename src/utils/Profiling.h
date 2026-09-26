@@ -10,7 +10,7 @@
 #include <vector>
 
 // ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
-#include "utils/ProfilingEnumNames.h"
+#include "utils/UtilsEnumNames.h"
 
 // Lightweight counters answering "where does the CPU go", read by the console's Profiling panel.
 //

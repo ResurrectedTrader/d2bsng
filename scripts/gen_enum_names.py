@@ -3,20 +3,25 @@
 
 Finds the headers of every project under src/ (each .vcxproj) that define an
 enumeration at namespace scope, parses them with libclang (with that project's
-own include directories), and writes a checked-in pair beside each header:
+own include directories), and writes one checked-in pair per project, at the
+project's root and named after it (contract -> ContractEnumNames.h / .cpp):
 
-  <Name>EnumNames.h    forward-declares <Name>.h's enumerations and declares, in
-                       each enumeration's own namespace, EnumName(value) and
-                       format_as(value) (fmt's hook); includes utils/EnumNaming.h
-                       for the std::formatter. <Name>.h includes it, so an
-                       enumeration cannot be used without its names.
-  <Name>EnumNames.cpp  a name table per enumeration and the two definitions.
+  <Project>EnumNames.h    forward-declares all the project's enumerations and
+                          declares, in each enumeration's own namespace,
+                          EnumName(value) and format_as(value) (fmt's hook);
+                          includes utils/EnumNaming.h for the std::formatter.
+                          Every header that defines one of the enumerations
+                          includes it, so an enumeration cannot be used without
+                          its names - and, being only declarations, it is cheap.
+  <Project>EnumNames.cpp  a name table per enumeration and the definitions.
 
-It also keeps the wiring in step: the header gets the #include of its
-companion, and the owning .vcxproj gets the two files; a header that no longer
-defines an enumeration loses all three. Rerun after adding or changing an
-enumeration; --check reports stale output or wiring instead of writing it
-(non-zero exit), for CI.
+It also keeps the wiring in step: each such header gets the #include of its
+project's companion, and the .vcxproj lists the pair. A header that stops
+defining an enumeration loses the include, and a project that has none left
+loses the pair. Rerun after adding or changing an enumeration; --check reports
+stale output or wiring instead of writing it (non-zero exit), for CI.
+.gitattributes marks the pairs linguist-generated, so GitHub collapses them in
+diffs.
 
     pip install libclang
     python scripts/gen_enum_names.py [--check]
@@ -100,8 +105,10 @@ def is_generated(path):
         return f.readline().rstrip("\n") == GENERATED
 
 
-def companion(header, extension):
-    return header.with_name(f"{header.stem}{SUFFIX}{extension}")
+def companion(project, extension):
+    """The project's generated file: at its root, named after it (contract.vcxproj -> ContractEnumNames.h)."""
+    stem = project.vcxproj.stem
+    return project.dir / f"{stem[:1].upper()}{stem[1:]}{SUFFIX}{extension}"
 
 
 def project_files(project, projects, pattern):
@@ -241,10 +248,10 @@ def render_header(enums):
     return "\n".join(lines)
 
 
-def render_source(project, header, enums):
-    lines = [GENERATED, "", f'#include "{project.spell(companion(header, ".h"))}"', "",
-             "#include <array>", "#include <string>", "#include <utility>", "",
-             f'#include "{project.spell(header)}"', f'#include "{SHARED_HEADER}"']
+def render_source(project, headers, enums):
+    includes = sorted({f'#include "{project.spell(h)}"' for h in headers} | {f'#include "{SHARED_HEADER}"'})
+    lines = [GENERATED, "", f'#include "{project.spell(companion(project, ".h"))}"', "",
+             "#include <array>", "#include <string>", "#include <utility>", "", *includes]
     for namespace, members in by_namespace(enums).items():
         u = utils_prefix(namespace)
         lines += ["", f"namespace {namespace} {{"]
@@ -269,9 +276,8 @@ def render_source(project, header, enums):
 # --- Wiring -------------------------------------------------------------------
 
 
-def read_text(path):
+def decode(raw):
     """(text with \\n line endings, the file's own newline, whether it had a byte-order mark)."""
-    raw = path.read_bytes()
     text = raw.decode("utf-8-sig")
     return text.replace("\r\n", "\n"), ("\r\n" if "\r\n" in text else "\n"), raw.startswith(b"\xef\xbb\xbf")
 
@@ -280,23 +286,23 @@ def encode(text, newline, bom):
     return (b"\xef\xbb\xbf" if bom else b"") + text.replace("\n", newline).encode("utf-8")
 
 
-def wire_header(path, include, wanted):
-    """The header's bytes with the companion include added (after its last #include, else #pragma once)
+def wire_header(raw, include, wanted):
+    """A header's bytes with the companion include added (after its last #include, else #pragma once)
     when *wanted*, or removed (with its comment) when not."""
-    text, newline, bom = read_text(path)
+    text, newline, bom = decode(raw)
     lines = text.split("\n")
     line = f'#include "{include}"'
     if line in lines:
         if wanted:
-            return path.read_bytes()
+            return raw
         i = lines.index(line)
         start = i - 1 if i > 0 and lines[i - 1] == INCLUDE_COMMENT else i
         del lines[start:i + 1]
-        if start < len(lines) and start > 0 and lines[start] == "" and lines[start - 1] == "":
+        if 0 < start < len(lines) and lines[start] == "" and lines[start - 1] == "":
             del lines[start]
         return encode("\n".join(lines), newline, bom)
     if not wanted:
-        return path.read_bytes()
+        return raw
     anchor = max((i for i, l in enumerate(lines) if l.startswith("#include")), default=None)
     insert = [INCLUDE_COMMENT, line]
     if anchor is None:
@@ -310,7 +316,7 @@ def wire_header(path, include, wanted):
 def wire_project(project, add, remove):
     """The .vcxproj's bytes with each (kind, item) in *add* listed - alphabetically in the group holding
     that kind - and each item in *remove* dropped."""
-    text, newline, bom = read_text(project.vcxproj)
+    text, newline, bom = decode(project.vcxproj.read_bytes())
     for item in remove:
         text = re.sub(rf'^[ \t]*<Cl(?:Compile|Include) Include="{re.escape(item)}" />\n', "", text, flags=re.M)
     for kind, item in add:
@@ -373,31 +379,31 @@ def plan(tool):
                    if h not in generated and ENUM_DEF_RE.search(h.read_text(encoding="utf-8", errors="replace"))]
         parsed = parse_project(project, headers) if headers else {}
 
-        stems = {}
-        for header in parsed:
-            if header.stem in stems:
-                raise RuntimeError(f"{project.spell(header)} and {project.spell(stems[header.stem])} would both "
-                                   f"compile {header.stem}{SUFFIX}.cpp into {project.vcxproj.name}; rename one")
-            stems[header.stem] = header
+        enums = [e for es in parsed.values() for e in es]
+        total += len(enums)
 
+        header_path, source_path = companion(project, ".h"), companion(project, ".cpp")
         add, keep = [], set()
-        for header, enums in parsed.items():
-            total += len(enums)
-            for extension, text in ((".h", render_header(enums)), (".cpp", render_source(project, header, enums))):
-                path = companion(header, extension)
-                writes[path] = clang_format(text, path, tool).encode("utf-8")
-                keep.add(path)
-            writes[header] = wire_header(header, project.spell(companion(header, ".h")), wanted=True)
-            add += [("ClCompile", project.item(companion(header, ".cpp"))),
-                    ("ClInclude", project.item(companion(header, ".h")))]
+        if enums:
+            writes[header_path] = clang_format(render_header(enums), header_path, tool).encode("utf-8")
+            writes[source_path] = clang_format(render_source(project, parsed, enums), source_path,
+                                               tool).encode("utf-8")
+            keep = {header_path, source_path}
+            add = [("ClCompile", project.item(source_path)), ("ClInclude", project.item(header_path))]
 
-        # A header that no longer defines an enumeration: its pair, its include and its items go.
+        # Generated files this run did not produce (a project with no enumerations left, or an
+        # older layout) go, with their includes and .vcxproj items.
         stale = [p for p in generated if p not in keep]
-        for path in stale:
-            deletes.append(path)
-            source = path.with_name(path.name.removesuffix(f"{SUFFIX}{path.suffix}") + ".h")
-            if path.suffix == ".h" and source.exists():
-                writes[source] = wire_header(source, project.spell(path), wanted=False)
+        deletes += stale
+        stale_includes = [project.spell(p) for p in stale if p.suffix == ".h"]
+        for header in headers + [h for h in project_files(project, projects, "*.h")
+                                 if h not in generated and h not in headers]:
+            raw = original = header.read_bytes()
+            for include in stale_includes:
+                raw = wire_header(raw, include, wanted=False)
+            raw = wire_header(raw, project.spell(header_path), wanted=header in parsed)
+            if raw != original:
+                writes[header] = raw
         if add or stale:
             writes[project.vcxproj] = wire_project(project, add, [project.item(p) for p in stale])
     return writes, deletes, total

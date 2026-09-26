@@ -6,7 +6,7 @@
 #include "game/Level.h"
 #include "game/Types.h"
 // ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
-#include "navigation/ExitFinderEnumNames.h"
+#include "navigation/NavigationEnumNames.h"
 
 namespace d2bs::navigation {
 

@@ -7,8 +7,46 @@
 
 #include "utils/EnumNaming.h"
 
+namespace d2bs::config {
+
+enum class ProfileType : int32_t;
+
+// A human-readable name for an enum value: the enumerator that has it (the first declared one
+// for aliases), else the single-bit enumerators that together make it up exactly as "A|B",
+// else "Type(value)". std::format and fmt / spdlog print the same.
+[[nodiscard]] std::string EnumName(ProfileType value);
+
+// NOLINTBEGIN(readability-identifier-naming) - fmt's customisation point name
+[[nodiscard]] std::string format_as(ProfileType value);
+// NOLINTEND(readability-identifier-naming)
+
+}  // namespace d2bs::config
+
+namespace d2bs::game::console {
+
+enum class ColorCode : char;
+enum class MessageSource : uint8_t;
+enum class MessageLevel : uint8_t;
+
+// A human-readable name for an enum value: the enumerator that has it (the first declared one
+// for aliases), else the single-bit enumerators that together make it up exactly as "A|B",
+// else "Type(value)". std::format and fmt / spdlog print the same.
+[[nodiscard]] std::string EnumName(ColorCode value);
+[[nodiscard]] std::string EnumName(MessageSource value);
+[[nodiscard]] std::string EnumName(MessageLevel value);
+
+// NOLINTBEGIN(readability-identifier-naming) - fmt's customisation point name
+[[nodiscard]] std::string format_as(ColorCode value);
+[[nodiscard]] std::string format_as(MessageSource value);
+[[nodiscard]] std::string format_as(MessageLevel value);
+// NOLINTEND(readability-identifier-naming)
+
+}  // namespace d2bs::game::console
+
 namespace d2bs::game {
 
+enum class CharFlag : uint32_t;
+enum class OutOfGameLocation : uint32_t;
 enum class ClickButton : uint8_t;
 enum class Hand : uint8_t;
 enum class KeyState : uint8_t;
@@ -44,6 +82,8 @@ enum class MoveMode : uint32_t;
 // A human-readable name for an enum value: the enumerator that has it (the first declared one
 // for aliases), else the single-bit enumerators that together make it up exactly as "A|B",
 // else "Type(value)". std::format and fmt / spdlog print the same.
+[[nodiscard]] std::string EnumName(CharFlag value);
+[[nodiscard]] std::string EnumName(OutOfGameLocation value);
 [[nodiscard]] std::string EnumName(ClickButton value);
 [[nodiscard]] std::string EnumName(Hand value);
 [[nodiscard]] std::string EnumName(KeyState value);
@@ -77,6 +117,8 @@ enum class MoveMode : uint32_t;
 [[nodiscard]] std::string EnumName(MoveMode value);
 
 // NOLINTBEGIN(readability-identifier-naming) - fmt's customisation point name
+[[nodiscard]] std::string format_as(CharFlag value);
+[[nodiscard]] std::string format_as(OutOfGameLocation value);
 [[nodiscard]] std::string format_as(ClickButton value);
 [[nodiscard]] std::string format_as(Hand value);
 [[nodiscard]] std::string format_as(KeyState value);

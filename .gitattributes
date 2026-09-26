@@ -9,3 +9,8 @@
 # line endings and core.autocrlf=false, so adding one would renormalise files
 # far outside whatever change introduced it.
 dependencies/v8/include/** linguist-generated=true linguist-vendored=true
+
+# The per-project enum name tables scripts/gen_enum_names.py writes (and CI checks
+# are current). Reviewers read the enum headers, not these.
+src/**/*EnumNames.h linguist-generated=true
+src/**/*EnumNames.cpp linguist-generated=true

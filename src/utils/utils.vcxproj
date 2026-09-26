@@ -92,10 +92,10 @@
     <ClCompile Include="crypto.cpp" />
     <ClCompile Include="EnumNaming.cpp" />
     <ClCompile Include="Profiling.cpp" />
-    <ClCompile Include="ProfilingEnumNames.cpp" />
     <ClCompile Include="Strings.cpp" />
     <ClCompile Include="threadutils.cpp" />
     <ClCompile Include="utils.cpp" />
+    <ClCompile Include="UtilsEnumNames.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CaseInsensitiveMap.h" />
@@ -103,10 +103,10 @@
     <ClInclude Include="DeferGuard.h" />
     <ClInclude Include="EnumNaming.h" />
     <ClInclude Include="Profiling.h" />
-    <ClInclude Include="ProfilingEnumNames.h" />
     <ClInclude Include="Strings.h" />
     <ClInclude Include="threadutils.h" />
     <ClInclude Include="utils.h" />
+    <ClInclude Include="UtilsEnumNames.h" />
     <ClInclude Include="VirtualArray.h" />
     <ClInclude Include="stackwalker\MyStackWalker.h" />
   </ItemGroup>

@@ -8,7 +8,7 @@
 #include <vector>
 
 // ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
-#include "detour/HookEnumNames.h"
+#include "CoreEnumNames.h"
 
 // Typed Detours slots and the transactions that attach them. A slot owns one
 // detour: where the function lives, the pointer that reaches the original once
