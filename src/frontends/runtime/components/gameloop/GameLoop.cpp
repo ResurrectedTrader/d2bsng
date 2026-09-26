@@ -309,8 +309,8 @@ void GameLoop::ReloadPathsForProfile(const std::string& name) {
     if (name.empty()) {
         return;
     }
-    auto profile = profile::Load(name);
-    if (!profile) {
+    auto loaded = profile::Load(name);
+    if (!loaded) {
         return;
     }
 
@@ -323,7 +323,7 @@ void GameLoop::ReloadPathsForProfile(const std::string& name) {
     // Apply non-empty fields from the profile's overrides. basePath is joined
     // against the baseline's parent (so `kolbot` becomes `<install>/kolbot`;
     // absolute override replaces via filesystem::path operator/).
-    const auto& overrides = profile->scriptPaths;
+    const auto& overrides = loaded->scriptPaths;
     if (!overrides.basePath.empty()) {
         newPaths.basePath = newPaths.basePath.parent_path() / overrides.basePath;
     }

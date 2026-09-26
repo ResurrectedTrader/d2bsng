@@ -19,7 +19,7 @@ class Level;
 namespace d2bs::runtime::navigation {
 
 // Geometric primitives are defined in game/Types.h; alias them here so pathfinding
-// code and consumers can write `d2bs::pathfinding::{Point,Position,Size,Rect}` directly.
+// code and consumers can write `navigation::{Point,Position,Size,Rect}` directly.
 using Point = game::Point;
 using Position = game::Position;
 using Size = game::Size;
