@@ -28,8 +28,8 @@
 
 namespace d2bs::game {
 
-using imports::extras::D2ActiveRoomStrc;
-using imports::extras::D2DrlgRoomStrc;
+using lod114d::imports::extras::D2ActiveRoomStrc;
+using lod114d::imports::extras::D2DrlgRoomStrc;
 
 namespace {
 
@@ -345,7 +345,7 @@ bool Room::Reveal(bool drawPresets) const {
     auto* activeRoom = drlgRoom->pRoom;
     if (activeRoom == nullptr)
         return false;
-    auto* player = imports::d2client::UNITS_GetPlayerUnit();
+    auto* player = lod114d::imports::d2client::UNITS_GetPlayerUnit();
     if (player == nullptr)
         return false;
 
@@ -370,15 +370,16 @@ bool Room::Reveal(bool drawPresets) const {
         if (pathRoom != nullptr && pathRoom->pDrlgRoom != nullptr && pathRoom->pDrlgRoom->pLevel != nullptr &&
             static_cast<uint32_t>(pathRoom->pDrlgRoom->pLevel->nLevelId) != targetLevel) {
             playerLevelNo = static_cast<uint32_t>(pathRoom->pDrlgRoom->pLevel->nLevelId);
-            *imports::d2client::gpAutomapLayer = asm_thunks::InitAutomapLayerForLevel(targetLevel);
+            *lod114d::imports::d2client::gpAutomapLayer = lod114d::asm_thunks::InitAutomapLayerForLevel(targetLevel);
             switched = true;
         }
-        imports::d2client::AUTOMAP_RevealRoom(activeRoom, /*dwClipFlag=*/1U, *imports::d2client::gpAutomapLayer);
+        lod114d::imports::d2client::AUTOMAP_RevealRoom(activeRoom, /*dwClipFlag=*/1U,
+                                                       *lod114d::imports::d2client::gpAutomapLayer);
         if (drawPresets) {
             DrawPresetsForRoom(drlgRoom);
         }
         if (switched) {
-            asm_thunks::InitAutomapLayerForLevel(playerLevelNo);
+            lod114d::asm_thunks::InitAutomapLayerForLevel(playerLevelNo);
         }
         return true;
     });

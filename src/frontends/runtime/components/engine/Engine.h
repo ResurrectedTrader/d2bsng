@@ -50,7 +50,7 @@ class Engine {
         // first, then our mandatory flags so a conflicting user flag can't drop
         // them (V8 applies repeated flags in order, last wins). Must run before
         // v8::V8::Initialize(); the config is already loaded by this point.
-        const auto &cfg = d2bs::config::GetAppConfig();
+        const auto &cfg = d2bs::core::config::GetAppConfig();
         std::string v8Flags = cfg.engineFlags;
         if (!v8Flags.empty()) {
             Log().info("Applying user V8 flags: {}", v8Flags);
@@ -80,8 +80,8 @@ class Engine {
 
         v8::V8::SetDcheckErrorHandler([](const char *file, int line, const char *message) {
             auto dump = std::format("V8 DCHECK failure at {}:{}: {}\n{}\n", file ? file : "<null>", line,
-                                    message ? message : "<null>", d2bs::thread_utils::GetThreadStacktrace());
-            d2bs::thread_utils::CrashAndExit(dump, 0xD2B50004);
+                                    message ? message : "<null>", d2bs::utils::threads::GetThreadStacktrace());
+            d2bs::utils::threads::CrashAndExit(dump, 0xD2B50004);
         });
         // V8::SetFatalErrorHandler is the *process-wide* CHECK / fatal-error
         // hook (distinct from Isolate::SetFatalErrorHandler, which is for API
@@ -91,19 +91,19 @@ class Engine {
         // and a graceful exit.
         v8::V8::SetFatalErrorHandler([](const char *file, int line, const char *message) {
             auto dump = std::format("V8 fatal/CHECK failure at {}:{}: {}\n{}\n", file ? file : "<null>", line,
-                                    message ? message : "<null>", d2bs::thread_utils::GetThreadStacktrace());
-            d2bs::thread_utils::CrashAndExit(dump, 0xD2B50005);
+                                    message ? message : "<null>", d2bs::utils::threads::GetThreadStacktrace());
+            d2bs::utils::threads::CrashAndExit(dump, 0xD2B50005);
         });
         v8::V8::SetFatalMemoryErrorCallback([](const char *location, const v8::OOMDetails &details) {
             auto dump = std::format("V8 OOM at '{}': {} (is_heap_oom={})\n{}\n", location ? location : "<null>",
                                     details.detail ? details.detail : "<null>", details.is_heap_oom,
-                                    d2bs::thread_utils::GetThreadStacktrace());
-            d2bs::thread_utils::CrashAndExit(dump, 0xD2B50006);
+                                    d2bs::utils::threads::GetThreadStacktrace());
+            d2bs::utils::threads::CrashAndExit(dump, 0xD2B50006);
         });
         // ReSharper disable once CppParameterMayBeConstPtrOrRef
         v8::V8::SetUnhandledExceptionCallback([](_EXCEPTION_POINTERS *exceptionPointers) -> int {
-            auto stackTrace = d2bs::thread_utils::GetStacktraceFromContext(exceptionPointers->ContextRecord);
-            auto description = d2bs::thread_utils::GetThreadDescription();
+            auto stackTrace = d2bs::utils::threads::GetStacktraceFromContext(exceptionPointers->ContextRecord);
+            auto description = d2bs::utils::threads::GetThreadDescription();
 
             auto message = std::format(
                 "\n{}\n"
@@ -119,7 +119,7 @@ class Engine {
                 exceptionPointers->ExceptionRecord->ExceptionCode, exceptionPointers->ExceptionRecord->ExceptionFlags,
                 exceptionPointers->ExceptionRecord->ExceptionAddress);
 
-            d2bs::thread_utils::CrashAndExit(message, exceptionPointers->ExceptionRecord->ExceptionCode);
+            d2bs::utils::threads::CrashAndExit(message, exceptionPointers->ExceptionRecord->ExceptionCode);
         });
     }
 

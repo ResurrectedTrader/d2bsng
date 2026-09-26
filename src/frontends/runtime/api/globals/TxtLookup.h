@@ -8,15 +8,15 @@
 #include "api/globals/TxtTables.h"
 #include "utils/utils.h"
 
-namespace d2bs::api::globals {
+namespace d2bs::runtime::api::globals {
 
 // Table index -> canonical .txt table name. nullopt if out of range.
 constexpr std::optional<std::string_view> ResolveTxtTable(uint32_t tableIdx) {
-    if (tableIdx >= game::TXT_TABLE_NAMES.size()) {
+    if (tableIdx >= TXT_TABLE_NAMES.size()) {
         return std::nullopt;
     }
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index) - runtime table index, bounds checked above
-    return game::TXT_TABLE_NAMES[tableIdx];
+    return TXT_TABLE_NAMES[tableIdx];
 }
 
 // (Table name, column index) -> canonical column name.
@@ -27,9 +27,9 @@ constexpr std::optional<std::string_view> ResolveTxtTable(uint32_t tableIdx) {
 inline std::optional<std::string_view> ResolveTxtColumn(std::string_view tableName, uint32_t colIdx) {
     std::string lowered = utils::ToLower(std::string(tableName));
     // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index) - parallel-array lookup by runtime name match
-    for (size_t i = 0; i < game::TXT_TABLE_NAMES.size(); ++i) {
-        if (game::TXT_TABLE_NAMES[i] == lowered) {
-            const auto& cols = game::TXT_COLUMNS_BY_TABLE[i];
+    for (size_t i = 0; i < TXT_TABLE_NAMES.size(); ++i) {
+        if (TXT_TABLE_NAMES[i] == lowered) {
+            const auto& cols = TXT_COLUMNS_BY_TABLE[i];
             if (colIdx >= cols.size()) {
                 return std::nullopt;
             }
@@ -46,13 +46,13 @@ inline std::optional<std::string_view> ResolveTxtColumn(std::string_view tableNa
 inline std::optional<std::span<const std::string_view>> ResolveTxtColumns(std::string_view tableName) {
     std::string lowered = utils::ToLower(std::string(tableName));
     // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index) - parallel-array lookup by runtime name match
-    for (size_t i = 0; i < game::TXT_TABLE_NAMES.size(); ++i) {
-        if (game::TXT_TABLE_NAMES[i] == lowered) {
-            return game::TXT_COLUMNS_BY_TABLE[i];
+    for (size_t i = 0; i < TXT_TABLE_NAMES.size(); ++i) {
+        if (TXT_TABLE_NAMES[i] == lowered) {
+            return TXT_COLUMNS_BY_TABLE[i];
         }
     }
     // NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
     return std::nullopt;
 }
 
-}  // namespace d2bs::api::globals
+}  // namespace d2bs::runtime::api::globals

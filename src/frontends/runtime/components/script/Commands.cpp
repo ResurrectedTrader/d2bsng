@@ -30,7 +30,7 @@ spdlog::logger& Log() {
 // DefaultStarterScript (or DefaultGameScript when in-game) and spawns it.
 // The game-state branch reflects reference/d2bs/Helpers.cpp:210-217.
 void StartStarter() {
-    auto paths = config::GetAppConfig().GetScriptPaths();
+    auto paths = core::config::GetAppConfig().GetScriptPaths();
 
     // Reference picks szDefault while in-game and szStarter while on the menu.
     const bool inGame = game::GetGameState() == game::GameState::InGame;
@@ -57,7 +57,7 @@ void LoadScript(std::string_view scriptName) {
         Log().warn("load: missing script name");
         return;
     }
-    auto paths = config::GetAppConfig().GetScriptPaths();
+    auto paths = core::config::GetAppConfig().GetScriptPaths();
     auto mode = (game::GetGameState() == game::GameState::InGame) ? ScriptMode::InGame : ScriptMode::OutOfGame;
     auto path = paths.basePath / std::string(scriptName);
     auto script = ScriptEngine::Instance().StartScript(path, mode);
@@ -70,10 +70,10 @@ void LoadScript(std::string_view scriptName) {
 
 // Useful for diagnosing hangs: shows all thread stacks including what scripts are blocked on.
 void DumpAllStacks() {
-    const auto tids = thread_utils::EnumerateProcessThreads();
+    const auto tids = utils::threads::EnumerateProcessThreads();
     for (uint32_t tid : tids) {
-        const auto name = thread_utils::GetThreadDescription(tid);
-        const auto trace = thread_utils::GetThreadStacktrace(tid, /*skip=*/0);
+        const auto name = utils::threads::GetThreadDescription(tid);
+        const auto trace = utils::threads::GetThreadStacktrace(tid, /*skip=*/0);
         Log().info("--- thread tid={:#x} name='{}' ---\n{}", tid, name, trace);
     }
     Log().info("stacks: dumped {} threads", tids.size());
@@ -92,7 +92,7 @@ void ReloadAll() {
     // Reference Helpers.cpp:243-249 skips the starter-script launch while the
     // waitForProfile latch is set - the pending profile::Switch will pick
     // the per-profile starter, and kicking one off here would race that.
-    if (config::GetAppConfig().waitForProfile.load()) {
+    if (core::config::GetAppConfig().waitForProfile.load()) {
         return;
     }
     StartStarter();

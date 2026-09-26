@@ -36,7 +36,7 @@
 #include "scripting/JSSandbox.h"
 #include "scripting/JSScript.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 namespace {
 
@@ -221,7 +221,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
             // Game-start anchor as steady_clock epoch ms, matching the
             // getTickCount() domain so script comparisons against it hold;
             // 0 when out of game.
-            auto anchor = runtime::gameloop::GameLoop::Instance().GameStartTime();
+            auto anchor = gameloop::GameLoop::Instance().GameStartTime();
             double ms = 0.0;
             if (anchor) {
                 auto epochMs = std::chrono::duration_cast<std::chrono::milliseconds>(anchor->time_since_epoch());
@@ -316,7 +316,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
     /// @type {string}
     JSUnit::InstanceProperty(
         isolate, context, me, "profile", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto name = config::GetAppConfig().GetProfileName();
+            auto name = core::config::GetAppConfig().GetProfileName();
             info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), name));
         });
 
@@ -331,7 +331,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
     /// @type {boolean}
     JSUnit::InstanceProperty(
         isolate, context, me, "unsupported", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            info.GetReturnValue().Set(config::GetAppConfig().enableUnsupported.load());
+            info.GetReturnValue().Set(core::config::GetAppConfig().enableUnsupported.load());
         });
 
     /// @description Raw character flags bitfield for the current character.
@@ -407,10 +407,10 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
     JSUnit::InstanceProperty(
         isolate, context, me, "chickenhp",
         +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            info.GetReturnValue().Set(config::GetAppConfig().chickenHp.load());
+            info.GetReturnValue().Set(core::config::GetAppConfig().chickenHp.load());
         },
         +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-            config::GetAppConfig().chickenHp.store(convert::ToInt32(info.GetIsolate(), value));
+            core::config::GetAppConfig().chickenHp.store(convert::ToInt32(info.GetIsolate(), value));
         });
 
     /// @description Bot "chicken" MP threshold (config-backed) at/below which the bot bails out of a game.
@@ -418,10 +418,10 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
     JSUnit::InstanceProperty(
         isolate, context, me, "chickenmp",
         +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            info.GetReturnValue().Set(config::GetAppConfig().chickenMp.load());
+            info.GetReturnValue().Set(core::config::GetAppConfig().chickenMp.load());
         },
         +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-            config::GetAppConfig().chickenMp.store(convert::ToInt32(info.GetIsolate(), value));
+            core::config::GetAppConfig().chickenMp.store(convert::ToInt32(info.GetIsolate(), value));
         });
 
     /// @description Config flag: whether the bot should quit the game when another player goes hostile.
@@ -429,10 +429,10 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
     JSUnit::InstanceProperty(
         isolate, context, me, "quitonhostile",
         +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            info.GetReturnValue().Set(config::GetAppConfig().quitOnHostile.load());
+            info.GetReturnValue().Set(core::config::GetAppConfig().quitOnHostile.load());
         },
         +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-            config::GetAppConfig().quitOnHostile.store(value->BooleanValue(info.GetIsolate()));
+            core::config::GetAppConfig().quitOnHostile.store(value->BooleanValue(info.GetIsolate()));
         });
 
     /// @description Config flag: whether keyboard input to the game is blocked/suppressed.
@@ -440,10 +440,10 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
     JSUnit::InstanceProperty(
         isolate, context, me, "blockKeys",
         +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            info.GetReturnValue().Set(config::GetAppConfig().blockKeys.load());
+            info.GetReturnValue().Set(core::config::GetAppConfig().blockKeys.load());
         },
         +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-            config::GetAppConfig().blockKeys.store(value->BooleanValue(info.GetIsolate()));
+            core::config::GetAppConfig().blockKeys.store(value->BooleanValue(info.GetIsolate()));
         });
 
     /// @description Config flag: whether mouse input to the game is blocked/suppressed.
@@ -451,10 +451,10 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
     JSUnit::InstanceProperty(
         isolate, context, me, "blockMouse",
         +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            info.GetReturnValue().Set(config::GetAppConfig().blockMouse.load());
+            info.GetReturnValue().Set(core::config::GetAppConfig().blockMouse.load());
         },
         +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-            config::GetAppConfig().blockMouse.store(value->BooleanValue(info.GetIsolate()));
+            core::config::GetAppConfig().blockMouse.store(value->BooleanValue(info.GetIsolate()));
         });
 
     /// @description In-game no-pickup state: when on, the character does not auto-pick up items; undefined when out of
@@ -480,10 +480,10 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
     JSUnit::InstanceProperty(
         isolate, context, me, "quitonerror",
         +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            info.GetReturnValue().Set(config::GetAppConfig().quitOnError.load());
+            info.GetReturnValue().Set(core::config::GetAppConfig().quitOnError.load());
         },
         +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-            config::GetAppConfig().quitOnError.store(value->BooleanValue(info.GetIsolate()));
+            core::config::GetAppConfig().quitOnError.store(value->BooleanValue(info.GetIsolate()));
         });
 
     /// @description Config-backed maximum game duration in milliseconds before the bot leaves; 0 means no limit.
@@ -491,14 +491,14 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
     JSUnit::InstanceProperty(
         isolate, context, me, "maxgametime",
         +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            info.GetReturnValue().Set(static_cast<uint32_t>(config::GetAppConfig().maxGameTime.load().count()));
+            info.GetReturnValue().Set(static_cast<uint32_t>(core::config::GetAppConfig().maxGameTime.load().count()));
         },
         +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-            config::GetAppConfig().maxGameTime.store(
+            core::config::GetAppConfig().maxGameTime.store(
                 std::chrono::milliseconds{convert::ToUint32(info.GetIsolate(), value)});
         });
 
     return scope.Escape(me);
 }
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

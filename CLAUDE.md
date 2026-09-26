@@ -564,7 +564,7 @@ Write the minimal form. Cleanups (including ReSharper) routinely strip these, so
 writing them minimal up front makes a cleanup a no-op rather than a diff.
 
 - **Namespace qualifiers.** Qualify only as far as name lookup needs from the
-  current scope. Inside `namespace d2bs::api`, write `game::Unit`, not
+  current scope. Inside `namespace d2bs::runtime::api`, write `game::Unit`, not
   `d2bs::game::Unit`; inside a member of `d2bs::game::Control`, write `FromPtr`,
   not `Control::FromPtr`. Reach for a fully-qualified name only to disambiguate.
 - **Casts.** Drop a `static_cast<T>(x)` when `x` is already a `T` or converts to
@@ -656,10 +656,12 @@ the directory under the project root holding the file.
   `runtime::components::profile`. A frontend or backend project is named by its own
   directory (`runtime`, `lod114d`); `frontends/` and `backends/` never appear.
 - **The contract is the exception.** It is the vocabulary every project shares, so it keeps
-  short names: `d2bs::game` (`game/`) and `d2bs::config` (`config/`). A backend's
-  implementations of contract declarations (`game::Unit::Pos`, `game::GetGameState`) are in
-  `d2bs::game` too, because that is where they are declared; the backend's own helpers - in
-  its `game/` directory or elsewhere - follow the rule (`d2bs::lod114d::game::plugy`).
+  short names: `d2bs::game` (`game/`) and `d2bs::config` (`config/`). A backend's `game/`
+  directory is its implementation of that contract, so it is `d2bs::game` as well - the member
+  definitions (`game::Unit::Pos`) have to be, and the helpers beside them serve only those
+  (`game::plugy`, `game::RoomDataGuard`). A contract function implemented elsewhere in a
+  backend (`game::GetRealms` in `hooks/`) is `d2bs::game` too; every other directory of a
+  backend follows the rule (`d2bs::lod114d::imports`, `d2bs::lod114d::hooks`).
 - **Deeper is fine, shallower is not.** A directory may split its code into sub-namespaces
   named for what they hold (`api::convert`, `navigation::collision`, `console::theme`); code
   never sits in a parent's namespace (a component's types go in `d2bs::runtime::script`, not

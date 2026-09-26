@@ -72,9 +72,9 @@ enum class StringId : int32_t {
     Copyright = 21882,  // " Copyright 2001 Blizzard Entertainment"
 };
 
-imports::extras::D2WinControlStrc* ResolveCtrlPtr(ControlType type, Rect bounds) {
+lod114d::imports::extras::D2WinControlStrc* ResolveCtrlPtr(ControlType type, Rect bounds) {
     GameReadLock guard;
-    for (auto* p = *imports::d2win::gpFirstControl; p != nullptr; p = p->pNext) {
+    for (auto* p = *lod114d::imports::d2win::gpFirstControl; p != nullptr; p = p->pNext) {
         if (p->dwType == type && p->rect == bounds) {
             return p;
         }
@@ -102,12 +102,12 @@ bool SetEditBoxText(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const std::s
 
 struct InputLatch {
     InputLatch() {
-        config::GetAppConfig().blockKeys.store(true);
-        config::GetAppConfig().blockMouse.store(true);
+        core::config::GetAppConfig().blockKeys.store(true);
+        core::config::GetAppConfig().blockMouse.store(true);
     }
     ~InputLatch() {
-        config::GetAppConfig().blockKeys.store(false);
-        config::GetAppConfig().blockMouse.store(false);
+        core::config::GetAppConfig().blockKeys.store(false);
+        core::config::GetAppConfig().blockMouse.store(false);
     }
     InputLatch(const InputLatch&) = delete;
     InputLatch& operator=(const InputLatch&) = delete;

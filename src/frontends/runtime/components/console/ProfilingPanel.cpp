@@ -57,7 +57,7 @@ constexpr ImGuiTableFlags SORTABLE_TABLE_FLAGS = ImGuiTableFlags_SizingFixedFit 
 constexpr ImGuiTableColumnFlags NUMERIC_COLUMN =
     ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_PreferSortDescending;
 
-constexpr std::array<const char*, profiling::NATIVE_CALL_KINDS> KIND_LABELS = {"fn", "get", "set"};
+constexpr std::array<const char*, utils::profiling::NATIVE_CALL_KINDS> KIND_LABELS = {"fn", "get", "set"};
 
 // Column indices, shared between the header setup and the sort comparator.
 enum ThreadColumn : int32_t {
@@ -177,7 +177,7 @@ void SortRows(std::vector<Row>& rows, bool ascending, Key key, Present present) 
     return fmt::format("{:.2f} s", micros / 1e6);
 }
 
-[[nodiscard]] const char* KindLabel(profiling::NativeCall kind) {
+[[nodiscard]] const char* KindLabel(utils::profiling::NativeCall kind) {
     return KIND_LABELS.at(static_cast<size_t>(kind));
 }
 
@@ -233,9 +233,9 @@ void ProfilingPanel::Draw() {
     ImGui::PopStyleColor();
     ImGui::Checkbox("Show all threads", &showAllThreads_);
     ImGui::SameLine();
-    bool timeNativeCalls = profiling::nativeTimingEnabled.load(std::memory_order_relaxed);
+    bool timeNativeCalls = utils::profiling::nativeTimingEnabled.load(std::memory_order_relaxed);
     if (ImGui::Checkbox("Time native calls", &timeNativeCalls)) {
-        profiling::nativeTimingEnabled.store(timeNativeCalls, std::memory_order_relaxed);
+        utils::profiling::nativeTimingEnabled.store(timeNativeCalls, std::memory_order_relaxed);
         if (timeNativeCalls) {
             collectStart_ = now;
         } else if (collecting_) {
@@ -268,7 +268,7 @@ void ProfilingPanel::Draw() {
     if (sinceSample_ >= SAMPLE_SECONDS) {
         // The window in TSC cycles is the denominator of every CPU share. The TSC is invariant and
         // synchronised across cores on anything this runs on.
-        const uint64_t cycles = profiling::Cycles();
+        const uint64_t cycles = utils::profiling::Cycles();
         const bool baseline = prevSampleCycles_ == 0;
         const uint64_t windowCycles = baseline ? 0 : Delta(cycles, prevSampleCycles_);
         prevSampleCycles_ = cycles;
@@ -314,14 +314,14 @@ void ProfilingPanel::Draw() {
 }
 
 void ProfilingPanel::SampleTimelines(double window) {
-    auto samples = profiling::SnapshotTimelines();
+    auto samples = utils::profiling::SnapshotTimelines();
 
     std::vector<TimelineView> views;
     std::unordered_map<std::string, TimelineState> next;
     views.reserve(samples.size());
 
     for (auto& sample : samples) {
-        const profiling::TimelineInfo& info = *sample.info;
+        const utils::profiling::TimelineInfo& info = *sample.info;
         TimelineView view{.info = &info, .detail = std::move(sample.detail)};
         view.cycles.assign(sample.phases.size(), 0);
 
@@ -368,7 +368,7 @@ void ProfilingPanel::SampleTimelines(double window) {
 }
 
 void ProfilingPanel::DrawTimeline(const TimelineView& view) {
-    const profiling::TimelineInfo& info = *view.info;
+    const utils::profiling::TimelineInfo& info = *view.info;
 
     // "###" keeps the header's ID (and so its open state) fixed while the figures in it change.
     std::string header = info.title;
@@ -411,7 +411,7 @@ void ProfilingPanel::DrawTimeline(const TimelineView& view) {
         ImGui::TableHeadersRow();
 
         for (size_t i = 0; i < view.cycles.size(); ++i) {
-            const profiling::PhaseInfo& phase = info.phases[i];
+            const utils::profiling::PhaseInfo& phase = info.phases[i];
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
             ImGui::TextUnformatted(phase.name);
@@ -426,7 +426,7 @@ void ProfilingPanel::DrawTimeline(const TimelineView& view) {
 }
 
 void ProfilingPanel::SampleThreads(double window, uint64_t windowCycles) {
-    const std::vector<profiling::ThreadSample> threads = profiling::SnapshotThreads();
+    const std::vector<utils::profiling::ThreadSample> threads = utils::profiling::SnapshotThreads();
 
     std::vector<Row> rows;
     std::unordered_map<uint32_t, ThreadState> next;
@@ -444,7 +444,7 @@ void ProfilingPanel::SampleThreads(double window, uint64_t windowCycles) {
         const bool seen = it != threadState_.end();
         if (seen) {
             state = std::move(it->second);
-            const profiling::ThreadSample& prev = state.prev;
+            const utils::profiling::ThreadSample& prev = state.prev;
             row.cpuPercent = Percent(Delta(current.cpuCycles, prev.cpuCycles), windowCycles);
             row.wakesPerSecond = static_cast<double>(Delta(current.wakeups, prev.wakeups)) / window;
             const uint64_t work = Delta(current.workCycles, prev.workCycles);
@@ -452,7 +452,7 @@ void ProfilingPanel::SampleThreads(double window, uint64_t windowCycles) {
             row.awakePercent = Percent(work, work + slept);
             row.hasLoopCounters = (work + slept) > 0;
 
-            for (size_t kind = 0; kind < profiling::NATIVE_CALL_KINDS; ++kind) {
+            for (size_t kind = 0; kind < utils::profiling::NATIVE_CALL_KINDS; ++kind) {
                 const uint64_t cycles = Delta(current.native.at(kind).cycles, prev.native.at(kind).cycles);
                 const uint64_t calls = Delta(current.native.at(kind).calls, prev.native.at(kind).calls);
                 row.hasNative = row.hasNative || calls > 0;
@@ -487,7 +487,7 @@ void ProfilingPanel::SampleThreads(double window, uint64_t windowCycles) {
 
         // Filtered on the peak: a thread that spiked earlier in the window is what this is for.
         if (row.peakPercent >= INTERESTING_CPU_PERCENT || row.hasLoopCounters || showAllThreads_) {
-            row.name = thread_utils::GetThreadDescription(tid);
+            row.name = utils::threads::GetThreadDescription(tid);
             rows.push_back(std::move(row));
         }
     }
@@ -623,7 +623,7 @@ void ProfilingPanel::DrawNativeCalls() {
     }
 
     if (bindings_.empty()) {
-        ImGui::TextDisabled(profiling::nativeTimingEnabled.load(std::memory_order_relaxed)
+        ImGui::TextDisabled(utils::profiling::nativeTimingEnabled.load(std::memory_order_relaxed)
                                 ? "Waiting for a JS->native call..."
                                 : "Tick 'Time native calls' to attribute native time per binding.");
         return;

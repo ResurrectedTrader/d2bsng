@@ -2,7 +2,7 @@
 #include "JSSQLite.h"
 #include "SQLiteBind.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 void DBStatementData::Finalize() {
     if (handle && isOpen) {
@@ -462,4 +462,4 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
         });
 }
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

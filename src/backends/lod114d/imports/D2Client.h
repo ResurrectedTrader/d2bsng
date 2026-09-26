@@ -39,7 +39,7 @@ struct SMSGHANDLER_PARAMS;
 // monolithic, so it has no functional effect, only categorisation.
 
 // NOLINTBEGIN(readability-identifier-naming) - MOO-style names use DOMAIN_PascalCase with embedded underscores
-namespace d2bs::imports::d2client {
+namespace d2bs::lod114d::imports::d2client {
 
 // 1.14d-correct shadow types live in `imports::extras`. Aliasing them inside
 // this namespace lets call-sites use `d2client::RevealAutomapRoom` etc. with
@@ -296,5 +296,5 @@ inline GameVar<std::array<BodyClickFn, 11>> gaBodyClickTable{0x321E58};
 //     directly; the debounce is moot because every caller spaces sends with
 //     Sleep(500). Functionally identical for our use cases.
 
-}  // namespace d2bs::imports::d2client
+}  // namespace d2bs::lod114d::imports::d2client
 // NOLINTEND(readability-identifier-naming)

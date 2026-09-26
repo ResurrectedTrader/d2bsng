@@ -28,7 +28,7 @@
 // handshake is synchronous but select-driven, so it works whether the socket was
 // left blocking (D2GS / BnFTP) or non-blocking (BNCS).
 
-namespace d2bs::proxy::socks5 {
+namespace d2bs::core::proxy::socks5 {
 
 // Detour WS2_32 connect through the SOCKS5 proxy `proxySpec` names
 // (socks5://[user:password@]host:port). An empty spec is a no-op; a
@@ -38,4 +38,4 @@ void Install(std::string_view proxySpec);
 // Remove the connect detour. Idempotent.
 void Remove();
 
-}  // namespace d2bs::proxy::socks5
+}  // namespace d2bs::core::proxy::socks5

@@ -27,7 +27,7 @@ void* Party::ResolvePtr() const {
         return cached;
     }
     void* resolved = nullptr;
-    for (auto* scan = *imports::d2client::gpPlayerUnitList; scan != nullptr; scan = scan->pNext) {
+    for (auto* scan = *lod114d::imports::d2client::gpPlayerUnitList; scan != nullptr; scan = scan->pNext) {
         if (scan->dwUnitId == id_) {
             resolved = scan;
             break;
@@ -111,7 +111,7 @@ Party Party::GetNext() const {
 
 std::optional<Party> Party::GetFirst() {
     GameReadLock guard;
-    auto* first = *imports::d2client::gpPlayerUnitList;
+    auto* first = *lod114d::imports::d2client::gpPlayerUnitList;
     if (first == nullptr) {
         return std::nullopt;
     }

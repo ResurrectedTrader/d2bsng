@@ -144,7 +144,7 @@ void UpdateChecker::Stop() {
 }
 
 void UpdateChecker::Run(const std::stop_token& stopToken) {
-    thread_utils::SetThreadDescription("d2bs update checker");
+    utils::threads::SetThreadDescription("d2bs update checker");
 
     std::unique_lock lock(mutex_);
     // Interruptible settle delay before the first check. wait_for returns the
@@ -163,7 +163,7 @@ void UpdateChecker::Run(const std::stop_token& stopToken) {
 }
 
 bool UpdateChecker::CheckOnce() {
-    http::Request request;
+    core::http::Request request;
     request.method = "GET";
     request.url = std::string(RELEASES_API_URL);
     request.headers = {
@@ -175,8 +175,8 @@ bool UpdateChecker::CheckOnce() {
     request.timeoutMs = 10000;
     request.totalTimeoutMs = 15000;
 
-    http::Response response;
-    const std::string error = http::Perform(request, response);
+    core::http::Response response;
+    const std::string error = core::http::Perform(request, response);
     if (!error.empty()) {
         logger_->debug("update check: request failed ({})", error);
         return false;

@@ -8,8 +8,8 @@
 // 1.14d (D2MOO was reverse-engineered against 1.10c, and the 1.11+ arm
 // was reordered to counter maphack). Reference d2bs's CODE reads these
 // fields at the bytes pinned here, and reference works on 1.14d. Use
-// this struct via `d2bs::imports::extras::D2DrlgStrc` or via
-// `using d2bs::imports::extras::D2DrlgStrc` to shadow D2MOO's version
+// this struct via `d2bs::lod114d::imports::extras::D2DrlgStrc` or via
+// `using d2bs::lod114d::imports::extras::D2DrlgStrc` to shadow D2MOO's version
 // inside the consuming TU.
 //
 // D2MOO's 1.11+ arm claims size 0x488 with pAct @ 0x84 / pLevel @ 0x470 /
@@ -22,7 +22,7 @@
 // the named pointer fields use D2MOO's names (`pAct`, `pLevel`,
 // `nStaffTombLevel`) at reference's offsets.
 
-namespace d2bs::imports::extras {
+namespace d2bs::lod114d::imports::extras {
 
 struct D2DrlgActStrc;
 struct D2DrlgLevelStrc;
@@ -46,4 +46,4 @@ static_assert(offsetof(D2DrlgStrc, nStaffTombLevel) == 0x094, "D2DrlgStrc::nStaf
 static_assert(offsetof(D2DrlgStrc, pAct) == 0x46C, "D2DrlgStrc::pAct offset drift");
 static_assert(offsetof(D2DrlgStrc, pLevel) == 0x47C, "D2DrlgStrc::pLevel offset drift");
 
-}  // namespace d2bs::imports::extras
+}  // namespace d2bs::lod114d::imports::extras

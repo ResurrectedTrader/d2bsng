@@ -85,7 +85,7 @@ def emit_header(tables: list[tuple[str, list[str]]], script_rel: str) -> str:
     emit("#include <span>")
     emit("#include <string_view>")
     emit("")
-    emit("namespace d2bs::game {")
+    emit("namespace d2bs::runtime::api::globals {")
     emit("")
 
     # Widths for aligning trailing `// [idx] ...` comments.
@@ -145,7 +145,7 @@ def emit_header(tables: list[tuple[str, list[str]]], script_rel: str) -> str:
     emit("};")
     emit("")
 
-    emit("}  // namespace d2bs::game")
+    emit("}  // namespace d2bs::runtime::api::globals")
     emit("")
 
     return "\n".join(lines)

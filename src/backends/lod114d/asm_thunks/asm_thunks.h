@@ -20,7 +20,7 @@ struct D2UnitStrc;
 // hooks, not register-shuffle trampolines. A naked thunk is the smallest
 // expression of "set ecx/edx/eax/edi to these values, then jmp".
 
-namespace d2bs::asm_thunks {
+namespace d2bs::lod114d::asm_thunks {
 
 // Resolve every thunk's target address from the imports::d2client
 // GameAsmFunc instances. Must be called after Bridge::Init() has run
@@ -76,4 +76,4 @@ D2AutomapLayerStrc* __fastcall InitAutomapLayer(uint32_t nLayerNo);
 // with the resolved layer number. Reference: D2Helpers.cpp:347-350.
 D2AutomapLayerStrc* InitAutomapLayerForLevel(uint32_t levelNo);
 
-}  // namespace d2bs::asm_thunks
+}  // namespace d2bs::lod114d::asm_thunks

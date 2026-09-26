@@ -17,7 +17,7 @@ struct D2WinTextBoxLineStrc;
 // the per-text-line struct), so D2WinControlStrc is authored here from
 // reverse-engineered field offsets verified by static_assert.
 // NOLINTBEGIN(readability-identifier-naming) - struct fields match binary layout
-namespace d2bs::imports::extras {
+namespace d2bs::lod114d::imports::extras {
 
 // D2Win Control - OOG UI widget (size = 0x264).
 // NOT packed - uses default alignment.
@@ -70,6 +70,6 @@ static_assert(offsetof(D2WinControlStrc, dwCursorPos) == 0x25C, "D2WinControlStr
 static_assert(offsetof(D2WinControlStrc, dwIsCloaked) == 0x260, "D2WinControlStrc::dwIsCloaked offset drift");
 static_assert(offsetof(D2WinControlStrc, wText2) == 0x64, "D2WinControlStrc::wText2 offset drift");
 
-}  // namespace d2bs::imports::extras
+}  // namespace d2bs::lod114d::imports::extras
 
 // NOLINTEND(readability-identifier-naming)

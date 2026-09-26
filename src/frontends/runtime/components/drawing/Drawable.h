@@ -125,7 +125,7 @@ struct ImageDrawable final : Drawable {
     // (unresolved) path on miss. Both legs failing leaves sprite_ as the
     // unloaded sentinel - Draw / Contains silently no-op.
     void SetPath(const std::filesystem::path& value) {
-        auto resolved = config::GetPathRelScript(value.string());
+        auto resolved = core::config::GetPathRelScript(value.string());
         auto loaded = game::Sprite::FromFile(resolved);
         if (!loaded) {
             loaded = game::Sprite::FromMpq(value.string());

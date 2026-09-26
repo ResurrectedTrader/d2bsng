@@ -83,7 +83,7 @@
 #include "utils/threadutils.h"
 #include "utils/utils.h"
 
-namespace d2bs::hooks::intercepts {
+namespace d2bs::lod114d::hooks::intercepts {
 
 namespace {
 
@@ -576,8 +576,8 @@ extern "C" char __fastcall OnErrorReportLaunch(const char* crashFile, int /*a2*/
     // the logging pipeline is wedged.
     OutputDebugStringA("\n*** d2bsng OnErrorReportLaunch entered ***\n");
 
-    auto desc = thread_utils::GetThreadDescription(0);
-    auto stack = thread_utils::GetThreadStacktrace(0, 0);
+    auto desc = utils::threads::GetThreadDescription(0);
+    auto stack = utils::threads::GetThreadStacktrace(0, 0);
     auto dump = std::format("D2 ErrorReportLaunch fired (D2 is crashing)\n"
                             "crash file: {}\n"
                             "thread id: {:#x}\n"
@@ -585,7 +585,7 @@ extern "C" char __fastcall OnErrorReportLaunch(const char* crashFile, int /*a2*/
                             "stack:\n{}\n",
                             crashFile != nullptr ? crashFile : "<null>", GetCurrentThreadId(),
                             desc.empty() ? "" : std::format("thread description: {}\n", desc), stack);
-    thread_utils::CrashAndExit(dump, 0xD2B50003);
+    utils::threads::CrashAndExit(dump, 0xD2B50003);
 }
 
 // =============================================================================
@@ -1147,4 +1147,4 @@ void RemoveAll() {
     RestoreSite(siteP1, P1_RVA, 5);
 }
 
-}  // namespace d2bs::hooks::intercepts
+}  // namespace d2bs::lod114d::hooks::intercepts

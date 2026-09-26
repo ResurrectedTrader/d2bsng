@@ -11,7 +11,7 @@
 #include <span>
 #include <string_view>
 
-namespace d2bs::game {
+namespace d2bs::runtime::api::globals {
 
 // ============================================================================
 // Table name lookup: table index -> canonical .txt table name.
@@ -2547,4 +2547,4 @@ inline constexpr std::array TXT_COLUMNS_BY_TABLE = {
     std::span<const std::string_view>{TXT_COLUMNS_PROPERTIES},    // [27] properties
 };
 
-}  // namespace d2bs::game
+}  // namespace d2bs::runtime::api::globals

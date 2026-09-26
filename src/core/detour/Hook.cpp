@@ -8,7 +8,7 @@
 
 #include "utils/utils.h"
 
-namespace d2bs::detour {
+namespace d2bs::core::detour {
 
 namespace {
 
@@ -235,4 +235,4 @@ int32_t DetachAll(std::span<Slot* const> slots) {
     return err != 0 ? err : firstError;
 }
 
-}  // namespace d2bs::detour
+}  // namespace d2bs::core::detour

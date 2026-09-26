@@ -10,7 +10,7 @@
 // sourced from reference/d2bs/D2Ptrs.h.
 
 // NOLINTBEGIN(readability-identifier-naming) - MOO-style names use DOMAIN_PascalCase with embedded underscores
-namespace d2bs::imports::d2lang {
+namespace d2bs::lod114d::imports::d2lang {
 
 // ---- Functions -------------------------------------------------------------
 inline FastcallFunc<wchar_t*(uint16_t /*nLocaleTxtNo*/)> D2LANG_GetLocaleText{0x124A30};
@@ -19,5 +19,5 @@ inline FastcallFunc<wchar_t*(uint16_t /*nLocaleTxtNo*/)> D2LANG_GetLocaleText{0x
 //   Say_II: reference's active Say_ASM jumps to D2CLIENT_Say_I instead, so
 //     D2LANG_Say_II is dead code.
 
-}  // namespace d2bs::imports::d2lang
+}  // namespace d2bs::lod114d::imports::d2lang
 // NOLINTEND(readability-identifier-naming)

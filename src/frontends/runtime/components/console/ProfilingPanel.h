@@ -31,7 +31,7 @@ class ProfilingPanel : public Panel {
    private:
     // One registered loop over the last window. Rows come from the loop's own phase table.
     struct TimelineView {
-        const profiling::TimelineInfo* info = nullptr;
+        const utils::profiling::TimelineInfo* info = nullptr;
         std::string detail;
         double framesPerSecond = 0.0;
         std::vector<uint64_t> cycles;  // per phase
@@ -45,8 +45,8 @@ class ProfilingPanel : public Panel {
     // Time inside JS->native calls as a share of one core, per NativeCall kind. Only populated
     // while native timing is armed.
     struct NativeSplit {
-        std::array<double, profiling::NATIVE_CALL_KINDS> percent{};
-        std::array<double, profiling::NATIVE_CALL_KINDS> callsPerSecond{};
+        std::array<double, utils::profiling::NATIVE_CALL_KINDS> percent{};
+        std::array<double, utils::profiling::NATIVE_CALL_KINDS> callsPerSecond{};
     };
 
     // One displayed thread. Every column is a plain field, so sorting and the "dash or value" rules
@@ -80,14 +80,14 @@ class ProfilingPanel : public Panel {
     // the CPU% / native% / JS% traces over the horizon. Kept for every thread, not just the
     // displayed ones, so a thread has a trace by the time it first spikes.
     struct ThreadState {
-        profiling::ThreadSample prev;
+        utils::profiling::ThreadSample prev;
         std::vector<float> cpu;
         std::vector<float> native;
         std::vector<float> js;
     };
 
     struct TimelineState {
-        std::vector<profiling::PhaseSample> prev;
+        std::vector<utils::profiling::PhaseSample> prev;
         std::vector<float> ours;
     };
 

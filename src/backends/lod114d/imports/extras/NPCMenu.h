@@ -5,7 +5,7 @@
 
 // NPC dialog menu table - d2bs-internal struct. Not modelled in D2MOO.
 // NOLINTBEGIN(readability-identifier-naming) - struct fields match binary layout
-namespace d2bs::imports::extras {
+namespace d2bs::lod114d::imports::extras {
 
 #pragma pack(push, 1)
 
@@ -32,9 +32,5 @@ static_assert(sizeof(NPCMenu) == 0x27, "NPCMenu must be 0x27 bytes");
 
 #pragma pack(pop)
 
-}  // namespace d2bs::imports::extras
-
-namespace d2bs::game {
-using imports::extras::NPCMenu;
-}  // namespace d2bs::game
+}  // namespace d2bs::lod114d::imports::extras
 // NOLINTEND(readability-identifier-naming)

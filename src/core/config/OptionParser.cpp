@@ -13,7 +13,7 @@
 #include <string_view>
 #include <vector>
 
-namespace d2bs::config {
+namespace d2bs::core::config {
 
 namespace {
 
@@ -363,4 +363,4 @@ void RemoveCommandLineOptions(std::span<const OptionName> options) {
     }
 }
 
-}  // namespace d2bs::config
+}  // namespace d2bs::core::config

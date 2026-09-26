@@ -9,8 +9,8 @@
 // 1.14d-correct layout. D2MOO's `::D2DrlgRoomStrc` has different offsets for
 // 1.14d (D2MOO was reverse-engineered against 1.10c). Reference d2bs's CODE
 // reads these fields at the bytes pinned here, and reference works on 1.14d.
-// Use this struct via `d2bs::imports::extras::D2DrlgRoomStrc` or via
-// `using d2bs::imports::extras::D2DrlgRoomStrc` to shadow D2MOO's version
+// Use this struct via `d2bs::lod114d::imports::extras::D2DrlgRoomStrc` or via
+// `using d2bs::lod114d::imports::extras::D2DrlgRoomStrc` to shadow D2MOO's version
 // inside the consuming TU.
 //
 // D2MOO's claimed size is 0xEC. Reference Room2 ends at 0x60. We model the
@@ -25,7 +25,7 @@
 struct D2DrlgPresetRoomStrc;
 struct D2DrlgOutdoorRoomStrc;
 
-namespace d2bs::imports::extras {
+namespace d2bs::lod114d::imports::extras {
 
 struct D2ActiveRoomStrc;
 struct D2DrlgLevelStrc;
@@ -74,4 +74,4 @@ static_assert(offsetof(D2DrlgRoomStrc, pRoomTiles) == 0x4C, "D2DrlgRoomStrc::pRo
 static_assert(offsetof(D2DrlgRoomStrc, pLevel) == 0x58, "D2DrlgRoomStrc::pLevel offset drift");
 static_assert(offsetof(D2DrlgRoomStrc, pPresetUnits) == 0x5C, "D2DrlgRoomStrc::pPresetUnits offset drift");
 
-}  // namespace d2bs::imports::extras
+}  // namespace d2bs::lod114d::imports::extras

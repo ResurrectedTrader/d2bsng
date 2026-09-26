@@ -9,7 +9,7 @@
 // sourced from reference/d2bs/D2Ptrs.h.
 
 // NOLINTBEGIN(readability-identifier-naming) - MOO-style names use DOMAIN_PascalCase with embedded underscores
-namespace d2bs::imports::bnclient {
+namespace d2bs::lod114d::imports::bnclient {
 
 // ---- Variables -------------------------------------------------------------
 // The client's parsed gateway list singleton (BNGatewayAccess). Read to
@@ -34,5 +34,5 @@ inline GameAsmFunc DLod{0x12395D};
 // other Battle.net packet dispatches normally.
 inline GameAsmFunc SID_CLIENT_IncomingPacketHandler{0x121B00};
 
-}  // namespace d2bs::imports::bnclient
+}  // namespace d2bs::lod114d::imports::bnclient
 // NOLINTEND(readability-identifier-naming)

@@ -6,7 +6,7 @@
 
 #pragma comment(lib, "shlwapi.lib")
 
-namespace d2bs::api::classes::directory_detail {
+namespace d2bs::runtime::api::classes::directory_detail {
 
 std::vector<std::string> ListFiles(const std::filesystem::path& fullPath, const std::string& pattern) {
     std::vector<std::string> results;
@@ -56,4 +56,4 @@ std::vector<std::string> ListFolders(const std::filesystem::path& fullPath, cons
     return results;
 }
 
-}  // namespace d2bs::api::classes::directory_detail
+}  // namespace d2bs::runtime::api::classes::directory_detail

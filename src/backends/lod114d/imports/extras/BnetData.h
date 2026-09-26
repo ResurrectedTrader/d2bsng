@@ -6,7 +6,7 @@
 // Battle.net account state - d2bs-internal struct. D2MOO does not model BNCS.
 // Field layout reverse-engineered against 1.14d; size verified by static_assert.
 // NOLINTBEGIN(readability-identifier-naming) - struct fields match binary layout
-namespace d2bs::imports::extras {
+namespace d2bs::lod114d::imports::extras {
 
 #pragma pack(push, 1)
 
@@ -50,9 +50,5 @@ static_assert(sizeof(BnetData) == 0x3C6, "BnetData must be 0x3C6 bytes");
 
 #pragma pack(pop)
 
-}  // namespace d2bs::imports::extras
-
-namespace d2bs::game {
-using imports::extras::BnetData;
-}  // namespace d2bs::game
+}  // namespace d2bs::lod114d::imports::extras
 // NOLINTEND(readability-identifier-naming)

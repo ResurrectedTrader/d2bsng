@@ -9,9 +9,7 @@
 
 #include "game/Types.h"
 
-namespace d2bs {
-
-namespace events {
+namespace d2bs::runtime::events {
 
 // Handlers registered for one event name, across all scripts. Dispatchers check this before
 // building an event, which is the expensive half - a packet event copies the packet and every
@@ -27,8 +25,6 @@ class ListenerCount {
    private:
     std::atomic<int32_t> count_{0};
 };
-
-}  // namespace events
 
 // Non-blockable event dispatchers
 void LifeEventDispatch(uint32_t life);
@@ -51,4 +47,4 @@ bool GamePacketEventDispatch(std::span<const uint8_t> packet);
 bool GamePacketSentEventDispatch(std::span<const uint8_t> packet);
 bool RealmPacketEventDispatch(std::span<const uint8_t> packet);
 
-}  // namespace d2bs
+}  // namespace d2bs::runtime::events

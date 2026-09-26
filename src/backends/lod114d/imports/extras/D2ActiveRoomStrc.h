@@ -7,8 +7,8 @@
 // 1.14d-correct layout. D2MOO's `::D2ActiveRoomStrc` has different offsets
 // for 1.14d (D2MOO was reverse-engineered against 1.10c). Reference d2bs's
 // CODE reads these fields at the bytes pinned here, and reference works on
-// 1.14d. Use this struct via `d2bs::imports::extras::D2ActiveRoomStrc` or
-// via `using d2bs::imports::extras::D2ActiveRoomStrc` to shadow D2MOO's
+// 1.14d. Use this struct via `d2bs::lod114d::imports::extras::D2ActiveRoomStrc` or
+// via `using d2bs::lod114d::imports::extras::D2ActiveRoomStrc` to shadow D2MOO's
 // version inside the consuming TU.
 //
 // D2MOO's claimed size is 0x80, which happens to match the 1.14d allocation
@@ -23,7 +23,7 @@
 struct D2RoomCollisionGridStrc;
 struct D2UnitStrc;
 
-namespace d2bs::imports::extras {
+namespace d2bs::lod114d::imports::extras {
 
 struct D2DrlgRoomStrc;
 struct D2ActiveRoomStrc;
@@ -60,4 +60,4 @@ static_assert(offsetof(D2ActiveRoomStrc, dwYSize) == 0x58, "D2ActiveRoomStrc::dw
 static_assert(offsetof(D2ActiveRoomStrc, pUnitFirst) == 0x74, "D2ActiveRoomStrc::pUnitFirst offset drift");
 static_assert(offsetof(D2ActiveRoomStrc, pRoomNext) == 0x7C, "D2ActiveRoomStrc::pRoomNext offset drift");
 
-}  // namespace d2bs::imports::extras
+}  // namespace d2bs::lod114d::imports::extras

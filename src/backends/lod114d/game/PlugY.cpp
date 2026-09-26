@@ -36,7 +36,7 @@
 #include <string>
 #include <vector>
 
-namespace d2bs::imports::extras::plugy {
+namespace d2bs::lod114d::imports::extras::plugy {
 
 std::string Stash::Name() const {
     if (name == nullptr || name[0] == '\0') {
@@ -99,18 +99,18 @@ std::vector<uint8_t> PYPlayerData::PlanSwitch(PageRef from, PageRef to) const {
     return commands;
 }
 
-}  // namespace d2bs::imports::extras::plugy
+}  // namespace d2bs::lod114d::imports::extras::plugy
 
 namespace d2bs::game::plugy {
 
 namespace {
 
-using imports::extras::plugy::CMD_PUT_GOLD;
-using imports::extras::plugy::CMD_TAKE_GOLD;
-using imports::extras::plugy::PACKET_SPEND_STAT_POINT;
-using imports::extras::plugy::PageRef;
-using imports::extras::plugy::PYPlayerData;
-using imports::extras::plugy::Stash;
+using lod114d::imports::extras::plugy::CMD_PUT_GOLD;
+using lod114d::imports::extras::plugy::CMD_TAKE_GOLD;
+using lod114d::imports::extras::plugy::PACKET_SPEND_STAT_POINT;
+using lod114d::imports::extras::plugy::PageRef;
+using lod114d::imports::extras::plugy::PYPlayerData;
+using lod114d::imports::extras::plugy::Stash;
 
 // D2Common's InitPlayerData in 1.14d Game.exe. Its allocation call is the one
 // PlugY redirects to grow the block by sizeof(PYPlayerData):
@@ -234,7 +234,7 @@ Detection Detect(HMODULE module) {
 // valid once IsActive() has returned true: without the patch those bytes belong
 // to whatever the Fog pool placed next.
 const PYPlayerData* Extension() {
-    auto* player = imports::d2client::UNITS_GetPlayerUnit();
+    auto* player = lod114d::imports::d2client::UNITS_GetPlayerUnit();
     if (player == nullptr || player->pPlayerData == nullptr) {
         return nullptr;
     }
@@ -386,11 +386,11 @@ ClickResult ClickAndAwaitAck(const std::function<ClickResult()>& action) {
         ackSeen.store(false, std::memory_order_relaxed);
         ackTargetA.store(cursorBefore, std::memory_order_relaxed);
         ackTargetB.store(cursorAfter, std::memory_order_relaxed);
-        hooks::intercepts::SetIncomingPacketObserver(&OnIncomingPacket);
+        lod114d::hooks::intercepts::SetIncomingPacketObserver(&OnIncomingPacket);
         if (!PollUntil(ITEM_ACK_TIMEOUT, POLL_INTERVAL, [] { return ackSeen.load(std::memory_order_acquire); })) {
             Logger()->warn("no server acknowledgement for the stash click within {} ms", ITEM_ACK_TIMEOUT.count());
         }
-        hooks::intercepts::SetIncomingPacketObserver(nullptr);
+        lod114d::hooks::intercepts::SetIncomingPacketObserver(nullptr);
         ackTargetA.store(0, std::memory_order_relaxed);
         ackTargetB.store(0, std::memory_order_relaxed);
     }
@@ -420,7 +420,7 @@ void InstallInitHook() {
         return;
     }
     std::array<uint8_t, IAT_CALL_LEN> original{};
-    hooks::WriteCallN(site, reinterpret_cast<uintptr_t>(&StartupLoadLibrary), IAT_CALL_LEN, original.data());
+    lod114d::hooks::WriteCallN(site, reinterpret_cast<uintptr_t>(&StartupLoadLibrary), IAT_CALL_LEN, original.data());
 }
 
 bool IsActive() {
@@ -438,7 +438,7 @@ bool IsActive() {
     // ahead of d2bs) and its Init runs there too, long before a player unit exists.
     // So with a player in the game, a missing module or a missing patch is final;
     // before that, both are retried.
-    const bool inGame = imports::d2client::UNITS_GetPlayerUnit() != nullptr;
+    const bool inGame = lod114d::imports::d2client::UNITS_GetPlayerUnit() != nullptr;
     HMODULE module = GetModuleHandleW(L"PlugY.dll");
     if (module == nullptr) {
         if (inGame) {
@@ -541,7 +541,7 @@ ClickResult WithActivePage(StashTabKind kind, uint32_t index, const std::functio
         return ClickResult::StashTabUnavailable;
     }
     inProgress = true;
-    const DeferGuard reset([] { inProgress = false; });
+    const utils::DeferGuard reset([] { inProgress = false; });
 
     // Drop this thread's read locks before queueing behind another script's page
     // operation: that operation needs the game thread, and the game thread needs

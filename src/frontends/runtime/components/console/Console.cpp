@@ -100,8 +100,8 @@ void DrawFrame() {
         // Console just hidden: stop all per-script stack capture so a script left
         // selected in the Stacktraces panel doesn't keep walking its V8 stack at
         // every delay(). The panel re-enables the selected script on show.
-        for (const auto& script : ScriptEngine::Instance().GetAllScripts()) {
-            script->SetStackCaptureMode(StackCaptureMode::Off);
+        for (const auto& script : script::ScriptEngine::Instance().GetAllScripts()) {
+            script->SetStackCaptureMode(script::StackCaptureMode::Off);
         }
     }
     state.visible = visible;

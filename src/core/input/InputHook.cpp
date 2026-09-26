@@ -8,7 +8,7 @@
 #include "config/AppConfig.h"
 #include "game/GameThread.h"
 
-namespace d2bs::input {
+namespace d2bs::core::input {
 
 namespace {
 
@@ -309,4 +309,4 @@ void PostInjectedInput(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
     PostMessageW(hwnd, message, wParam, lParam);
 }
 
-}  // namespace d2bs::input
+}  // namespace d2bs::core::input

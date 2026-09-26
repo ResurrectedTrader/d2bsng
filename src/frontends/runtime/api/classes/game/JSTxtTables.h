@@ -10,7 +10,7 @@
 #include "api/globals/TxtTableAccess.h"
 #include "game/GameHelpers.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 // Native payload for the TxtTables class. The class is a pure static namespace
 // (never instantiated), so this carries no state - it exists only to satisfy
@@ -27,7 +27,8 @@ class JSTxtTables : public ClassBase<JSTxtTables, TxtTablesData> {
     V8_CLASS_NOT_CONSTRUCTABLE
 
     static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
-        using namespace d2bs::api::globals;  // ResolveTableArg / ResolveTxtColumns / ResolveTxtCell / BuildTxtRow
+        using namespace d2bs::runtime::api::globals;  // ResolveTableArg / ResolveTxtColumns / ResolveTxtCell /
+                                                      // BuildTxtRow
 
         /// @description List every known data (.txt) table name.
         /// @signature TxtTables.names()
@@ -36,9 +37,9 @@ class JSTxtTables : public ClassBase<JSTxtTables, TxtTablesData> {
             isolate, tpl, "names", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
                 auto context = isolate->GetCurrentContext();
-                auto arr = v8::Array::New(isolate, game::TXT_TABLE_NAMES.size());
+                auto arr = v8::Array::New(isolate, globals::TXT_TABLE_NAMES.size());
                 uint32_t i = 0;
-                for (const auto& name : game::TXT_TABLE_NAMES) {
+                for (const auto& name : globals::TXT_TABLE_NAMES) {
                     arr->Set(context, i++, convert::ToJS(isolate, name)).Check();
                 }
                 args.GetReturnValue().Set(arr);
@@ -132,4 +133,4 @@ class JSTxtTables : public ClassBase<JSTxtTables, TxtTablesData> {
     }
 };
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

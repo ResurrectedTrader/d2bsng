@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace d2bs::imports {
+namespace d2bs::lod114d::imports {
 
 // ----------------------------------------------------------------------------
 // Calling-convention tag types
@@ -160,4 +160,4 @@ class GameAsmFunc : public IImport {
     uintptr_t addr_ = 0;
 };
 
-}  // namespace d2bs::imports
+}  // namespace d2bs::lod114d::imports

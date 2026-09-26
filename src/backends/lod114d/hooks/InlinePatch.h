@@ -7,7 +7,7 @@
 // `__declspec(naked)` intercepts that get JMP'd to live in
 // src/backends/lod114d/hooks/Intercepts.cpp.
 
-namespace d2bs::hooks {
+namespace d2bs::lod114d::hooks {
 
 // Write a relative CALL/JMP at site to target. Sites longer than 5 bytes get the 5-byte instruction followed by (len -
 // 5) NOPs. originalOut must be at least len bytes; len must be >= 5.
@@ -20,4 +20,4 @@ void RestoreN(uintptr_t site, const uint8_t* original, size_t len);
 void WriteByte(uintptr_t site, uint8_t value, uint8_t& originalOut);
 void RestoreByte(uintptr_t site, uint8_t value);
 
-}  // namespace d2bs::hooks
+}  // namespace d2bs::lod114d::hooks

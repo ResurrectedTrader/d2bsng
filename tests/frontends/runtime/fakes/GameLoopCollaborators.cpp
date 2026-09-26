@@ -24,13 +24,13 @@ void Reset() {
 // === Event dispatchers (shim) ===
 namespace d2bs {
 
-void LifeEventDispatch(uint32_t life) {
+void runtime::events::LifeEventDispatch(uint32_t life) {
     test::State().lifeEvents.push_back(life);
 }
-void ManaEventDispatch(uint32_t mana) {
+void runtime::events::ManaEventDispatch(uint32_t mana) {
     test::State().manaEvents.push_back(mana);
 }
-void PlayerAssignEventDispatch(uint32_t unitId) {
+void runtime::events::PlayerAssignEventDispatch(uint32_t unitId) {
     test::State().playerAssignEvents.push_back(unitId);
 }
 
@@ -54,35 +54,36 @@ void DrawVersionBanner() {}
 // === ScriptEngine (shim) ===
 namespace d2bs {
 
-ScriptEngine& ScriptEngine::Instance() {
+runtime::script::ScriptEngine& runtime::script::ScriptEngine::Instance() {
     // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables) - matches real singleton shape
-    static ScriptEngine instance;
+    static runtime::script::ScriptEngine instance;
     return instance;
 }
 
-std::shared_ptr<Script> ScriptEngine::StartScript(const std::filesystem::path& path, ScriptMode mode) {
-    auto script = std::make_shared<Script>(path, mode);
+std::shared_ptr<runtime::script::Script> runtime::script::ScriptEngine::StartScript(const std::filesystem::path& path,
+                                                                                    runtime::script::ScriptMode mode) {
+    auto script = std::make_shared<runtime::script::Script>(path, mode);
     scripts_.push_back(script);
     started_.push_back(script);
     return script;
 }
 
-void ScriptEngine::StopAllScripts() {
+void runtime::script::ScriptEngine::StopAllScripts() {
     for (auto& script : scripts_) {
         script->Stop();
     }
 }
 
-void ScriptEngine::Evaluate(const std::string& /*code*/) {}
+void runtime::script::ScriptEngine::Evaluate(const std::string& /*code*/) {}
 
-void ScriptEngine::RestartConsoleScript() {
+void runtime::script::ScriptEngine::RestartConsoleScript() {
     ++restartConsoleCount_;
     // Capture the AppConfig-visible consoleScript at this moment so tests can
     // verify SetScriptPaths ran before RestartConsoleScript was invoked.
-    restartedConsoleName_ = config::GetAppConfig().GetScriptPaths().consoleScript;
+    restartedConsoleName_ = core::config::GetAppConfig().GetScriptPaths().consoleScript;
 }
 
-void ScriptEngine::Reset() {
+void runtime::script::ScriptEngine::Reset() {
     scripts_.clear();
     started_.clear();
     restartConsoleCount_ = 0;

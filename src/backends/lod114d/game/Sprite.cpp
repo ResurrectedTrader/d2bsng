@@ -23,7 +23,7 @@
 
 namespace d2bs::game {
 
-using namespace d2bs::imports;
+using namespace d2bs::lod114d::imports;
 
 namespace {
 

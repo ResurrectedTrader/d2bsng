@@ -11,7 +11,7 @@
 // SpecBuilder; ParseCommandLine walks GetCommandLineW() against that table, and
 // RemoveCommandLineOptions then takes the table's switches back out of it.
 
-namespace d2bs::config {
+namespace d2bs::core::config {
 
 // One command-line switch: its name, the argument syntax shown in the docs
 // (empty for a bare flag), and the handler that folds the parsed value into
@@ -126,4 +126,4 @@ void RemoveCommandLineOptions(const std::vector<OptionSpec<Options>>& specs) {
     RemoveCommandLineOptions(std::span<const OptionName>{names});
 }
 
-}  // namespace d2bs::config
+}  // namespace d2bs::core::config

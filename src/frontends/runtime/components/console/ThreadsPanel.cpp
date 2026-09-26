@@ -20,12 +20,12 @@ std::string ThreadsPanel::FormatLabel(const Entry& entry) {
 }
 
 void ThreadsPanel::Refresh() {
-    auto tids = thread_utils::EnumerateProcessThreads();
+    auto tids = utils::threads::EnumerateProcessThreads();
     std::ranges::sort(tids);
     std::vector<Entry> entries;
     entries.reserve(tids.size());
     for (uint32_t tid : tids) {
-        entries.push_back({.tid = tid, .description = thread_utils::GetThreadDescription(tid)});
+        entries.push_back({.tid = tid, .description = utils::threads::GetThreadDescription(tid)});
     }
     threads_ = std::move(entries);
 }
@@ -67,7 +67,7 @@ void ThreadsPanel::Draw() {
     if (ImGui::Button("Capture")) {
         capturedTid_ = selected->tid;
         capturedDescription_ = selected->description;
-        capturedStack_ = thread_utils::GetThreadStacktrace(selected->tid, 0);
+        capturedStack_ = utils::threads::GetThreadStacktrace(selected->tid, 0);
     }
     ImGui::EndDisabled();
 

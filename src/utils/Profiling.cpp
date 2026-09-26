@@ -12,7 +12,7 @@
 
 #ifdef D2BS_PROFILING
 
-namespace d2bs::profiling {
+namespace d2bs::utils::profiling {
 
 uint64_t Cycles() {
     return __rdtsc();
@@ -93,14 +93,14 @@ Registration& CurrentRegistration() {
 }  // namespace
 
 ThreadCounters& Current() {
-    if (!thread_utils::HasThreadLocalStorage()) {
+    if (!threads::HasThreadLocalStorage()) {
         return Orphan();
     }
     return CurrentRegistration().Counters();
 }
 
 std::shared_ptr<ThreadCounters> CurrentShared() {
-    if (!thread_utils::HasThreadLocalStorage()) {
+    if (!threads::HasThreadLocalStorage()) {
         return {std::shared_ptr<void>{}, &Orphan()};
     }
     return CurrentRegistration().Shared();
@@ -113,7 +113,7 @@ std::vector<ThreadSample> SnapshotThreads() {
     }
 
     std::vector<ThreadSample> samples;
-    thread_utils::ForEachProcessThread([&](HANDLE handle, uint32_t tid) {
+    threads::ForEachProcessThread([&](HANDLE handle, uint32_t tid) {
         ULONG64 cpuCycles = 0;
         if (QueryThreadCycleTime(handle, &cpuCycles) == 0) {
             return;
@@ -300,6 +300,6 @@ std::vector<TimelineSample> SnapshotTimelines() {
     return samples;
 }
 
-}  // namespace d2bs::profiling
+}  // namespace d2bs::utils::profiling
 
 #endif  // D2BS_PROFILING

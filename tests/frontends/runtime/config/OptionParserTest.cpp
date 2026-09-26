@@ -9,8 +9,8 @@
 
 namespace {
 
-using d2bs::config::OptionName;
-using d2bs::config::RemoveOptions;
+using d2bs::core::config::OptionName;
+using d2bs::core::config::RemoveOptions;
 
 // RemoveOptions edits in place and reports the length that is left, so a test
 // gives it a mutable copy and reads back exactly that many characters.
