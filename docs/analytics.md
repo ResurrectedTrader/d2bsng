@@ -46,6 +46,8 @@ per install; all events from one launch share a `sessionId`.
 |-------|---------|-----|
 | `installId` | salted hash (see below) | count unique installs across launches |
 | `backendVersion` | `1.14d` | which game backend / DLL variant is loaded |
+| `engine` | `v8` | which script engine this DLL was built with (`v8` or `spidermonkey`) |
+| `engineVersion` | `15.6.8` | that engine's own version string |
 | `arch` | `x86` | future-proofing (x64 D2R backends) |
 | `managerVersion` | `1.4.2` | *only when the manager sets `D2BOTNG_VERSION`* - which manager versions are in the field, and whether a d2bsng change can rely on a newer one |
 
@@ -54,7 +56,7 @@ per install; all events from one launch share a `sessionId`.
 | Field | Example | Why |
 |-------|---------|-----|
 | `isWine` / `wineVersion` | `true` / `9.0` | how many installs run on Wine (Linux) vs native Windows - decides whether Wine compatibility is worth maintaining |
-| `cpuCores` | `8` | hardware profile; informs V8 thread-pool defaults and perf expectations |
+| `cpuCores` | `8` | hardware profile; informs engine thread-pool defaults and perf expectations |
 | `ramMb` | `16384` | hardware profile; informs memory-limit defaults |
 | `features` | `inspector,realm,speedhack` | which optional features are active this session |
 | `compatOverrides` | `-objectToSource` | which compatibility shims scripts turn off (or on) - says whether a legacy shim is still load-bearing |
@@ -67,7 +69,7 @@ them. A tag only ever names a feature, never the value behind it. Current tags:
 
 | Tag | Meaning | Source |
 |-----|---------|--------|
-| `inspector` | V8 debug port (`InspectorPort`) enabled | framework |
+| `inspector` | Chrome DevTools debug port (`InspectorPort`) enabled, on an engine that has a debugger | framework |
 | `speedhack` | non-1.0 game speed at session start | framework |
 | `waitForProfile` | `UseProfileScript` - script start deferred until a profile is poked in | framework |
 | `unsupported` | `enableUnsupported` set | framework |
@@ -339,8 +341,8 @@ app key configured also leaves it permanently off.
 All work - resolving the install id (a registry read plus
 `GetVolumeInformationW` / `GetComputerNameW`; no file I/O), building the JSON,
 and the HTTPS POST - runs on a dedicated `std::jthread`, never the game thread or
-a V8 isolate. The request goes through the V8-free
-`api::classes::PerformHttpRequest` (WinHTTP), which bypasses the game's SOCKS5
+a script isolate. The request goes through core's engine-free
+`http::Perform` (`src/core/http/Client.h`, WinHTTP), which bypasses the game's SOCKS5
 proxy detour, exactly like the update checker. The send is best-effort: a failed
 POST (e.g. the network isn't up yet at inject time) is retried a few times at a
 fixed 30s interval, then abandoned. A failure never blocks or crashes the

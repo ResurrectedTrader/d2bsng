@@ -5,7 +5,7 @@
 
 namespace d2bs::runtime::script {
 
-// V8 origin name for console/chat commands - affects stack trace reporting. Matches reference.
+// Script origin name for console/chat commands - affects stack trace reporting. Matches reference.
 inline constexpr std::string_view COMMAND_LINE_NAME = "Command Line";
 
 // Dispatch a submitted command line. Called by:
