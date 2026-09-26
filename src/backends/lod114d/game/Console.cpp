@@ -14,26 +14,26 @@
 namespace d2bs::game::console {
 
 void OnMessage(const Message& msg) {
-    if (const auto* callbacks = d2bs::hooks::GetActiveCallbacks();
+    if (const auto* callbacks = d2bs::lod114d::hooks::GetActiveCallbacks();
         callbacks != nullptr && callbacks->onConsoleMessage != nullptr) {
         callbacks->onConsoleMessage(msg);
     }
 }
 
 void Show() {
-    d2bs::console::Show();
+    d2bs::lod114d::console::Show();
 }
 
 void Hide() {
-    d2bs::console::Hide();
+    d2bs::lod114d::console::Hide();
 }
 
 void Toggle() {
-    d2bs::console::Toggle();
+    d2bs::lod114d::console::Toggle();
 }
 
 bool IsVisible() {
-    return d2bs::console::IsVisible();
+    return d2bs::lod114d::console::IsVisible();
 }
 
 std::vector<std::unique_ptr<BackendPanel>> GetBackendPanels() {

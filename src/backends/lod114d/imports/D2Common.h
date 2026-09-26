@@ -36,7 +36,7 @@
 struct D2GameStrc;
 
 // NOLINTBEGIN(readability-identifier-naming) - MOO-style names use DOMAIN_PascalCase with embedded underscores
-namespace d2bs::imports::d2common {
+namespace d2bs::lod114d::imports::d2common {
 
 // 1.14d-correct shadow types live in `imports::extras`. Aliasing them inside
 // this namespace lets call-sites use `d2common::DUNGEON_GetLevelIdFromRoom`
@@ -157,5 +157,5 @@ inline StdcallFunc<int32_t(D2ActiveRoomStrc* /*pRoom*/)> DUNGEON_GetLevelIdFromR
 // table the game decodes the .txt files into.
 inline GameVar<uint8_t*> sgptDataTables{0x344304};
 
-}  // namespace d2bs::imports::d2common
+}  // namespace d2bs::lod114d::imports::d2common
 // NOLINTEND(readability-identifier-naming)

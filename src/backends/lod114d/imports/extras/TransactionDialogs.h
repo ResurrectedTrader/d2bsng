@@ -5,7 +5,7 @@
 
 // Transaction dialog UI structs - d2bs-internal. Not modelled in D2MOO.
 // NOLINTBEGIN(readability-identifier-naming) - struct fields match binary layout
-namespace d2bs::imports::extras {
+namespace d2bs::lod114d::imports::extras {
 
 struct TransactionDialogsLine {
     std::array<wchar_t, 120> wszText;  // 0x000
@@ -26,10 +26,5 @@ struct TransactionDialogsInfo {
 
 static_assert(sizeof(TransactionDialogsInfo) == 0xB0C, "TransactionDialogsInfo must be 0xB0C bytes");
 
-}  // namespace d2bs::imports::extras
-
-namespace d2bs::game {
-using imports::extras::TransactionDialogsInfo;
-using imports::extras::TransactionDialogsLine;
-}  // namespace d2bs::game
+}  // namespace d2bs::lod114d::imports::extras
 // NOLINTEND(readability-identifier-naming)

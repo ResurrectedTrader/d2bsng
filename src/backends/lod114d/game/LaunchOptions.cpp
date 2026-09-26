@@ -18,8 +18,8 @@ namespace {
 // string literals plus the preceding /// doc block - into the docs, the same
 // way it reads the CompatibilityFlags catalog. This table is therefore the
 // single source of truth for both parsing and documentation.
-std::vector<config::OptionSpec<LaunchOptions>> BuildSpecs() {
-    config::SpecBuilder<LaunchOptions> builder;
+std::vector<core::config::OptionSpec<LaunchOptions>> BuildSpecs() {
+    core::config::SpecBuilder<LaunchOptions> builder;
 
     /// @description Select the D2BotNG profile to launch with. The framework reads it back through
     /// getProfile / GetLaunchProfile and uses it to name per-instance resources.
@@ -100,9 +100,9 @@ std::once_flag parsed;
 const LaunchOptions& GetLaunchOptions() {
     std::call_once(parsed, [] {
         const auto specs = BuildSpecs();
-        config::ParseCommandLine(specs, options);
+        core::config::ParseCommandLine(specs, options);
         // The switches were for us; the game is left with only its own.
-        config::RemoveCommandLineOptions(specs);
+        core::config::RemoveCommandLineOptions(specs);
     });
     return options;
 }

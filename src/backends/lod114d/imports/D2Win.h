@@ -12,7 +12,7 @@
 // sourced from reference/d2bs/D2Ptrs.h.
 
 // NOLINTBEGIN(readability-identifier-naming) - MOO-style names use DOMAIN_PascalCase with embedded underscores
-namespace d2bs::imports::d2win {
+namespace d2bs::lod114d::imports::d2win {
 
 // ---- Functions -------------------------------------------------------------
 inline FastcallFunc<void*(extras::D2WinControlStrc* /*pControl*/, const wchar_t* /*wText*/)> CONTROL_SetText{0xFF5A0};
@@ -39,5 +39,5 @@ inline FastcallFunc<uint32_t(const char* /*szMpqFile*/, const char* /*szMpqName*
 // ---- Variables -------------------------------------------------------------
 inline GameVar<extras::D2WinControlStrc*> gpFirstControl{0x3D55BC};
 
-}  // namespace d2bs::imports::d2win
+}  // namespace d2bs::lod114d::imports::d2win
 // NOLINTEND(readability-identifier-naming)

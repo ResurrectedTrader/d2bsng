@@ -6,7 +6,7 @@
 // In-game session info - d2bs-internal struct. D2MOO does not model client
 // connection state. Field layout reverse-engineered against 1.14d.
 // NOLINTBEGIN(readability-identifier-naming) - struct fields match binary layout
-namespace d2bs::imports::extras {
+namespace d2bs::lod114d::imports::extras {
 
 #pragma pack(push, 1)
 
@@ -25,9 +25,5 @@ static_assert(sizeof(GameStructInfo) == 0x25D, "GameStructInfo must be 0x25D byt
 
 #pragma pack(pop)
 
-}  // namespace d2bs::imports::extras
-
-namespace d2bs::game {
-using imports::extras::GameStructInfo;
-}  // namespace d2bs::game
+}  // namespace d2bs::lod114d::imports::extras
 // NOLINTEND(readability-identifier-naming)

@@ -19,7 +19,7 @@
 #include <string_view>
 #include <unordered_map>
 
-namespace d2bs::imports::extras {
+namespace d2bs::lod114d::imports::extras {
 namespace {
 
 // Field width / interpretation. Names mirror the variant of the reference
@@ -2787,4 +2787,4 @@ std::optional<uint32_t> GetTxtTableRowCount(std::string_view tableName) {
     return count;
 }
 
-}  // namespace d2bs::imports::extras
+}  // namespace d2bs::lod114d::imports::extras

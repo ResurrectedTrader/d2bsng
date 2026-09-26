@@ -26,7 +26,7 @@
 // NOLINTNEXTLINE(readability-identifier-naming) - matches upstream ImGui declaration
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-namespace d2bs::console {
+namespace d2bs::lod114d::console {
 
 namespace {
 
@@ -159,14 +159,14 @@ bool InitGL(HWND hwnd, GLState& gl) {
 enum class FramePhase : size_t { Build, Gpu, Swap, Pump, Idle };
 
 constexpr std::array FRAME_PHASES = {
-    profiling::PhaseInfo{.name = "build (panels)", .what = "ImGui frame + the active panel's Draw"},
-    profiling::PhaseInfo{.name = "gpu (rasterise)", .what = "glClear + RenderDrawData"},
-    profiling::PhaseInfo{.name = "swap", .what = "SwapBuffers - a vsync wait shows up here"},
-    profiling::PhaseInfo{.name = "message pump", .what = "PeekMessage / DispatchMessage"},
-    profiling::PhaseInfo{.name = "idle", .what = "frame pacing, or parked while hidden", .blocking = true},
+    utils::profiling::PhaseInfo{.name = "build (panels)", .what = "ImGui frame + the active panel's Draw"},
+    utils::profiling::PhaseInfo{.name = "gpu (rasterise)", .what = "glClear + RenderDrawData"},
+    utils::profiling::PhaseInfo{.name = "swap", .what = "SwapBuffers - a vsync wait shows up here"},
+    utils::profiling::PhaseInfo{.name = "message pump", .what = "PeekMessage / DispatchMessage"},
+    utils::profiling::PhaseInfo{.name = "idle", .what = "frame pacing, or parked while hidden", .blocking = true},
 };
 
-constexpr profiling::TimelineInfo FRAME_TIMELINE{
+constexpr utils::profiling::TimelineInfo FRAME_TIMELINE{
     .title = "Console frame",
     .phases = FRAME_PHASES,
     .framePhase = static_cast<size_t>(FramePhase::Swap),
@@ -296,7 +296,7 @@ LRESULT CALLBACK ConsoleWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 }
 
 void RenderLoop(const std::stop_token& stop) {
-    thread_utils::SetThreadDescription("d2bs console render");
+    utils::threads::SetThreadDescription("d2bs console render");
 
     HINSTANCE hInst = GetModuleHandleW(nullptr);
 
@@ -349,7 +349,7 @@ void RenderLoop(const std::stop_token& stop) {
     using std::chrono::steady_clock;
     auto nextFrame = steady_clock::now();
 
-    profiling::Timeline frame(FRAME_TIMELINE);
+    utils::profiling::Timeline frame(FRAME_TIMELINE);
 
     // "GDI Generic" means the software rasteriser: every pixel drawn on the CPU, whatever we do.
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) - GLubyte* to char*
@@ -384,7 +384,7 @@ void RenderLoop(const std::stop_token& stop) {
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
-        if (const auto* callbacks = d2bs::hooks::GetActiveCallbacks();
+        if (const auto* callbacks = d2bs::lod114d::hooks::GetActiveCallbacks();
             callbacks != nullptr && callbacks->onConsoleDrawFrame != nullptr) {
             callbacks->onConsoleDrawFrame();
         }
@@ -497,4 +497,4 @@ void Toggle() {
     }
 }
 
-}  // namespace d2bs::console
+}  // namespace d2bs::lod114d::console

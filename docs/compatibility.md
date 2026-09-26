@@ -8,7 +8,7 @@ can contribute its own flags to the same set.
 
 ## The registry
 
-`d2bs::config::CompatibilityFlags` (`src/core/config/CompatibilityFlags.{h,cpp}`)
+`d2bs::core::config::CompatibilityFlags` (`src/core/config/CompatibilityFlags.{h,cpp}`)
 is the single, process-wide, thread-shared store. It holds an insertion-ordered
 list of `{name, defaultEnabled, enabled}` entries behind a mutex (descriptions
 are documentation-only - see below).
@@ -61,7 +61,7 @@ cover the framework catalog only.
 
 ## The `Compatibility` JS object
 
-A non-constructable namespace object (`src/frontends/runtime/api/classes/scripting/JSCompatibility.h`),
+A non-constructable namespace object (`src/runtime/api/classes/scripting/JSCompatibility.h`),
 modeled on `TxtTables`. The set of available flag names is documented in the API
 docs (the `CompatibilityFlag` option set), so there is no runtime enumeration
 method:

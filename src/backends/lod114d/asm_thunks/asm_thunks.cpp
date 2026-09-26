@@ -33,7 +33,7 @@
 // d2bs DLL (see asm_thunks::* references in src/backends/lod114d/game/). Unreferenced
 // entries are not maintained.
 
-namespace d2bs::asm_thunks {
+namespace d2bs::lod114d::asm_thunks {
 
 namespace {
 
@@ -241,4 +241,4 @@ D2AutomapLayerStrc* InitAutomapLayerForLevel(uint32_t levelNo) {
     return InitAutomapLayer(layerNo);
 }
 
-}  // namespace d2bs::asm_thunks
+}  // namespace d2bs::lod114d::asm_thunks

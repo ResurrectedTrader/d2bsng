@@ -6,7 +6,7 @@ Runs with stdlib only. Idempotent: re-running produces byte-identical output.
 
 Usage:
     python scripts/gen_txt_tables.py [--reference-dir reference/d2bs]
-                                     [--output src/frontends/runtime/api/globals/TxtTables.h]
+                                     [--output src/runtime/api/globals/TxtTables.h]
 """
 
 from __future__ import annotations
@@ -85,7 +85,7 @@ def emit_header(tables: list[tuple[str, list[str]]], script_rel: str) -> str:
     emit("#include <span>")
     emit("#include <string_view>")
     emit("")
-    emit("namespace d2bs::game {")
+    emit("namespace d2bs::runtime::api::globals {")
     emit("")
 
     # Widths for aligning trailing `// [idx] ...` comments.
@@ -145,7 +145,7 @@ def emit_header(tables: list[tuple[str, list[str]]], script_rel: str) -> str:
     emit("};")
     emit("")
 
-    emit("}  // namespace d2bs::game")
+    emit("}  // namespace d2bs::runtime::api::globals")
     emit("")
 
     return "\n".join(lines)
@@ -162,7 +162,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--output",
-        default=str(repo_root / "src" / "frontends" / "runtime" / "api" / "globals" / "TxtTables.h"),
+        default=str(repo_root / "src" / "runtime" / "api" / "globals" / "TxtTables.h"),
         help="Output header path",
     )
     args = parser.parse_args()

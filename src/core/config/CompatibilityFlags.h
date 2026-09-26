@@ -7,7 +7,7 @@
 
 #include "game/Compatibility.h"
 
-namespace d2bs::config {
+namespace d2bs::core::config {
 
 // Global, thread-shared registry of scripting compatibility flags. Every flag
 // is a named toggle for a SpiderMonkey/kolbot-era behavior; all default to
@@ -60,4 +60,4 @@ class CompatibilityFlags {
     std::vector<Flag> flags_;  // registration order preserved; small N, linear scan
 };
 
-}  // namespace d2bs::config
+}  // namespace d2bs::core::config

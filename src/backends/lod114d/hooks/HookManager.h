@@ -16,7 +16,7 @@
 //   * Inline-patch infrastructure (5-byte JMPs at game-side mid-function sites,
 //     dispatch to naked-asm intercepts in src/backends/lod114d/hooks/Intercepts.cpp).
 
-namespace d2bs::hooks {
+namespace d2bs::lod114d::hooks {
 
 // Install every hook (Detours + Win32 + inline patches). Idempotent. Captures *callbacks by pointer - caller must
 // ensure the storage outlives Remove().
@@ -35,4 +35,4 @@ std::optional<DWORD> GetGameThreadId();
 // Accessor for the active callback table. Returns nullptr before Install() or after Remove().
 const game::GameCallbacks* GetActiveCallbacks();
 
-}  // namespace d2bs::hooks
+}  // namespace d2bs::lod114d::hooks

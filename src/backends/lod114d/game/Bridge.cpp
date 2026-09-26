@@ -41,22 +41,22 @@ bool Bridge::Init() {
 
     plugy::InstallInitHook();
 
-    imports::Registry::Get().ResolveAll(base);
+    lod114d::imports::Registry::Get().ResolveAll(base);
 
     // Seed the naked-asm thunk jump targets. Hook lifecycle is owned by GameCallbacks::InstallHooks.
-    if (!asm_thunks::Init()) {
+    if (!lod114d::asm_thunks::Init()) {
         // asm_thunks::Init already showed its own MessageBox naming the
         // specific unresolved entry; nothing extra to report here.
         return false;
     }
-    if (!hooks::intercepts::Init()) {
+    if (!lod114d::hooks::intercepts::Init()) {
         // hooks::intercepts::Init already showed its own MessageBox.
         return false;
     }
 
     // Seed RealmRegistry from any -realm launch options before scripts run. The
     // registry detours that inject them are installed later, from HookManager.
-    hooks::realms::Init();
+    lod114d::hooks::realms::Init();
 
     initSucceeded.store(true, std::memory_order_release);
     return true;

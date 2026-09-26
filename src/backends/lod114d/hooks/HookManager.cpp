@@ -22,7 +22,7 @@
 #include "utils/threadutils.h"
 #include "utils/utils.h"
 
-namespace d2bs::hooks {
+namespace d2bs::lod114d::hooks {
 
 namespace {
 
@@ -48,10 +48,10 @@ using CursorLockFn = BOOL(__fastcall*)(int, int);
 VOID WINAPI HookedSleep(DWORD ms);
 BOOL __fastcall NoOpCursorLock(int /*X*/, int /*Y*/);
 
-detour::Hook<SleepFn> sleepHook{Sleep, &HookedSleep};
+core::detour::Hook<SleepFn> sleepHook{Sleep, &HookedSleep};
 // The cursor-lock site is an offset into the game module, so it is only known
 // once the module base is read at install time.
-detour::Hook<CursorLockFn> cursorLockHook{&NoOpCursorLock};
+core::detour::Hook<CursorLockFn> cursorLockHook{&NoOpCursorLock};
 
 // Sleep-hook reentrancy guard (per-thread). When the framework's onSleep
 // callback itself invokes ::Sleep (its drain loop sleeps in 1ms slices), the
@@ -94,11 +94,11 @@ VOID WINAPI HookedSleep(DWORD ms) {
     //     module's TLS; the thread_locals below (inSleepCallback, and the
     //     speedhack's waitChainDepth / threadOptIn via NestedWaitGuard /
     //     ScaleTimeout) would access-violate.
-    if (ms < 1 || !thread_utils::HasThreadLocalStorage()) {
+    if (ms < 1 || !utils::threads::HasThreadLocalStorage()) {
         sleepHook(ms);
         return;
     }
-    speedhack::NestedWaitGuard guard;
+    core::speedhack::NestedWaitGuard guard;
     if (inSleepCallback) {
         sleepHook(ms);
         return;
@@ -109,14 +109,14 @@ VOID WINAPI HookedSleep(DWORD ms) {
     if (captured == 0 || currentTid != captured) {
         // Either we don't yet know the game thread, or this Sleep is on a
         // script / worker thread. Scale and pass through.
-        sleepHook(speedhack::ScaleTimeout(ms));
+        sleepHook(core::speedhack::ScaleTimeout(ms));
         return;
     }
     inSleepCallback = true;
     if (activeCallbacks != nullptr && activeCallbacks->onSleep != nullptr) {
         activeCallbacks->onSleep(std::chrono::milliseconds{ms});
     } else {
-        sleepHook(speedhack::ScaleTimeout(ms));
+        sleepHook(core::speedhack::ScaleTimeout(ms));
     }
     inSleepCallback = false;
 }
@@ -127,8 +127,8 @@ VOID WINAPI HookedSleep(DWORD ms) {
 
 // The human-input callbacks the shared game-window hook dispatches to. A null
 // table entry leaves the matching hook empty.
-input::Hooks BuildInputHooks(const game::GameCallbacks* callbacks) {
-    input::Hooks hooks;
+core::input::Hooks BuildInputHooks(const game::GameCallbacks* callbacks) {
+    core::input::Hooks hooks;
     if (callbacks != nullptr) {
         hooks.onMouseClick = callbacks->onMouseClick;
         hooks.onMouseMove = callbacks->onMouseMove;
@@ -146,7 +146,7 @@ void InstallDetoursHooks() {
     const auto base = reinterpret_cast<uintptr_t>(GetModuleHandle(nullptr));
     cursorLockHook.SetTarget(reinterpret_cast<CursorLockFn>(base + CURSOR_LOCK_OFFSET));
 
-    if (const int32_t err = detour::AttachAll({&cursorLockHook, &sleepHook}); err != 0) {
+    if (const int32_t err = core::detour::AttachAll({&cursorLockHook, &sleepHook}); err != 0) {
         // Failure leaves sleepHook reaching ::Sleep directly: HookedSleep never
         // runs, onSleep never fires, GameLoop / chickening / drain all stall.
         // Bot is non-functional either way; log so the user can diagnose.
@@ -156,13 +156,13 @@ void InstallDetoursHooks() {
     // Separate transaction so a speedhack failure doesn't leave Sleep / cursor
     // hooks half-installed (and vice versa). Speedhack tolerates being un-
     // installed - bot still works, just no time scaling.
-    speedhack::Install();
+    core::speedhack::Install();
 
     // SOCKS5 proxy for the game's outbound Battle.net connections. Self-contained:
     // it Detours the WS2_32 connect (plus gethostbyname / getpeername / closesocket)
     // in its own transaction, independent of the ones above. No-op unless launched
     // with -proxy.
-    proxy::socks5::Install(game::GetLaunchOptions().proxy.value_or(std::string{}));
+    core::proxy::socks5::Install(game::GetLaunchOptions().proxy.value_or(std::string{}));
 
     // Inject framework realms into D2's in-memory server list (detours the Storm
     // registry read/write helpers). Must precede the client's first list read.
@@ -171,10 +171,10 @@ void InstallDetoursHooks() {
 
 void RemoveDetoursHooks() {
     realms::Remove();
-    proxy::socks5::Remove();
-    speedhack::Remove();
+    core::proxy::socks5::Remove();
+    core::speedhack::Remove();
 
-    if (const int32_t err = detour::DetachAll({&cursorLockHook, &sleepHook}); err != 0) {
+    if (const int32_t err = core::detour::DetachAll({&cursorLockHook, &sleepHook}); err != 0) {
         Log().error("Detours remove failed: {}", err);
     }
 }
@@ -203,16 +203,16 @@ void InstallWin32Hooks() {
     // The window's owner thread is the game thread. Capture it here so the Sleep hook gates immediately.
     const DWORD windowThread = GetWindowThreadProcessId(hwnd, nullptr);
     gameThreadId.store(windowThread, std::memory_order_relaxed);
-    thread_utils::SetThreadDescription("d2 game thread", windowThread);
+    utils::threads::SetThreadDescription("d2 game thread", windowThread);
 
-    input::Install(hwnd, BuildInputHooks(activeCallbacks));
+    core::input::Install(hwnd, BuildInputHooks(activeCallbacks));
     // Game thread is the canonical caller of the speedhack: scale its
     // time reads and waits so D2's frame timer reacts to the multiplier.
-    game::GameThread::Post([]() { speedhack::OptInCurrentThread(); });
+    game::GameThread::Post([]() { core::speedhack::OptInCurrentThread(); });
 }
 
 void RemoveWin32Hooks() {
-    input::Remove();
+    core::input::Remove();
 }
 
 }  // namespace
@@ -260,4 +260,4 @@ const game::GameCallbacks* GetActiveCallbacks() {
     return activeCallbacks;
 }
 
-}  // namespace d2bs::hooks
+}  // namespace d2bs::lod114d::hooks

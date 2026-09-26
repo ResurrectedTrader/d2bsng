@@ -9,7 +9,7 @@
 #include "ConfigStore.h"
 #include "config/ProfileData.h"
 
-namespace d2bs::config {
+namespace d2bs::core::config {
 
 // ConfigStore implementation backed by a Win32 INI file (d2bs.ini).
 // Uses GetPrivateProfileStringW / WritePrivateProfileStringW for persistence.
@@ -21,8 +21,8 @@ class IniConfigStore : public ConfigStore {
     explicit IniConfigStore(std::filesystem::path iniPath);
 
     void LoadSettings(AppConfig& config) override;
-    std::optional<ProfileData> LoadProfile(const std::string& name) override;
-    void SaveProfile(const ProfileData& profile) override;
+    std::optional<d2bs::config::ProfileData> LoadProfile(const std::string& name) override;
+    void SaveProfile(const d2bs::config::ProfileData& profile) override;
     bool ProfileExists(const std::string& name) override;
     std::vector<std::string> ListProfiles() override;
 
@@ -48,4 +48,4 @@ class IniConfigStore : public ConfigStore {
     std::filesystem::path path_;
 };
 
-}  // namespace d2bs::config
+}  // namespace d2bs::core::config

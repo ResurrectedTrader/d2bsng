@@ -6,8 +6,8 @@
 // 1.14d-correct layout. D2MOO's `::D2PresetUnitStrc` has different offsets
 // for 1.14d (D2MOO was reverse-engineered against 1.10c). Reference d2bs's
 // CODE reads these fields at the bytes pinned here, and reference works on
-// 1.14d. Use this struct via `d2bs::imports::extras::D2PresetUnitStrc` or
-// via `using d2bs::imports::extras::D2PresetUnitStrc` to shadow D2MOO's
+// 1.14d. Use this struct via `d2bs::lod114d::imports::extras::D2PresetUnitStrc` or
+// via `using d2bs::lod114d::imports::extras::D2PresetUnitStrc` to shadow D2MOO's
 // version inside the consuming TU.
 //
 // D2MOO's claimed size is 0x20 with nUnitType @ 0x00 / nIndex @ 0x04 /
@@ -24,7 +24,7 @@
 // deviation, since both naming conventions agree on the field's
 // purpose but disagree on its placement.
 
-namespace d2bs::imports::extras {
+namespace d2bs::lod114d::imports::extras {
 
 struct D2PresetUnitStrc;
 
@@ -47,4 +47,4 @@ static_assert(offsetof(D2PresetUnitStrc, pNext) == 0x0C, "D2PresetUnitStrc::pNex
 static_assert(offsetof(D2PresetUnitStrc, nUnitType) == 0x14, "D2PresetUnitStrc::nUnitType offset drift");
 static_assert(offsetof(D2PresetUnitStrc, nYpos) == 0x18, "D2PresetUnitStrc::nYpos offset drift");
 
-}  // namespace d2bs::imports::extras
+}  // namespace d2bs::lod114d::imports::extras

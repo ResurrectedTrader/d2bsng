@@ -25,7 +25,7 @@
 // Without D2BS_PROFILING (MSBuild D2bsProfiling=false) the recording types below are empty inline
 // stubs with the same surface, so call sites compile unchanged and the optimizer drops them.
 
-namespace d2bs::profiling {
+namespace d2bs::utils::profiling {
 
 // Which trampoline a JS->native call arrived through. Kept apart because a script paying per
 // property access and one paying inside a few calls need different fixes.
@@ -397,4 +397,4 @@ class ScopedSleep {
 
 #endif  // D2BS_PROFILING
 
-}  // namespace d2bs::profiling
+}  // namespace d2bs::utils::profiling

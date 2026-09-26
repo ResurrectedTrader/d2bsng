@@ -19,7 +19,7 @@
 //   * string    - ASCII column (FIELDTYPE_DATA_ASCII) or 4-byte item code
 //                 column (FIELDTYPE_DATA_RAW / FIELDTYPE_ASCII_TO_CODE)
 
-namespace d2bs::imports::extras {
+namespace d2bs::lod114d::imports::extras {
 
 using TxtValue = std::variant<std::monostate, int64_t, std::string>;
 
@@ -29,4 +29,4 @@ using TxtValue = std::variant<std::monostate, int64_t, std::string>;
 // the underlying game data table is not yet loaded.
 [[nodiscard]] std::optional<uint32_t> GetTxtTableRowCount(std::string_view tableName);
 
-}  // namespace d2bs::imports::extras
+}  // namespace d2bs::lod114d::imports::extras

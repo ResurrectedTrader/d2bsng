@@ -20,7 +20,7 @@
 #include "imports/Storm.h"
 #include "utils/utils.h"
 
-namespace d2bs::hooks::realms {
+namespace d2bs::lod114d::hooks::realms {
 
 namespace {
 
@@ -100,7 +100,7 @@ void EnsureValidVersion(RealmList& list) {
 // Merge every RealmRegistry realm into the list by display name (overwrite an
 // existing entry's host, else append).
 void MergeCustomRealms(RealmList& list) {
-    for (const auto& realm : config::RealmRegistry::Instance().All()) {
+    for (const auto& realm : core::config::RealmRegistry::Instance().All()) {
         bool merged = false;
         for (auto& entry : list.entries) {
             if (entry.name == realm.name) {
@@ -122,10 +122,10 @@ void MergeCustomRealms(RealmList& list) {
 // game triggers (e.g. recording a realm selection) never persists our injected
 // entries to the shared registry.
 void StripCustomRealms(RealmList& list) {
-    const auto registered = config::RealmRegistry::Instance().All();
+    const auto registered = core::config::RealmRegistry::Instance().All();
     std::erase_if(list.entries, [&](const RealmEntry& entry) {
-        return std::ranges::any_of(registered,
-                                   [&](const config::RealmRegistry::Realm& realm) { return realm.name == entry.name; });
+        return std::ranges::any_of(
+            registered, [&](const core::config::RealmRegistry::Realm& realm) { return realm.name == entry.name; });
     });
 }
 
@@ -187,8 +187,8 @@ int __stdcall HookedStore(const char* subkey, const char* valueName, char type, 
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables) - hook owns module-level state
 // Both Storm helpers are resolved from the import registry at install time.
-detour::Hook<ReadFn> readHook{&HookedRead};
-detour::Hook<StoreFn> storeHook{&HookedStore};
+core::detour::Hook<ReadFn> readHook{&HookedRead};
+core::detour::Hook<StoreFn> storeHook{&HookedStore};
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 // Read the real server-list blob into `out`. Returns false if the value is
@@ -247,7 +247,7 @@ void Install() {
     // No -realm entries: leave D2's server-list reads/writes untouched (mirrors
     // socks5, which no-ops without -proxy). RealmRegistry is seeded by Init() in
     // Bridge::Init, before HookManager installs, so it is populated by now.
-    if (readHook.IsAttached() || config::RealmRegistry::Instance().All().empty()) {
+    if (readHook.IsAttached() || core::config::RealmRegistry::Instance().All().empty()) {
         return;
     }
     if (!imports::storm::SSTR_RegistryReadValueEx.IsResolved() ||
@@ -258,19 +258,19 @@ void Install() {
     readHook.SetTarget(imports::storm::SSTR_RegistryReadValueEx.Ptr());
     storeHook.SetTarget(imports::storm::RegStoringKeysConfiguration.Ptr());
 
-    if (const int32_t err = detour::AttachAll({&readHook, &storeHook}); err != 0) {
+    if (const int32_t err = core::detour::AttachAll({&readHook, &storeHook}); err != 0) {
         Log().error("realms: failed to detour registry helpers ({})", err);
     }
 }
 
 void Remove() {
-    if (const int32_t err = detour::DetachAll({&readHook, &storeHook}); err != 0) {
+    if (const int32_t err = core::detour::DetachAll({&readHook, &storeHook}); err != 0) {
         Log().error("realms: failed to remove the registry detours ({})", err);
     }
 }
 
 void Init() {
-    auto& registry = config::RealmRegistry::Instance();
+    auto& registry = core::config::RealmRegistry::Instance();
     for (const auto& spec : game::GetLaunchOptions().realms) {
         if (!registry.AddSpec(spec)) {
             Log().warn("realms: ignoring malformed -realm spec '{}' (expected name:host)", spec);
@@ -278,7 +278,7 @@ void Init() {
     }
 }
 
-}  // namespace d2bs::hooks::realms
+}  // namespace d2bs::lod114d::hooks::realms
 
 namespace d2bs::game {
 
@@ -291,7 +291,7 @@ std::vector<RealmInfo> GetRealms() {
     // the registry fallback below covers the common not-yet-loaded case (blob
     // pointer still null).
     const std::vector<char> blob = GameThread::Execute([]() -> std::vector<char> {
-        const auto& singleton = imports::bnclient::gBNGatewayAccess;
+        const auto& singleton = lod114d::imports::bnclient::gBNGatewayAccess;
         if (singleton.IsResolved()) {
             const auto* state = singleton.Ptr();
             if (state->blob != nullptr && state->blobLength > 0) {
@@ -299,13 +299,13 @@ std::vector<RealmInfo> GetRealms() {
             }
         }
         std::vector<char> fromRegistry;
-        hooks::realms::ReadRegistryBlob(fromRegistry);  // leaves it empty if absent
+        lod114d::hooks::realms::ReadRegistryBlob(fromRegistry);  // leaves it empty if absent
         return fromRegistry;
     });
 
     std::vector<RealmInfo> result;
     if (!blob.empty()) {
-        const hooks::realms::RealmList list = hooks::realms::ParseBlob(blob.data(), blob.size());
+        const lod114d::hooks::realms::RealmList list = lod114d::hooks::realms::ParseBlob(blob.data(), blob.size());
         for (const auto& entry : list.entries) {
             result.push_back(RealmInfo{.name = entry.name, .host = entry.host});
         }
@@ -314,7 +314,7 @@ std::vector<RealmInfo> GetRealms() {
     // Overlay the -realm additions (override an existing realm's host by name,
     // else append). Idempotent when the blob already carries them (via the read
     // hook); guarantees they appear even if that injection didn't run.
-    for (const auto& realm : config::RealmRegistry::Instance().All()) {
+    for (const auto& realm : core::config::RealmRegistry::Instance().All()) {
         auto it = std::ranges::find_if(result, [&](const RealmInfo& info) { return info.name == realm.name; });
         if (it != result.end()) {
             it->host = realm.host;

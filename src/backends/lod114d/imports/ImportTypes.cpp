@@ -5,7 +5,7 @@
     #include <cstdio>
 #endif
 
-namespace d2bs::imports {
+namespace d2bs::lod114d::imports {
 
 Registry& Registry::Get() noexcept {
     // Meyers singleton - constructed on first call, destroyed at process
@@ -30,10 +30,10 @@ void Registry::ResolveAll(uintptr_t base) noexcept {
     }
 #ifdef _DEBUG
     char buf[128];
-    std::snprintf(buf, sizeof(buf), "[d2bs::imports] ResolveAll resolved %zu imports against base 0x%08zX\n",
+    std::snprintf(buf, sizeof(buf), "[d2bs::lod114d::imports] ResolveAll resolved %zu imports against base 0x%08zX\n",
                   items_.size(), static_cast<size_t>(base));
     OutputDebugStringA(buf);
 #endif
 }
 
-}  // namespace d2bs::imports
+}  // namespace d2bs::lod114d::imports

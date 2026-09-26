@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-namespace d2bs::config {
+namespace d2bs::core::config {
 
 RealmRegistry& RealmRegistry::Instance() {
     static RealmRegistry instance;
@@ -41,4 +41,4 @@ bool RealmRegistry::AddSpec(std::string_view spec) {
     return Add(name, host);
 }
 
-}  // namespace d2bs::config
+}  // namespace d2bs::core::config
