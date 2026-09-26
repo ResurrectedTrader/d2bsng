@@ -1,6 +1,6 @@
 #pragma once
 
-// Test-only shim for src/frontends/runtime/components/drawing/Drawable.h.
+// Test-only shim for src/runtime/components/drawing/Drawable.h.
 //
 // The real header pulls in <v8.h> via the Drawable struct (Global handles
 // for onClick/onHover, collection operations that iterate ScriptEngine).

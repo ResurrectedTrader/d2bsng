@@ -230,7 +230,7 @@ void LoadMpq(const std::string& path);
 std::optional<std::string> GetLaunchProfile();
 
 // Version string of the game backend this build is compiled against, e.g.
-// "1.14d" for the lod114d backend. Fixed at compile time - the injected glue
+// "1.14d" for the lod114d backend. Fixed at compile time - the injected
 // DLL links exactly one backend - so it identifies "which build" for
 // diagnostics and analytics.
 std::string GetBackendVersion();
