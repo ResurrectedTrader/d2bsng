@@ -77,7 +77,7 @@ class Registration {
     std::shared_ptr<ThreadEntry> entry_;
 };
 
-// A foreign thread without backed TLS (see thread_utils::HasThreadLocalStorage) would
+// A foreign thread without backed TLS (see threads::HasThreadLocalStorage) would
 // access-violate on a thread_local; such a thread never runs one of the measured loops, so it gets
 // a shared throw-away block.
 ThreadCounters& Orphan() {

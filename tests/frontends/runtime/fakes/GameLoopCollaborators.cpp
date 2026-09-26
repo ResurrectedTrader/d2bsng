@@ -22,19 +22,19 @@ void Reset() {
 }  // namespace d2bs::test
 
 // === Event dispatchers (shim) ===
-namespace d2bs {
+namespace d2bs::runtime::events {
 
-void runtime::events::LifeEventDispatch(uint32_t life) {
+void LifeEventDispatch(uint32_t life) {
     test::State().lifeEvents.push_back(life);
 }
-void runtime::events::ManaEventDispatch(uint32_t mana) {
+void ManaEventDispatch(uint32_t mana) {
     test::State().manaEvents.push_back(mana);
 }
-void runtime::events::PlayerAssignEventDispatch(uint32_t unitId) {
+void PlayerAssignEventDispatch(uint32_t unitId) {
     test::State().playerAssignEvents.push_back(unitId);
 }
 
-}  // namespace d2bs
+}  // namespace d2bs::runtime::events
 
 // === Drawable (shim) ===
 namespace d2bs::runtime::drawing {
@@ -52,38 +52,37 @@ void DrawVersionBanner() {}
 }  // namespace d2bs::runtime::drawing
 
 // === ScriptEngine (shim) ===
-namespace d2bs {
+namespace d2bs::runtime::script {
 
-runtime::script::ScriptEngine& runtime::script::ScriptEngine::Instance() {
+ScriptEngine& ScriptEngine::Instance() {
     // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables) - matches real singleton shape
-    static runtime::script::ScriptEngine instance;
+    static ScriptEngine instance;
     return instance;
 }
 
-std::shared_ptr<runtime::script::Script> runtime::script::ScriptEngine::StartScript(const std::filesystem::path& path,
-                                                                                    runtime::script::ScriptMode mode) {
-    auto script = std::make_shared<runtime::script::Script>(path, mode);
+std::shared_ptr<Script> ScriptEngine::StartScript(const std::filesystem::path& path, ScriptMode mode) {
+    auto script = std::make_shared<Script>(path, mode);
     scripts_.push_back(script);
     started_.push_back(script);
     return script;
 }
 
-void runtime::script::ScriptEngine::StopAllScripts() {
+void ScriptEngine::StopAllScripts() {
     for (auto& script : scripts_) {
         script->Stop();
     }
 }
 
-void runtime::script::ScriptEngine::Evaluate(const std::string& /*code*/) {}
+void ScriptEngine::Evaluate(const std::string& /*code*/) {}
 
-void runtime::script::ScriptEngine::RestartConsoleScript() {
+void ScriptEngine::RestartConsoleScript() {
     ++restartConsoleCount_;
     // Capture the AppConfig-visible consoleScript at this moment so tests can
     // verify SetScriptPaths ran before RestartConsoleScript was invoked.
     restartedConsoleName_ = core::config::GetAppConfig().GetScriptPaths().consoleScript;
 }
 
-void runtime::script::ScriptEngine::Reset() {
+void ScriptEngine::Reset() {
     scripts_.clear();
     started_.clear();
     restartConsoleCount_ = 0;
@@ -91,7 +90,7 @@ void runtime::script::ScriptEngine::Reset() {
     initialized_ = false;
 }
 
-}  // namespace d2bs
+}  // namespace d2bs::runtime::script
 
 // === CharacterState (shim) ===
 // The real component pulls in nlohmann-json (not in the test's dependency set).
