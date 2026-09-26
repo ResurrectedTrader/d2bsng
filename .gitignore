@@ -19,7 +19,7 @@
 /TODO.md
 
 # Local-only MSBuild overrides (e.g. a personal post-build install step)
-src/glue/*/*.local.targets
+src/dlls/*/*.local.targets
 
 # Local-only build settings (e.g. a personal Aptabase app key)
 /d2bs.local.props

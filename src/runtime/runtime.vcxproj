@@ -265,13 +265,13 @@
     <ClInclude Include="RuntimeEnumNames.h" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\contract\contract.vcxproj">
+    <ProjectReference Include="..\contract\contract.vcxproj">
       <Project>{B1A2C3D4-E5F6-7890-ABCD-100000000003}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\..\core\core.vcxproj">
+    <ProjectReference Include="..\core\core.vcxproj">
       <Project>{B1A2C3D4-E5F6-7890-ABCD-100000000004}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\..\utils\utils.vcxproj">
+    <ProjectReference Include="..\utils\utils.vcxproj">
       <Project>{B1A2C3D4-E5F6-7890-ABCD-100000000001}</Project>
     </ProjectReference>
   </ItemGroup>

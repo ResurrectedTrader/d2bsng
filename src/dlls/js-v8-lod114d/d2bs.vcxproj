@@ -46,11 +46,11 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <!-- Every project links into one solution-level output directory, so two glues
-       would otherwise fight over the same d2bs.dll. Each glue takes a directory
+  <!-- Every project links into one solution-level output directory, so two DLL
+       projects would otherwise fight over the same d2bs.dll. Each takes a directory
        named after itself instead, leaving the DLL free to keep the name the
        loader expects. Derived from the directory rather than spelled out, so a
-       sibling glue can copy this verbatim. -->
+       sibling DLL project can copy this verbatim. -->
   <PropertyGroup>
     <OutDir>$(SolutionDir)$(Configuration)\$([System.IO.Path]::GetFileName($(MSBuildProjectDirectory)))\</OutDir>
   </PropertyGroup>
@@ -70,7 +70,7 @@
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\frontends\runtime;$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\backends\lod114d;$(SolutionDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\runtime;$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\backends\lod114d;$(SolutionDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -92,7 +92,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\frontends\runtime;$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\backends\lod114d;$(SolutionDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\runtime;$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\backends\lod114d;$(SolutionDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -118,7 +118,7 @@
     <ResourceCompile Include="version.rc" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\frontends\runtime\runtime.vcxproj">
+    <ProjectReference Include="..\..\runtime\runtime.vcxproj">
       <Project>{B1A2C3D4-E5F6-7890-ABCD-100000000002}</Project>
     </ProjectReference>
     <ProjectReference Include="..\..\backends\lod114d\lod114d.vcxproj">
