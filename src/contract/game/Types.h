@@ -1,7 +1,7 @@
 #pragma once
 
-// Shared POD/value types crossing the framework/game boundary. Stdlib-only so components, pathfinding, tests, and game
-// implementations can all share them without heavier includes.
+// Shared POD/value types crossing the framework/game boundary. Stdlib-only (plus the generated enum names) so
+// components, pathfinding, tests, and game implementations can all share them without heavier includes.
 
 #include <cstdint>
 #include <functional>
@@ -9,6 +9,9 @@
 #include <string>
 #include <type_traits>
 #include <vector>
+
+// ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
+#include "ContractEnumNames.h"
 
 namespace d2bs::game {
 

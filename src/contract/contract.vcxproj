@@ -86,11 +86,13 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="config\ProfileData.cpp" />
+    <ClCompile Include="ContractEnumNames.cpp" />
     <ClCompile Include="game\GameLock.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="config\ProfileData.h" />
     <ClInclude Include="config\ScriptPaths.h" />
+    <ClInclude Include="ContractEnumNames.h" />
     <ClInclude Include="game\Bridge.h" />
     <ClInclude Include="game\Compatibility.h" />
     <ClInclude Include="game\Console.h" />

@@ -3,7 +3,6 @@
 #include <fmt/format.h>
 #include <imgui.h>
 #include <v8.h>
-#include <magic_enum/magic_enum.hpp>
 
 #include <functional>
 #include <memory>
@@ -117,11 +116,11 @@ void DrawScriptRow(size_t rowIndex, const std::shared_ptr<Script>& script, HeapT
 
     ImGui::TableNextColumn();
     const auto state = script->GetState();
-    const std::string stateLabel{magic_enum::enum_name(state)};
+    const std::string stateLabel = EnumName(state);
     ImGui::TextColored(theme::ColorForState(state), "%s", stateLabel.c_str());
 
     ImGui::TableNextColumn();
-    const std::string modeLabel{magic_enum::enum_name(script->GetMode())};
+    const std::string modeLabel = EnumName(script->GetMode());
     ImGui::TextUnformatted(modeLabel.c_str());
 
     // ----- Heap (cell-wide hover) -----

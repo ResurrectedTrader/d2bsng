@@ -3,6 +3,9 @@
 #include <cstdint>
 #include <limits>
 
+// ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
+#include "ContractEnumNames.h"
+
 namespace d2bs::game {
 
 // Stat IDs referenced in the API layer.

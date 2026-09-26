@@ -7,6 +7,8 @@
 #include <nlohmann/json.hpp>
 
 #include "game/Unit.h"
+// ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
+#include "ServicesEnumNames.h"
 
 namespace d2bs::services::characterstate {
 

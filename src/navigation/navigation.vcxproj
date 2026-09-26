@@ -86,10 +86,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="ExitFinder.cpp" />
+    <ClCompile Include="NavigationEnumNames.cpp" />
     <ClCompile Include="Pathfinder.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ExitFinder.h" />
+    <ClInclude Include="NavigationEnumNames.h" />
     <ClInclude Include="Pathfinder.h" />
   </ItemGroup>
   <ItemGroup>

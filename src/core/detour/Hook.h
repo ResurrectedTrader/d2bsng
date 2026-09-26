@@ -7,6 +7,9 @@
 #include <utility>
 #include <vector>
 
+// ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
+#include "CoreEnumNames.h"
+
 // Typed Detours slots and the transactions that attach them. A slot owns one
 // detour: where the function lives, the pointer that reaches the original once
 // hooked, and whether it is currently attached. Slots are attached and detached

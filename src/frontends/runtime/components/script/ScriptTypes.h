@@ -2,6 +2,9 @@
 
 #include <cstdint>
 
+// ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
+#include "RuntimeEnumNames.h"
+
 namespace d2bs {
 
 // Ordering matters: Stop() uses `>= Ready` to decide if the isolate

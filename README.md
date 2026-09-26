@@ -381,7 +381,7 @@ This project links or vendors the following, each under its own license:
 
 - [V8](https://v8.dev/) - BSD-3-Clause
 - [D2MOO](https://github.com/ThePhrozenKeep/D2MOO) - MIT
-- spdlog, fmt, Dear ImGui, Microsoft Detours, magic_enum, nlohmann/json, doctest - MIT
+- spdlog, fmt, Dear ImGui, Microsoft Detours, nlohmann/json, doctest - MIT
 - [IXWebSocket](https://github.com/machinezone/IXWebSocket) - BSD-3-Clause
 - StackWalker - BSD
 - zlib - Zlib license

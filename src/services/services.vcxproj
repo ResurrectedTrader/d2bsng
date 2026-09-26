@@ -91,6 +91,7 @@
     <ClCompile Include="characterstate\UnitJson.cpp" />
     <ClCompile Include="dde\DdeService.cpp" />
     <ClCompile Include="profile\ProfileService.cpp" />
+    <ClCompile Include="ServicesEnumNames.cpp" />
     <ClCompile Include="update\UpdateChecker.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -100,6 +101,7 @@
     <ClInclude Include="characterstate\UnitJson.h" />
     <ClInclude Include="dde\DdeService.h" />
     <ClInclude Include="profile\ProfileService.h" />
+    <ClInclude Include="ServicesEnumNames.h" />
     <ClInclude Include="update\UpdateChecker.h" />
   </ItemGroup>
   <ItemGroup>

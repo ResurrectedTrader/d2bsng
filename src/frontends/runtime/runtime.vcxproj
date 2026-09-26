@@ -152,6 +152,7 @@
     <ClCompile Include="components\Host.cpp" />
     <!-- GameLoop -->
     <ClCompile Include="components\gameloop\GameLoop.cpp" />
+    <ClCompile Include="RuntimeEnumNames.cpp" />
   </ItemGroup>
   <ItemGroup>
     <!-- V8 Host -->
@@ -243,6 +244,7 @@
     <ClInclude Include="components\Host.h" />
     <!-- GameLoop -->
     <ClInclude Include="components\gameloop\GameLoop.h" />
+    <ClInclude Include="RuntimeEnumNames.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\contract\contract.vcxproj">

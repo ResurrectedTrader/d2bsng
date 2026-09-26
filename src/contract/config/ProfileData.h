@@ -6,6 +6,8 @@
 
 #include "config/ScriptPaths.h"
 #include "game/Types.h"
+// ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
+#include "ContractEnumNames.h"
 
 namespace d2bs::config {
 
