@@ -2,7 +2,7 @@
 
 #include "JSDrawableBase.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 class JSBox : public JSDrawableBase<JSBox, BoxDrawable> {
    public:
@@ -30,7 +30,7 @@ class JSBox : public JSDrawableBase<JSBox, BoxDrawable> {
     static void New(const v8::FunctionCallbackInfo<v8::Value>& args) {
         V8_CLASS_CTOR_PROLOGUE;
 
-        auto* script = ScriptEngine::Instance().GetScript(isolate);
+        auto* script = script::ScriptEngine::Instance().GetScript(isolate);
         if (!script) {
             error::ThrowError(isolate, "Box: no owning script");
             return;
@@ -54,10 +54,10 @@ class JSBox : public JSDrawableBase<JSBox, BoxDrawable> {
             drawable->isAutomap.store(args[7]->BooleanValue(isolate));
         }
         if (args.Length() > 8 && args[8]->IsFunction()) {
-            script->SetDrawableHandler(*drawable, DrawableHandler::Click, args[8].As<v8::Function>());
+            script->SetDrawableHandler(*drawable, script::DrawableHandler::Click, args[8].As<v8::Function>());
         }
         if (args.Length() > 9 && args[9]->IsFunction()) {
-            script->SetDrawableHandler(*drawable, DrawableHandler::Hover, args[9].As<v8::Function>());
+            script->SetDrawableHandler(*drawable, script::DrawableHandler::Hover, args[9].As<v8::Function>());
         }
 
         auto* rawDrawable = drawable.get();
@@ -160,4 +160,4 @@ class JSBox : public JSDrawableBase<JSBox, BoxDrawable> {
     }
 };
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

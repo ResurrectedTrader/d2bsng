@@ -7,7 +7,7 @@
 #include "api/core/Convert.h"
 #include "api/core/Error.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 // Forward declaration
 struct SQLiteData;
@@ -41,4 +41,4 @@ class JSDBStatement : public ClassBase<JSDBStatement, DBStatementData> {
     static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl);
 };
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

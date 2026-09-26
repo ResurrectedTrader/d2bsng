@@ -64,7 +64,7 @@ int32_t ApplyImageAlign(Align a, int32_t width) {
 }
 
 struct Hit {
-    std::shared_ptr<Script> script;
+    std::shared_ptr<script::Script> script;
     std::shared_ptr<Drawable> drawable;
 };
 
@@ -75,7 +75,7 @@ template <typename Wants>
 Hit FindTopHit(game::Point pos, game::GameState state, Wants wants) {
     Hit best;
     int32_t bestZ = 0;
-    for (auto& script : ScriptEngine::Instance().GetAllScripts()) {
+    for (auto& script : script::ScriptEngine::Instance().GetAllScripts()) {
         if (!script->DrawablesVisibleIn(state)) {
             continue;
         }
@@ -103,7 +103,7 @@ Drawable::~Drawable() {
 
 void Drawable::DrawAll(game::GameState state) {
     std::vector<std::pair<int32_t, std::shared_ptr<Drawable>>> toDraw;
-    for (auto& script : ScriptEngine::Instance().GetAllScripts()) {
+    for (auto& script : script::ScriptEngine::Instance().GetAllScripts()) {
         if (!script->DrawablesVisibleIn(state)) {
             continue;
         }
@@ -148,7 +148,7 @@ void Drawable::OnMouseMove(game::Point pos, game::GameState state) {
     // safe.
     auto top = FindTopHit(pos, state, [](const Drawable&) { return true; });
 
-    for (auto& script : ScriptEngine::Instance().GetAllScripts()) {
+    for (auto& script : script::ScriptEngine::Instance().GetAllScripts()) {
         if (!script->DrawablesVisibleIn(state)) {
             continue;
         }

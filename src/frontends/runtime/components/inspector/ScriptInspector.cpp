@@ -65,7 +65,7 @@ class InspectorClient : public v8_inspector::V8InspectorClient {
         // thread, which opts into the speedhack (system_clock::now() reads the
         // hooked GetSystemTimePreciseAsFileTime), so bypass scaling here -
         // otherwise timestamps would race ahead at speed > 1.
-        speedhack::SpeedhackDisabledScope realTime;
+        core::speedhack::SpeedhackDisabledScope realTime;
         return std::chrono::duration<double, std::milli>(std::chrono::system_clock::now().time_since_epoch()).count();
     }
     // Map a Windows script path (e.g. C:\d2bs\libs\Town.js) to a file:// URL,
@@ -82,7 +82,7 @@ class InspectorClient : public v8_inspector::V8InspectorClient {
         if (name.size() < 3 || name[1] != ':') {
             return nullptr;
         }
-        std::string url = config::GetAppConfig().GetScriptPaths().FileUrl(name);
+        std::string url = core::config::GetAppConfig().GetScriptPaths().FileUrl(name);
         return v8_inspector::StringBuffer::create(
             v8_inspector::StringView(reinterpret_cast<const uint8_t*>(url.data()), url.size()));
     }
@@ -91,7 +91,7 @@ class InspectorClient : public v8_inspector::V8InspectorClient {
     ScriptInspector* owner_;
 };
 
-ScriptInspector::ScriptInspector(Script* script, std::string title, std::string url) : script_(script) {
+ScriptInspector::ScriptInspector(script::Script* script, std::string title, std::string url) : script_(script) {
     // Constructed inside AttachInspector's Isolate::Scope + HandleScope, after the
     // script's isolate is set, so GetIsolate() and the context Local are valid.
     // isolate_ holds a strong ref (see header): keeps the isolate alive for our

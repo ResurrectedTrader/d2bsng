@@ -11,7 +11,7 @@
 // Type conversion utilities for V8 <-> C++
 // All string operations use UTF-8
 
-namespace d2bs::api::convert {
+namespace d2bs::runtime::api::convert {
 
 // ============================================================================
 // To V8 conversions
@@ -245,4 +245,4 @@ inline bool ToBool(v8::Isolate* isolate, v8::Local<v8::Value> val) {
     return val->BooleanValue(isolate);
 }
 
-}  // namespace d2bs::api::convert
+}  // namespace d2bs::runtime::api::convert

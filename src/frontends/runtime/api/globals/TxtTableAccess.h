@@ -14,7 +14,7 @@
 // the TxtTables class bind to these). Resolution is name- or index-based and
 // tolerant of bad args: callers map nullopt / empty handles to a JS undefined.
 
-namespace d2bs::api::globals {
+namespace d2bs::runtime::api::globals {
 
 // Resolve a table arg to a canonical name: a string name, or a number indexing
 // TXT_TABLE_NAMES. nullopt when the arg is the wrong type or the index is out of range.
@@ -89,4 +89,4 @@ inline v8::Local<v8::Value> BuildTxtRow(v8::Isolate* isolate, v8::Local<v8::Cont
     return obj;
 }
 
-}  // namespace d2bs::api::globals
+}  // namespace d2bs::runtime::api::globals

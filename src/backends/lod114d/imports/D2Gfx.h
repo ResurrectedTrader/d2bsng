@@ -12,7 +12,7 @@
 // sourced from reference/d2bs/D2Ptrs.h.
 
 // NOLINTBEGIN(readability-identifier-naming) - MOO-style names use DOMAIN_PascalCase with embedded underscores
-namespace d2bs::imports::d2gfx {
+namespace d2bs::lod114d::imports::d2gfx {
 
 // ---- Functions -------------------------------------------------------------
 inline StdcallFunc<void(int32_t /*nX1*/, int32_t /*nY1*/, int32_t /*nX2*/, int32_t /*nY2*/, uint32_t /*dwColor*/,
@@ -28,5 +28,5 @@ inline StdcallFunc<void(void* /*pContext*/, uint32_t /*nX*/, uint32_t /*nY*/, ui
 inline StdcallFunc<HWND()> WINDOW_GetWindow{0xF59A0};
 inline StdcallFunc<uint32_t()> D2GFX_GetResolutionMode{0xF5160};
 
-}  // namespace d2bs::imports::d2gfx
+}  // namespace d2bs::lod114d::imports::d2gfx
 // NOLINTEND(readability-identifier-naming)

@@ -36,7 +36,7 @@
 #include "utils/Profiling.h"
 #include "utils/utils.h"
 
-namespace d2bs {
+namespace d2bs::runtime::script {
 
 namespace {
 
@@ -45,17 +45,17 @@ namespace {
 enum class IdlePhase : size_t { Pump, Handlers, Wait, Paused };
 
 constexpr std::array IDLE_PHASES = {
-    profiling::PhaseInfo{.name = "event pump",
-                         .what = "V8 tasks, inspector messages, heap stats - everything but the handlers",
-                         .warn = 5.0,
-                         .bad = 15.0},
-    profiling::PhaseInfo{.name = "handlers (JS)", .what = "event and timer callbacks run from delay()"},
-    profiling::PhaseInfo{.name = "asleep", .what = "the wait the script asked for", .blocking = true},
-    profiling::PhaseInfo{.name = "paused", .what = "paused from the console", .blocking = true},
+    utils::profiling::PhaseInfo{.name = "event pump",
+                                .what = "V8 tasks, inspector messages, heap stats - everything but the handlers",
+                                .warn = 5.0,
+                                .bad = 15.0},
+    utils::profiling::PhaseInfo{.name = "handlers (JS)", .what = "event and timer callbacks run from delay()"},
+    utils::profiling::PhaseInfo{.name = "asleep", .what = "the wait the script asked for", .blocking = true},
+    utils::profiling::PhaseInfo{.name = "paused", .what = "paused from the console", .blocking = true},
 };
 
 // One timeline per script thread; the panel sums the ones sharing this title into one table.
-constexpr profiling::TimelineInfo IDLE_TIMELINE{
+constexpr utils::profiling::TimelineInfo IDLE_TIMELINE{
     .title = "Script threads, inside delay()",
     .phases = IDLE_PHASES,
     .framePhase = static_cast<size_t>(IdlePhase::Pump),
@@ -160,7 +160,7 @@ void Script::RemoveSelfFromEngine() {
 }
 
 std::string Script::GetName() const {
-    return config::GetAppConfig().GetScriptPaths().RelativeScriptPath(path_);
+    return core::config::GetAppConfig().GetScriptPaths().RelativeScriptPath(path_);
 }
 
 std::thread::id Script::GetThreadId() const {
@@ -188,7 +188,7 @@ v8::Local<v8::Context> Script::GetContext() const {
 }
 
 void Script::Evaluate(const std::string& code) {
-    auto event = std::make_shared<EvaluateEvent>(code);
+    auto event = std::make_shared<events::EvaluateEvent>(code);
     ExecuteEvent(event);
 }
 
@@ -207,14 +207,14 @@ void Script::AttachInspector() {
     // script carries a real path (its lookup fallback), so classify by mode.
     const bool isConsole = mode_ == ScriptMode::Console;
     std::string name = isConsole ? std::string("Console") : GetName();
-    const std::string profile = config::GetAppConfig().GetProfileName();
+    const std::string profile = core::config::GetAppConfig().GetProfileName();
     std::string title = profile.empty() ? name : (profile + " / " + name);
     // The url is the base-relative path as a file:// URL, like every script URL
     // DevTools sees (resourceNameToUrl maps script origins the same way): the
     // install path stays out of DevTools and the URLs are stable across machines.
     std::string url =
-        isConsole ? std::string("d2bs://console") : config::GetAppConfig().GetScriptPaths().FileUrl(path_);
-    inspector_ = std::make_unique<runtime::inspector::ScriptInspector>(this, std::move(title), std::move(url));
+        isConsole ? std::string("d2bs://console") : core::config::GetAppConfig().GetScriptPaths().FileUrl(path_);
+    inspector_ = std::make_unique<inspector::ScriptInspector>(this, std::move(title), std::move(url));
 }
 
 void Script::ThreadMain(const std::stop_token& stopToken) {
@@ -226,12 +226,12 @@ void Script::ThreadMain(const std::stop_token& stopToken) {
     // Store native Win32 thread ID for JS threadid property (avoids hash truncation)
     nativeThreadId_.store(GetCurrentThreadId(), std::memory_order_relaxed);
 
-    thread_utils::SetThreadDescription(GetName());
+    utils::threads::SetThreadDescription(GetName());
 
     // Script threads run user JS; their Date.now / delay / setTimeout
     // should observe the global time multiplier. V8's internal worker
     // pool runs on threads we never touch, so those stay on real time.
-    speedhack::OptInCurrentThread();
+    core::speedhack::OptInCurrentThread();
 
     logger_->debug("Thread starting: {}", path_.string());
 
@@ -279,7 +279,7 @@ bool InstallConsoleRouting(v8::Isolate* iso, v8::Local<v8::Context> context) {
     auto evaluating = v8::Function::New(
                           context,
                           +[](const v8::FunctionCallbackInfo<v8::Value>& info) {
-                              info.GetReturnValue().Set(runtime::inspector::ScriptInspector::IsEvaluating());
+                              info.GetReturnValue().Set(inspector::ScriptInspector::IsEvaluating());
                           })
                           .ToLocalChecked();
     if (context->Global()->Set(context, api::convert::ToJS(iso, "__d2bsInspectorEvaluating"), evaluating).IsNothing()) {
@@ -323,7 +323,7 @@ void Script::SetupIsolate() {
     v8::Isolate::CreateParams createParams;
     createParams.array_buffer_allocator = allocator.get();
 
-    auto& appConfig = config::GetAppConfig();
+    auto& appConfig = core::config::GetAppConfig();
     if (appConfig.memoryLimit > 0) {
         createParams.constraints.ConfigureDefaultsFromHeapSize(0, appConfig.memoryLimit);
     }
@@ -336,14 +336,14 @@ void Script::SetupIsolate() {
     // crash log next to Game.exe, then exit with a distinctive code.
     iso->SetFatalErrorHandler(+[](const char* location, const char* message) {
         auto dump = std::format("V8 fatal error at '{}': {}\n{}\n", location ? location : "<null>",
-                                message ? message : "<null>", thread_utils::GetThreadStacktrace());
-        thread_utils::CrashAndExit(dump, 0xD2B50001);
+                                message ? message : "<null>", utils::threads::GetThreadStacktrace());
+        utils::threads::CrashAndExit(dump, 0xD2B50001);
     });
     iso->SetOOMErrorHandler(+[](const char* location, const v8::OOMDetails& details) {
         auto dump = std::format("V8 OOM at '{}': {} (heap_oom={})\n{}\n", location ? location : "<null>",
                                 details.detail ? details.detail : "<null>", details.is_heap_oom,
-                                thread_utils::GetThreadStacktrace());
-        thread_utils::CrashAndExit(dump, 0xD2B50002);
+                                utils::threads::GetThreadStacktrace());
+        utils::threads::CrashAndExit(dump, 0xD2B50002);
     });
 
     // Wrap in shared_ptr with a custom deleter that captures the allocator,
@@ -436,7 +436,7 @@ void Script::SetupIsolate() {
             return;
         }
         context->Global()->Set(context, api::convert::ToJS(iso, "me"), me).Check();
-        runtime::script::ApplyCompatibilityPrelude(iso, context);
+        script::ApplyCompatibilityPrelude(iso, context);
     }
 }
 
@@ -515,7 +515,7 @@ void Script::RunScript() {
     if (mode_ == ScriptMode::Console && path_.empty()) {
         auto src = "function main() { print('D2BS :: Started Console'); while(true) { delay(10000); } }";
         v8::Local<v8::Script> script;
-        if (runtime::script::CompileSource(iso, context, src, "Console").ToLocal(&script)) {
+        if (script::CompileSource(iso, context, src, "Console").ToLocal(&script)) {
             v8::Local<v8::Value> dummy;
             (void)script->Run(context).ToLocal(&dummy);
         }
@@ -535,7 +535,7 @@ void Script::RunScript() {
         // segment of the install path. The base-relative form
         // (ScriptPaths::RelativeScriptPath) is only the display name / URL.
         v8::Local<v8::Script> script;
-        if (!runtime::script::CompileSource(iso, context, std::move(source), path_.string()).ToLocal(&script)) {
+        if (!script::CompileSource(iso, context, std::move(source), path_.string()).ToLocal(&script)) {
             if (tryCatch.HasCaught() && !tryCatch.HasTerminated()) {
                 ReportException(tryCatch);
             }
@@ -630,7 +630,7 @@ void Script::ReportException(v8::TryCatch& tryCatch) {
     // and we're in a game, leave the current game so the outer bot loop can
     // recover. Console scripts are exempted: a typo in the live REPL shouldn't
     // kick the user out of their game.
-    if (mode_ != ScriptMode::InGame && config::GetAppConfig().quitOnError.load() &&
+    if (mode_ != ScriptMode::InGame && core::config::GetAppConfig().quitOnError.load() &&
         game::GetGameState() == game::GameState::InGame) {
         game::ExitGame();
     }
@@ -665,9 +665,9 @@ void Script::SetStackCaptureMode(StackCaptureMode mode) {
     // Keep the process-wide OnEveryCall tally in sync so OnNativeCall's fast path
     // (skip the per-call script lookup) engages whenever no script is capturing.
     if (mode == StackCaptureMode::OnEveryCall) {
-        runtime::script::onEveryCallCaptureCount.fetch_add(1, std::memory_order_relaxed);
+        script::onEveryCallCaptureCount.fetch_add(1, std::memory_order_relaxed);
     } else if (prev == StackCaptureMode::OnEveryCall) {
-        runtime::script::onEveryCallCaptureCount.fetch_sub(1, std::memory_order_relaxed);
+        script::onEveryCallCaptureCount.fetch_sub(1, std::memory_order_relaxed);
     }
 }
 
@@ -740,7 +740,7 @@ void Script::RefreshLastStackTrace(int32_t maxFrames) {
         v8::StackTrace::CurrentStackTrace(iso, maxFrames, v8::StackTrace::kDetailed);
     const int32_t frameCount = trace->GetFrameCount();
 
-    const std::string baseStr = config::GetAppConfig().GetScriptPaths().basePath.string();
+    const std::string baseStr = core::config::GetAppConfig().GetScriptPaths().basePath.string();
 
     std::vector<StackFrame> frames;
     frames.reserve(static_cast<size_t>(frameCount));
@@ -832,7 +832,7 @@ void Script::ClearEventFunctionsLocked() {
     }
 }
 
-void Script::AddDelayedEvent(const std::shared_ptr<DelayedEvent>& event) {
+void Script::AddDelayedEvent(const std::shared_ptr<events::DelayedEvent>& event) {
     std::scoped_lock lock(delayedEventMutex_);
     delayedEvents_[event->EventId()] = event;
 }
@@ -855,7 +855,7 @@ void Script::ExecuteEvents(std::chrono::milliseconds duration) {
     auto stopToken = thread_.get_stop_token();
 
     // Idle-wait granularity (INI IdleSleepIntervalMs): wall-ms slept per idle pass.
-    const auto idleSleep = config::GetAppConfig().idleSleepInterval;
+    const auto idleSleep = core::config::GetAppConfig().idleSleepInterval;
 
     // Reached from a handler (delay() inside a callback): hand the handler phase back on exit.
     const bool nested = idle_.InPhase();
@@ -863,12 +863,12 @@ void Script::ExecuteEvents(std::chrono::milliseconds duration) {
     // When paused, sleep without processing events.
     while (state_.load() == ScriptState::Paused && !stopToken.stop_requested()) {
         idle_.Enter(IdlePhase::Paused);
-        speedhack::SpeedhackDisabledScope realWaits;
+        core::speedhack::SpeedhackDisabledScope realWaits;
         std::this_thread::sleep_for(idleSleep);
     }
 
     const auto deadline = std::chrono::steady_clock::now() + duration;
-    const float speed = speedhack::GetSpeed();
+    const float speed = core::speedhack::GetSpeed();
     while (true) {
         idle_.Enter(IdlePhase::Pump);
 
@@ -901,7 +901,7 @@ void Script::ExecuteEvents(std::chrono::milliseconds duration) {
         const auto realRemaining = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::duration<double, std::milli>(deadline - now) / speed);
         idle_.Enter(IdlePhase::Wait);
-        speedhack::SpeedhackDisabledScope realWaits;
+        core::speedhack::SpeedhackDisabledScope realWaits;
         std::this_thread::sleep_for(std::clamp(realRemaining, std::chrono::milliseconds(1), idleSleep));
     }
     if (nested) {
@@ -911,7 +911,7 @@ void Script::ExecuteEvents(std::chrono::milliseconds duration) {
     }
 }
 
-bool Script::ExecuteEvent(const std::shared_ptr<BaseEvent>& event) {
+bool Script::ExecuteEvent(const std::shared_ptr<events::BaseEvent>& event) {
     auto* iso = isolate_.load().get();
     if (!iso)
         return false;
@@ -937,7 +937,7 @@ bool Script::ExecuteEvent(const std::shared_ptr<BaseEvent>& event) {
         {
             // Pumped from inside delay(): the handler is the script's work, not delay's.
             const auto phase = idle_.Nest(IdlePhase::Handlers);
-            const profiling::ScopedNativeExclusion handlerIsJs;
+            const utils::profiling::ScopedNativeExclusion handlerIsJs;
             event->Execute(iso, fns);
         }
 
@@ -945,7 +945,7 @@ bool Script::ExecuteEvent(const std::shared_ptr<BaseEvent>& event) {
         // If the callback takes longer than repeatMs, the next firing is deferred
         // rather than queued concurrently. This trades fixed-rate timing for safety
         // (timer drift is acceptable).
-        if (auto delayedEvent = std::dynamic_pointer_cast<DelayedEvent>(event); delayedEvent) {
+        if (auto delayedEvent = std::dynamic_pointer_cast<events::DelayedEvent>(event); delayedEvent) {
             if (delayedEvent->RepeatMs() > 0 && !delayedEvent->IsCancelled()) {
                 PostEvent(delayedEvent, delayedEvent->RepeatMs());
             } else {
@@ -960,7 +960,7 @@ bool Script::ExecuteEvent(const std::shared_ptr<BaseEvent>& event) {
     return PostEvent(event);
 }
 
-bool Script::PostEvent(const std::shared_ptr<BaseEvent>& event, uint32_t delayMs) {
+bool Script::PostEvent(const std::shared_ptr<events::BaseEvent>& event, uint32_t delayMs) {
     // Take a shared_ptr copy - keeps the isolate alive for the duration of this
     // call, even if TeardownIsolate runs concurrently on the script thread.
     auto iso = isolate_.load();
@@ -977,7 +977,7 @@ bool Script::PostEvent(const std::shared_ptr<BaseEvent>& event, uint32_t delayMs
     auto runner = platform->GetForegroundTaskRunner(iso.get());
     // Ensures BlockableEvent::remaining_ is decremented even if the task is dropped or the isolate tears down
     // mid-dispatch.
-    auto guard = std::make_shared<DeferGuard>([event] { event->OnDropped(); });
+    auto guard = std::make_shared<utils::DeferGuard>([event] { event->OnDropped(); });
     runner->PostDelayedTask(std::make_unique<LambdaTask>([weak = weak_from_this(), event, guard] {
                                 if (auto self = weak.lock()) {
                                     if (self->ExecuteEvent(event)) {
@@ -1023,7 +1023,7 @@ bool Script::Include(const std::filesystem::path& absolutePath) {
 
     // Match RunScript: absolute path so kolbot's require.js stack-trace regex finds the d2bs\ segment.
     v8::Local<v8::Script> script;
-    if (!runtime::script::CompileSource(iso, context, std::move(source), absolutePath.string()).ToLocal(&script)) {
+    if (!script::CompileSource(iso, context, std::move(source), absolutePath.string()).ToLocal(&script)) {
         logger_->warn("Failed to compile include: {}", absolutePath.string());
         if (tryCatch.HasCaught() && !tryCatch.HasTerminated()) {
             ReportException(tryCatch);
@@ -1056,7 +1056,7 @@ bool Script::Include(const std::filesystem::path& absolutePath) {
 // Drawables (screen hooks)
 // ============================================================================
 
-void Script::AddDrawable(std::shared_ptr<runtime::drawing::Drawable> drawable) {
+void Script::AddDrawable(std::shared_ptr<drawing::Drawable> drawable) {
     if (!drawable) {
         return;
     }
@@ -1064,7 +1064,7 @@ void Script::AddDrawable(std::shared_ptr<runtime::drawing::Drawable> drawable) {
     drawables_.push_back(std::move(drawable));
 }
 
-void Script::RemoveDrawable(const std::shared_ptr<runtime::drawing::Drawable>& drawable, bool fireLeaveEvent) {
+void Script::RemoveDrawable(const std::shared_ptr<drawing::Drawable>& drawable, bool fireLeaveEvent) {
     if (!drawable) {
         return;
     }
@@ -1096,19 +1096,18 @@ void Script::RemoveDrawable(const std::shared_ptr<runtime::drawing::Drawable>& d
         }
     }
     if (fireLeave) {
-        ExecuteEvent(std::make_shared<ScreenHookHoverEvent>(drawable, game::Point::Zero, false));
+        ExecuteEvent(std::make_shared<events::ScreenHookHoverEvent>(drawable, game::Point::Zero, false));
     }
     std::unique_lock lock(drawablesMutex_);
     drawableHandlers_.erase(drawable.get());
 }
 
-std::vector<std::shared_ptr<runtime::drawing::Drawable>> Script::GetDrawables() {
+std::vector<std::shared_ptr<drawing::Drawable>> Script::GetDrawables() {
     std::shared_lock lock(drawablesMutex_);
     return drawables_;
 }
 
-void Script::SetDrawableHandler(runtime::drawing::Drawable& drawable, DrawableHandler which,
-                                v8::Local<v8::Function> handler) {
+void Script::SetDrawableHandler(drawing::Drawable& drawable, DrawableHandler which, v8::Local<v8::Function> handler) {
     std::unique_lock lock(drawablesMutex_);
     auto iso = isolate_.load();
     const bool isInstalled = !handler.IsEmpty() && iso;
@@ -1121,8 +1120,7 @@ void Script::SetDrawableHandler(runtime::drawing::Drawable& drawable, DrawableHa
     (which == DrawableHandler::Click ? drawable.hasClick : drawable.hasHover).store(isInstalled);
 }
 
-v8::MaybeLocal<v8::Function> Script::GetDrawableHandler(const runtime::drawing::Drawable& drawable,
-                                                        DrawableHandler which) {
+v8::MaybeLocal<v8::Function> Script::GetDrawableHandler(const drawing::Drawable& drawable, DrawableHandler which) {
     std::shared_lock lock(drawablesMutex_);
     auto it = drawableHandlers_.find(&drawable);
     auto iso = isolate_.load();
@@ -1136,12 +1134,12 @@ v8::MaybeLocal<v8::Function> Script::GetDrawableHandler(const runtime::drawing::
     return slot.Get(iso.get());
 }
 
-bool Script::DispatchDrawableClick(std::shared_ptr<const runtime::drawing::Drawable> drawable, game::ClickButton button,
+bool Script::DispatchDrawableClick(std::shared_ptr<const drawing::Drawable> drawable, game::ClickButton button,
                                    game::Point pos) {
     if (!drawable || !drawable->hasClick.load() || !IsAlive()) {
         return false;
     }
-    auto evt = std::make_shared<ScreenHookClickEvent>(std::move(drawable), button, pos);
+    auto evt = std::make_shared<events::ScreenHookClickEvent>(std::move(drawable), button, pos);
     // Click events are blockable; bump the expected-handler counter so
     // IsBlocked() waits for the JS callback's return value. Hover events are
     // fire-and-forget and do not use this counter.
@@ -1153,12 +1151,11 @@ bool Script::DispatchDrawableClick(std::shared_ptr<const runtime::drawing::Drawa
     return evt->IsBlocked(std::chrono::seconds(3)).value_or(false);
 }
 
-void Script::DispatchDrawableHover(std::shared_ptr<const runtime::drawing::Drawable> drawable, game::Point pos,
-                                   bool entered) {
+void Script::DispatchDrawableHover(std::shared_ptr<const drawing::Drawable> drawable, game::Point pos, bool entered) {
     if (!drawable || !drawable->hasHover.load() || !IsAlive()) {
         return;
     }
-    ExecuteEvent(std::make_shared<ScreenHookHoverEvent>(std::move(drawable), pos, entered));
+    ExecuteEvent(std::make_shared<events::ScreenHookHoverEvent>(std::move(drawable), pos, entered));
 }
 
-}  // namespace d2bs
+}  // namespace d2bs::runtime::script

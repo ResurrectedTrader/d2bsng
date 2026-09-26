@@ -18,7 +18,7 @@
 #include "proxy/ProxyBypass.h"
 #include "utils/utils.h"
 
-namespace d2bs::http {
+namespace d2bs::core::http {
 
 namespace {
 
@@ -303,4 +303,4 @@ std::string Perform(const Request& request, Response& out) {
     return {};
 }
 
-}  // namespace d2bs::http
+}  // namespace d2bs::core::http

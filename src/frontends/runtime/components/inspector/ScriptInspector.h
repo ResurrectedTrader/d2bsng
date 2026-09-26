@@ -8,9 +8,9 @@
 
 #include "components/inspector/InspectorTarget.h"
 
-namespace d2bs {
+namespace d2bs::runtime::script {
 class Script;
-}  // namespace d2bs
+}  // namespace d2bs::runtime::script
 
 namespace d2bs::runtime::inspector {
 
@@ -52,7 +52,7 @@ class ScriptInspector {
         ReplEvalScope& operator=(ReplEvalScope&&) = delete;
     };
 
-    ScriptInspector(Script* script, std::string title, std::string url);
+    ScriptInspector(script::Script* script, std::string title, std::string url);
     ~ScriptInspector();
 
     ScriptInspector(const ScriptInspector&) = delete;
@@ -74,7 +74,7 @@ class ScriptInspector {
 
     static constexpr int CONTEXT_GROUP_ID = 1;
 
-    Script* script_;
+    script::Script* script_;
     // Strong ref: the isolate can't be Disposed while this inspector is alive.
     // TeardownIsolate drops it via inspector_.reset() before the isolate's final
     // ref goes, so isolate_ stays valid through ~ScriptInspector (contextDestroyed).

@@ -48,13 +48,13 @@ void Host::Initialize(HMODULE hModule) {
 }
 
 void Host::DoInitialize(HMODULE hModule) {
-    thread_utils::SetThreadDescription("d2bs framework init");
+    utils::threads::SetThreadDescription("d2bs framework init");
     try {
         SetupPaths(hModule);
         SetupLogging();
 
         // Register crash handler early so any subsequent failure produces diagnostics
-        previousExceptionFilter_ = SetUnhandledExceptionFilter(thread_utils::ExceptionHandler);
+        previousExceptionFilter_ = SetUnhandledExceptionFilter(utils::threads::ExceptionHandler);
 
         // VEH backstop: V8/Crashpad and Detours both install their own UEFs;
         // whichever runs last wins, so our SEH filter may never see the
@@ -62,13 +62,13 @@ void Host::DoInitialize(HMODULE hModule) {
         // logs and propagates so existing dispatch is unaffected. Pass
         // first=1 so we run before any other VEHs that get registered later.
         vectoredExceptionHandle_ =
-            AddVectoredExceptionHandler(/*FirstHandler=*/1, &thread_utils::VectoredExceptionHandler);
+            AddVectoredExceptionHandler(/*FirstHandler=*/1, &utils::threads::VectoredExceptionHandler);
 
         // Wire the crash hook: pop the console visible on crash. The
         // console's render thread is independent of the game thread, so
         // the dump stays readable even if the game is hung in HANG_ON_CRASH
         // mode. utils/ can't depend on framework/game, hence the indirection.
-        thread_utils::onCrashFunction.store(&game::console::Show, std::memory_order_release);
+        utils::threads::onCrashFunction.store(&game::console::Show, std::memory_order_release);
 
         LoadConfig();
 
@@ -92,9 +92,9 @@ void Host::DoInitialize(HMODULE hModule) {
         // Build the compatibility-flag registry before any script runs: the
         // framework's built-in flags, then any the game-version port contributes
         // (see docs/compatibility.md). All default to enabled.
-        config::CompatibilityFlags::Instance().RegisterDefaults();
+        core::config::CompatibilityFlags::Instance().RegisterDefaults();
         for (const auto& flag : game::GetCompatibilityFlags()) {
-            config::CompatibilityFlags::Instance().Register(flag);
+            core::config::CompatibilityFlags::Instance().Register(flag);
         }
 
         // Resolve launch-time profile. Reference: reference/d2bs/Helpers.cpp:80-105.
@@ -106,7 +106,7 @@ void Host::DoInitialize(HMODULE hModule) {
             }
         }
 
-        ScriptEngine::Instance().Initialize();
+        script::ScriptEngine::Instance().Initialize();
 
         // Mirrors reference/d2bs/dde.cpp DdeCallback:
         //   Execute -> ScriptEngine::RunCommand.
@@ -115,7 +115,7 @@ void Host::DoInitialize(HMODULE hModule) {
             [](dde::Transaction txn, std::string_view topic, std::string_view item, std::string_view data) {
                 switch (txn) {
                     case dde::Transaction::Evaluate:
-                        ScriptEngine::Instance().Evaluate(std::string(data));
+                        script::ScriptEngine::Instance().Evaluate(std::string(data));
                         break;
                     case dde::Transaction::Poke: {
                         auto name = std::string(data);
@@ -160,7 +160,7 @@ void Host::Shutdown() {
     // called after unload, even if a shutdown step throws. Also remove the
     // VEH - failing to do so would leave a dangling callback once the DLL
     // unmaps.
-    DeferGuard restoreFilter([] {
+    utils::DeferGuard restoreFilter([] {
         SetUnhandledExceptionFilter(previousExceptionFilter_);
         if (vectoredExceptionHandle_ != nullptr) {
             RemoveVectoredExceptionHandler(vectoredExceptionHandle_);
@@ -180,7 +180,7 @@ void Host::Shutdown() {
         update::UpdateChecker::Instance().Stop();
         analytics::Analytics::Instance().Stop();
 
-        ScriptEngine::Instance().Shutdown();
+        script::ScriptEngine::Instance().Shutdown();
         game::RemoveHooks();
         game::Bridge::Shutdown();
 
@@ -205,7 +205,7 @@ void Host::SetupPaths(HMODULE hModule) {
     // Seed AppConfig.scriptPaths.basePath before LoadConfig() so GetPathRelScript()
     // and INI resolution have a valid base. LoadSettings() overwrites all four
     // ScriptPaths fields from the [settings] section immediately after.
-    auto& appConfig = config::GetAppConfig();
+    auto& appConfig = core::config::GetAppConfig();
     config::ScriptPaths paths;
     paths.basePath = basePath;
     appConfig.SetScriptPaths(std::move(paths));
@@ -247,7 +247,7 @@ void Host::SetupLogging() {
     // loggers the backend created during Bridge::Init - which runs at DLL
     // attach, before this - start writing here too rather than staying
     // attached to whatever the default logger was at the time.
-    utils::AddLogSink(std::make_shared<runtime::console::ConsoleSink>());
+    utils::AddLogSink(std::make_shared<console::ConsoleSink>());
 
     std::string logFile;
     std::string openError;
@@ -281,8 +281,8 @@ std::filesystem::path Host::ConfigPath() {
 }
 
 void Host::LoadConfig() {
-    auto& appConfig = config::GetAppConfig();
-    appConfig.store = std::make_unique<config::IniConfigStore>(ConfigPath());
+    auto& appConfig = core::config::GetAppConfig();
+    appConfig.store = std::make_unique<core::config::IniConfigStore>(ConfigPath());
     appConfig.store->LoadSettings(appConfig);
 }
 
@@ -304,42 +304,42 @@ game::GameCallbacks Host::BuildCallbacks() {
     game::GameCallbacks callbacks;
 
     // --- Input (blockable) ---
-    callbacks.onKeyEvent = &EventHook<&KeyDownUpEventDispatch>;
+    callbacks.onKeyEvent = &EventHook<&events::KeyDownUpEventDispatch>;
 
     callbacks.onMouseClick = +[](game::ClickButton button, game::Position pos, game::KeyState state) -> bool {
         const auto phase = GameLoop::Instance().InPhase(FramePhase::Events);
-        bool blocked = runtime::drawing::Drawable::OnClick(button, pos.ToPoint(), game::GetGameState());
-        MouseClickEventDispatch(button, pos, state);
+        bool blocked = drawing::Drawable::OnClick(button, pos.ToPoint(), game::GetGameState());
+        events::MouseClickEventDispatch(button, pos, state);
         return blocked;
     };
 
     callbacks.onMouseMove = +[](game::Position pos) {
         const auto phase = GameLoop::Instance().InPhase(FramePhase::Events);
-        runtime::drawing::Drawable::OnMouseMove(pos.ToPoint(), game::GetGameState());
-        MouseMoveEventDispatch(pos);
+        drawing::Drawable::OnMouseMove(pos.ToPoint(), game::GetGameState());
+        events::MouseMoveEventDispatch(pos);
     };
 
     // --- Chat (blockable) ---
-    callbacks.onChatMessage = &EventHook<&ChatEventDispatch>;
-    callbacks.onChatInput = &EventHook<&ChatInputEventDispatch>;
-    callbacks.onWhisper = &EventHook<&WhisperEventDispatch>;
+    callbacks.onChatMessage = &EventHook<&events::ChatEventDispatch>;
+    callbacks.onChatInput = &EventHook<&events::ChatInputEventDispatch>;
+    callbacks.onWhisper = &EventHook<&events::WhisperEventDispatch>;
 
     // Overlay/terminal Enter -> RunCommand dispatch. Fire-and-forget.
-    callbacks.onConsoleInput = &runtime::script::RunCommand;
+    callbacks.onConsoleInput = &script::RunCommand;
 
     // Console output sink + per-frame UI render: lets the port console host feed
     // and draw the frontend console without a direct dependency on it.
-    callbacks.onConsoleMessage = &runtime::console::OnMessage;
-    callbacks.onConsoleDrawFrame = &runtime::console::DrawFrame;
+    callbacks.onConsoleMessage = &console::OnMessage;
+    callbacks.onConsoleDrawFrame = &console::DrawFrame;
 
     // --- Packets (blockable) ---
-    callbacks.onGamePacketReceived = &EventHook<&GamePacketEventDispatch>;
-    callbacks.onGamePacketSent = &EventHook<&GamePacketSentEventDispatch>;
-    callbacks.onRealmPacket = &EventHook<&RealmPacketEventDispatch>;
+    callbacks.onGamePacketReceived = &EventHook<&events::GamePacketEventDispatch>;
+    callbacks.onGamePacketSent = &EventHook<&events::GamePacketSentEventDispatch>;
+    callbacks.onRealmPacket = &EventHook<&events::RealmPacketEventDispatch>;
 
     // --- Game lifecycle ---
-    callbacks.onGameEvent = &EventHook<&GameActionEventDispatch>;
-    callbacks.onItemAction = &EventHook<&ItemActionEventDispatch>;
+    callbacks.onGameEvent = &EventHook<&events::GameActionEventDispatch>;
+    callbacks.onItemAction = &EventHook<&events::ItemActionEventDispatch>;
 
     // Observed monster deaths feed the character-state kill counter. Runs on the
     // game thread (death packet hook) where the frame write lock is held, so the
@@ -358,7 +358,7 @@ game::GameCallbacks Host::BuildCallbacks() {
         const auto phase = GameLoop::Instance().InPhase(FramePhase::Events);
         switch (mode) {
             case game::IpcMode::Evaluate:
-                ScriptEngine::Instance().Evaluate(payload);
+                script::ScriptEngine::Instance().Evaluate(payload);
                 return;
             case game::IpcMode::SwitchProfile:
                 if (profile::Switch(payload)) {
@@ -373,10 +373,10 @@ game::GameCallbacks Host::BuildCallbacks() {
         // "Handle". Track it as the IPC target for engine-side senders (character
         // state). Still forwarded to script listeners below so JS handlers see it.
         if (payload == "Handle") {
-            config::GetAppConfig().managerHandle.store(static_cast<uintptr_t>(mode), std::memory_order_relaxed);
+            core::config::GetAppConfig().managerHandle.store(static_cast<uintptr_t>(mode), std::memory_order_relaxed);
         }
         // Not a reserved mode - pass through to script listeners.
-        CopyDataEventDispatch(mode, payload);
+        events::CopyDataEventDispatch(mode, payload);
     };
 
     // --- Rendering ---

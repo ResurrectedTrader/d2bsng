@@ -6,7 +6,7 @@
 #include "ConfigStore.h"
 #include "utils/utils.h"
 
-namespace d2bs::config {
+namespace d2bs::core::config {
 
 AppConfig::AppConfig() = default;
 AppConfig::~AppConfig() = default;
@@ -34,22 +34,22 @@ void AppConfig::SetProfileName(std::string name) {
     }
 }
 
-ScriptPaths AppConfig::GetScriptPaths() const {
+d2bs::config::ScriptPaths AppConfig::GetScriptPaths() const {
     std::shared_lock lock(stateMutex_);
     return scriptPaths_;
 }
 
-void AppConfig::SetScriptPaths(ScriptPaths paths) {
+void AppConfig::SetScriptPaths(d2bs::config::ScriptPaths paths) {
     std::unique_lock lock(stateMutex_);
     scriptPaths_ = std::move(paths);
 }
 
-ScriptPaths AppConfig::GetDefaultScriptPaths() const {
+d2bs::config::ScriptPaths AppConfig::GetDefaultScriptPaths() const {
     std::shared_lock lock(stateMutex_);
     return defaultScriptPaths_;
 }
 
-void AppConfig::SetDefaultScriptPaths(ScriptPaths paths) {
+void AppConfig::SetDefaultScriptPaths(d2bs::config::ScriptPaths paths) {
     std::unique_lock lock(stateMutex_);
     defaultScriptPaths_ = std::move(paths);
 }
@@ -115,4 +115,4 @@ std::filesystem::path GetPathRelScript(const std::string& relativePath) {
     return fullPath;
 }
 
-}  // namespace d2bs::config
+}  // namespace d2bs::core::config

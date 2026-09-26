@@ -36,16 +36,16 @@
 #include "game/Unit.h"
 #include "utils/utils.h"
 
-namespace d2bs::api::globals {
+namespace d2bs::runtime::api::globals {
 
-using namespace d2bs::api;
-using namespace d2bs::api::classes;
+using namespace d2bs::runtime::api;
+using namespace d2bs::runtime::api::classes;
 
 namespace {
 
 // Emit a JS array of {x, y} objects from a span of pathfinding positions.
 v8::Local<v8::Array> PositionsToJS(v8::Isolate* isolate, v8::Local<v8::Context> context,
-                                   std::span<const runtime::navigation::Position> points) {
+                                   std::span<const navigation::Position> points) {
     auto arr = v8::Array::New(isolate, static_cast<int32_t>(points.size()));
     for (size_t i = 0; i < points.size(); ++i) {
         v8::HandleScope innerScope(isolate);
@@ -86,7 +86,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             auto* isolate = args.GetIsolate();
             auto context = isolate->GetCurrentContext();
 
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -192,7 +192,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             // Delegates to d2bs::pathfinding::FindPath after parsing and validating args.
             auto* isolate = args.GetIsolate();
 
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -219,12 +219,12 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            if (reductionType > static_cast<uint32_t>(runtime::navigation::ReductionType::JSCallback)) {
+            if (reductionType > static_cast<uint32_t>(navigation::ReductionType::JSCallback)) {
                 error::ThrowRangeError(isolate, "reductionType must be 0-3");
                 return;
             }
 
-            if (reductionType == static_cast<uint32_t>(runtime::navigation::ReductionType::JSCallback) &&
+            if (reductionType == static_cast<uint32_t>(navigation::ReductionType::JSCallback) &&
                 (args.Length() < 10 || !args[7]->IsFunction() || !args[8]->IsFunction() || !args[9]->IsFunction())) {
                 error::ThrowError(isolate, "Invalid function values for reduction type");
                 return;
@@ -232,22 +232,22 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             auto context = isolate->GetCurrentContext();
 
-            runtime::navigation::PathRequest request;
+            navigation::PathRequest request;
             request.areaId = area;
             request.start = src;
             request.end = dst;
-            request.reduction = static_cast<runtime::navigation::ReductionType>(reductionType);
+            request.reduction = static_cast<navigation::ReductionType>(reductionType);
             request.radius = static_cast<int32_t>(radius);
-            if (auto* script = ScriptEngine::Instance().GetScript(isolate)) {
+            if (auto* script = script::ScriptEngine::Instance().GetScript(isolate)) {
                 request.cancelToken = script->GetStopToken();
             }
 
-            if (reductionType == static_cast<uint32_t>(runtime::navigation::ReductionType::JSCallback)) {
+            if (reductionType == static_cast<uint32_t>(navigation::ReductionType::JSCallback)) {
                 auto rejectFunc = args[7].As<v8::Function>();
                 auto reduceFunc = args[8].As<v8::Function>();
                 auto mutateFunc = args[9].As<v8::Function>();
 
-                request.jsReject = [isolate, context, rejectFunc](runtime::navigation::Position p) -> bool {
+                request.jsReject = [isolate, context, rejectFunc](navigation::Position p) -> bool {
                     v8::HandleScope scope(isolate);
                     v8::TryCatch tryCatch(isolate);
                     std::array<v8::Local<v8::Value>, 2> argv = {convert::ToJS(isolate, p.x),
@@ -258,9 +258,9 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     return result.ToLocalChecked()->BooleanValue(isolate);
                 };
 
-                request.jsReduce = [isolate, context,
-                                    reduceFunc](const std::vector<runtime::navigation::Position>& path)
-                    -> std::vector<runtime::navigation::Position> {
+                request.jsReduce =
+                    [isolate, context,
+                     reduceFunc](const std::vector<navigation::Position>& path) -> std::vector<navigation::Position> {
                     v8::HandleScope scope(isolate);
                     v8::TryCatch tryCatch(isolate);
 
@@ -273,7 +273,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     }
 
                     auto resultArr = callResult.ToLocalChecked().As<v8::Array>();
-                    std::vector<runtime::navigation::Position> reduced;
+                    std::vector<navigation::Position> reduced;
                     reduced.reserve(resultArr->Length());
                     for (uint32_t i = 0; i < resultArr->Length(); i++) {
                         auto elem = resultArr->Get(context, i).ToLocalChecked();
@@ -283,8 +283,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     return reduced;
                 };
 
-                request.jsMutate = [isolate, context,
-                                    mutateFunc](runtime::navigation::Position p) -> runtime::navigation::Position {
+                request.jsMutate = [isolate, context, mutateFunc](navigation::Position p) -> navigation::Position {
                     v8::HandleScope scope(isolate);
                     v8::TryCatch tryCatch(isolate);
                     std::array<v8::Local<v8::Value>, 2> argv = {convert::ToJS(isolate, p.x),
@@ -303,7 +302,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 };
             }
 
-            auto path = d2bs::runtime::navigation::FindPath(request);
+            auto path = navigation::FindPath(request);
             args.GetReturnValue().Set(PositionsToJS(isolate, context, path));
         });
 
@@ -318,7 +317,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         isolate, global, "getCollision", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -352,7 +351,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @returns {number} - Merc HP as a percent (0-100); undefined if there is no player or merc.
     function::Register(
         isolate, global, "getMercHP", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -513,7 +512,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -535,7 +534,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -583,7 +582,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -611,7 +610,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             auto* isolate = args.GetIsolate();
             auto context = isolate->GetCurrentContext();
 
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::ThrowError(isolate, "Game not ready");
                 return;
             }
@@ -719,7 +718,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             auto* isolate = args.GetIsolate();
             auto context = isolate->GetCurrentContext();
 
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -782,7 +781,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             auto* isolate = args.GetIsolate();
             auto context = isolate->GetCurrentContext();
 
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -837,7 +836,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             auto* isolate = args.GetIsolate();
             auto context = isolate->GetCurrentContext();
 
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -891,7 +890,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             auto* isolate = args.GetIsolate();
             auto context = isolate->GetCurrentContext();
 
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::ThrowError(isolate, "Game not ready");
                 return;
             }
@@ -1074,7 +1073,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         isolate, global, "getPlayerFlag", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1110,7 +1109,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             auto* isolate = args.GetIsolate();
             auto context = isolate->GetCurrentContext();
 
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1129,7 +1128,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @returns {boolean} - true if dialog text is scrolling
     function::Register(
         isolate, global, "getIsTalkingNPC", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1201,7 +1200,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         isolate, global, "clickMap", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1266,7 +1265,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         isolate, global, "clickItem", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1439,7 +1438,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         isolate, global, "clickParty", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1603,7 +1602,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @returns {null} - null
     function::Register(
         isolate, global, "transmute", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1620,7 +1619,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         isolate, global, "weaponSwitch", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1653,7 +1652,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         isolate, global, "useStatPoint", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1680,7 +1679,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         isolate, global, "useSkillPoint", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1955,7 +1954,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         isolate, global, "getDistance", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -2062,7 +2061,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         isolate, global, "gold", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -2097,7 +2096,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @returns {boolean} - true if the item was submitted, false if no cursor item
     function::Register(
         isolate, global, "submitItem", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -2149,7 +2148,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         isolate, global, "acceptTrade", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -2185,7 +2184,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         isolate, global, "tradeOk", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -2206,7 +2205,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         isolate, global, "checkCollision", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -2247,12 +2246,12 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         isolate, global, "moveNPC", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
 
-            if (!config::GetAppConfig().enableUnsupported.load()) {
+            if (!core::config::GetAppConfig().enableUnsupported.load()) {
                 error::WarnAndReturnFalse(args, "moveNPC requires enableUnsupported = true in config");
                 return;
             }
@@ -2317,4 +2316,4 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 }
 
-}  // namespace d2bs::api::globals
+}  // namespace d2bs::runtime::api::globals

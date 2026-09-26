@@ -28,7 +28,7 @@ struct NativeBinding {
 
     std::string name;
     v8::FunctionCallback callback;
-    profiling::NativeStats stats;
+    utils::profiling::NativeStats stats;
 };
 
 struct PropertyAccessors {
@@ -38,8 +38,8 @@ struct PropertyAccessors {
     std::string name;
     v8::AccessorNameGetterCallback getter;
     v8::AccessorNameSetterCallbackV2 setter;
-    profiling::NativeStats getStats;
-    profiling::NativeStats setStats;
+    utils::profiling::NativeStats getStats;
+    utils::profiling::NativeStats setStats;
 };
 
 // Interned per (name, callbacks): template setup re-runs for every isolate, and the stats have to
@@ -59,7 +59,7 @@ void PropertySetterTrampoline(v8::Local<v8::Name> property, v8::Local<v8::Value>
 
 struct NativeBindingSample {
     std::string_view name;  // into the immortal table
-    profiling::NativeCall kind = profiling::NativeCall::Function;
+    utils::profiling::NativeCall kind = utils::profiling::NativeCall::Function;
     uint64_t cycles = 0;  // CPU; blocked time is reported separately
     uint64_t calls = 0;
     uint64_t blockedCycles = 0;

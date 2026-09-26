@@ -12,7 +12,7 @@
 #include "components/script/ScriptEngine.h"
 #include "game/Console.h"
 
-namespace d2bs {
+namespace d2bs::runtime::events {
 
 using namespace std::chrono_literals;
 
@@ -23,8 +23,6 @@ using namespace std::chrono_literals;
 // Toggle D2BSNG_BLOCKABLE_NO_WAIT in BlockableEvent.h to disable waiting
 // entirely.
 constexpr auto BLOCKABLE_WAIT = 50ms;
-
-namespace events {
 
 ListenerCount& ListenerCount::For(std::string_view eventName) {
     // Slots are never erased, so a returned reference stays valid - and a name always resolves to
@@ -49,12 +47,10 @@ ListenerCount& ListenerCount::For(std::string_view eventName) {
     return slots.try_emplace(std::string(eventName)).first->second;
 }
 
-}  // namespace events
-
 static void FireIfRunning(const std::shared_ptr<BaseEvent>& evt) {
     auto blocker = std::dynamic_pointer_cast<BlockableEvent>(evt);
-    ScriptEngine::Instance().ForEachScript([&evt, &blocker](const std::shared_ptr<Script>& script) {
-        if (script->GetState() == ScriptState::Running && script->IsEventRegistered(evt->Name())) {
+    script::ScriptEngine::Instance().ForEachScript([&evt, &blocker](const std::shared_ptr<script::Script>& script) {
+        if (script->GetState() == script::ScriptState::Running && script->IsEventRegistered(evt->Name())) {
             if (blocker) {
                 // Increment before dispatch so Execute() can decrement.
                 // If the dispatch is rejected (e.g. script transitioning to
@@ -78,7 +74,7 @@ template <typename EventT, typename... Args>
 static std::shared_ptr<EventT> FireIfListening(Args&&... args) {
     // Resolved once per event type rather than per dispatch: this runs on D2's packet and input
     // paths, and For() takes a process-wide mutex that script threads also hold while allocating.
-    static events::ListenerCount& listeners = events::ListenerCount::For(EventT::EVENT_NAME);
+    static ListenerCount& listeners = ListenerCount::For(EventT::EVENT_NAME);
     if (!listeners.Any()) {
         return nullptr;
     }
@@ -162,7 +158,7 @@ bool ChatInputEventDispatch(const std::string& message) {
     // stay consumed (they fall through to the JS-eval path inside OnCommand,
     // which logs any ReferenceError via the EvaluateEvent path).
     if (!message.empty() && message[0] == '.') {
-        runtime::script::RunCommand(message.substr(1));
+        script::RunCommand(message.substr(1));
         return /* block packet */ true;
     }
 
@@ -192,4 +188,4 @@ bool RealmPacketEventDispatch(std::span<const uint8_t> packet) {
     return evt && evt->IsBlocked(BLOCKABLE_WAIT).value_or(false);
 }
 
-}  // namespace d2bs
+}  // namespace d2bs::runtime::events

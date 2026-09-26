@@ -13,7 +13,7 @@
 #include "utils/NamedMutex.h"
 #include "utils/utils.h"
 
-namespace d2bs::config {
+namespace d2bs::core::config {
 
 namespace {
 // Shared cross-process lock guarding every d2bs.ini read-modify-write. D2BotNG
@@ -35,7 +35,7 @@ IniConfigStore::IniConfigStore(std::filesystem::path iniPath) : path_(std::move(
 // ---------------------------------------------------------------------------
 
 void IniConfigStore::LoadSettings(AppConfig& config) {
-    ScriptPaths paths;
+    d2bs::config::ScriptPaths paths;
     paths.basePath = path_.parent_path() / ReadString("settings", "ScriptPath", "scripts");
     paths.gameScript = ReadString("settings", "DefaultGameScript", "default.dbj");
     paths.starterScript = ReadString("settings", "DefaultStarterScript", "starter.dbj");
@@ -99,16 +99,16 @@ void IniConfigStore::LoadSettings(AppConfig& config) {
 // Profiles
 // ---------------------------------------------------------------------------
 
-std::optional<ProfileData> IniConfigStore::LoadProfile(const std::string& name) {
+std::optional<d2bs::config::ProfileData> IniConfigStore::LoadProfile(const std::string& name) {
     if (name.empty() || !ProfileExists(name)) {
         return std::nullopt;
     }
 
-    ProfileData profile;
+    d2bs::config::ProfileData profile;
     profile.name = name;
 
     std::string mode = ReadString(name, "mode", "single");
-    profile.type = ModeToProfileType(mode);
+    profile.type = d2bs::config::ModeToProfileType(mode);
 
     profile.character = ReadString(name, "character", "");
     profile.username = ReadString(name, "username", "");
@@ -120,7 +120,7 @@ std::optional<ProfileData> IniConfigStore::LoadProfile(const std::string& name) 
     // For backward compatibility with old d2bs.ini files that lack an "ip" key,
     // fall back to reading the IP from "username" for TCP/IP Join profiles.
     profile.ip = ReadString(name, "ip", "");
-    if (profile.ip.empty() && profile.type == ProfileType::TcpIpJoin) {
+    if (profile.ip.empty() && profile.type == d2bs::config::ProfileType::TcpIpJoin) {
         profile.ip = profile.username;
     }
     // Clamp raw INI value to [0..3]; any out-of-range integer falls back to Normal
@@ -144,15 +144,15 @@ std::optional<ProfileData> IniConfigStore::LoadProfile(const std::string& name) 
     return profile;
 }
 
-void IniConfigStore::SaveProfile(const ProfileData& profile) {
+void IniConfigStore::SaveProfile(const d2bs::config::ProfileData& profile) {
     // Batch every key into one locked, atomic transaction so the section lands
     // all-or-nothing (see WriteKeys). For TcpIpJoin the
     // reference stores the IP in the "username" field (union); we also write the
     // dedicated "ip" key, so old d2bs and d2bsng both round-trip.
     const std::vector<std::pair<std::string, std::string>> keyValues = {
-        {"mode", ProfileTypeToMode(profile.type)},
+        {"mode", d2bs::config::ProfileTypeToMode(profile.type)},
         {"character", profile.character},
-        {"username", profile.type == ProfileType::TcpIpJoin ? profile.ip : profile.username},
+        {"username", profile.type == d2bs::config::ProfileType::TcpIpJoin ? profile.ip : profile.username},
         {"password", profile.password},
         {"gateway", profile.gateway},
         {"ip", profile.ip},
@@ -303,4 +303,4 @@ bool IniConfigStore::ReadBool(const std::string& section, const std::string& key
     return first == 't' || first == '1';
 }
 
-}  // namespace d2bs::config
+}  // namespace d2bs::core::config

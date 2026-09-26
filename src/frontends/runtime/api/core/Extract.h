@@ -14,7 +14,7 @@
 // Inside this namespace, function names shadow the type names, so uses of the
 // types must be qualified (d2bs::game::Point etc.).
 
-namespace d2bs::api::extract {
+namespace d2bs::runtime::api::extract {
 
 // ============================================================================
 // From a v8::Value (object input, e.g. {x, y} or {width, height})
@@ -126,4 +126,4 @@ inline void SizeInto(const v8::FunctionCallbackInfo<v8::Value>& args, int idx, s
     out.store(cur);
 }
 
-}  // namespace d2bs::api::extract
+}  // namespace d2bs::runtime::api::extract

@@ -7,7 +7,7 @@
 #include "config/CompatibilityFlags.h"
 #include "game/Menu.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 /// @description Construct or retrieve a login Profile.
 /// @signature Profile()
@@ -44,7 +44,7 @@ void JSProfile::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     // a construct call so the rest of this body runs against a real instance;
     // when disabled, require `new` like an ordinary class.
     if (!args.IsConstructCall()) {
-        if (!config::CompatibilityFlags::Instance().IsEnabled("profileCallWithoutNew")) {
+        if (!core::config::CompatibilityFlags::Instance().IsEnabled("profileCallWithoutNew")) {
             error::ThrowTypeError(isolate, "Profile must be called with 'new'");
             return;
         }
@@ -73,12 +73,12 @@ void JSProfile::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     // "ERROR" string defaults and returns a stub. That silently hides the
     // bug; explicit throws are clearer.
     if (argc == 0) {
-        auto name = config::GetAppConfig().GetProfileName();
+        auto name = core::config::GetAppConfig().GetProfileName();
         if (name.empty()) {
             error::ThrowError(isolate, "No active profile!");
             return;
         }
-        auto loaded = runtime::profile::Load(name);
+        auto loaded = profile::Load(name);
         if (!loaded) {
             error::ThrowError(isolate, "Profile does not exist");
             return;
@@ -90,7 +90,7 @@ void JSProfile::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     // of returning an "ERROR"-filled stub.
     else if (argc == 1 && args[0]->IsString()) {
         std::string name = convert::ToString(isolate, args[0]);
-        auto loaded = runtime::profile::Load(name);
+        auto loaded = profile::Load(name);
         if (!loaded) {
             error::ThrowError(isolate, "Profile does not exist");
             return;
@@ -283,4 +283,4 @@ void JSProfile::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
         });
 }
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

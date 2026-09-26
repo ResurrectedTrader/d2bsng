@@ -8,7 +8,7 @@
 
 #include "components/script/ScriptLogger.h"
 
-namespace d2bs {
+namespace d2bs::runtime::events {
 
 class BaseEvent {
    protected:
@@ -41,8 +41,8 @@ class BaseEvent {
                     auto message = tryCatch.Message();
                     if (!message.IsEmpty()) {
                         v8::String::Utf8Value errorStr(isolate, message->Get());
-                        GetLogger(isolate)->error("[{}] handler exception: {}", Name(),
-                                                  std::string(*errorStr, errorStr.length()));
+                        script::GetLogger(isolate)->error("[{}] handler exception: {}", Name(),
+                                                          std::string(*errorStr, errorStr.length()));
                     }
                 }
             }
@@ -50,4 +50,4 @@ class BaseEvent {
     }
 };
 
-}  // namespace d2bs
+}  // namespace d2bs::runtime::events

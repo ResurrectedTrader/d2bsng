@@ -9,7 +9,7 @@
 #include "detour/Hook.h"
 #include "utils/EnumNaming.h"
 
-namespace d2bs::detour {
+namespace d2bs::core::detour {
 
 std::string EnumName(AttachResult value) {
     static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
@@ -45,4 +45,4 @@ std::string format_as(DetachResult value) {
 
 // NOLINTEND(readability-identifier-naming)
 
-}  // namespace d2bs::detour
+}  // namespace d2bs::core::detour

@@ -7,7 +7,7 @@
 #include "api/core/Class.h"
 #include "api/core/Error.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 // Forward declaration
 struct DBStatementData;
@@ -42,4 +42,4 @@ class JSSQLite : public ClassBase<JSSQLite, SQLiteData> {
     static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl);
 };
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

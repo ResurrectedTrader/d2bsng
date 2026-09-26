@@ -86,7 +86,7 @@ class GameThread {
         // A wait, not work: descheduled until the game thread's next drain, which can be most of a
         // frame, and not the posting binding's CPU cost. Declared first so it also covers the
         // releaser's re-acquire.
-        const profiling::ScopedSleep waiting;
+        const utils::profiling::ScopedSleep waiting;
         // Release game read lock so the game thread's frame-advance write lock
         // can proceed. Re-acquires on scope exit.
         GameReadLockReleaser releaser;
@@ -116,7 +116,7 @@ class GameThread {
             const auto start = std::chrono::steady_clock::now();
             // VEH stack shows only the generic lambda wrapper; annotate with the
             // posting site so first-chance AVs name the JS binding that posted.
-            thread_utils::CrashContextScope scope(std::format(
+            utils::threads::CrashContextScope scope(std::format(
                 "GameThread task from {}:{} ({})", std::filesystem::path(task.loc.file_name()).filename().string(),
                 task.loc.line(), task.loc.function_name()));
             task.func();

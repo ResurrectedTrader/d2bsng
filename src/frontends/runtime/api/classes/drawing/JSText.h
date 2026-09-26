@@ -2,7 +2,7 @@
 
 #include "JSDrawableBase.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 class JSText : public JSDrawableBase<JSText, TextDrawable> {
    public:
@@ -29,7 +29,7 @@ class JSText : public JSDrawableBase<JSText, TextDrawable> {
     static void New(const v8::FunctionCallbackInfo<v8::Value>& args) {
         V8_CLASS_CTOR_PROLOGUE;
 
-        auto* script = ScriptEngine::Instance().GetScript(isolate);
+        auto* script = script::ScriptEngine::Instance().GetScript(isolate);
         if (!script) {
             error::ThrowError(isolate, "Text: no owning script");
             return;
@@ -55,10 +55,10 @@ class JSText : public JSDrawableBase<JSText, TextDrawable> {
             drawable->isAutomap.store(args[6]->BooleanValue(isolate));
         }
         if (args.Length() > 7 && args[7]->IsFunction()) {
-            script->SetDrawableHandler(*drawable, DrawableHandler::Click, args[7].As<v8::Function>());
+            script->SetDrawableHandler(*drawable, script::DrawableHandler::Click, args[7].As<v8::Function>());
         }
         if (args.Length() > 8 && args[8]->IsFunction()) {
-            script->SetDrawableHandler(*drawable, DrawableHandler::Hover, args[8].As<v8::Function>());
+            script->SetDrawableHandler(*drawable, script::DrawableHandler::Hover, args[8].As<v8::Function>());
         }
 
         auto* rawDrawable = drawable.get();
@@ -134,4 +134,4 @@ class JSText : public JSDrawableBase<JSText, TextDrawable> {
     }
 };
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

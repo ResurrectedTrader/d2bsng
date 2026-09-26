@@ -8,7 +8,7 @@ can contribute its own flags to the same set.
 
 ## The registry
 
-`d2bs::config::CompatibilityFlags` (`src/core/config/CompatibilityFlags.{h,cpp}`)
+`d2bs::core::config::CompatibilityFlags` (`src/core/config/CompatibilityFlags.{h,cpp}`)
 is the single, process-wide, thread-shared store. It holds an insertion-ordered
 list of `{name, defaultEnabled, enabled}` entries behind a mutex (descriptions
 are documentation-only - see below).

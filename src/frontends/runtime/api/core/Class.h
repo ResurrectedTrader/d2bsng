@@ -12,7 +12,7 @@
 #include "InstanceTracker.h"
 #include "components/script/NativeCallHook.h"
 
-namespace d2bs::api {
+namespace d2bs::runtime::api {
 
 namespace detail {
 
@@ -195,9 +195,9 @@ class ClassBase {
     static void InstanceProperty(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Local<v8::Object> obj,
                                  const char* name, Getter getter) {
         const v8::AccessorNameGetterCallback getterFn = +getter;
-        auto* accessors = runtime::script::InternAccessors(BindingName(name), getterFn, nullptr);
-        obj->SetNativeDataProperty(context, convert::ToJS(isolate, name), &runtime::script::PropertyGetterTrampoline,
-                                   nullptr, v8::External::New(isolate, accessors, v8::kExternalPointerTypeTagDefault),
+        auto* accessors = script::InternAccessors(BindingName(name), getterFn, nullptr);
+        obj->SetNativeDataProperty(context, convert::ToJS(isolate, name), &script::PropertyGetterTrampoline, nullptr,
+                                   v8::External::New(isolate, accessors, v8::kExternalPointerTypeTagDefault),
                                    v8::PropertyAttribute::ReadOnly)
             .Check();
     }
@@ -207,9 +207,9 @@ class ClassBase {
                                  const char* name, Getter getter, Setter setter) {
         const v8::AccessorNameGetterCallback getterFn = +getter;
         const v8::AccessorNameSetterCallbackV2 setterFn = +setter;
-        auto* accessors = runtime::script::InternAccessors(BindingName(name), getterFn, setterFn);
-        obj->SetNativeDataProperty(context, convert::ToJS(isolate, name), &runtime::script::PropertyGetterTrampoline,
-                                   &runtime::script::PropertySetterTrampoline,
+        auto* accessors = script::InternAccessors(BindingName(name), getterFn, setterFn);
+        obj->SetNativeDataProperty(context, convert::ToJS(isolate, name), &script::PropertyGetterTrampoline,
+                                   &script::PropertySetterTrampoline,
                                    v8::External::New(isolate, accessors, v8::kExternalPointerTypeTagDefault))
             .Check();
     }
@@ -231,8 +231,8 @@ class ClassBase {
     template <typename Getter>
     static void Property(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> inst, const char* name, Getter getter) {
         const v8::AccessorNameGetterCallback getterFn = +getter;
-        auto* accessors = runtime::script::InternAccessors(BindingName(name), getterFn, nullptr);
-        inst->SetNativeDataProperty(convert::ToJS(isolate, name), &runtime::script::PropertyGetterTrampoline, nullptr,
+        auto* accessors = script::InternAccessors(BindingName(name), getterFn, nullptr);
+        inst->SetNativeDataProperty(convert::ToJS(isolate, name), &script::PropertyGetterTrampoline, nullptr,
                                     v8::External::New(isolate, accessors, v8::kExternalPointerTypeTagDefault));
     }
 
@@ -242,9 +242,9 @@ class ClassBase {
                          Setter setter) {
         const v8::AccessorNameGetterCallback getterFn = +getter;
         const v8::AccessorNameSetterCallbackV2 setterFn = +setter;
-        auto* accessors = runtime::script::InternAccessors(BindingName(name), getterFn, setterFn);
-        inst->SetNativeDataProperty(convert::ToJS(isolate, name), &runtime::script::PropertyGetterTrampoline,
-                                    &runtime::script::PropertySetterTrampoline,
+        auto* accessors = script::InternAccessors(BindingName(name), getterFn, setterFn);
+        inst->SetNativeDataProperty(convert::ToJS(isolate, name), &script::PropertyGetterTrampoline,
+                                    &script::PropertySetterTrampoline,
                                     v8::External::New(isolate, accessors, v8::kExternalPointerTypeTagDefault));
     }
 
@@ -253,20 +253,18 @@ class ClassBase {
     template <typename Func>
     static void Method(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> proto, const char* name, Func func) {
         const v8::FunctionCallback fnPtr = +func;
-        auto data = v8::External::New(isolate, runtime::script::InternFunction(BindingName(name), fnPtr),
+        auto data = v8::External::New(isolate, script::InternFunction(BindingName(name), fnPtr),
                                       v8::kExternalPointerTypeTagDefault);
-        proto->Set(isolate, name, v8::FunctionTemplate::New(isolate, &runtime::script::MethodTrampoline, data),
-                   v8::DontEnum);
+        proto->Set(isolate, name, v8::FunctionTemplate::New(isolate, &script::MethodTrampoline, data), v8::DontEnum);
     }
 
     // Static method on the constructor function.
     template <typename Func>
     static void StaticMethod(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl, const char* name, Func func) {
         const v8::FunctionCallback fnPtr = +func;
-        auto data = v8::External::New(isolate, runtime::script::InternFunction(BindingName(name), fnPtr),
+        auto data = v8::External::New(isolate, script::InternFunction(BindingName(name), fnPtr),
                                       v8::kExternalPointerTypeTagDefault);
-        tpl->Set(isolate, name, v8::FunctionTemplate::New(isolate, &runtime::script::MethodTrampoline, data),
-                 v8::DontEnum);
+        tpl->Set(isolate, name, v8::FunctionTemplate::New(isolate, &script::MethodTrampoline, data), v8::DontEnum);
     }
 };
 
@@ -288,4 +286,4 @@ class ClassBase {
         return;                                                                                    \
     }
 
-}  // namespace d2bs::api
+}  // namespace d2bs::runtime::api

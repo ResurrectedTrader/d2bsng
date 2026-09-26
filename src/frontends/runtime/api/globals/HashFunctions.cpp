@@ -9,7 +9,7 @@
 #include "config/AppConfig.h"
 #include "utils/crypto.h"
 
-namespace d2bs::api::globals {
+namespace d2bs::runtime::api::globals {
 
 namespace {
 void HashStringCallback(const v8::FunctionCallbackInfo<v8::Value>& args, const char* funcName,
@@ -31,7 +31,7 @@ void HashFileCallback(const v8::FunctionCallbackInfo<v8::Value>& args, const cha
         return;
     }
     std::string file = convert::ToString(isolate, args[0]);
-    auto fullPath = config::GetPathRelScript(file);
+    auto fullPath = core::config::GetPathRelScript(file);
     if (fullPath.empty()) {
         error::ThrowError(isolate, "Invalid file path!");
         return;
@@ -134,4 +134,4 @@ void RegisterHashFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 }
 
-}  // namespace d2bs::api::globals
+}  // namespace d2bs::runtime::api::globals

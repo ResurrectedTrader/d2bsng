@@ -5,7 +5,7 @@
 #include "api/core/Error.h"
 #include "game/Room.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 // PresetUnit class - represents a preset unit in the game
 // Preset units are static objects placed in rooms at level generation
@@ -77,4 +77,4 @@ class JSPresetUnit : public ClassBase<JSPresetUnit, game::PresetUnitInfo> {
     }
 };
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

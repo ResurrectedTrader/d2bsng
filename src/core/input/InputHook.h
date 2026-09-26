@@ -17,7 +17,7 @@
 //     keystrokes pass the hook while the human's are blocked
 //   * a WndProc subclass on the game window that forwards WM_COPYDATA
 
-namespace d2bs::input {
+namespace d2bs::core::input {
 
 // Plain function pointers, not std::function: Remove() clears the table while
 // the window's thread may be inside a dispatch, and tearing down a std::function
@@ -61,4 +61,4 @@ void Remove();
 // hardware input.
 void PostInjectedInput(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 
-}  // namespace d2bs::input
+}  // namespace d2bs::core::input

@@ -16,7 +16,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ulReasonForCall, LPVOID lpReserved)
             if (!d2bs::game::Bridge::Init()) {
                 return FALSE;
             }
-            d2bs::hooks::intercepts::InstallAll();
+            d2bs::lod114d::hooks::intercepts::InstallAll();
             d2bs::runtime::Host::Initialize(hModule);
             break;
         case DLL_PROCESS_DETACH:

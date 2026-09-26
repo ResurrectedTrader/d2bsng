@@ -8,7 +8,7 @@
 #include "game/Control.h"
 #include "game/GameHelpers.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 // Control class - represents a UI control element in menu screens
 // Controls are interactive elements like buttons, text boxes, labels
@@ -356,4 +356,4 @@ class JSControl : public ClassBase<JSControl, game::Control> {
     }
 };
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

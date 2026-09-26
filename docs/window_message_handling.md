@@ -2,7 +2,7 @@
 
 How d2bs intercepts and injects Windows messages. The game-window half is
 backend-independent and lives in `src/core/input/InputHook.{h,cpp}` (namespace
-`d2bs::input`); a backend's `hooks/HookManager.cpp` installs it and supplies the
+`d2bs::core::input`); a backend's `hooks/HookManager.cpp` installs it and supplies the
 callbacks it dispatches to. The console-window half is 1.14d-specific, because a
 backend that renders its console as an in-game overlay needs no second window.
 Two OS windows are involved:

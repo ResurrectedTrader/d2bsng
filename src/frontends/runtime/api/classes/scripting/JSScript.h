@@ -7,7 +7,7 @@
 #include "api/core/Error.h"
 #include "components/script/ScriptEngine.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 // Script handle stored in JS wrapper - uses thread ID to safely reference script
 // This prevents dangling pointers when script A tries to access script B that was destroyed
@@ -35,7 +35,7 @@ class JSScript : public ClassBase<JSScript, ScriptHandle> {
 
     // Create a Script JS object from a Script pointer
     // Returns empty handle if script is null
-    static v8::Local<v8::Object> Create(v8::Isolate* isolate, Script* script);
+    static v8::Local<v8::Object> Create(v8::Isolate* isolate, script::Script* script);
 };
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

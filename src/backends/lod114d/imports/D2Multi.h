@@ -10,7 +10,7 @@
 // sourced from reference/d2bs/D2Ptrs.h.
 
 // NOLINTBEGIN(readability-identifier-naming) - MOO-style names use DOMAIN_PascalCase with embedded underscores
-namespace d2bs::imports::d2multi {
+namespace d2bs::lod114d::imports::d2multi {
 
 // ---- Functions -------------------------------------------------------------
 inline FastcallFunc<void()> D2MULTI_DoChat{0x42810};
@@ -28,5 +28,5 @@ inline GameAsmFunc ChannelInput_I{0x428D0};
 //   ChannelChat_I, ChannelEmote_I, ChannelWhisper_I: reference's patch lines
 //     for these are commented out (1.13d-era code).
 
-}  // namespace d2bs::imports::d2multi
+}  // namespace d2bs::lod114d::imports::d2multi
 // NOLINTEND(readability-identifier-naming)

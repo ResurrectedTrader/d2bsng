@@ -7,7 +7,7 @@
 #include "api/core/Convert.h"
 #include "api/core/Error.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 // Sandbox native data - the sandbox context's global IS the inner object (matching d2bs reference)
 struct SandboxData {
@@ -53,4 +53,4 @@ class JSSandbox : public ClassBase<JSSandbox, SandboxData> {
     static void NamedPropertyEnumerator(const v8::PropertyCallbackInfo<v8::Array>& info);
 };
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

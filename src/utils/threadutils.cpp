@@ -32,7 +32,7 @@ extern "C" ULONG _tls_index;
 // NOLINTNEXTLINE(readability-identifier-naming) - linker-defined symbol name
 extern "C" IMAGE_DOS_HEADER __ImageBase;
 
-namespace d2bs::thread_utils {
+namespace d2bs::utils::threads {
 
 bool HasThreadLocalStorage() noexcept {
 #if defined(_M_IX86)
@@ -570,4 +570,4 @@ LONG WINAPI VectoredExceptionHandler(PEXCEPTION_POINTERS exceptionInfo) {
     Log().warn(msg);
     return EXCEPTION_CONTINUE_SEARCH;
 }
-}  // namespace d2bs::thread_utils
+}  // namespace d2bs::utils::threads

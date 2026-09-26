@@ -15,7 +15,7 @@
 #include "game/StashTab.h"
 #include "game/Unit.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 // V8 binding for game::StashTab (docs/plugy_stash.md). Obtained from getStashTabs()
 // and Unit.stashTab; never constructed by scripts.
@@ -107,7 +107,7 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
                     error::ThrowTypeError(isolate, "StashTab.click(x, y) expects two numbers");
                     return;
                 }
-                if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+                if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                     error::WarnAndReturnFalse(args, "Game not ready");
                     return;
                 }
@@ -154,7 +154,7 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
             error::ThrowTypeError(isolate, "StashTab gold moves expect an amount");
             return std::nullopt;
         }
-        if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+        if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
             error::WarnAndReturnFalse(args, "Game not ready");
             return std::nullopt;
         }
@@ -162,4 +162,4 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
     }
 };
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

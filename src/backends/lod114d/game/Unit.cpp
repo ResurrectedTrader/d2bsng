@@ -58,8 +58,10 @@ inline D2UnitStrc* AsUnit(void* p) noexcept {
 
 // Reference parity: D2 unit hash tables - 6 type buckets x 128 hash entries.
 // Constants and struct now live in imports/extras/D2UnitHashTables.h.
-using imports::extras::UNIT_HASH_BUCKETS;
-using imports::extras::UNIT_HASH_TYPE_COUNT;
+using lod114d::imports::extras::D2UnitHashTable;
+using lod114d::imports::extras::D2UnitHashTables;
+using lod114d::imports::extras::UNIT_HASH_BUCKETS;
+using lod114d::imports::extras::UNIT_HASH_TYPE_COUNT;
 
 static_assert(STAT_FIXED_POINT_FIRST == STAT_HITPOINTS && STAT_FIXED_POINT_LAST == STAT_MAXSTAMINA);
 
@@ -97,11 +99,11 @@ const D2UnitHashTable* TableForType(const D2UnitHashTables* tables, UnitType typ
 // Reference parity: monster types live in the server-side table, missiles
 // (type 3) live in the client-side table. The factory wraps both lookups.
 D2UnitStrc* FindUnitInHashTable(uint32_t id, UnitType type) {
-    auto* found = imports::d2client::UNITS_GetServerSideUnit(id, type);
+    auto* found = lod114d::imports::d2client::UNITS_GetServerSideUnit(id, type);
     if (found != nullptr) {
         return found;
     }
-    return imports::d2client::UNITS_GetClientSideUnit(id, type);
+    return lod114d::imports::d2client::UNITS_GetClientSideUnit(id, type);
 }
 
 // A skill is treated as "from a charged item" when it's bound to an item
@@ -127,7 +129,7 @@ void* Unit::ResolvePtr() const {
         if (auto* cached = cache_.Get()) {
             return cached;
         }
-        void* resolved = imports::d2client::UNITS_GetPlayerUnit();
+        void* resolved = lod114d::imports::d2client::UNITS_GetPlayerUnit();
         cache_.Set(resolved);
         return resolved;
     }
@@ -212,7 +214,8 @@ Position Unit::Pos() const {
         return Position::Zero;
     }
     // GetClientCoordX/Y already apply the *5 subtile scale internally.
-    return {.x = imports::d2common::UNITS_GetClientCoordX(u), .y = imports::d2common::UNITS_GetClientCoordY(u)};
+    return {.x = lod114d::imports::d2common::UNITS_GetClientCoordX(u),
+            .y = lod114d::imports::d2common::UNITS_GetClientCoordY(u)};
 }
 
 Position Unit::TargetPos() const {
@@ -240,7 +243,7 @@ uint32_t Unit::Area() const {
     if (u == nullptr) {
         return 0U;
     }
-    auto* room = imports::d2common::UNITS_GetRoom(u);
+    auto* room = lod114d::imports::d2common::UNITS_GetRoom(u);
     if (room == nullptr || room->pDrlgRoom == nullptr || room->pDrlgRoom->pLevel == nullptr) {
         return 0U;
     }
@@ -261,22 +264,22 @@ uint32_t Unit::Hp() const {
     // RosterPets table offset +0x1C is initialised to 100 (sub_478B10) so the
     // range is 0-100, not 0-128.
     if (u->dwUnitType == UNIT_MONSTER) {
-        const uint32_t ownerId = imports::d2client::MONSTERS_GetOwner(u->dwUnitId);
+        const uint32_t ownerId = lod114d::imports::d2client::MONSTERS_GetOwner(u->dwUnitId);
         if (ownerId != NO_OWNER_GUID) {
-            auto* ownerUnit = imports::d2client::UNITS_GetClientSideUnit(ownerId, UnitType::Player);
+            auto* ownerUnit = lod114d::imports::d2client::UNITS_GetClientSideUnit(ownerId, UnitType::Player);
             if (ownerUnit == nullptr) {
-                ownerUnit = imports::d2client::UNITS_GetServerSideUnit(ownerId, UnitType::Player);
+                ownerUnit = lod114d::imports::d2client::UNITS_GetServerSideUnit(ownerId, UnitType::Player);
             }
             if (ownerUnit != nullptr) {
-                const auto percent = imports::d2common::UNITS_GetCurrentLifePercentage(u->dwUnitId);
+                const auto percent = lod114d::imports::d2common::UNITS_GetCurrentLifePercentage(u->dwUnitId);
                 const auto maxHp =
-                    static_cast<uint32_t>(imports::d2common::STATLIST_UnitGetStatValue(u, STAT_MAXHP, 0)) >>
+                    static_cast<uint32_t>(lod114d::imports::d2common::STATLIST_UnitGetStatValue(u, STAT_MAXHP, 0)) >>
                     STAT_FIXED_POINT_SHIFT;
                 return (percent * maxHp) / 100U;
             }
         }
     }
-    return static_cast<uint32_t>(imports::d2common::STATLIST_UnitGetStatValue(u, STAT_HITPOINTS, 0)) >>
+    return static_cast<uint32_t>(lod114d::imports::d2common::STATLIST_UnitGetStatValue(u, STAT_HITPOINTS, 0)) >>
            STAT_FIXED_POINT_SHIFT;
 }
 
@@ -285,7 +288,7 @@ uint32_t Unit::HpMax() const {
     if (u == nullptr) {
         return 0U;
     }
-    return static_cast<uint32_t>(imports::d2common::STATLIST_UnitGetStatValue(u, STAT_MAXHP, 0)) >>
+    return static_cast<uint32_t>(lod114d::imports::d2common::STATLIST_UnitGetStatValue(u, STAT_MAXHP, 0)) >>
            STAT_FIXED_POINT_SHIFT;
 }
 
@@ -294,7 +297,7 @@ uint32_t Unit::Mp() const {
     if (u == nullptr) {
         return 0U;
     }
-    return static_cast<uint32_t>(imports::d2common::STATLIST_UnitGetStatValue(u, STAT_MANA, 0)) >>
+    return static_cast<uint32_t>(lod114d::imports::d2common::STATLIST_UnitGetStatValue(u, STAT_MANA, 0)) >>
            STAT_FIXED_POINT_SHIFT;
 }
 
@@ -303,7 +306,7 @@ uint32_t Unit::MpMax() const {
     if (u == nullptr) {
         return 0U;
     }
-    return static_cast<uint32_t>(imports::d2common::STATLIST_UnitGetStatValue(u, STAT_MAXMANA, 0)) >>
+    return static_cast<uint32_t>(lod114d::imports::d2common::STATLIST_UnitGetStatValue(u, STAT_MAXMANA, 0)) >>
            STAT_FIXED_POINT_SHIFT;
 }
 
@@ -312,7 +315,7 @@ uint32_t Unit::Stamina() const {
     if (u == nullptr) {
         return 0U;
     }
-    return static_cast<uint32_t>(imports::d2common::STATLIST_UnitGetStatValue(u, STAT_STAMINA, 0)) >>
+    return static_cast<uint32_t>(lod114d::imports::d2common::STATLIST_UnitGetStatValue(u, STAT_STAMINA, 0)) >>
            STAT_FIXED_POINT_SHIFT;
 }
 
@@ -321,7 +324,7 @@ uint32_t Unit::StaminaMax() const {
     if (u == nullptr) {
         return 0U;
     }
-    return static_cast<uint32_t>(imports::d2common::STATLIST_UnitGetStatValue(u, STAT_MAXSTAMINA, 0)) >>
+    return static_cast<uint32_t>(lod114d::imports::d2common::STATLIST_UnitGetStatValue(u, STAT_MAXSTAMINA, 0)) >>
            STAT_FIXED_POINT_SHIFT;
 }
 
@@ -330,7 +333,7 @@ uint32_t Unit::CharLevel() const {
     if (u == nullptr) {
         return 0U;
     }
-    return static_cast<uint32_t>(imports::d2common::STATLIST_UnitGetStatValue(u, STAT_LEVEL, 0));
+    return static_cast<uint32_t>(lod114d::imports::d2common::STATLIST_UnitGetStatValue(u, STAT_LEVEL, 0));
 }
 
 int32_t Unit::GetStat(uint32_t stat, uint32_t sub) const {
@@ -339,16 +342,17 @@ int32_t Unit::GetStat(uint32_t stat, uint32_t sub) const {
         return 0;
     }
 
-    int32_t value = imports::d2common::STATLIST_UnitGetStatValue(u, stat, sub);
+    int32_t value = lod114d::imports::d2common::STATLIST_UnitGetStatValue(u, stat, sub);
 
     // Preset stat fallback: if the regular getter returned 0, search the
     // item-level (preset) stat list. Reference parity: JSUnit.cpp:980-993
     // copies the full preset stat list and linear-scans it for the requested
     // (stat, sub) pair - no per-stat preset getter exists.
     if (value == 0) {
-        if (auto* preset = imports::d2common::STATLIST_GetStatListFromUnitStateAndFlag(u, 0U, STAT_LIST_PRESET_FLAG)) {
+        if (auto* preset =
+                lod114d::imports::d2common::STATLIST_GetStatListFromUnitStateAndFlag(u, 0U, STAT_LIST_PRESET_FLAG)) {
             std::array<D2StatStrc, 256> buf{};
-            const auto count = imports::d2common::STATLIST_CopyStats(preset, buf.data(), buf.size());
+            const auto count = lod114d::imports::d2common::STATLIST_CopyStats(preset, buf.data(), buf.size());
             // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by count<=256
             for (uint32_t i = 0; i < count; ++i) {
                 const auto& s = buf[i];
@@ -372,7 +376,7 @@ bool Unit::HasState(uint32_t stateId) const {
     if (u == nullptr) {
         return false;
     }
-    return imports::d2common::STATES_CheckState(u, stateId) != 0;
+    return lod114d::imports::d2common::STATES_CheckState(u, stateId) != 0;
 }
 
 namespace {
@@ -435,9 +439,10 @@ std::vector<StatEntry> Unit::GetAllStats() const {
 
     // Start with the preset stat list (D2COMMON_GetStatList(unit, nullptr, 0x40)
     // followed by D2COMMON_CopyStatList).
-    if (auto* preset = imports::d2common::STATLIST_GetStatListFromUnitStateAndFlag(u, 0U, STAT_LIST_PRESET_FLAG)) {
+    if (auto* preset =
+            lod114d::imports::d2common::STATLIST_GetStatListFromUnitStateAndFlag(u, 0U, STAT_LIST_PRESET_FLAG)) {
         std::array<D2StatStrc, 256> buf{};
-        const auto count = imports::d2common::STATLIST_CopyStats(preset, buf.data(), buf.size());
+        const auto count = lod114d::imports::d2common::STATLIST_CopyStats(preset, buf.data(), buf.size());
         AppendStatsRaw(buf.data(), count, out);
     }
 
@@ -490,7 +495,7 @@ std::vector<StatEntry> Unit::GetDetailedStats() const {
     };
 
     appendList(u->pStatListEx);
-    appendList(imports::d2common::STATLIST_GetStatListFromUnitStateAndFlag(u, 0U, STAT_LIST_PRESET_FLAG));
+    appendList(lod114d::imports::d2common::STATLIST_GetStatListFromUnitStateAndFlag(u, 0U, STAT_LIST_PRESET_FLAG));
     return out;
 }
 
@@ -551,12 +556,12 @@ std::string Unit::Name() const {
             return std::string{static_cast<const char*>(unit->pPlayerData->szName)};
         }
         case UNIT_MONSTER: {
-            const auto* wName = imports::d2client::UNITS_GetName(unit);
+            const auto* wName = lod114d::imports::d2client::UNITS_GetName(unit);
             return wName ? utils::ToStr(std::wstring{wName}) : std::string{};
         }
         case UNIT_ITEM: {
             std::array<wchar_t, 256> buf{};
-            imports::d2client::ITEMS_GetName(unit, buf.data(), buf.size());
+            lod114d::imports::d2client::ITEMS_GetName(unit, buf.data(), buf.size());
             std::wstring s(buf.data());
             // Reference strips a trailing locale-name newline ("\nname\nattrs").
             if (auto nl = s.find(L'\n'); nl != std::wstring::npos) {
@@ -583,7 +588,7 @@ std::string Unit::ItemFullName() const {
     }
     // 256 wchars matches reference (JSUnit.cpp:1538, D2Helpers.cpp).
     std::array<wchar_t, 256> buf{};
-    imports::d2client::ITEMS_GetName(u, buf.data(), buf.size());
+    lod114d::imports::d2client::ITEMS_GetName(u, buf.data(), buf.size());
     return utils::ToStr(std::wstring{buf.data()});
 }
 
@@ -648,14 +653,14 @@ std::optional<Unit> Unit::GetOwner() const {
     }
     switch (u->dwUnitType) {
         case UNIT_MONSTER: {
-            const auto ownerId = imports::d2client::MONSTERS_GetOwner(u->dwUnitId);
+            const auto ownerId = lod114d::imports::d2client::MONSTERS_GetOwner(u->dwUnitId);
             if (ownerId == NO_OWNER_GUID) {
                 return std::nullopt;
             }
             return Find(ownerId, std::nullopt);
         }
         case UNIT_MISSILE: {
-            auto* owner = imports::d2common::MISSILE_GetOwnerUnit(u);
+            auto* owner = lod114d::imports::d2common::MISSILE_GetOwnerUnit(u);
             if (owner == nullptr) {
                 return std::nullopt;
             }
@@ -680,7 +685,7 @@ std::string Unit::ItemCode() const {
     if (u == nullptr || u->dwUnitType != UNIT_ITEM) {
         return {};
     }
-    auto* txt = imports::d2common::DATATBLS_GetItemsTxtRecord(u->dwClassId);
+    auto* txt = lod114d::imports::d2common::DATATBLS_GetItemsTxtRecord(u->dwClassId);
     if (txt == nullptr) {
         return {};
     }
@@ -695,7 +700,7 @@ std::string Unit::Prefix() const {
     if (code == 0) {
         return {};
     }
-    const auto* str = imports::d2common::ITEMS_GetMagicalMods(code);
+    const auto* str = lod114d::imports::d2common::ITEMS_GetMagicalMods(code);
     return str ? std::string(str) : std::string{};
 }
 
@@ -704,7 +709,7 @@ std::string Unit::Suffix() const {
     if (code == 0) {
         return {};
     }
-    const auto* str = imports::d2common::ITEMS_GetMagicalMods(code);
+    const auto* str = lod114d::imports::d2common::ITEMS_GetMagicalMods(code);
     return str ? std::string(str) : std::string{};
 }
 
@@ -759,7 +764,7 @@ std::array<std::optional<std::string>, Unit::MAX_AFFIX_SLOTS> Unit::Prefixes() c
             continue;
         }
         // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by loop
-        if (const auto* str = imports::d2common::ITEMS_GetMagicalMods(codes[i])) {
+        if (const auto* str = lod114d::imports::d2common::ITEMS_GetMagicalMods(codes[i])) {
             // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by loop
             out[i] = std::string(str);
         }
@@ -776,7 +781,7 @@ std::array<std::optional<std::string>, Unit::MAX_AFFIX_SLOTS> Unit::Suffixes() c
             continue;
         }
         // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by loop
-        if (const auto* str = imports::d2common::ITEMS_GetMagicalMods(codes[i])) {
+        if (const auto* str = lod114d::imports::d2common::ITEMS_GetMagicalMods(codes[i])) {
             // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by loop
             out[i] = std::string(str);
         }
@@ -845,7 +850,7 @@ Size Unit::Size() const {
     if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return Size::Zero;
     }
-    auto* txt = imports::d2common::DATATBLS_GetItemsTxtRecord(u->dwClassId);
+    auto* txt = lod114d::imports::d2common::DATATBLS_GetItemsTxtRecord(u->dwClassId);
     if (txt == nullptr) {
         return Size::Zero;
     }
@@ -857,7 +862,7 @@ uint32_t Unit::ItemType() const {
     if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return 0U;
     }
-    auto* txt = imports::d2common::DATATBLS_GetItemsTxtRecord(u->dwClassId);
+    auto* txt = lod114d::imports::d2common::DATATBLS_GetItemsTxtRecord(u->dwClassId);
     if (txt == nullptr) {
         return 0U;
     }
@@ -886,9 +891,9 @@ std::string Unit::Description() const {
     // across the thread hop would risk a use-after-free if the item is
     // freed between resolve and execute.
     return GameThread::Execute([unitId, unitType]() -> std::string {
-        auto* u = imports::d2client::UNITS_GetServerSideUnit(unitId, unitType);
+        auto* u = lod114d::imports::d2client::UNITS_GetServerSideUnit(unitId, unitType);
         if (u == nullptr) {
-            u = imports::d2client::UNITS_GetClientSideUnit(unitId, unitType);
+            u = lod114d::imports::d2client::UNITS_GetClientSideUnit(unitId, unitType);
         }
         if (u == nullptr || u->pItemData == nullptr) {
             return {};
@@ -896,16 +901,16 @@ std::string Unit::Description() const {
         if (u->pItemData->pExtraData.pParentInv == nullptr || u->pItemData->pExtraData.pParentInv->pOwner == nullptr) {
             return {};
         }
-        auto* savedItem = *imports::d2client::gpItemDescItem;
-        *imports::d2client::gbItemDescFlag = 1;
-        *imports::d2client::gpItemDescItem = u;
-        imports::d2client::ITEMS_LoadDescription(u->pItemData->pExtraData.pParentInv->pOwner, 0);
-        *imports::d2client::gbItemDescFlag = 0;
+        auto* savedItem = *lod114d::imports::d2client::gpItemDescItem;
+        *lod114d::imports::d2client::gbItemDescFlag = 1;
+        *lod114d::imports::d2client::gpItemDescItem = u;
+        lod114d::imports::d2client::ITEMS_LoadDescription(u->pItemData->pExtraData.pParentInv->pOwner, 0);
+        *lod114d::imports::d2client::gbItemDescFlag = 0;
 
-        auto& buf = *imports::d2client::gwszItemDescBuffer;
+        auto& buf = *lod114d::imports::d2client::gwszItemDescBuffer;
         const auto len = wcsnlen(buf.data(), buf.size());
         auto result = utils::ToStr(std::wstring(buf.data(), len));
-        *imports::d2client::gpItemDescItem = savedItem;
+        *lod114d::imports::d2client::gpItemDescItem = savedItem;
         return result;
     });
 }
@@ -931,8 +936,8 @@ uint32_t Unit::LevelRequirement() const {
     if (u == nullptr || u->dwUnitType != UNIT_ITEM) {
         return 0U;
     }
-    auto* player = imports::d2client::UNITS_GetPlayerUnit();
-    return imports::d2common::ITEMS_GetLevelRequirement(u, player);
+    auto* player = lod114d::imports::d2client::UNITS_GetPlayerUnit();
+    return lod114d::imports::d2common::ITEMS_GetLevelRequirement(u, player);
 }
 
 uint32_t Unit::GfxIndex() const {
@@ -1007,9 +1012,9 @@ uint32_t Unit::ItemCost(ItemCostMode mode, uint32_t npcClassId, Difficulty diffi
         internalMode = ITEM_PRICE_MODE_REPAIR;
     }
 
-    return imports::d2common::ITEMS_GetTransactionCost(
-        imports::d2client::UNITS_GetPlayerUnit(), u, static_cast<D2C_Difficulties>(difficulty),
-        *imports::d2client::gpItemPriceList, resolvedNpc, static_cast<D2C_TransactionTypes>(internalMode));
+    return lod114d::imports::d2common::ITEMS_GetTransactionCost(
+        lod114d::imports::d2client::UNITS_GetPlayerUnit(), u, static_cast<D2C_Difficulties>(difficulty),
+        *lod114d::imports::d2client::gpItemPriceList, resolvedNpc, static_cast<D2C_TransactionTypes>(internalMode));
 }
 
 // === Object-specific ===
@@ -1021,8 +1026,8 @@ uint32_t Unit::ObjType() const {
     }
     // Reference: when the object lives in a level (GetLevelNoFromRoom != 0)
     // mask off the chest-locked bit; otherwise expose the raw byte.
-    auto* room = imports::d2common::UNITS_GetRoom(u);
-    if (room != nullptr && imports::d2common::DUNGEON_GetLevelIdFromRoom(room) != 0) {
+    auto* room = lod114d::imports::d2common::UNITS_GetRoom(u);
+    if (room != nullptr && lod114d::imports::d2common::DUNGEON_GetLevelIdFromRoom(room) != 0) {
         constexpr uint32_t TYPE_MASK = 0xFF;
         return u->pObjectData->InteractType & TYPE_MASK;
     }
@@ -1044,18 +1049,18 @@ bool Unit::IsLocked() const {
 
 uint32_t Unit::RunWalk() const {
     auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u != imports::d2client::UNITS_GetPlayerUnit()) {
+    if (u == nullptr || u != lod114d::imports::d2client::UNITS_GetPlayerUnit()) {
         return 0U;
     }
-    return *imports::d2client::gbAlwaysRun;
+    return *lod114d::imports::d2client::gbAlwaysRun;
 }
 
 uint32_t Unit::WeaponSwitch() const {
     auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u != imports::d2client::UNITS_GetPlayerUnit()) {
+    if (u == nullptr || u != lod114d::imports::d2client::UNITS_GetPlayerUnit()) {
         return 0U;
     }
-    return *imports::d2client::gnWeaponSwitch;
+    return *lod114d::imports::d2client::gnWeaponSwitch;
 }
 
 // === Traversal ===
@@ -1065,7 +1070,7 @@ std::optional<Unit> Unit::GetFirstItem() const {
     if (u == nullptr || u->pInventory == nullptr) {
         return std::nullopt;
     }
-    auto* item = imports::d2common::INVENTORY_GetFirstItem(u->pInventory);
+    auto* item = lod114d::imports::d2common::INVENTORY_GetFirstItem(u->pInventory);
     if (item == nullptr) {
         return std::nullopt;
     }
@@ -1095,7 +1100,7 @@ std::optional<Unit> Unit::GetNextItem() const {
     if (curInv == nullptr) {
         return std::nullopt;
     }
-    auto* next = imports::d2common::INVENTORY_GetNextItem(u);
+    auto* next = lod114d::imports::d2common::INVENTORY_GetNextItem(u);
     if (next == nullptr || next->pItemData == nullptr) {
         return std::nullopt;
     }
@@ -1110,8 +1115,8 @@ std::optional<Unit> Unit::GetNextItem() const {
 
 std::optional<Unit> Unit::GetFirstInGame(UnitType type) {
     GameReadLock guard;
-    const auto* tables = (type == UnitType::Missile) ? imports::d2client::gClientSideUnitHashTables.Ptr()
-                                                     : imports::d2client::gServerSideUnitHashTables.Ptr();
+    const auto* tables = (type == UnitType::Missile) ? lod114d::imports::d2client::gClientSideUnitHashTables.Ptr()
+                                                     : lod114d::imports::d2client::gServerSideUnitHashTables.Ptr();
     const auto* table = TableForType(tables, type);
     if (auto* head = FirstUnitInTable(table)) {
         return FromPtr(head);
@@ -1128,8 +1133,8 @@ std::optional<Unit> Unit::GetNextInGame() const {
     if (auto* next = u->pListNext) {
         return FromPtr(next);
     }
-    const auto* tables = (u->dwUnitType == UNIT_MISSILE) ? imports::d2client::gClientSideUnitHashTables.Ptr()
-                                                         : imports::d2client::gServerSideUnitHashTables.Ptr();
+    const auto* tables = (u->dwUnitType == UNIT_MISSILE) ? lod114d::imports::d2client::gClientSideUnitHashTables.Ptr()
+                                                         : lod114d::imports::d2client::gServerSideUnitHashTables.Ptr();
     const auto* table = TableForType(tables, static_cast<UnitType>(u->dwUnitType));
     if (table == nullptr) {
         return std::nullopt;
@@ -1158,7 +1163,7 @@ Room Unit::GetRoom() const {
     if (u == nullptr) {
         return Room{};
     }
-    auto* room = imports::d2common::UNITS_GetRoom(u);
+    auto* room = lod114d::imports::d2common::UNITS_GetRoom(u);
     if (room == nullptr || room->pDrlgRoom == nullptr) {
         return Room{};
     }
@@ -1197,7 +1202,7 @@ std::string Unit::GetSkillName(Hand hand) const {
     if (strRow == nullptr) {
         return {};
     }
-    const auto* localized = imports::d2lang::D2LANG_GetLocaleText(static_cast<uint16_t>(*strRow));
+    const auto* localized = lod114d::imports::d2lang::D2LANG_GetLocaleText(static_cast<uint16_t>(*strRow));
     return localized ? utils::ToStr(std::wstring{localized}) : std::string{};
 }
 
@@ -1224,7 +1229,7 @@ std::vector<Unit::SkillInfo> Unit::GetAllSkills() const {
         out.push_back(SkillInfo{
             .skillId = static_cast<uint16_t>(skill->pSkillsTxt->nSkillId),
             .baseLevel = static_cast<uint32_t>(skill->nSkillLevel),
-            .totalLevel = imports::d2common::SKILLS_GetSkillLevel(u, skill, true),
+            .totalLevel = lod114d::imports::d2common::SKILLS_GetSkillLevel(u, skill, true),
         });
     }
     return out;
@@ -1247,7 +1252,7 @@ std::optional<uint32_t> Unit::GetSkillLevel(uint16_t skillId, bool includeExtraL
         if (charge.has_value() && IsChargeSkill(skill) != charge.value()) {
             continue;
         }
-        return imports::d2common::SKILLS_GetSkillLevel(u, skill, includeExtraLevels);
+        return lod114d::imports::d2common::SKILLS_GetSkillLevel(u, skill, includeExtraLevels);
     }
     return std::nullopt;
 }
@@ -1261,7 +1266,7 @@ void Unit::Move(Position target) const {
     }
     // Player movement uses the script-supplied destination; for non-player
     // units the click resolves against the unit's own position.
-    const Point click = (u == imports::d2client::UNITS_GetPlayerUnit()) ? target.ToPoint() : Pos().ToPoint();
+    const Point click = (u == lod114d::imports::d2client::UNITS_GetPlayerUnit()) ? target.ToPoint() : Pos().ToPoint();
     // ClickMapAt handles MapToAbsScreen translation, viewport offset, mouse
     // save/restore, AlwaysRun flag, and game-thread dispatch. The press/release
     // pair (clickType 0 then 2) with a small delay matches reference's pattern
@@ -1274,7 +1279,7 @@ void Unit::Move(Position target) const {
 
 bool Unit::Interact() const {
     auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u == imports::d2client::UNITS_GetPlayerUnit()) {
+    if (u == nullptr || u == lod114d::imports::d2client::UNITS_GetPlayerUnit()) {
         return false;
     }
 
@@ -1292,20 +1297,20 @@ bool Unit::Interact() const {
         u->dwItemMode != IMODE_DROPPING) {
         const auto location = static_cast<game::ItemLocation>(u->pItemData->pExtraData.nNodePos);
         if (location == ItemLocation::Inventory || location == ItemLocation::Stash) {
-            auto* player = imports::d2client::UNITS_GetPlayerUnit();
+            auto* player = lod114d::imports::d2client::UNITS_GetPlayerUnit();
             D2GSPacketClt20 packet{};
             packet.nHeader = 0x20U;
             packet.nItemGUID = static_cast<int32_t>(u->dwUnitId);
-            packet.nPosX = static_cast<int32_t>(player ? imports::d2common::UNITS_GetClientCoordX(player) : 0);
-            packet.nPosY = static_cast<int32_t>(player ? imports::d2common::UNITS_GetClientCoordY(player) : 0);
-            imports::d2net::CLIENT_Send(sizeof(packet), 1U, reinterpret_cast<uint8_t*>(&packet));
+            packet.nPosX = static_cast<int32_t>(player ? lod114d::imports::d2common::UNITS_GetClientCoordX(player) : 0);
+            packet.nPosY = static_cast<int32_t>(player ? lod114d::imports::d2common::UNITS_GetClientCoordY(player) : 0);
+            lod114d::imports::d2net::CLIENT_Send(sizeof(packet), 1U, reinterpret_cast<uint8_t*>(&packet));
             return false;
         }
         if (location == ItemLocation::Belt) {
             D2GSPacketClt26 packet{};
             packet.nHeader = 0x26U;
             packet.nItemGUID = static_cast<int32_t>(u->dwUnitId);
-            imports::d2net::CLIENT_Send(sizeof(packet), 1U, reinterpret_cast<uint8_t*>(&packet));
+            lod114d::imports::d2net::CLIENT_Send(sizeof(packet), 1U, reinterpret_cast<uint8_t*>(&packet));
             return false;
         }
     }
@@ -1338,14 +1343,14 @@ bool Unit::TakeWaypoint(uint32_t waypointId) const {
     // nWaypointID)` where the first arg is the waypoint object's id and the
     // second is the destination area. The framework's `waypointId` param is
     // the destination-area value (matches reference's nWaypointID).
-    asm_thunks::TakeWaypoint(u->dwUnitId, waypointId);
+    lod114d::asm_thunks::TakeWaypoint(u->dwUnitId, waypointId);
 
     // Reference JSUnit.cpp:869-870: when the in-game UI didn't pop back open
     // (e.g. because the destination is the same act and the menu state stayed
     // in the waypoint dialog), explicitly close the interact UI so subsequent
     // scripts don't see a stale interaction state.
-    if (imports::d2client::UI_GetVar(UI_GAME) == 0) {
-        imports::d2client::UI_CloseInteract();
+    if (lod114d::imports::d2client::UI_GetVar(UI_GAME) == 0) {
+        lod114d::imports::d2client::UI_CloseInteract();
     }
     return true;
 }
@@ -1359,15 +1364,16 @@ void Unit::Repair() const {
     // and a constant 0x80 trailer byte.
     std::array<uint8_t, 17> packet{};
     packet[0] = 0x35U;
-    const uint32_t interactId = *imports::d2client::gnRecentInteractId;
+    const uint32_t interactId = *lod114d::imports::d2client::gnRecentInteractId;
     std::memcpy(packet.data() + 1, &interactId, sizeof(uint32_t));
     packet[16] = 0x80U;
-    imports::d2net::CLIENT_Send(packet.size(), 1U, packet.data());
+    lod114d::imports::d2net::CLIENT_Send(packet.size(), 1U, packet.data());
 }
 
 ClickResult Unit::EquipItem() const {
-    if (*imports::d2client::gpTransactionDialog != nullptr || *imports::d2client::gnTransactionDialogs != 0 ||
-        *imports::d2client::gnTransactionDialogs_2 != 0) {
+    if (*lod114d::imports::d2client::gpTransactionDialog != nullptr ||
+        *lod114d::imports::d2client::gnTransactionDialogs != 0 ||
+        *lod114d::imports::d2client::gnTransactionDialogs_2 != 0) {
         return ClickResult::TransactionInProgress;
     }
     auto* u = AsUnit(ResolvePtr());
@@ -1375,17 +1381,17 @@ ClickResult Unit::EquipItem() const {
         return ClickResult::InvalidTarget;
     }
     const uint32_t bodyLoc = u->pItemData->nBodyLoc;
-    if (bodyLoc >= imports::d2client::gaBodyClickTable->size()) {
+    if (bodyLoc >= lod114d::imports::d2client::gaBodyClickTable->size()) {
         return ClickResult::InvalidTarget;
     }
-    imports::d2client::gCursorHover->x = -1;
-    imports::d2client::gCursorHover->y = -1;
+    lod114d::imports::d2client::gCursorHover->x = -1;
+    lod114d::imports::d2client::gCursorHover->y = -1;
     return GameThread::Execute([bodyLoc]() -> ClickResult {
-        auto* player = imports::d2client::UNITS_GetPlayerUnit();
+        auto* player = lod114d::imports::d2client::UNITS_GetPlayerUnit();
         if (player == nullptr || player->pInventory == nullptr) {
             return ClickResult::InvalidTarget;
         }
-        auto& table = *imports::d2client::gaBodyClickTable;
+        auto& table = *lod114d::imports::d2client::gaBodyClickTable;
         // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index) - bodyLoc bounds checked above
         auto click = table[bodyLoc];
         if (click == nullptr) {
@@ -1401,11 +1407,11 @@ bool Unit::UseMenu(uint32_t menuId) const {
     if (u == nullptr) {
         return false;
     }
-    auto* menu = imports::d2client::gNPCMenu.Ptr();
+    auto* menu = lod114d::imports::d2client::gNPCMenu.Ptr();
     if (menu == nullptr) {
         return false;
     }
-    const uint32_t entryCount = *imports::d2client::gnNPCMenuAmount;
+    const uint32_t entryCount = *lod114d::imports::d2client::gnNPCMenuAmount;
     const uint32_t targetClass = static_cast<uint32_t>(u->dwClassId);
     for (uint32_t i = 0; i < entryCount; ++i) {
         // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic) - menu table indexing
@@ -1439,7 +1445,8 @@ void Unit::Overhead(const std::string& text) const {
         return;
     }
     auto ansi = utils::ToStr(utils::ToWStr(text), CP_ACP);
-    auto* msg = imports::d2common::CHAT_AllocHoverMsg(nullptr, ansi.c_str(), *imports::d2client::gnOverheadTrigger);
+    auto* msg = lod114d::imports::d2common::CHAT_AllocHoverMsg(nullptr, ansi.c_str(),
+                                                               *lod114d::imports::d2client::gnOverheadTrigger);
     if (msg == nullptr) {
         return;
     }
@@ -1449,7 +1456,7 @@ void Unit::Overhead(const std::string& text) const {
 void Unit::Revive() const {
     D2GSPacketClt41 packet{};
     packet.nHeader = 0x41U;
-    imports::d2net::CLIENT_Send(sizeof(packet), 1U, reinterpret_cast<uint8_t*>(&packet));
+    lod114d::imports::d2net::CLIENT_Send(sizeof(packet), 1U, reinterpret_cast<uint8_t*>(&packet));
 }
 
 bool Unit::Shop(ShopMode mode) const {
@@ -1459,19 +1466,20 @@ bool Unit::Shop(ShopMode mode) const {
     }
 
     // Refuse if any transaction dialog is already in flight.
-    if (*imports::d2client::gpTransactionDialog != nullptr || *imports::d2client::gnTransactionDialogs != 0U ||
-        *imports::d2client::gnTransactionDialogs_2 != 0U) {
+    if (*lod114d::imports::d2client::gpTransactionDialog != nullptr ||
+        *lod114d::imports::d2client::gnTransactionDialogs != 0U ||
+        *lod114d::imports::d2client::gnTransactionDialogs_2 != 0U) {
         return false;
     }
 
     // Reference JSUnit.cpp:1491-1494: ShopAction assumes the NPC shop UI window
     // has set up its render targets / hover items. Calling it outside that
     // lifecycle can corrupt transaction-dialog state.
-    if (imports::d2client::UI_GetVar(UI_NPCSHOP) == 0) {
+    if (lod114d::imports::d2client::UI_GetVar(UI_NPCSHOP) == 0) {
         return false;
     }
 
-    auto* npc = imports::d2client::UI_GetInteractingNPC();
+    auto* npc = lod114d::imports::d2client::UI_GetInteractingNPC();
     if (npc == nullptr) {
         return false;
     }
@@ -1482,7 +1490,7 @@ bool Unit::Shop(ShopMode mode) const {
         return false;
     }
 
-    auto* player = imports::d2client::UNITS_GetPlayerUnit();
+    auto* player = lod114d::imports::d2client::UNITS_GetPlayerUnit();
     if (player == nullptr) {
         return false;
     }
@@ -1495,14 +1503,15 @@ bool Unit::Shop(ShopMode mode) const {
         if (parentInv->pOwner->dwUnitId != player->dwUnitId) {
             return false;
         }
-        imports::d2client::NPCS_ShopAction(npc, u, /*dwSell=*/1U, 0U, 0U, /*dwMode=*/1U, 1U, 0U);
+        lod114d::imports::d2client::NPCS_ShopAction(npc, u, /*dwSell=*/1U, 0U, 0U, /*dwMode=*/1U, 1U, 0U);
         return true;
     }
 
     if (parentInv->pOwner->dwUnitId != npc->dwUnitId) {
         return false;
     }
-    imports::d2client::NPCS_ShopAction(npc, u, /*dwSell=*/0U, 0U, 0U, /*dwMode=*/static_cast<uint32_t>(mode), 1U, 0U);
+    lod114d::imports::d2client::NPCS_ShopAction(npc, u, /*dwSell=*/0U, 0U, 0U, /*dwMode=*/static_cast<uint32_t>(mode),
+                                                1U, 0U);
     return true;
 }
 
@@ -1513,7 +1522,7 @@ bool Unit::SetSkill(uint16_t skillId, Hand hand, std::optional<uint32_t> itemId)
     if (AsUnit(ResolvePtr()) == nullptr) {
         return false;
     }
-    auto* player = imports::d2client::UNITS_GetPlayerUnit();
+    auto* player = lod114d::imports::d2client::UNITS_GetPlayerUnit();
     if (player == nullptr || player->pSkills == nullptr) {
         return false;
     }
@@ -1528,7 +1537,7 @@ bool Unit::SetSkill(uint16_t skillId, Hand hand, std::optional<uint32_t> itemId)
         if (skill->pSkillsTxt == nullptr || static_cast<uint16_t>(skill->pSkillsTxt->nSkillId) != skillId) {
             continue;
         }
-        skillLevel = imports::d2common::SKILLS_GetSkillLevel(player, skill, true);
+        skillLevel = lod114d::imports::d2common::SKILLS_GetSkillLevel(player, skill, true);
         if (skillLevel != 0) {
             break;
         }
@@ -1546,7 +1555,7 @@ bool Unit::SetSkill(uint16_t skillId, Hand hand, std::optional<uint32_t> itemId)
     packet.nSkill = skillId;
     packet.nMode = (hand == Hand::Left) ? 0x8000U : 0U;
     packet.dwFlags = itemId.value_or(D2UnitInvalidGUID);
-    imports::d2net::CLIENT_Send(sizeof(packet), 1U, reinterpret_cast<uint8_t*>(&packet));
+    lod114d::imports::d2net::CLIENT_Send(sizeof(packet), 1U, reinterpret_cast<uint8_t*>(&packet));
     return true;
 }
 
@@ -1555,17 +1564,17 @@ uint32_t Unit::GetMinionCount(uint32_t type) const {
     if (u == nullptr || (u->dwUnitType != UNIT_MONSTER && u->dwUnitType != UNIT_PLAYER)) {
         return 0U;
     }
-    return imports::d2client::UNITS_GetMinionCount(u, type);
+    return lod114d::imports::d2client::UNITS_GetMinionCount(u, type);
 }
 
 uint32_t Unit::GetRepairCost(uint32_t npcClassId) const {
-    auto* player = imports::d2client::UNITS_GetPlayerUnit();
+    auto* player = lod114d::imports::d2client::UNITS_GetPlayerUnit();
     if (player == nullptr) {
         return 0U;
     }
-    return imports::d2common::ITEMS_GetAllRepairCosts(nullptr, player, npcClassId,
-                                                      static_cast<D2C_Difficulties>(GetDifficulty()),
-                                                      *imports::d2client::gpItemPriceList, nullptr);
+    return lod114d::imports::d2common::ITEMS_GetAllRepairCosts(nullptr, player, npcClassId,
+                                                               static_cast<D2C_Difficulties>(GetDifficulty()),
+                                                               *lod114d::imports::d2client::gpItemPriceList, nullptr);
 }
 
 bool Unit::HasEnchant(uint32_t enchantId) const {
@@ -1612,7 +1621,7 @@ std::optional<Unit> Unit::Find(uint32_t id, std::optional<UnitType> type) {
 }
 
 std::optional<Unit> Unit::CursorItem() {
-    auto* p = imports::d2common::INVENTORY_GetCursorItem();
+    auto* p = lod114d::imports::d2common::INVENTORY_GetCursorItem();
     if (p == nullptr) {
         return std::nullopt;
     }
@@ -1620,7 +1629,7 @@ std::optional<Unit> Unit::CursorItem() {
 }
 
 std::optional<Unit> Unit::Selected() {
-    auto* p = imports::d2client::UNITS_GetSelectedUnit();
+    auto* p = lod114d::imports::d2client::UNITS_GetSelectedUnit();
     if (p == nullptr) {
         return std::nullopt;
     }
@@ -1628,7 +1637,7 @@ std::optional<Unit> Unit::Selected() {
 }
 
 std::optional<Unit> Unit::SelectedInventoryItem() {
-    auto* p = *imports::d2client::gpSelectedInvItem;
+    auto* p = *lod114d::imports::d2client::gpSelectedInvItem;
     if (p == nullptr) {
         return std::nullopt;
     }
@@ -1641,7 +1650,7 @@ std::optional<Unit> Unit::SelectedInventoryItem() {
 }
 
 std::optional<Unit> Unit::InteractingNPC() {
-    auto* p = imports::d2client::UI_GetInteractingNPC();
+    auto* p = lod114d::imports::d2client::UI_GetInteractingNPC();
     if (p == nullptr) {
         return std::nullopt;
     }

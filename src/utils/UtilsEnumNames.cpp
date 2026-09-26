@@ -9,7 +9,7 @@
 #include "utils/EnumNaming.h"
 #include "utils/Profiling.h"
 
-namespace d2bs::profiling {
+namespace d2bs::utils::profiling {
 
 std::string EnumName(NativeCall value) {
     static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
@@ -28,4 +28,4 @@ std::string format_as(NativeCall value) {
 
 // NOLINTEND(readability-identifier-naming)
 
-}  // namespace d2bs::profiling
+}  // namespace d2bs::utils::profiling

@@ -22,7 +22,7 @@ void Reset() {
 }  // namespace d2bs::test
 
 // === Event dispatchers (shim) ===
-namespace d2bs {
+namespace d2bs::runtime::events {
 
 void LifeEventDispatch(uint32_t life) {
     test::State().lifeEvents.push_back(life);
@@ -34,7 +34,7 @@ void PlayerAssignEventDispatch(uint32_t unitId) {
     test::State().playerAssignEvents.push_back(unitId);
 }
 
-}  // namespace d2bs
+}  // namespace d2bs::runtime::events
 
 // === Drawable (shim) ===
 namespace d2bs::runtime::drawing {
@@ -52,7 +52,7 @@ void DrawVersionBanner() {}
 }  // namespace d2bs::runtime::drawing
 
 // === ScriptEngine (shim) ===
-namespace d2bs {
+namespace d2bs::runtime::script {
 
 ScriptEngine& ScriptEngine::Instance() {
     // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables) - matches real singleton shape
@@ -79,7 +79,7 @@ void ScriptEngine::RestartConsoleScript() {
     ++restartConsoleCount_;
     // Capture the AppConfig-visible consoleScript at this moment so tests can
     // verify SetScriptPaths ran before RestartConsoleScript was invoked.
-    restartedConsoleName_ = config::GetAppConfig().GetScriptPaths().consoleScript;
+    restartedConsoleName_ = core::config::GetAppConfig().GetScriptPaths().consoleScript;
 }
 
 void ScriptEngine::Reset() {
@@ -90,7 +90,7 @@ void ScriptEngine::Reset() {
     initialized_ = false;
 }
 
-}  // namespace d2bs
+}  // namespace d2bs::runtime::script
 
 // === CharacterState (shim) ===
 // The real component pulls in nlohmann-json (not in the test's dependency set).

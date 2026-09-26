@@ -17,7 +17,7 @@ struct D2UnitStrc;
 // static_assert; the member functions add no data and no vtable. Members whose
 // bodies need the game imports are defined in game/PlugY.cpp.
 // NOLINTBEGIN(readability-identifier-naming) - struct fields match PlugY's source
-namespace d2bs::imports::extras::plugy {
+namespace d2bs::lod114d::imports::extras::plugy {
 
 // PlugY's client -> server channel: the vanilla 0x3A "spend stat point" packet
 // (BYTE id, WORD param) carrying an out-of-range command in the low byte
@@ -135,5 +135,5 @@ struct PYPlayerData {
 };
 static_assert(sizeof(PYPlayerData) == 0x1C);
 
-}  // namespace d2bs::imports::extras::plugy
+}  // namespace d2bs::lod114d::imports::extras::plugy
 // NOLINTEND(readability-identifier-naming)

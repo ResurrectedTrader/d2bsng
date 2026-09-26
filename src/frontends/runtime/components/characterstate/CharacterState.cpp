@@ -248,7 +248,7 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
     // No manager target yet (no "Handle" WM_COPYDATA seen) -> nowhere to send.
     // Bail before mutating any state so the first tick after the handle arrives
     // still produces a keyframe.
-    const auto managerHandle = config::GetAppConfig().managerHandle.load(std::memory_order_relaxed);
+    const auto managerHandle = core::config::GetAppConfig().managerHandle.load(std::memory_order_relaxed);
     if (managerHandle == 0) {
         return;
     }
@@ -474,7 +474,7 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
     snapshot["updatedAt"] = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
 
     json envelope = json::object();
-    envelope["profile"] = config::GetAppConfig().GetProfileName();
+    envelope["profile"] = core::config::GetAppConfig().GetProfileName();
     envelope["func"] = "characterState";
     envelope["args"] = json::array({snapshot.dump(-1, ' ', false, json::error_handler_t::replace)});
 

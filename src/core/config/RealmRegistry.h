@@ -5,7 +5,7 @@
 #include <string_view>
 #include <vector>
 
-namespace d2bs::config {
+namespace d2bs::core::config {
 
 // Store of the extra Battle.net realms added via the `-realm name:host` launch
 // option. Seeded once at backend init; thereafter read-only.
@@ -43,4 +43,4 @@ class RealmRegistry {
     std::vector<Realm> realms_;  // insertion order preserved; small N, linear scan
 };
 
-}  // namespace d2bs::config
+}  // namespace d2bs::core::config

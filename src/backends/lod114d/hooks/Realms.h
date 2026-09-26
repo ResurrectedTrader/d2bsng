@@ -17,7 +17,7 @@
 // The client caches the parsed list in its BNGatewayAccess singleton after the
 // first read, so a realm added mid-session appears the next time the login screen
 // reads the list, not in an already-rendered dropdown.
-namespace d2bs::hooks::realms {
+namespace d2bs::lod114d::hooks::realms {
 
 // Seed RealmRegistry from `-realm` launch options. Call once at backend init,
 // before scripts run.
@@ -30,4 +30,4 @@ void Install();
 // Remove the registry-helper detours. Idempotent.
 void Remove();
 
-}  // namespace d2bs::hooks::realms
+}  // namespace d2bs::lod114d::hooks::realms

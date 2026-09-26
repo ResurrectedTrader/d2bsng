@@ -6,7 +6,7 @@
 
 #include "utils/EnumNaming.h"
 
-namespace d2bs::detour {
+namespace d2bs::core::detour {
 
 enum class AttachResult;
 enum class DetachResult;
@@ -22,4 +22,4 @@ enum class DetachResult;
 [[nodiscard]] std::string format_as(DetachResult value);
 // NOLINTEND(readability-identifier-naming)
 
-}  // namespace d2bs::detour
+}  // namespace d2bs::core::detour

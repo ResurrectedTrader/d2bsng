@@ -120,7 +120,7 @@ inline GameReadLock::GameReadLock() {
         if (mutex_.try_lock_shared()) {
             lock_ = std::shared_lock(mutex_, std::adopt_lock);
         } else {
-            const profiling::ScopedSleep waiting;
+            const utils::profiling::ScopedSleep waiting;
             lock_ = std::shared_lock(mutex_);
         }
     }
@@ -218,7 +218,7 @@ bool PollUntil(std::chrono::milliseconds timeout, std::chrono::milliseconds inte
         if (std::chrono::steady_clock::now() >= deadline) {
             return false;
         }
-        const profiling::ScopedSleep waiting;
+        const utils::profiling::ScopedSleep waiting;
         std::this_thread::sleep_for(interval);
     }
     return true;

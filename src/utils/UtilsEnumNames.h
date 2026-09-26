@@ -7,7 +7,7 @@
 
 #include "utils/EnumNaming.h"
 
-namespace d2bs::profiling {
+namespace d2bs::utils::profiling {
 
 enum class NativeCall : uint8_t;
 
@@ -20,4 +20,4 @@ enum class NativeCall : uint8_t;
 [[nodiscard]] std::string format_as(NativeCall value);
 // NOLINTEND(readability-identifier-naming)
 
-}  // namespace d2bs::profiling
+}  // namespace d2bs::utils::profiling

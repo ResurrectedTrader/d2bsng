@@ -2,7 +2,7 @@
 
 #include <functional>
 
-namespace d2bs {
+namespace d2bs::utils {
 
 // RAII guard that calls a function on destruction unless dismissed.
 // Use for cleanup callbacks that should fire unless the happy path completes.
@@ -29,4 +29,4 @@ class DeferGuard {
     DeferGuard& operator=(DeferGuard&&) = default;
 };
 
-}  // namespace d2bs
+}  // namespace d2bs::utils

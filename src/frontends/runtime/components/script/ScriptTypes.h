@@ -5,7 +5,7 @@
 // ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
 #include "RuntimeEnumNames.h"
 
-namespace d2bs {
+namespace d2bs::runtime::script {
 
 // Ordering matters: Stop() uses `>= Ready` to decide if the isolate
 // exists and TerminateExecution is safe to call.  Do not reorder.
@@ -27,4 +27,4 @@ enum class ScriptMode : uint8_t {
 // Which of a drawable's two input callbacks a Script accessor addresses.
 enum class DrawableHandler : uint8_t { Click, Hover };
 
-}  // namespace d2bs
+}  // namespace d2bs::runtime::script

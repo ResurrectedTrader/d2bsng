@@ -16,7 +16,7 @@
 
 namespace d2bs::game {
 
-using imports::extras::D2DrlgLevelStrc;
+using lod114d::imports::extras::D2DrlgLevelStrc;
 
 namespace {
 
@@ -47,7 +47,7 @@ std::string Level::Name() const {
     if (ResolvePtr() == nullptr) {
         return {};
     }
-    auto* txt = imports::d2common::DATATBLS_GetLevelsTxtRecord(id_);
+    auto* txt = lod114d::imports::d2common::DATATBLS_GetLevelsTxtRecord(id_);
     if (txt == nullptr) {
         return {};
     }

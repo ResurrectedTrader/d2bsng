@@ -2,7 +2,7 @@
 
 #include "JSDrawableBase.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 class JSImage : public JSDrawableBase<JSImage, ImageDrawable> {
    public:
@@ -28,7 +28,7 @@ class JSImage : public JSDrawableBase<JSImage, ImageDrawable> {
     static void New(const v8::FunctionCallbackInfo<v8::Value>& args) {
         V8_CLASS_CTOR_PROLOGUE;
 
-        auto* script = ScriptEngine::Instance().GetScript(isolate);
+        auto* script = script::ScriptEngine::Instance().GetScript(isolate);
         if (!script) {
             error::ThrowError(isolate, "Image: no owning script");
             return;
@@ -50,10 +50,10 @@ class JSImage : public JSDrawableBase<JSImage, ImageDrawable> {
             drawable->isAutomap.store(args[5]->BooleanValue(isolate));
         }
         if (args.Length() > 6 && args[6]->IsFunction()) {
-            script->SetDrawableHandler(*drawable, DrawableHandler::Click, args[6].As<v8::Function>());
+            script->SetDrawableHandler(*drawable, script::DrawableHandler::Click, args[6].As<v8::Function>());
         }
         if (args.Length() > 7 && args[7]->IsFunction()) {
-            script->SetDrawableHandler(*drawable, DrawableHandler::Hover, args[7].As<v8::Function>());
+            script->SetDrawableHandler(*drawable, script::DrawableHandler::Hover, args[7].As<v8::Function>());
         }
 
         auto* rawDrawable = drawable.get();
@@ -91,4 +91,4 @@ class JSImage : public JSDrawableBase<JSImage, ImageDrawable> {
     }
 };
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

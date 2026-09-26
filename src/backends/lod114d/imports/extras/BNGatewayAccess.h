@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace d2bs::imports::extras {
+namespace d2bs::lod114d::imports::extras {
 
 // Partial view of D2's BNGatewayAccess singleton - the client's parsed
 // Battle.net gateway list. We only read the raw gateway blob: a NUL-separated
@@ -22,4 +22,4 @@ struct BNGatewayAccessState {
 static_assert(offsetof(BNGatewayAccessState, blob) == 0x10, "blob must be at +0x10");
 static_assert(offsetof(BNGatewayAccessState, blobLength) == 0x14, "blobLength must be at +0x14");
 
-}  // namespace d2bs::imports::extras
+}  // namespace d2bs::lod114d::imports::extras

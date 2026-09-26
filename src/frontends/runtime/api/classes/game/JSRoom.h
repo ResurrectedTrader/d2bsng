@@ -13,7 +13,7 @@
 #include "game/GameHelpers.h"
 #include "game/Room.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 // V8 binding for game::Room (map tile).
 class JSRoom : public ClassBase<JSRoom, game::Room> {
@@ -391,4 +391,4 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
     }
 };
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes
