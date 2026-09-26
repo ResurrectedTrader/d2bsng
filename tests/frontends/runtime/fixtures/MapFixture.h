@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-#include "navigation/Pathfinder.h"
+#include "components/navigation/Pathfinder.h"
 
 namespace d2bs::test {
 
@@ -18,7 +18,7 @@ namespace d2bs::test {
 
 struct MapFixture {
     uint32_t levelId = 0;
-    d2bs::navigation::LevelGrid grid;
+    d2bs::runtime::navigation::LevelGrid grid;
 
     static std::optional<MapFixture> Load(const std::filesystem::path& path);
     bool Save(const std::filesystem::path& path) const;

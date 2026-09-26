@@ -7,10 +7,11 @@
 
 #include <spdlog/spdlog.h>
 
-#include "characterstate/CharacterState.h"
+#include "components/characterstate/CharacterState.h"
 #include "components/drawing/Drawable.h"
 #include "components/drawing/VersionBanner.h"
 #include "components/events/EventDispatch.h"
+#include "components/profile/ProfileService.h"
 #include "components/script/Script.h"
 #include "components/script/ScriptEngine.h"
 #include "components/script/ScriptTypes.h"
@@ -20,7 +21,6 @@
 #include "game/GameThread.h"
 #include "game/HandleCache.h"
 #include "game/Unit.h"
-#include "profile/ProfileService.h"
 #include "speedhack/Speedhack.h"
 #include "utils/Profiling.h"
 #include "utils/utils.h"
@@ -157,7 +157,7 @@ void GameLoop::OnSleep(std::chrono::milliseconds duration) {
     // held) so reads are consistent; self-throttles and diffs internally.
     {
         const auto phase = frame_.Nest(FramePhase::CharacterState);
-        services::characterstate::CharacterState::Instance().OnTick(cur.state, !previous_.inSession && cur.inSession);
+        characterstate::CharacterState::Instance().OnTick(cur.state, !previous_.inSession && cur.inSession);
     }
     DriveScriptLifecycle(previous_, cur);
 
@@ -309,8 +309,8 @@ void GameLoop::ReloadPathsForProfile(const std::string& name) {
     if (name.empty()) {
         return;
     }
-    auto profile = services::profile::Load(name);
-    if (!profile) {
+    auto loaded = profile::Load(name);
+    if (!loaded) {
         return;
     }
 
@@ -323,7 +323,7 @@ void GameLoop::ReloadPathsForProfile(const std::string& name) {
     // Apply non-empty fields from the profile's overrides. basePath is joined
     // against the baseline's parent (so `kolbot` becomes `<install>/kolbot`;
     // absolute override replaces via filesystem::path operator/).
-    const auto& overrides = profile->scriptPaths;
+    const auto& overrides = loaded->scriptPaths;
     if (!overrides.basePath.empty()) {
         newPaths.basePath = newPaths.basePath.parent_path() / overrides.basePath;
     }

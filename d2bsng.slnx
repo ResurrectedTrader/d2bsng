@@ -6,8 +6,6 @@
   <Project Path="src/utils/utils.vcxproj" />
   <Project Path="src/contract/contract.vcxproj" />
   <Project Path="src/core/core.vcxproj" />
-  <Project Path="src/navigation/navigation.vcxproj" />
-  <Project Path="src/services/services.vcxproj" />
   <Project Path="src/frontends/runtime/runtime.vcxproj" />
   <Project Path="src/backends/lod114d/lod114d.vcxproj">
     <Build Solution="*|x64" Project="false" />

@@ -10,16 +10,16 @@
 
 #include "game/Types.h"
 // ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
-#include "navigation/NavigationEnumNames.h"
+#include "RuntimeEnumNames.h"
 
 namespace d2bs::game {
 class Level;
 }  // namespace d2bs::game
 
-namespace d2bs::navigation {
+namespace d2bs::runtime::navigation {
 
 // Geometric primitives are defined in game/Types.h; alias them here so pathfinding
-// code and consumers can write `d2bs::pathfinding::{Point,Position,Size,Rect}` directly.
+// code and consumers can write `navigation::{Point,Position,Size,Rect}` directly.
 using Point = game::Point;
 using Position = game::Position;
 using Size = game::Size;
@@ -253,4 +253,4 @@ std::vector<Position> FindPath(const PathRequest& request);
 // without duplicating the room walk + slab assembly.
 LevelGrid BuildLevelGrid(game::Level level);
 
-}  // namespace d2bs::navigation
+}  // namespace d2bs::runtime::navigation

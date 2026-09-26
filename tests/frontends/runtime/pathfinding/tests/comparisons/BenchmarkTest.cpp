@@ -10,19 +10,19 @@
 
 #include <doctest/doctest.h>
 
-#include "navigation/Pathfinder.h"
+#include "components/navigation/Pathfinder.h"
 #include "pathfinding/reference/AStarPath.h"
 #include "pathfinding/reference/NoPathReducer.h"
 #include "pathfinding/reference/TeleportPathReducer.h"
 #include "pathfinding/reference/WalkPathReducer.h"
 
-using d2bs::navigation::CollisionLookup;
-using d2bs::navigation::FindPathOnGrid;
-using d2bs::navigation::LevelGrid;
-using d2bs::navigation::Point;
-using d2bs::navigation::Position;
-using d2bs::navigation::ReductionType;
-using d2bs::navigation::collision::BLOCK_WALK;
+using d2bs::runtime::navigation::CollisionLookup;
+using d2bs::runtime::navigation::FindPathOnGrid;
+using d2bs::runtime::navigation::LevelGrid;
+using d2bs::runtime::navigation::Point;
+using d2bs::runtime::navigation::Position;
+using d2bs::runtime::navigation::ReductionType;
+using d2bs::runtime::navigation::collision::BLOCK_WALK;
 
 namespace {
 

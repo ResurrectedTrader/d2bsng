@@ -8,10 +8,10 @@
 
 #include <doctest/doctest.h>
 
+#include "components/navigation/Pathfinder.h"
 #include "fixtures/MapFixture.h"
-#include "navigation/Pathfinder.h"
 
-using namespace d2bs::navigation;
+using namespace d2bs::runtime::navigation;
 using namespace d2bs::test;
 
 namespace {

@@ -13,12 +13,12 @@
 
 #include <doctest/doctest.h>
 
-#include "navigation/Pathfinder.h"
+#include "components/navigation/Pathfinder.h"
 #include "pathfinding/reference/AStarPath.h"
 #include "pathfinding/reference/NoPathReducer.h"
 #include "pathfinding/reference/WalkPathReducer.h"
 
-using namespace d2bs::navigation;
+using namespace d2bs::runtime::navigation;
 
 // --- Helpers ---
 

@@ -152,7 +152,7 @@ function Test-ProjectHeader([string]$p) {
 
 # --- Compile commands ---
 # Each project's database lists exactly what it compiles. A source compiled by several
-# projects (the tests build navigation's Pathfinder.cpp) is linted once, with the
+# projects (the tests build the runtime's Pathfinder.cpp) is linted once, with the
 # project whose directory holds it.
 $cmdMap = @{}
 $units = @()

@@ -2,10 +2,10 @@
 
 #include <algorithm>
 
+#include "components/profile/ProfileService.h"
 #include "config/AppConfig.h"
 #include "config/CompatibilityFlags.h"
 #include "game/Menu.h"
-#include "profile/ProfileService.h"
 
 namespace d2bs::api::classes {
 
@@ -78,7 +78,7 @@ void JSProfile::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
             error::ThrowError(isolate, "No active profile!");
             return;
         }
-        auto loaded = services::profile::Load(name);
+        auto loaded = runtime::profile::Load(name);
         if (!loaded) {
             error::ThrowError(isolate, "Profile does not exist");
             return;
@@ -90,7 +90,7 @@ void JSProfile::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     // of returning an "ERROR"-filled stub.
     else if (argc == 1 && args[0]->IsString()) {
         std::string name = convert::ToString(isolate, args[0]);
-        auto loaded = services::profile::Load(name);
+        auto loaded = runtime::profile::Load(name);
         if (!loaded) {
             error::ThrowError(isolate, "Profile does not exist");
             return;

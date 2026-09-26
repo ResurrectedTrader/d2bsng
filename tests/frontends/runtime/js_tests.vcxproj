@@ -65,7 +65,7 @@
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(ProjectDir)fakes\shims;$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\services;$(SolutionDir)src\frontends\runtime;$(SolutionDir)src;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)fakes\shims;$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\frontends\runtime;$(SolutionDir)src;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -86,7 +86,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <AdditionalIncludeDirectories>$(ProjectDir)fakes\shims;$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\services;$(SolutionDir)src\frontends\runtime;$(SolutionDir)src;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)fakes\shims;$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\frontends\runtime;$(SolutionDir)src;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -110,7 +110,7 @@
     <ClCompile Include="fakes\Speedhack.cpp" />
     <ClCompile Include="fakes\threadutils.cpp" />
     <!-- Real pathfinder under test -->
-    <ClCompile Include="..\..\..\src\navigation\Pathfinder.cpp" />
+    <ClCompile Include="..\..\..\src\frontends\runtime\components\navigation\Pathfinder.cpp" />
     <!-- Real gameloop component under test -->
     <ClCompile Include="..\..\..\src\frontends\runtime\components\gameloop\GameLoop.cpp" />
     <!-- Real profile code under test -->
@@ -120,7 +120,7 @@
     <ClCompile Include="..\..\..\src\contract\config\ProfileData.cpp" />
     <ClCompile Include="..\..\..\src\contract\game\GameLock.cpp" />
     <ClCompile Include="..\..\..\src\contract\ContractEnumNames.cpp" />
-    <ClCompile Include="..\..\..\src\services\profile\ProfileService.cpp" />
+    <ClCompile Include="..\..\..\src\frontends\runtime\components\profile\ProfileService.cpp" />
     <ClCompile Include="..\..\..\src\frontends\runtime\components\script\Commands.cpp" />
     <!-- utils dependency (IniConfigStore uses ToLower/ToStr/ToWStr; GameLoop owns a profiling::Timeline) -->
     <ClCompile Include="..\..\..\src\utils\Strings.cpp" />

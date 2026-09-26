@@ -25,12 +25,12 @@
 #include "api/core/Error.h"
 #include "api/core/Extract.h"
 #include "api/core/Function.h"
+#include "components/dde/DdeService.h"
 #include "components/events/DelayedEvent.h"
 #include "components/events/EventDispatch.h"
 #include "components/script/ScriptEngine.h"
 #include "config/AppConfig.h"
 #include "config/Version.h"
-#include "dde/DdeService.h"
 #include "game/Console.h"
 #include "game/GameHelpers.h"
 #include "speedhack/Speedhack.h"
@@ -574,16 +574,16 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             std::string data = convert::ToString(isolate, args[4]);
 
             // JS `mode` 0/1/2 maps 1:1 to the Transaction enum values.
-            if (mode > static_cast<uint32_t>(services::dde::Transaction::Evaluate)) {
+            if (mode > static_cast<uint32_t>(runtime::dde::Transaction::Evaluate)) {
                 return;
             }
-            auto txn = static_cast<services::dde::Transaction>(mode);
+            auto txn = static_cast<runtime::dde::Transaction>(mode);
 
             // Matches reference/d2bs JSCore.cpp my_sendDDE: never throws on DDE failure; any failure
             // is logged and the JS return value stays undefined (caller sees no response). Only
             // Request sets a return value, and only on successful payload retrieval.
-            auto result = services::dde::DdeService::Instance().Send(txn, server, topic, item, data);
-            if (txn == services::dde::Transaction::Request && result) {
+            auto result = runtime::dde::DdeService::Instance().Send(txn, server, topic, item, data);
+            if (txn == runtime::dde::Transaction::Request && result) {
                 args.GetReturnValue().Set(convert::ToJS(isolate, *result));
             }
         });

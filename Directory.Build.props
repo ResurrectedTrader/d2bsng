@@ -117,7 +117,7 @@
 
   <!-- Bake the build-time version into D2BS_VERSION (see core/config/Version.h,
        which #ifndef-guards a dev fallback) and the Aptabase app key into
-       D2BS_ANALYTICS_KEY (see services/analytics/Analytics.cpp, which defaults it
+       D2BS_ANALYTICS_KEY (see runtime/components/analytics/Analytics.cpp, which defaults it
        to an empty string that compiles analytics out). Set via `build.ps1
        -Version` / `-AnalyticsKey`, or MSBuild `-p:D2bsVersion=` /
        `-p:D2bsAnalyticsKey=`. The &quot; make the quotes part of the value, so

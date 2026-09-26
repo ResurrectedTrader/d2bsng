@@ -6,9 +6,9 @@
 #include "game/Level.h"
 #include "game/Types.h"
 // ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
-#include "navigation/NavigationEnumNames.h"
+#include "RuntimeEnumNames.h"
 
-namespace d2bs::navigation {
+namespace d2bs::runtime::navigation {
 
 // `type` is either ExitType::Linkage (room-to-room edge between two
 // different levels) or ExitType::Tile (UNIT_TILE preset with a non-zero
@@ -32,4 +32,4 @@ struct ExitInfo {
 // iteration and collision primitives, so every backend gets it for free.
 std::vector<ExitInfo> GetExits(game::Level level);
 
-}  // namespace d2bs::navigation
+}  // namespace d2bs::runtime::navigation

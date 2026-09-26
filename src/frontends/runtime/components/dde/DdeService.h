@@ -14,9 +14,9 @@
 
 #include "utils/utils.h"
 // ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
-#include "ServicesEnumNames.h"
+#include "RuntimeEnumNames.h"
 
-namespace d2bs::services::dde {
+namespace d2bs::runtime::dde {
 
 // DDE transaction kind. Values match the numeric `mode` argument the JS
 // `sendDDE(mode, ...)` global uses (reference/d2bs JSCore.cpp my_sendDDE).
@@ -96,4 +96,4 @@ class DdeService {
     std::shared_ptr<spdlog::logger> logger_ = utils::GetLogger("dde");
 };
 
-}  // namespace d2bs::services::dde
+}  // namespace d2bs::runtime::dde
