@@ -40,7 +40,7 @@ param(
     # (MSBuild -p:D2bsProfiling=false; see Directory.Build.props).
     [switch]$NoProfiling,
     # Solution platform. Win32 builds the 1.14d backend into Release\ and the
-    # glue DLL into Release\js-v8-lod114d\; x64 builds the platform-independent
+    # DLL into Release\js-v8-lod114d\; x64 builds the platform-independent
     # libraries into x64\Release\.
     # The .slnx maps each project to the platforms it supports, so the ones that
     # are Win32-only are skipped rather than failing.
@@ -190,7 +190,7 @@ switch ($mode) {
     'deps' {
         # Runs only the FetchV8 target, on the project that needs the headers
         # earliest. Nothing compiles, so this does not need vcpkg restored.
-        & $msbuild 'src\frontends\runtime\runtime.vcxproj' '-t:FetchV8' '-p:Configuration=Release' "-p:Platform=$Platform" '-v:m' '-nologo'
+        & $msbuild 'src\runtime\runtime.vcxproj' '-t:FetchV8' '-p:Configuration=Release' "-p:Platform=$Platform" '-v:m' '-nologo'
         exit $LASTEXITCODE
     }
     'test' {
