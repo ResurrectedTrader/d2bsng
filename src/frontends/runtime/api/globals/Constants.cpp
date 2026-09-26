@@ -3,7 +3,7 @@
 #include "api/core/Convert.h"
 #include "game/Types.h"
 
-namespace d2bs::api::globals {
+namespace d2bs::runtime::api::globals {
 
 void RegisterConstants(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> global) {
     auto readOnly = static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontDelete);
@@ -79,4 +79,4 @@ void RegisterConstants(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> globa
     global->Set(isolate, "StashTabType", stashTabType, readOnly);
 }
 
-}  // namespace d2bs::api::globals
+}  // namespace d2bs::runtime::api::globals

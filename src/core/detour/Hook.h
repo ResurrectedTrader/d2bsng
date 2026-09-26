@@ -19,7 +19,7 @@
 // Detours transactions are per-thread and do not nest: keep one batch open at a
 // time on a thread, and do not hand the same slot to two batches at once.
 
-namespace d2bs::detour {
+namespace d2bs::core::detour {
 
 // Where the function a detour replaces lives.
 class Target {
@@ -219,4 +219,4 @@ inline int32_t DetachAll(std::initializer_list<Slot*> slots) {
     return DetachAll(std::span{slots.begin(), slots.size()});
 }
 
-}  // namespace d2bs::detour
+}  // namespace d2bs::core::detour

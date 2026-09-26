@@ -12,7 +12,7 @@
 #include "api/core/Error.h"
 #include "config/AppConfig.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 // Helpers defined in JSDirectory.cpp
 namespace directory_detail {
@@ -91,7 +91,7 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
                 }
 
                 auto relativePath = (data->path / name).string();
-                auto fullPath = config::GetPathRelScript(relativePath);
+                auto fullPath = core::config::GetPathRelScript(relativePath);
                 if (fullPath.empty()) {
                     error::ThrowError(isolate, "Invalid directory path");
                     return;
@@ -132,7 +132,7 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
                     return;
                 }
 
-                auto fullPath = config::GetPathRelScript(data->path.string());
+                auto fullPath = core::config::GetPathRelScript(data->path.string());
                 if (fullPath.empty()) {
                     error::ThrowError(isolate, "Invalid directory path");
                     return;
@@ -185,7 +185,7 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
                     pattern = convert::ToString(isolate, args[0]);
                 }
 
-                auto fullPath = config::GetPathRelScript(data->path.string());
+                auto fullPath = core::config::GetPathRelScript(data->path.string());
                 if (fullPath.empty()) {
                     args.GetReturnValue().Set(v8::Array::New(isolate, 0));
                     return;
@@ -226,7 +226,7 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
                     pattern = convert::ToString(isolate, args[0]);
                 }
 
-                auto fullPath = config::GetPathRelScript(data->path.string());
+                auto fullPath = core::config::GetPathRelScript(data->path.string());
                 if (fullPath.empty()) {
                     args.GetReturnValue().Set(v8::Array::New(isolate, 0));
                     return;
@@ -243,4 +243,4 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
     }
 };
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

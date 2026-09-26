@@ -10,13 +10,13 @@
 #include "api/core/Error.h"
 #include "config/AppConfig.h"
 
-namespace d2bs::api::classes::filetools_detail {
+namespace d2bs::runtime::api::classes::filetools_detail {
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 std::mutex fileMutex;
 
 std::filesystem::path ResolveScriptPath(v8::Isolate* isolate, const std::string& relativePath, const char* errorMsg) {
-    auto fullPath = config::GetPathRelScript(relativePath);
+    auto fullPath = core::config::GetPathRelScript(relativePath);
     if (fullPath.empty()) {
         error::ThrowError(isolate, errorMsg);
     }
@@ -24,7 +24,7 @@ std::filesystem::path ResolveScriptPath(v8::Isolate* isolate, const std::string&
 }
 
 FILE* FileOpenRelScript(v8::Isolate* isolate, const std::string& relativePath, const wchar_t* mode) {
-    auto fullPath = config::GetPathRelScript(relativePath);
+    auto fullPath = core::config::GetPathRelScript(relativePath);
     if (fullPath.empty()) {
         error::ThrowError(isolate, "Invalid file name");
         return nullptr;
@@ -59,4 +59,4 @@ std::string ValueToString(v8::Isolate* isolate, v8::Local<v8::Value> value) {
     return {};
 }
 
-}  // namespace d2bs::api::classes::filetools_detail
+}  // namespace d2bs::runtime::api::classes::filetools_detail

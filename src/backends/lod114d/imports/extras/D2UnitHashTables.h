@@ -15,7 +15,7 @@
 // the same bucket (or null at the end). Walking ALL units of a given
 // type therefore means: per-bucket, follow the pListNext chain to its
 // terminator, then advance to the next non-empty bucket.
-namespace d2bs::imports::extras {
+namespace d2bs::lod114d::imports::extras {
 
 constexpr uint32_t UNIT_HASH_TYPE_COUNT = 6;
 constexpr uint32_t UNIT_HASH_BUCKETS = 128;
@@ -36,11 +36,4 @@ static_assert(sizeof(D2UnitHashTables) == UNIT_HASH_TYPE_COUNT * UNIT_HASH_BUCKE
 
 #pragma pack(pop)
 
-}  // namespace d2bs::imports::extras
-
-namespace d2bs::game {
-using imports::extras::D2UnitHashTable;
-using imports::extras::D2UnitHashTables;
-using imports::extras::UNIT_HASH_BUCKETS;
-using imports::extras::UNIT_HASH_TYPE_COUNT;
-}  // namespace d2bs::game
+}  // namespace d2bs::lod114d::imports::extras

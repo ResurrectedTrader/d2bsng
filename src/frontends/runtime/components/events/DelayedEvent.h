@@ -3,7 +3,7 @@
 #include <atomic>
 #include "BaseEvent.h"
 
-namespace d2bs {
+namespace d2bs::runtime::events {
 
 class DelayedEvent : public BaseEvent {
     inline static std::atomic_uint32_t globalEventId_ = 0;
@@ -42,8 +42,8 @@ class DelayedEvent : public BaseEvent {
             auto message = tryCatch.Message();
             if (!message.IsEmpty()) {
                 v8::String::Utf8Value errorStr(isolate, message->Get());
-                GetLogger(isolate)->error("[{}] handler exception: {}", Name(),
-                                          std::string(*errorStr, errorStr.length()));
+                script::GetLogger(isolate)->error("[{}] handler exception: {}", Name(),
+                                                  std::string(*errorStr, errorStr.length()));
             }
         }
     }
@@ -57,4 +57,4 @@ class DelayedEvent : public BaseEvent {
     v8::Global<v8::Function> callback_;
 };
 
-}  // namespace d2bs
+}  // namespace d2bs::runtime::events

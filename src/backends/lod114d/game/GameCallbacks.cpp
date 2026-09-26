@@ -11,12 +11,12 @@ GameCallbacks activeCallbacks;
 bool InstallHooks(const GameCallbacks& callbacks) {
     // Copy into static storage - HookManager holds &activeCallbacks for the subsystem's lifetime.
     activeCallbacks = callbacks;
-    hooks::Install(&activeCallbacks);
+    lod114d::hooks::Install(&activeCallbacks);
     return true;
 }
 
 void RemoveHooks() {
-    hooks::Remove();
+    lod114d::hooks::Remove();
     activeCallbacks = {};
 }
 

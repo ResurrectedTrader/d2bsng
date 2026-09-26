@@ -5,11 +5,11 @@
 #include "api/core/Error.h"
 #include "components/navigation/ExitFinder.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 // Exit class - represents an exit point from one area to another
 // Exits are obtained from Area.exits property
-class JSExit : public ClassBase<JSExit, runtime::navigation::ExitInfo> {
+class JSExit : public ClassBase<JSExit, navigation::ExitInfo> {
    public:
     static constexpr std::string_view ClassName = "Exit";
 
@@ -67,4 +67,4 @@ class JSExit : public ClassBase<JSExit, runtime::navigation::ExitInfo> {
     }
 };
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

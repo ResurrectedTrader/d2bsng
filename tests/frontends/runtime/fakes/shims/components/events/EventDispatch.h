@@ -10,10 +10,10 @@
 
 #include <cstdint>
 
-namespace d2bs {
+namespace d2bs::runtime::events {
 
 void LifeEventDispatch(uint32_t life);
 void ManaEventDispatch(uint32_t mana);
 void PlayerAssignEventDispatch(uint32_t unitId);
 
-}  // namespace d2bs
+}  // namespace d2bs::runtime::events

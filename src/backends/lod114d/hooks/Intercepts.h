@@ -22,7 +22,7 @@
 
 struct D2UnitStrc;
 
-namespace d2bs::hooks::intercepts {
+namespace d2bs::lod114d::hooks::intercepts {
 
 // Snapshot resolved addresses from the imports::Registry into the file-local
 // pointers the naked thunks use for tail jumps. Must run after
@@ -79,4 +79,4 @@ decltype(auto) WithSelectedUnit(D2UnitStrc* unit, F&& fn) {
     return std::forward<F>(fn)();
 }
 
-}  // namespace d2bs::hooks::intercepts
+}  // namespace d2bs::lod114d::hooks::intercepts

@@ -80,7 +80,7 @@ bool DdeService::Start(Handler handler) {
     auto startupFuture = startupPromise.get_future();
 
     pumpThread_ = std::jthread([this, promise = std::move(startupPromise)]() mutable {
-        thread_utils::SetThreadDescription("d2bs DDE pump");
+        utils::threads::SetThreadDescription("d2bs DDE pump");
 
         UINT err = DdeInitializeA(&idInst_, &DdeService::StaticCallback, SERVER_FLAGS, 0);
         if (err != DMLERR_NO_ERROR) {

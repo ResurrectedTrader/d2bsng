@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-namespace d2bs::config {
+namespace d2bs::core::config {
 
 CompatibilityFlags& CompatibilityFlags::Instance() {
     static CompatibilityFlags instance;
@@ -96,4 +96,4 @@ void CompatibilityFlags::RegisterDefaults() {
     Register("profileCallWithoutNew");
 }
 
-}  // namespace d2bs::config
+}  // namespace d2bs::core::config

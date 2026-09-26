@@ -14,7 +14,7 @@ namespace d2bs::runtime::console::theme {
 
 [[nodiscard]] ImVec4 ColorForCode(game::console::ColorCode code);
 [[nodiscard]] ImVec4 ColorForLevel(game::console::MessageLevel level);
-[[nodiscard]] ImVec4 ColorForState(ScriptState state);
+[[nodiscard]] ImVec4 ColorForState(script::ScriptState state);
 
 [[nodiscard]] std::string_view LevelTag(game::console::MessageLevel level);
 [[nodiscard]] std::string_view SourceTag(game::console::MessageSource source);

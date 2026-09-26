@@ -1,10 +1,10 @@
-// Fakes for d2bs::thread_utils - Commands.cpp's `stacks` console command pulls
+// Fakes for d2bs::utils::threads - Commands.cpp's `stacks` console command pulls
 // in GetThreadStacktrace, but the production implementation lives in utils.lib
 // and depends on stackwalker / DbgHelp. Tests don't need real stack walking,
 // so we provide trivial stubs that satisfy the linker.
 #include "utils/threadutils.h"
 
-namespace d2bs::thread_utils {
+namespace d2bs::utils::threads {
 
 void ForEachProcessThread(const std::function<void(HANDLE, uint32_t)>& /*fn*/) {}
 
@@ -47,4 +47,4 @@ LONG WINAPI VectoredExceptionHandler(PEXCEPTION_POINTERS /*exceptionInfo*/) {
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
-}  // namespace d2bs::thread_utils
+}  // namespace d2bs::utils::threads

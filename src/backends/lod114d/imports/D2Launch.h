@@ -10,10 +10,10 @@
 // sourced from reference/d2bs/D2Ptrs.h.
 
 // NOLINTBEGIN(readability-identifier-naming) - MOO-style names use DOMAIN_PascalCase with embedded underscores
-namespace d2bs::imports::d2launch {
+namespace d2bs::lod114d::imports::d2launch {
 
 // ---- Variables -------------------------------------------------------------
 inline GameVar<extras::BnetData*> gpBnetData{0x3795D4};
 
-}  // namespace d2bs::imports::d2launch
+}  // namespace d2bs::lod114d::imports::d2launch
 // NOLINTEND(readability-identifier-naming)

@@ -1,4 +1,4 @@
-// Fake for d2bs::speedhack - IniConfigStore::LoadSettings calls
+// Fake for d2bs::core::speedhack - IniConfigStore::LoadSettings calls
 // speedhack::SetSpeed after reading the INI value, but tests don't link
 // detours and don't need real time scaling. Stub the public surface and
 // route the value straight into AppConfig.speed.
@@ -6,7 +6,7 @@
 
 #include "config/AppConfig.h"
 
-namespace d2bs::speedhack {
+namespace d2bs::core::speedhack {
 
 void SetSpeed(float newSpeed) {
     config::GetAppConfig().speed.store(newSpeed, std::memory_order_relaxed);
@@ -32,4 +32,4 @@ SpeedhackDisabledScope::~SpeedhackDisabledScope() {
 NestedWaitGuard::NestedWaitGuard() = default;
 NestedWaitGuard::~NestedWaitGuard() = default;
 
-}  // namespace d2bs::speedhack
+}  // namespace d2bs::core::speedhack

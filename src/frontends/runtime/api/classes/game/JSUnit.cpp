@@ -15,7 +15,7 @@
 #include "game/Finders.h"
 #include "game/GameHelpers.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 namespace extract = extract;
 
@@ -838,7 +838,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Method(
         isolate, proto, "cancel", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -898,7 +898,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// is the player, or the action failed.
     Method(
         isolate, proto, "interact", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -940,7 +940,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Method(
         isolate, proto, "getItem", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -978,7 +978,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Method(
         isolate, proto, "getItems", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1023,7 +1023,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Method(
         isolate, proto, "getSkill", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1108,7 +1108,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// owner, false if the game was not ready.
     Method(
         isolate, proto, "getParent", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1138,7 +1138,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @returns {Unit|null} - The mercenary Unit, null if none or not a player, false if the game was not ready.
     Method(
         isolate, proto, "getMerc", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1168,7 +1168,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// was not ready.
     Method(
         isolate, proto, "getMercHP", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1201,7 +1201,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// the game was not ready.
     Method(
         isolate, proto, "getEnchant", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1235,7 +1235,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @returns {number} - Quest flag/state value; false if the game was not ready.
     Method(
         isolate, proto, "getQuest", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1255,7 +1255,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Method(
         isolate, proto, "getState", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1291,7 +1291,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Method(
         isolate, proto, "getStat", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1429,7 +1429,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Method(
         isolate, proto, "getStatLists", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1454,7 +1454,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @returns {number} - Item flags bitmask, undefined if not an item, false if the game was not ready.
     Method(
         isolate, proto, "getFlags", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1476,7 +1476,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// ready.
     Method(
         isolate, proto, "getFlag", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1510,7 +1510,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Method(
         isolate, proto, "getItemCost", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1565,7 +1565,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Method(
         isolate, proto, "setSkill", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1615,7 +1615,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             // ExecuteEvents drains the script event queue during the wait so
             // blocking game->script events get ack'd and don't stall the game
             // thread. Reference parity: D2Helpers.cpp:259-285.
-            auto* script = ScriptEngine::Instance().GetScript(isolate);
+            auto* script = script::ScriptEngine::Instance().GetScript(isolate);
             using namespace std::chrono_literals;
             const auto deadline = std::chrono::steady_clock::now() + 1s;
             bool packetSent = false;
@@ -1642,7 +1642,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @returns {undefined} - No return value; false only if the game was not ready.
     Method(
         isolate, proto, "move", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1675,7 +1675,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @returns {boolean} - True once handled; false if the game was not ready.
     Method(
         isolate, proto, "overhead", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1699,7 +1699,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @returns {undefined} - No return value; false only if the game was not ready.
     Method(
         isolate, proto, "revive", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1718,7 +1718,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Method(
         isolate, proto, "shop", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1755,7 +1755,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// ready.
     Method(
         isolate, proto, "getMinionCount", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1783,7 +1783,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Method(
         isolate, proto, "getRepairCost", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+            if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
@@ -1829,4 +1829,4 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     proto->Set(v8::Symbol::GetIterator(isolate), iteratorTpl, v8::DontEnum);
 }
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

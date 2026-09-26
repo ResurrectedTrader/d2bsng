@@ -5,7 +5,7 @@
 #include "api/core/Error.h"
 #include "config/ProfileData.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 using config::ProfileData;
 using config::ProfileType;
@@ -32,4 +32,4 @@ class JSProfile : public ClassBase<JSProfile, ProfileData> {
     static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl);
 };
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

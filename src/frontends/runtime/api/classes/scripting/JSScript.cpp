@@ -2,17 +2,17 @@
 
 #include "components/events/Events.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 // GetScript: unwraps ScriptHandle and resolves to a live Script in one call.
-static std::shared_ptr<Script> GetScriptFromHandle(ScriptHandle* handle) {
+static std::shared_ptr<script::Script> GetScriptFromHandle(ScriptHandle* handle) {
     if (!handle)
         return nullptr;
-    return ScriptEngine::Instance().GetScript(handle->threadId);
+    return script::ScriptEngine::Instance().GetScript(handle->threadId);
 }
 
 template <typename InfoT>
-static std::shared_ptr<Script> GetScript(const InfoT& info) {
+static std::shared_ptr<script::Script> GetScript(const InfoT& info) {
     if constexpr (std::is_same_v<InfoT, v8::FunctionCallbackInfo<v8::Value>>) {
         return GetScriptFromHandle(JSScript::Unwrap(info.This()));
     } else {
@@ -42,7 +42,7 @@ void JSScript::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             if (!script)
                 return;
             // true = out-of-game (OutOfGame or Console), false = in-game (InGame)
-            bool isOutOfGame = script->GetMode() != ScriptMode::InGame;
+            bool isOutOfGame = script->GetMode() != script::ScriptMode::InGame;
             info.GetReturnValue().Set(isOutOfGame);
         });
 
@@ -53,7 +53,7 @@ void JSScript::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             auto script = GetScript(info);
             if (!script)
                 return;
-            info.GetReturnValue().Set(script->GetState() == ScriptState::Running);
+            info.GetReturnValue().Set(script->GetState() == script::ScriptState::Running);
         });
 
     /// @description The script's native Win32 thread ID.
@@ -98,7 +98,7 @@ void JSScript::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 return;
             }
 
-            auto& engine = ScriptEngine::Instance();
+            auto& engine = script::ScriptEngine::Instance();
             auto scripts = engine.GetAllScripts();
 
             // Find current script in list, then move to next
@@ -125,7 +125,7 @@ void JSScript::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
         isolate, proto, "pause", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             args.GetReturnValue().SetNull();
             auto script = GetScript(args);
-            if (script && script->GetState() == ScriptState::Running) {
+            if (script && script->GetState() == script::ScriptState::Running) {
                 script->Pause();
             }
         });
@@ -137,7 +137,7 @@ void JSScript::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
         isolate, proto, "resume", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             args.GetReturnValue().SetNull();
             auto script = GetScript(args);
-            if (script && script->GetState() == ScriptState::Paused) {
+            if (script && script->GetState() == script::ScriptState::Paused) {
                 script->Resume();
             }
         });
@@ -170,7 +170,7 @@ void JSScript::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             if (!script)
                 return;
             auto state = script->GetState();
-            if (state == ScriptState::Running || state == ScriptState::Paused) {
+            if (state == script::ScriptState::Running || state == script::ScriptState::Paused) {
                 script->Stop();
             }
         });
@@ -189,17 +189,17 @@ void JSScript::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 return;
 
             auto script = GetScript(args);
-            if (!script || script->GetState() != ScriptState::Running) {
+            if (!script || script->GetState() != script::ScriptState::Running) {
                 return;
             }
 
             // Serialize arguments using V8 ValueSerializer and dispatch as BroadcastEvent
-            auto evt = std::make_shared<BroadcastEvent>(args);
+            auto evt = std::make_shared<events::BroadcastEvent>(args);
             script->ExecuteEvent(evt);
         });
 }
 
-v8::Local<v8::Object> JSScript::Create(v8::Isolate* isolate, Script* script) {
+v8::Local<v8::Object> JSScript::Create(v8::Isolate* isolate, script::Script* script) {
     if (!script) {
         return {};
     }
@@ -211,4 +211,4 @@ v8::Local<v8::Object> JSScript::Create(v8::Isolate* isolate, Script* script) {
     return CreateInstance(isolate, context, std::move(handle));
 }
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

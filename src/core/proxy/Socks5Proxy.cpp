@@ -25,7 +25,7 @@
 
 #pragma comment(lib, "Ws2_32.lib")
 
-namespace d2bs::proxy::socks5 {
+namespace d2bs::core::proxy::socks5 {
 
 namespace {
 
@@ -561,4 +561,4 @@ void Remove() {
     WSACleanup();
 }
 
-}  // namespace d2bs::proxy::socks5
+}  // namespace d2bs::core::proxy::socks5

@@ -4,9 +4,9 @@
 
 #include "components/console/Panel.h"
 
-namespace d2bs {
+namespace d2bs::runtime::script {
 class Script;
-}  // namespace d2bs
+}  // namespace d2bs::runtime::script
 
 namespace d2bs::runtime::console {
 

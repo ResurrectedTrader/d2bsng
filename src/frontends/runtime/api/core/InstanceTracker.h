@@ -17,7 +17,7 @@
 
 #include "utils/utils.h"
 
-namespace d2bs::api {
+namespace d2bs::runtime::api {
 
 // Transparent comparator map type - allows heterogeneous find/contains with string_view.
 using ClassCountMap = std::map<std::string, int32_t, std::less<>>;
@@ -191,4 +191,4 @@ class InstanceTracker {
     InstanceTracker() = default;
 };
 
-}  // namespace d2bs::api
+}  // namespace d2bs::runtime::api

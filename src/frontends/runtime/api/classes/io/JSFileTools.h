@@ -12,7 +12,7 @@
 #include "api/core/Error.h"
 #include "config/AppConfig.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 // Helpers defined in JSFileTools.cpp (single definition, shared mutex)
 namespace filetools_detail {
@@ -348,4 +348,4 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
     }
 };
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

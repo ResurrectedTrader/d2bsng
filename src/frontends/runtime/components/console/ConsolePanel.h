@@ -18,7 +18,7 @@ namespace d2bs::runtime::console {
 // REPL panel. Receives only EvaluateResult-source messages (Console
 // routes other sources to LogPanel). The user types into the input field;
 // on Enter the panel both appends a "> input" entry and forwards the line
-// to runtime::script::RunCommand for evaluation in the console isolate.
+// to script::RunCommand for evaluation in the console isolate.
 //
 // History navigation (bash-style):
 //   Up   / Down       - walk every entry, newest first

@@ -2,7 +2,7 @@
 
 #include "JSDrawableBase.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 class JSLine : public JSDrawableBase<JSLine, LineDrawable> {
    public:
@@ -29,7 +29,7 @@ class JSLine : public JSDrawableBase<JSLine, LineDrawable> {
     static void New(const v8::FunctionCallbackInfo<v8::Value>& args) {
         V8_CLASS_CTOR_PROLOGUE;
 
-        auto* script = ScriptEngine::Instance().GetScript(isolate);
+        auto* script = script::ScriptEngine::Instance().GetScript(isolate);
         if (!script) {
             error::ThrowError(isolate, "Line: no owning script");
             return;
@@ -47,10 +47,10 @@ class JSLine : public JSDrawableBase<JSLine, LineDrawable> {
             drawable->isAutomap.store(args[5]->BooleanValue(isolate));
         }
         if (args.Length() > 6 && args[6]->IsFunction()) {
-            script->SetDrawableHandler(*drawable, DrawableHandler::Click, args[6].As<v8::Function>());
+            script->SetDrawableHandler(*drawable, script::DrawableHandler::Click, args[6].As<v8::Function>());
         }
         if (args.Length() > 7 && args[7]->IsFunction()) {
-            script->SetDrawableHandler(*drawable, DrawableHandler::Hover, args[7].As<v8::Function>());
+            script->SetDrawableHandler(*drawable, script::DrawableHandler::Hover, args[7].As<v8::Function>());
         }
 
         auto* rawDrawable = drawable.get();
@@ -130,4 +130,4 @@ class JSLine : public JSDrawableBase<JSLine, LineDrawable> {
     }
 };
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

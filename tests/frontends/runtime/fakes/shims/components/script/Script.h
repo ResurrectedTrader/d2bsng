@@ -10,7 +10,7 @@
 
 #include "components/script/ScriptTypes.h"
 
-namespace d2bs {
+namespace d2bs::runtime::script {
 
 class Script {
    public:
@@ -27,4 +27,4 @@ class Script {
     bool stopped_ = false;
 };
 
-}  // namespace d2bs
+}  // namespace d2bs::runtime::script

@@ -7,8 +7,8 @@
 // 1.14d-correct layout. D2MOO's `::D2DrlgActStrc` has different offsets
 // for 1.14d (D2MOO was reverse-engineered against 1.10c). Reference d2bs's
 // CODE reads these fields at the bytes pinned here, and reference works on
-// 1.14d. Use this struct via `d2bs::imports::extras::D2DrlgActStrc` or
-// via `using d2bs::imports::extras::D2DrlgActStrc` to shadow D2MOO's
+// 1.14d. Use this struct via `d2bs::lod114d::imports::extras::D2DrlgActStrc` or
+// via `using d2bs::lod114d::imports::extras::D2DrlgActStrc` to shadow D2MOO's
 // version inside the consuming TU.
 //
 // D2MOO's claimed size is 0x60 with pRoom @ 0x04 / pDrlg @ 0x08 /
@@ -19,9 +19,9 @@
 // Field naming follows D2MOO (`pRoom`, `pDrlg`, `dwAct`); offsets follow
 // reference. The `pDrlg` field at 0x48 reaches what D2MOO calls
 // D2DrlgStrc but with a different layout - see
-// d2bs::imports::extras::D2DrlgStrc.
+// d2bs::lod114d::imports::extras::D2DrlgStrc.
 
-namespace d2bs::imports::extras {
+namespace d2bs::lod114d::imports::extras {
 
 struct D2ActiveRoomStrc;
 struct D2DrlgStrc;
@@ -43,4 +43,4 @@ static_assert(offsetof(D2DrlgActStrc, pRoom) == 0x10, "D2DrlgActStrc::pRoom offs
 static_assert(offsetof(D2DrlgActStrc, dwAct) == 0x14, "D2DrlgActStrc::dwAct offset drift");
 static_assert(offsetof(D2DrlgActStrc, pDrlg) == 0x48, "D2DrlgActStrc::pDrlg offset drift");
 
-}  // namespace d2bs::imports::extras
+}  // namespace d2bs::lod114d::imports::extras

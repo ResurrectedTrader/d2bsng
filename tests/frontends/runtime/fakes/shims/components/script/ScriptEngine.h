@@ -14,7 +14,7 @@
 #include "components/script/Script.h"
 #include "components/script/ScriptTypes.h"
 
-namespace d2bs {
+namespace d2bs::runtime::script {
 
 class ScriptEngine {
    public:
@@ -56,4 +56,4 @@ class ScriptEngine {
     bool initialized_ = false;
 };
 
-}  // namespace d2bs
+}  // namespace d2bs::runtime::script

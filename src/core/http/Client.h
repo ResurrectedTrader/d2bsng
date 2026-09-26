@@ -6,7 +6,7 @@
 #include <utility>
 #include <vector>
 
-namespace d2bs::http {
+namespace d2bs::core::http {
 
 inline constexpr uint32_t DEFAULT_TIMEOUT_MS = 30000;         // per network operation (resolve/connect/send/recv)
 inline constexpr uint32_t DEFAULT_TOTAL_TIMEOUT_MS = 120000;  // overall wall-clock cap on the request; 0 disables
@@ -45,4 +45,4 @@ struct Request {
 // proxy detour.
 std::string Perform(const Request& request, Response& out);
 
-}  // namespace d2bs::http
+}  // namespace d2bs::core::http

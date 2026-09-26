@@ -6,7 +6,7 @@
 
 #include "api/core/Convert.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 // Bind a single V8 value to a prepared sqlite3 statement at the given 1-based
 // parameter index. Rules match the reference d2bs JS SQLite API:
@@ -38,4 +38,4 @@ inline bool BindValue(v8::Isolate* isolate, v8::Local<v8::Value> value, sqlite3_
     return true;
 }
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

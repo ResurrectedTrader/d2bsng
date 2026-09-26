@@ -39,7 +39,7 @@ constexpr int32_t SUBTILE_SCALE = 5;
 // at that address follow the 1.14d allocation modeled by
 // `extras::D2DrlgActStrc`. Reinterpret at the unit boundary.
 inline D2DrlgLevelStrc* FindLevelInChain(uint32_t levelId) {
-    auto* player = imports::d2client::UNITS_GetPlayerUnit();
+    auto* player = lod114d::imports::d2client::UNITS_GetPlayerUnit();
     if (player == nullptr) {
         return nullptr;
     }
@@ -54,7 +54,7 @@ inline D2DrlgLevelStrc* FindLevelInChain(uint32_t levelId) {
         if (level->pFirstRoomEx == nullptr) {
             GameThread::Execute([level] {
                 if (level->pFirstRoomEx == nullptr) {
-                    imports::d2common::DRLG_InitLevel(level);
+                    lod114d::imports::d2common::DRLG_InitLevel(level);
                 }
             });
         }
@@ -82,7 +82,7 @@ inline D2DrlgRoomStrc* FindRoomInLevelByPos(D2DrlgLevelStrc* lvl, Position pos) 
 // special automap cells per (type, txtFileNo, level) - special NPC icons,
 // the Lower Kurast uberchest hint, the Anya/Frozen River markers, etc.
 // Returns the chosen cell number for `preset`, or -1 to skip.
-inline int32_t PickPresetCellNo(const imports::extras::D2PresetUnitStrc* preset, uint32_t levelNo) {
+inline int32_t PickPresetCellNo(const lod114d::imports::extras::D2PresetUnitStrc* preset, uint32_t levelNo) {
     int32_t cell = -1;
     if (preset->nUnitType == 1) {  // Special NPCs
         if (preset->nIndex == 256) {
@@ -110,7 +110,7 @@ inline int32_t PickPresetCellNo(const imports::extras::D2PresetUnitStrc* preset,
         }
 
         if (cell == -1) {
-            auto* obj = imports::d2common::DATATBLS_GetObjectsTxtRecord(preset->nIndex);
+            auto* obj = lod114d::imports::d2common::DATATBLS_GetObjectsTxtRecord(preset->nIndex);
             if (obj != nullptr) {
                 cell = static_cast<int32_t>(obj->dwAutomap);
             }
@@ -127,7 +127,7 @@ inline void DrawPresetsForRoom(D2DrlgRoomStrc* drlgRoom) {
     if (drlgRoom == nullptr || drlgRoom->pLevel == nullptr) {
         return;
     }
-    auto* layer = *imports::d2client::gpAutomapLayer;
+    auto* layer = *lod114d::imports::d2client::gpAutomapLayer;
     if (layer == nullptr) {
         return;
     }
@@ -139,7 +139,7 @@ inline void DrawPresetsForRoom(D2DrlgRoomStrc* drlgRoom) {
         if (cell <= 0 || cell >= 1258) {
             continue;
         }
-        auto* automapCell = imports::d2client::AUTOMAP_NewCell();
+        auto* automapCell = lod114d::imports::d2client::AUTOMAP_NewCell();
         if (automapCell == nullptr) {
             continue;
         }
@@ -148,7 +148,7 @@ inline void DrawPresetsForRoom(D2DrlgRoomStrc* drlgRoom) {
         const int32_t pY = preset->nYpos + (roomPosY * SUBTILE_SCALE);
         automapCell->xPixel = static_cast<uint16_t>((((pX - pY) * 16) / 10) + 1);
         automapCell->yPixel = static_cast<uint16_t>((((pY + pX) * 8) / 10) - 3);
-        imports::d2client::AUTOMAP_AddCell(automapCell, &layer->pObjects);
+        lod114d::imports::d2client::AUTOMAP_AddCell(automapCell, &layer->pObjects);
     }
 }
 

@@ -8,7 +8,7 @@
 
 #include "utils/EnumNaming.h"
 
-namespace d2bs::api::globals {
+namespace d2bs::runtime::api::globals {
 
 enum class FileMode : int32_t;
 
@@ -21,7 +21,7 @@ enum class FileMode : int32_t;
 [[nodiscard]] std::string format_as(FileMode value);
 // NOLINTEND(readability-identifier-naming)
 
-}  // namespace d2bs::api::globals
+}  // namespace d2bs::runtime::api::globals
 
 namespace d2bs::runtime::characterstate {
 
@@ -101,7 +101,7 @@ enum class ReductionType : int32_t;
 
 }  // namespace d2bs::runtime::navigation
 
-namespace d2bs {
+namespace d2bs::runtime::script {
 
 enum class StackCaptureMode : uint8_t;
 enum class ScriptState : uint8_t;
@@ -123,4 +123,4 @@ enum class DrawableHandler : uint8_t;
 [[nodiscard]] std::string format_as(DrawableHandler value);
 // NOLINTEND(readability-identifier-naming)
 
-}  // namespace d2bs
+}  // namespace d2bs::runtime::script

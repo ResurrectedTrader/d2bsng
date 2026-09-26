@@ -9,7 +9,7 @@
 #include "game/GameHelpers.h"
 #include "game/Menu.h"
 
-namespace d2bs::api::globals {
+namespace d2bs::runtime::api::globals {
 
 void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> global) {
     /// @description Logs in at the menu using a stored profile, driving the UI through character selection.
@@ -33,14 +33,14 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             if (args.Length() > 0 && args[0]->IsString()) {
                 profileName = convert::ToString(isolate, args[0]);
             } else {
-                profileName = config::GetAppConfig().GetProfileName();
+                profileName = core::config::GetAppConfig().GetProfileName();
                 if (profileName.empty()) {
                     error::ThrowError(isolate, "Invalid profile specified!");
                     return;
                 }
             }
 
-            auto profile = runtime::profile::Load(profileName);
+            auto profile = profile::Load(profileName);
             if (!profile) {
                 error::ThrowError(isolate, "Profile does not exist!");
                 return;
@@ -48,7 +48,7 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             // Set name only on success: reference sets it before ProfileExists, leaving szProfile
             // pointing at a missing profile after a failed login. We defer to avoid that.
-            config::GetAppConfig().SetProfileName(profileName);
+            core::config::GetAppConfig().SetProfileName(profileName);
 
             auto result = game::Login(*profile);
             if (result.status != game::LoginStatus::Success) {
@@ -94,7 +94,7 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
 
             std::string profileName = convert::ToString(isolate, args[0]);
-            auto charname = runtime::profile::ResolveCharacter(profileName);
+            auto charname = profile::ResolveCharacter(profileName);
             if (!charname) {
                 error::ThrowError(isolate, "Invalid profile specified");
                 return;
@@ -368,7 +368,7 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             // Return value discarded; reference sets rval=null regardless of
             // whether the profile already existed.
-            runtime::profile::Add(data);
+            profile::Add(data);
             args.GetReturnValue().SetNull();
         });
 
@@ -387,4 +387,4 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 }
 
-}  // namespace d2bs::api::globals
+}  // namespace d2bs::runtime::api::globals

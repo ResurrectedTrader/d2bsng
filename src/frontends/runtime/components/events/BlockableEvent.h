@@ -15,7 +15,7 @@
 // packets / chat / key events, but the dispatcher never stalls.
 #define D2BSNG_BLOCKABLE_NO_WAIT 1
 
-namespace d2bs {
+namespace d2bs::runtime::events {
 
 class BlockableEvent : public BaseEvent {
     std::promise<bool> promise_;
@@ -71,8 +71,8 @@ class BlockableEvent : public BaseEvent {
                     auto message = tryCatch.Message();
                     if (!message.IsEmpty()) {
                         v8::String::Utf8Value errorStr(isolate, message->Get());
-                        GetLogger(isolate)->error("[{}] handler exception: {}", Name(),
-                                                  std::string(*errorStr, errorStr.length()));
+                        script::GetLogger(isolate)->error("[{}] handler exception: {}", Name(),
+                                                          std::string(*errorStr, errorStr.length()));
                     }
                     // Exception counts as block=false for this handler
                 }
@@ -103,7 +103,7 @@ class BlockableEvent : public BaseEvent {
         // Release GameWriteLock (if held by game thread) so scripts can acquire
         // GameReadLock to process the event handler. Re-acquires on scope exit.
         // No-op when no write lock is held.
-        const auto phase = runtime::gameloop::GameLoop::Instance().InPhase(runtime::gameloop::FramePhase::ScriptWait);
+        const auto phase = gameloop::GameLoop::Instance().InPhase(gameloop::FramePhase::ScriptWait);
         game::GameWriteLockReleaser releaser;
         if (future_.wait_for(timeout) == std::future_status::timeout) {
             return std::nullopt;
@@ -113,4 +113,4 @@ class BlockableEvent : public BaseEvent {
     }
 };
 
-}  // namespace d2bs
+}  // namespace d2bs::runtime::events

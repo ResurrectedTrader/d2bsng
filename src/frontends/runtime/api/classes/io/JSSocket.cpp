@@ -14,7 +14,7 @@
 
 #include "proxy/ProxyBypass.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 SocketData::~SocketData() {
     if (handle != INVALID_SOCKET) {
@@ -220,7 +220,7 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
 
             // Connect. Script sockets are not the game's Battle.net traffic, so keep
             // them off the -proxy SOCKS5 tunnel (the detour passes bypassed connects through).
-            proxy::BypassScope noProxy;
+            core::proxy::BypassScope noProxy;
             if (connect(sock, result->ai_addr, static_cast<int>(result->ai_addrlen)) != 0) {
                 closesocket(sock);
                 freeaddrinfo(result);
@@ -245,4 +245,4 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
         });
 }
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

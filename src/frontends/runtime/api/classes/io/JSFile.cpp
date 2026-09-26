@@ -9,10 +9,10 @@
 #include "api/core/Error.h"
 #include "config/AppConfig.h"
 
-namespace d2bs::api::classes::file_detail {
+namespace d2bs::runtime::api::classes::file_detail {
 
 FILE* FileOpenRelScript(v8::Isolate* isolate, const std::string& relativePath, const wchar_t* mode) {
-    auto fullPath = config::GetPathRelScript(relativePath);
+    auto fullPath = core::config::GetPathRelScript(relativePath);
     if (fullPath.empty()) {
         error::ThrowError(isolate, "Invalid file name");
         return nullptr;
@@ -97,4 +97,4 @@ size_t SkipBom(const char* data, size_t size) {
     return 0;
 }
 
-}  // namespace d2bs::api::classes::file_detail
+}  // namespace d2bs::runtime::api::classes::file_detail

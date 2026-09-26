@@ -33,7 +33,7 @@
 // can observe a torn (speed, base, offset) tuple manifests as a one-shot
 // discontinuity of at most a few microseconds and is acceptable for our use.
 
-namespace d2bs::speedhack {
+namespace d2bs::core::speedhack {
 
 constexpr float MIN_SPEED = 0.01F;
 constexpr float MAX_SPEED = 40.0F;
@@ -108,4 +108,4 @@ class NestedWaitGuard {
     NestedWaitGuard& operator=(NestedWaitGuard&&) = delete;
 };
 
-}  // namespace d2bs::speedhack
+}  // namespace d2bs::core::speedhack

@@ -7,7 +7,7 @@
 #include "api/core/Convert.h"
 #include "api/core/Error.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 // HttpClient exposes only static methods and carries no per-instance state.
 struct HttpClientData {};
@@ -42,4 +42,4 @@ class JSHttpClient : public ClassBase<JSHttpClient, HttpClientData> {
     static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl);
 };
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

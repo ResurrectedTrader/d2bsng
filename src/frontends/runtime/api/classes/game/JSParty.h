@@ -8,7 +8,7 @@
 #include "game/GameHelpers.h"
 #include "game/Party.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 // Party class - represents a player in the party roster
 // Used to track other players in the game
@@ -141,7 +141,7 @@ class JSParty : public ClassBase<JSParty, game::Party> {
         /// or there is no next member.
         Method(
             isolate, proto, "getNext", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                if (!game::WaitForGameReady(config::GetAppConfig().gameReadyTimeout)) {
+                if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                     error::WarnAndReturnFalse(args, "Game not ready");
                     return;
                 }
@@ -161,4 +161,4 @@ class JSParty : public ClassBase<JSParty, game::Party> {
     }
 };
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

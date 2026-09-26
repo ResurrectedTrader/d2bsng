@@ -17,7 +17,7 @@
 #include "api/globals/Constants.h"
 #include "utils/utils.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 using globals::FileMode;
 
@@ -805,4 +805,4 @@ class JSFile : public ClassBase<JSFile, FileData> {
     }
 };
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

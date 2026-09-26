@@ -8,7 +8,7 @@
 #include "Script.h"
 #include "utils/utils.h"
 
-namespace d2bs {
+namespace d2bs::runtime::script {
 
 class ScriptEngine {
    public:
@@ -62,7 +62,7 @@ class ScriptEngine {
     }
     // Enqueue `code` to run as JS on the console script's isolate. This is
     // the raw eval primitive - for command-string dispatch (built-ins +
-    // eval fallback) see runtime::script::RunCommand in components/script/Commands.h.
+    // eval fallback) see RunCommand in components/script/Commands.h.
     void Evaluate(const std::string& code);
     void RestartConsoleScript();
 
@@ -100,4 +100,4 @@ class ScriptEngine {
     std::shared_ptr<spdlog::logger> logger_ = utils::GetLogger("script");
 };
 
-}  // namespace d2bs
+}  // namespace d2bs::runtime::script

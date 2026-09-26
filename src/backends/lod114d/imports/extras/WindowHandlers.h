@@ -12,7 +12,7 @@
 // dialog is scrolling - the test is "is `D2CLIENT_CloseNPCTalk` registered as
 // a WM_LBUTTONDOWN (0x201) handler for the game window?".
 // NOLINTBEGIN(readability-identifier-naming) - struct fields match binary layout
-namespace d2bs::imports::extras {
+namespace d2bs::lod114d::imports::extras {
 
 struct MessageHandlerList {
     uint32_t dwMessage;                     // 0x00
@@ -47,12 +47,5 @@ struct WindowHandlerHashTable {
 
 static_assert(sizeof(WindowHandlerHashTable) == 0x08, "WindowHandlerHashTable layout mismatch");
 
-}  // namespace d2bs::imports::extras
-
-namespace d2bs::game {
-using imports::extras::MessageHandlerHashTable;
-using imports::extras::MessageHandlerList;
-using imports::extras::WindowHandlerHashTable;
-using imports::extras::WindowHandlerList;
-}  // namespace d2bs::game
+}  // namespace d2bs::lod114d::imports::extras
 // NOLINTEND(readability-identifier-naming)

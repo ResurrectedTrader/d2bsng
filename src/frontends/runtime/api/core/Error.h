@@ -11,7 +11,7 @@
 
 // Error and warning utilities for V8
 
-namespace d2bs::api::error {
+namespace d2bs::runtime::api::error {
 
 // Throw a generic Error
 inline void ThrowError(v8::Isolate* isolate, std::string_view message) {
@@ -30,13 +30,13 @@ inline void ThrowRangeError(v8::Isolate* isolate, std::string_view message) {
 
 // Log a warning and set return value to false (caller must return afterward).
 inline void WarnAndReturnFalse(const v8::FunctionCallbackInfo<v8::Value>& args, std::string_view message) {
-    GetLogger(args.GetIsolate())->warn("{}", message);
+    script::GetLogger(args.GetIsolate())->warn("{}", message);
     args.GetReturnValue().SetFalse();
 }
 
 // Log an error without throwing a JS exception (caller must return afterward).
 inline void ReportError(const v8::FunctionCallbackInfo<v8::Value>& args, std::string_view message) {
-    GetLogger(args.GetIsolate())->error("{}", message);
+    script::GetLogger(args.GetIsolate())->error("{}", message);
 }
 
 // ============================================================================
@@ -93,4 +93,4 @@ inline bool CheckIsFunction(const v8::FunctionCallbackInfo<v8::Value>& args, int
     return true;
 }
 
-}  // namespace d2bs::api::error
+}  // namespace d2bs::runtime::api::error

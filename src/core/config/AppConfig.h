@@ -10,7 +10,7 @@
 
 #include "config/ScriptPaths.h"
 
-namespace d2bs::config {
+namespace d2bs::core::config {
 
 class ConfigStore;
 
@@ -125,8 +125,8 @@ struct AppConfig {
     // with the INI's [settings]/ScriptPath) and the three script names default
     // from [settings]. GameLoop overwrites these on profile switch by merging
     // the profile's ScriptPaths overrides. Guarded by stateMutex_.
-    ScriptPaths GetScriptPaths() const;
-    void SetScriptPaths(ScriptPaths paths);
+    d2bs::config::ScriptPaths GetScriptPaths() const;
+    void SetScriptPaths(d2bs::config::ScriptPaths paths);
 
     // Settings-level baseline - the ScriptPaths loaded from [settings] before
     // any profile override is layered on. Used by profile-switch reload so
@@ -135,13 +135,13 @@ struct AppConfig {
     // profile foo would stick when switching foo -> bar where bar doesn't set
     // that key). Intended to be set only at init by IniConfigStore, but
     // synchronized through stateMutex_ to protect against future mistakes.
-    ScriptPaths GetDefaultScriptPaths() const;
-    void SetDefaultScriptPaths(ScriptPaths paths);
+    d2bs::config::ScriptPaths GetDefaultScriptPaths() const;
+    void SetDefaultScriptPaths(d2bs::config::ScriptPaths paths);
 
    private:
     std::string profileName_;
-    ScriptPaths scriptPaths_;
-    ScriptPaths defaultScriptPaths_;
+    d2bs::config::ScriptPaths scriptPaths_;
+    d2bs::config::ScriptPaths defaultScriptPaths_;
 
     // Guards ScriptPaths + profileName + future per-profile mutable state.
     mutable std::shared_mutex stateMutex_;
@@ -160,4 +160,4 @@ bool IsValidPath(const std::string& relativePath);
 // Resolve relative path under the script base. Returns empty on validation failure.
 std::filesystem::path GetPathRelScript(const std::string& relativePath);
 
-}  // namespace d2bs::config
+}  // namespace d2bs::core::config

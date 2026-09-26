@@ -7,8 +7,8 @@
 // 1.14d-correct layout. D2MOO's `::D2DrlgLevelStrc` has different offsets
 // for 1.14d (D2MOO was reverse-engineered against 1.10c). Reference d2bs's
 // CODE reads these fields at the bytes pinned here, and reference works on
-// 1.14d. Use this struct via `d2bs::imports::extras::D2DrlgLevelStrc` or
-// via `using d2bs::imports::extras::D2DrlgLevelStrc` to shadow D2MOO's
+// 1.14d. Use this struct via `d2bs::lod114d::imports::extras::D2DrlgLevelStrc` or
+// via `using d2bs::lod114d::imports::extras::D2DrlgLevelStrc` to shadow D2MOO's
 // version inside the consuming TU.
 //
 // D2MOO's claimed size is 0x230 with pDrlg @ 0x00 / nLevelId @ 0x04 /
@@ -20,9 +20,9 @@
 // Field naming follows D2MOO (`pFirstRoomEx`, `nPosX/Y`, `nWidth/Height`,
 // `pNextLevel`, `pDrlg`, `nLevelId`); offsets follow reference. The
 // `pDrlg` field at 0x1B4 reaches what D2MOO calls D2DrlgStrc but with a
-// different layout - see d2bs::imports::extras::D2DrlgStrc.
+// different layout - see d2bs::lod114d::imports::extras::D2DrlgStrc.
 
-namespace d2bs::imports::extras {
+namespace d2bs::lod114d::imports::extras {
 
 struct D2DrlgRoomStrc;
 struct D2DrlgStrc;
@@ -41,7 +41,7 @@ struct D2DrlgLevelStrc {
     D2DrlgLevelStrc* pNextLevel;   // 0x1AC - reference Level::pNextLevel
     uint32_t _4;                   // 0x1B0 - opaque (reference Level._4)
     D2DrlgStrc* pDrlg;  // 0x1B4 - reference Level::pMisc; reaches the 1.14d ActMisc-shaped allocation that we model as
-                        // d2bs::imports::extras::D2DrlgStrc
+                        // d2bs::lod114d::imports::extras::D2DrlgStrc
     std::array<uint32_t, 6> _5;               // 0x1B8 - opaque (reference Level._5[6])
     int32_t nLevelId;                         // 0x1D0 - reference Level::dwLevelNo
     std::array<uint32_t, 3> _6;               // 0x1D4 - opaque (reference Level._6[3])
@@ -64,4 +64,4 @@ static_assert(offsetof(D2DrlgLevelStrc, nRoomCenterWarpX) == 0x1E0, "D2DrlgLevel
 static_assert(offsetof(D2DrlgLevelStrc, nRoomCenterWarpY) == 0x204, "D2DrlgLevelStrc::nRoomCenterWarpY offset drift");
 static_assert(offsetof(D2DrlgLevelStrc, dwRoomEntries) == 0x228, "D2DrlgLevelStrc::dwRoomEntries offset drift");
 
-}  // namespace d2bs::imports::extras
+}  // namespace d2bs::lod114d::imports::extras

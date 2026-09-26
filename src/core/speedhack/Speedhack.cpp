@@ -20,7 +20,7 @@
 
 #pragma comment(lib, "winmm.lib")
 
-namespace d2bs::speedhack {
+namespace d2bs::core::speedhack {
 
 namespace {
 
@@ -212,7 +212,7 @@ FILETIME Int64ToFileTime(int64_t value) {
 // body a safe pass-through for such threads, and must run before any thread_local
 // read in a hook.
 bool ThreadOptedIn() {
-    return thread_utils::HasThreadLocalStorage() && threadOptIn;
+    return utils::threads::HasThreadLocalStorage() && threadOptIn;
 }
 
 // Scaling is observable on this thread only once it has actually been engaged
@@ -477,13 +477,13 @@ NestedWaitGuard::NestedWaitGuard() {
     // staged loader DLL's workers) - reading waitChainDepth there access-
     // violates. TLS presence is stable for the life of a thread, so the dtor's
     // identical check always matches: no unbalanced decrement.
-    if (thread_utils::HasThreadLocalStorage()) {
+    if (utils::threads::HasThreadLocalStorage()) {
         ++waitChainDepth;
     }
 }
 
 NestedWaitGuard::~NestedWaitGuard() {
-    if (thread_utils::HasThreadLocalStorage()) {
+    if (utils::threads::HasThreadLocalStorage()) {
         --waitChainDepth;
     }
 }
@@ -514,4 +514,4 @@ void Remove() {
     }
 }
 
-}  // namespace d2bs::speedhack
+}  // namespace d2bs::core::speedhack

@@ -11,7 +11,7 @@
 #include "api/core/Error.h"
 #include "config/CompatibilityFlags.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 // Native payload for the Compatibility class. The class is a pure static
 // namespace (never instantiated); this carries no state and exists only to
@@ -25,7 +25,7 @@ struct CompatibilityData {};
 // scripts as `Compatibility.set("objectToSource", false)`,
 // `Compatibility.enabled()`, etc. The available flag names are in
 // the API docs (the CompatibilityFlag set); the store lives in
-// d2bs::config::CompatibilityFlags.
+// d2bs::core::config::CompatibilityFlags.
 class JSCompatibility : public ClassBase<JSCompatibility, CompatibilityData> {
    public:
     static constexpr std::string_view ClassName = "Compatibility";
@@ -40,7 +40,7 @@ class JSCompatibility : public ClassBase<JSCompatibility, CompatibilityData> {
                 auto* isolate = args.GetIsolate();
                 auto context = isolate->GetCurrentContext();
                 std::vector<std::string> names;
-                for (const auto& flag : config::CompatibilityFlags::Instance().All()) {
+                for (const auto& flag : core::config::CompatibilityFlags::Instance().All()) {
                     if (flag.enabled) {
                         names.push_back(flag.name);
                     }
@@ -67,7 +67,7 @@ class JSCompatibility : public ClassBase<JSCompatibility, CompatibilityData> {
             isolate, tpl, "set", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
                 auto context = isolate->GetCurrentContext();
-                auto& registry = config::CompatibilityFlags::Instance();
+                auto& registry = core::config::CompatibilityFlags::Instance();
 
                 // Object form: set({flag: bool, ...}). Validate every key before
                 // applying so a typo can't leave a half-applied change.
@@ -117,8 +117,8 @@ class JSCompatibility : public ClassBase<JSCompatibility, CompatibilityData> {
         /// @signature Compatibility.reset()
         StaticMethod(
             isolate, tpl, "reset",
-            +[](const v8::FunctionCallbackInfo<v8::Value>&) { config::CompatibilityFlags::Instance().Reset(); });
+            +[](const v8::FunctionCallbackInfo<v8::Value>&) { core::config::CompatibilityFlags::Instance().Reset(); });
     }
 };
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

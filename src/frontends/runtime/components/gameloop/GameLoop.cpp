@@ -34,35 +34,36 @@ namespace {
 // it is blocking and not "our" cost. Every other phase is a cost this framework introduces, and
 // those carry the thresholds.
 constexpr std::array FRAME_PHASES = {
-    profiling::PhaseInfo{
+    utils::profiling::PhaseInfo{
         .name = "game logic", .what = "outside our hook entirely - the game's own frame", .foreign = true},
-    profiling::PhaseInfo{.name = "asleep (game's Sleep)",
-                         .what = "honouring the duration the game asked for - not our cost",
-                         .blocking = true},
-    profiling::PhaseInfo{.name = "frame body", .what = "snapshot, events, script lifecycle", .warn = 25.0, .bad = 50.0},
-    profiling::PhaseInfo{.name = "script work (drain)",
-                         .what = "GameThread::Execute tasks posted by scripts",
-                         .warn = 15.0,
-                         .bad = 35.0},
-    profiling::PhaseInfo{
+    utils::profiling::PhaseInfo{.name = "asleep (game's Sleep)",
+                                .what = "honouring the duration the game asked for - not our cost",
+                                .blocking = true},
+    utils::profiling::PhaseInfo{
+        .name = "frame body", .what = "snapshot, events, script lifecycle", .warn = 25.0, .bad = 50.0},
+    utils::profiling::PhaseInfo{.name = "script work (drain)",
+                                .what = "GameThread::Execute tasks posted by scripts",
+                                .warn = 15.0,
+                                .bad = 35.0},
+    utils::profiling::PhaseInfo{
         .name = "waiting for game lock", .what = "blocked until script readers release", .warn = 10.0, .bad = 25.0},
-    profiling::PhaseInfo{
+    utils::profiling::PhaseInfo{
         .name = "draw hook", .what = "script drawables and the version banner", .warn = 10.0, .bad = 25.0},
-    profiling::PhaseInfo{.name = "event hooks",
-                         .what = "packet / chat / input / IPC hooks dispatching to scripts",
-                         .warn = 10.0,
-                         .bad = 25.0},
-    profiling::PhaseInfo{.name = "waiting for a script",
-                         .what = "parked until a script handler answers a blocking event",
-                         .warn = 5.0,
-                         .bad = 15.0},
-    profiling::PhaseInfo{.name = "character state",
-                         .what = "CharacterState snapshot + diff to the manager (WM_COPYDATA)",
-                         .warn = 10.0,
-                         .bad = 25.0},
+    utils::profiling::PhaseInfo{.name = "event hooks",
+                                .what = "packet / chat / input / IPC hooks dispatching to scripts",
+                                .warn = 10.0,
+                                .bad = 25.0},
+    utils::profiling::PhaseInfo{.name = "waiting for a script",
+                                .what = "parked until a script handler answers a blocking event",
+                                .warn = 5.0,
+                                .bad = 15.0},
+    utils::profiling::PhaseInfo{.name = "character state",
+                                .what = "CharacterState snapshot + diff to the manager (WM_COPYDATA)",
+                                .warn = 10.0,
+                                .bad = 25.0},
 };
 
-constexpr profiling::TimelineInfo FRAME_TIMELINE{
+constexpr utils::profiling::TimelineInfo FRAME_TIMELINE{
     .title = "Game thread",
     .phases = FRAME_PHASES,
     .framePhase = static_cast<size_t>(FramePhase::Body),
@@ -107,7 +108,7 @@ void GameLoop::OnSleep(std::chrono::milliseconds duration) {
     // Defensive: a Sleep arriving on the game thread before
     // ScriptEngine::Initialize completes should be a no-op. The hook may be
     // installed before engine init in some Framework init orderings.
-    if (!ScriptEngine::Instance().IsInitialized()) {
+    if (!script::ScriptEngine::Instance().IsInitialized()) {
         return;
     }
 
@@ -172,8 +173,8 @@ void GameLoop::OnSleep(std::chrono::milliseconds duration) {
         // Release for idleSleep-ms real-wall slices so script readers get windows,
         // re-draining each slice; yield under 1ms wall left. A large
         // IdleSleepIntervalMs just coarsens the deadline re-check (idle CPU vs latency).
-        const float speed = speedhack::GetSpeed();
-        const auto idleSleep = config::GetAppConfig().idleSleepInterval;
+        const float speed = core::speedhack::GetSpeed();
+        const auto idleSleep = core::config::GetAppConfig().idleSleepInterval;
         while (true) {
             auto now = std::chrono::steady_clock::now();
             if (now >= deadline) {
@@ -187,7 +188,7 @@ void GameLoop::OnSleep(std::chrono::milliseconds duration) {
             const auto realRemaining = std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::duration<double, std::milli>(deadline - now) / speed);
             {
-                speedhack::SpeedhackDisabledScope realWaits;
+                core::speedhack::SpeedhackDisabledScope realWaits;
                 std::this_thread::sleep_for(std::clamp(realRemaining, std::chrono::milliseconds(1), idleSleep));
             }
             frame_.Enter(FramePhase::AcquireWait);
@@ -226,7 +227,7 @@ void GameLoop::EvaluateChicken(const Snapshot& cur) {
         return;
     }
 
-    auto& cfg = config::GetAppConfig();
+    auto& cfg = core::config::GetAppConfig();
 
     // Reference (D2Handlers.cpp:75-76) compares the configured threshold
     // against absolute HP/MP returned by GetUnitHP/GetUnitMP (STAT_HP >> 8),
@@ -264,7 +265,7 @@ void GameLoop::EvaluateMaxGameTime(const Snapshot& prev, const Snapshot& cur) {
         return;
     }
 
-    auto maxGameTime = config::GetAppConfig().maxGameTime.load();
+    auto maxGameTime = core::config::GetAppConfig().maxGameTime.load();
     if (maxGameTime.count() <= 0) {
         return;
     }
@@ -291,17 +292,17 @@ void GameLoop::EmitStateEvents(const Snapshot& prev, const Snapshot& cur) const 
     // HP / MP: emit on first observation and on value change. std::optional
     // comparisons handle "never observed before" without explicit flags.
     if (cur.hp.has_value() && prev.hp != cur.hp) {
-        LifeEventDispatch(*cur.hp);
+        events::LifeEventDispatch(*cur.hp);
     }
     if (cur.mp.has_value() && prev.mp != cur.mp) {
-        ManaEventDispatch(*cur.mp);
+        events::ManaEventDispatch(*cur.mp);
     }
 
     // playerassign: reference only fires on non-null player pointer - never on
     // disappearance. Emit when we have a current id that differs from the
     // previous observation (nullopt -> value, or value -> different value).
     if (cur.playerId.has_value() && prev.playerId != cur.playerId) {
-        PlayerAssignEventDispatch(*cur.playerId);
+        events::PlayerAssignEventDispatch(*cur.playerId);
     }
 }
 
@@ -314,7 +315,7 @@ void GameLoop::ReloadPathsForProfile(const std::string& name) {
         return;
     }
 
-    auto& cfg = config::GetAppConfig();
+    auto& cfg = core::config::GetAppConfig();
     auto oldPaths = cfg.GetScriptPaths();
     // Start from the settings baseline, not the previously-resolved paths -
     // otherwise overrides from an earlier profile stick when switching to a
@@ -343,7 +344,7 @@ void GameLoop::ReloadPathsForProfile(const std::string& name) {
     const bool consoleChanged = newPaths.consoleScript != oldPaths.consoleScript;
     cfg.SetScriptPaths(std::move(newPaths));
     if (consoleChanged) {
-        ScriptEngine::Instance().RestartConsoleScript();
+        script::ScriptEngine::Instance().RestartConsoleScript();
     }
 }
 
@@ -373,23 +374,23 @@ void GameLoop::DriveScriptLifecycle(const Snapshot& prev, const Snapshot& cur) {
         return;
     }
 
-    auto& engine = ScriptEngine::Instance();
-    auto paths = config::GetAppConfig().GetScriptPaths();
+    auto& engine = script::ScriptEngine::Instance();
+    auto paths = core::config::GetAppConfig().GetScriptPaths();
 
-    auto startStarter = [&](const std::string& name, ScriptMode mode) {
+    auto startStarter = [&](const std::string& name, script::ScriptMode mode) {
         if (name.empty()) {
             return;
         }
         auto path = paths.basePath / name;
         if (engine.StartScript(path, mode)) {
-            logger_->info("started {} ({})", name, mode == ScriptMode::InGame ? "InGame" : "OutOfGame");
+            logger_->info("started {} ({})", name, mode == script::ScriptMode::InGame ? "InGame" : "OutOfGame");
         } else {
             logger_->warn("failed to start {}", name);
         }
     };
 
-    auto stopMode = [&](ScriptMode mode) {
-        engine.ForEachScript([mode](const std::shared_ptr<Script>& script) {
+    auto stopMode = [&](script::ScriptMode mode) {
+        engine.ForEachScript([mode](const std::shared_ptr<script::Script>& script) {
             if (script->GetMode() == mode) {
                 script->Stop();
             }
@@ -402,11 +403,11 @@ void GameLoop::DriveScriptLifecycle(const Snapshot& prev, const Snapshot& cur) {
     // so the in-game script keeps running across them. Profile-change
     // mid-game is the only other valid restart trigger.
     if (sessionExited) {
-        stopMode(ScriptMode::InGame);
+        stopMode(script::ScriptMode::InGame);
     }
     if (sessionEntered || (profileChanged && cur.state == game::GameState::InGame)) {
-        stopMode(ScriptMode::InGame);
-        startStarter(paths.gameScript, ScriptMode::InGame);
+        stopMode(script::ScriptMode::InGame);
+        startStarter(paths.gameScript, script::ScriptMode::InGame);
     }
 
     // ----- OutOfGame (menu) script lifecycle -----
@@ -420,10 +421,10 @@ void GameLoop::DriveScriptLifecycle(const Snapshot& prev, const Snapshot& cur) {
         // any future Busy->Menu transitions.
         const bool firstMenuEntry = prev.state != game::GameState::InGame;
         const bool userRequested = latchCleared || profileChanged;
-        const bool autoStartAllowed = firstMenuEntry && config::GetAppConfig().startAtMenu.load();
+        const bool autoStartAllowed = firstMenuEntry && core::config::GetAppConfig().startAtMenu.load();
         if (userRequested || autoStartAllowed) {
-            stopMode(ScriptMode::OutOfGame);
-            startStarter(paths.starterScript, ScriptMode::OutOfGame);
+            stopMode(script::ScriptMode::OutOfGame);
+            startStarter(paths.starterScript, script::ScriptMode::OutOfGame);
         }
     }
 }
@@ -431,7 +432,7 @@ void GameLoop::DriveScriptLifecycle(const Snapshot& prev, const Snapshot& cur) {
 void GameLoop::TakeSnapshot(Snapshot& out) {
     out.state = game::GetGameState();
 
-    auto& cfg = config::GetAppConfig();
+    auto& cfg = core::config::GetAppConfig();
     out.waitForProfile = cfg.waitForProfile.load(std::memory_order_acquire);
     out.profileName = cfg.GetProfileName();
 

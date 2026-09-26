@@ -4,7 +4,7 @@
 
 #include <cstring>
 
-namespace d2bs::hooks {
+namespace d2bs::lod114d::hooks {
 
 namespace {
 
@@ -65,4 +65,4 @@ void RestoreByte(uintptr_t site, uint8_t value) {
     FlushInstructionCache(GetCurrentProcess(), p, 1);
 }
 
-}  // namespace d2bs::hooks
+}  // namespace d2bs::lod114d::hooks

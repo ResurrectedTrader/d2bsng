@@ -10,7 +10,7 @@
 // sourced from reference/d2bs/D2Ptrs.h.
 
 // NOLINTBEGIN(readability-identifier-naming) - MOO-style names use DOMAIN_PascalCase with embedded underscores
-namespace d2bs::imports::d2net {
+namespace d2bs::lod114d::imports::d2net {
 
 // ---- Functions -------------------------------------------------------------
 // Pointer args declared `const` even though the underlying game functions
@@ -27,5 +27,5 @@ inline FastcallFunc<void(const uint8_t* /*aPacket*/, uint32_t /*aLen*/)> CLIENT_
 inline FastcallFunc<void(const uint8_t* /*aPacket*/, uint32_t /*aLen*/, int32_t* /*pParsedLength*/)>
     CLIENT_ReceivePacket_I{0x12B920};
 
-}  // namespace d2bs::imports::d2net
+}  // namespace d2bs::lod114d::imports::d2net
 // NOLINTEND(readability-identifier-naming)

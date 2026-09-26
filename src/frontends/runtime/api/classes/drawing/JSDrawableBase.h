@@ -9,16 +9,16 @@
 #include "components/script/Script.h"
 #include "components/script/ScriptEngine.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 // Import drawing types used by all drawing JS class headers
-using runtime::drawing::Align;
-using runtime::drawing::BoxDrawable;
-using runtime::drawing::Drawable;
-using runtime::drawing::FrameDrawable;
-using runtime::drawing::ImageDrawable;
-using runtime::drawing::LineDrawable;
-using runtime::drawing::TextDrawable;
+using drawing::Align;
+using drawing::BoxDrawable;
+using drawing::Drawable;
+using drawing::FrameDrawable;
+using drawing::ImageDrawable;
+using drawing::LineDrawable;
+using drawing::TextDrawable;
 
 // extract is a sibling namespace - alias so all drawing JS headers can write
 // extract::PointInto / SizeInto without fully qualifying.
@@ -45,11 +45,11 @@ class JSDrawableBase : public ClassBase<Derived, DrawableType> {
 
     // The click / hover callbacks are owned by the script, not the drawable -
     // see Script::SetDrawableHandler.
-    static void GetHandler(const v8::PropertyCallbackInfo<v8::Value>& info, DrawableHandler which) {
+    static void GetHandler(const v8::PropertyCallbackInfo<v8::Value>& info, script::DrawableHandler which) {
         auto* drawable = Base::Unwrap(info.Holder());
         if (!drawable)
             return;
-        auto* script = ScriptEngine::Instance().GetScript(info.GetIsolate());
+        auto* script = script::ScriptEngine::Instance().GetScript(info.GetIsolate());
         if (!script)
             return;
         v8::Local<v8::Function> handler;
@@ -58,12 +58,12 @@ class JSDrawableBase : public ClassBase<Derived, DrawableType> {
         }
     }
 
-    static void SetHandler(const v8::PropertyCallbackInfo<v8::Boolean>& info, DrawableHandler which,
+    static void SetHandler(const v8::PropertyCallbackInfo<v8::Boolean>& info, script::DrawableHandler which,
                            v8::Local<v8::Value> value) {
         auto* drawable = Base::Unwrap(info.Holder());
         if (!drawable)
             return;
-        auto* script = ScriptEngine::Instance().GetScript(info.GetIsolate());
+        auto* script = script::ScriptEngine::Instance().GetScript(info.GetIsolate());
         if (!script)
             return;
         script->SetDrawableHandler(*drawable, which,
@@ -207,10 +207,10 @@ class JSDrawableBase : public ClassBase<Derived, DrawableType> {
         Base::Property(
             isolate, inst, "click",
             +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                GetHandler(info, DrawableHandler::Click);
+                GetHandler(info, script::DrawableHandler::Click);
             },
             +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                SetHandler(info, DrawableHandler::Click, value);
+                SetHandler(info, script::DrawableHandler::Click, value);
             });
 
         // hover property
@@ -221,10 +221,10 @@ class JSDrawableBase : public ClassBase<Derived, DrawableType> {
         Base::Property(
             isolate, inst, "hover",
             +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                GetHandler(info, DrawableHandler::Hover);
+                GetHandler(info, script::DrawableHandler::Hover);
             },
             +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                SetHandler(info, DrawableHandler::Hover, value);
+                SetHandler(info, script::DrawableHandler::Hover, value);
             });
 
         // remove method
@@ -236,7 +236,7 @@ class JSDrawableBase : public ClassBase<Derived, DrawableType> {
                 auto* drawable = Base::Unwrap(args.This());
                 if (!drawable)
                     return;
-                auto* script = ScriptEngine::Instance().GetScript(args.GetIsolate());
+                auto* script = script::ScriptEngine::Instance().GetScript(args.GetIsolate());
                 if (!script)
                     return;
                 script->RemoveDrawable(drawable->shared_from_this());
@@ -245,4 +245,4 @@ class JSDrawableBase : public ClassBase<Derived, DrawableType> {
     }
 };
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

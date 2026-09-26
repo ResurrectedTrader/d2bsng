@@ -67,7 +67,7 @@
 
 namespace d2bs::game {
 
-using namespace d2bs::imports;
+using namespace d2bs::lod114d::imports;
 using extras::D2ActiveRoomStrc;
 using extras::D2DrlgActStrc;
 using extras::D2DrlgLevelStrc;
@@ -229,7 +229,7 @@ bool WaitForGameReady(std::chrono::milliseconds timeout) {
         if (std::chrono::steady_clock::now() >= deadline) {
             return false;
         }
-        const profiling::ScopedSleep waiting;
+        const utils::profiling::ScopedSleep waiting;
         std::this_thread::sleep_for(WAIT_GAME_READY_POLL);
     }
 }
@@ -535,7 +535,7 @@ void Say(const std::string& text) {
     msg.lParam = 0x11C0001;
     msg.pt.x = 0x79;
     msg.pt.y = 0x1;
-    asm_thunks::Say(&msg);
+    lod114d::asm_thunks::Say(&msg);
 }
 
 // === Trade ===
@@ -666,7 +666,7 @@ bool ClickMapAt(uint32_t clickType, bool shift, Point pos) {
         const uint32_t flag = shift ? 0x0CU : runFlag;
         // Force-NULL through P5 so the click is unambiguously coord-only --
         // matches reference Core.cpp:168-173 (bClickAction=TRUE, unit=NULL).
-        hooks::intercepts::WithSelectedUnit(nullptr, [&] {
+        lod114d::hooks::intercepts::WithSelectedUnit(nullptr, [&] {
             d2client::UI_ClickMap(clickType, static_cast<uint32_t>(click.x), static_cast<uint32_t>(click.y), flag);
         });
         *d2client::gnMouseX = savedX;
@@ -710,13 +710,13 @@ bool ClickMapAt(uint32_t clickType, bool shift, const Unit& unit) {
         const bool unitIsPlayer = (pUnit == d2client::UNITS_GetPlayerUnit());
         const uint32_t runFlag = (*d2client::gbAlwaysRun != 0) ? 0x08U : 0U;
         const uint32_t flag = shift ? 0x0CU : runFlag;
-        hooks::intercepts::WithSelectedUnit(unitIsPlayer ? nullptr : pUnit, [&] {
+        lod114d::hooks::intercepts::WithSelectedUnit(unitIsPlayer ? nullptr : pUnit, [&] {
             d2client::UI_ClickMap(clickType, static_cast<uint32_t>(click.x), static_cast<uint32_t>(click.y), flag);
             // After a unit-targeted click, the game writes the target into its
             // SelectedUnit slot. Wipe it so subsequent ticks don't auto-continue
             // interacting with that target. Reference Core.cpp:162.
             if (!unitIsPlayer) {
-                asm_thunks::SetSelectedUnit(nullptr);
+                lod114d::asm_thunks::SetSelectedUnit(nullptr);
             }
         });
         *d2client::gnMouseX = savedX;
@@ -1176,15 +1176,15 @@ ClickResult ClickItem(ClickButton button, const Unit& item) {
             }
             switch (button) {
                 case ClickButton::Left:
-                    asm_thunks::ClickBelt(beltX, beltY, player->pInventory);
+                    lod114d::asm_thunks::ClickBelt(beltX, beltY, player->pInventory);
                     return ClickResult::Dispatched;
                 case ClickButton::Right:
-                    asm_thunks::ClickBeltRight(player->pInventory, player, false, slotIndex);
+                    lod114d::asm_thunks::ClickBeltRight(player->pInventory, player, false, slotIndex);
                     return ClickResult::Dispatched;
                 case ClickButton::ShiftLeft:
                     // Reference JSG:649-650 -- shift-left on belt routes through
                     // ClickBeltRight with HoldShift=1 (potion-use pathway).
-                    asm_thunks::ClickBeltRight(player->pInventory, player, true, slotIndex);
+                    lod114d::asm_thunks::ClickBeltRight(player->pInventory, player, true, slotIndex);
                     return ClickResult::Dispatched;
                 default:
                     return ClickResult::InvalidTarget;
@@ -1210,13 +1210,15 @@ ClickResult ClickItem(ClickButton button, const Unit& item) {
 
         switch (button) {
             case ClickButton::Left:
-                asm_thunks::LeftClickItem(entry->locationCode, player, player->pInventory, px, py, 1U, entry->layout);
+                lod114d::asm_thunks::LeftClickItem(entry->locationCode, player, player->pInventory, px, py, 1U,
+                                                   entry->layout);
                 return ClickResult::Dispatched;
             case ClickButton::ShiftLeft:
-                asm_thunks::LeftClickItem(entry->locationCode, player, player->pInventory, px, py, 5U, entry->layout);
+                lod114d::asm_thunks::LeftClickItem(entry->locationCode, player, player->pInventory, px, py, 5U,
+                                                   entry->layout);
                 return ClickResult::Dispatched;
             case ClickButton::Right:
-                asm_thunks::ClickItemRight(px, py, entry->locationCode, player, player->pInventory);
+                lod114d::asm_thunks::ClickItemRight(px, py, entry->locationCode, player, player->pInventory);
                 return ClickResult::Dispatched;
             default:
                 return ClickResult::InvalidTarget;
@@ -1255,15 +1257,15 @@ ClickResult ClickContainerSlot(ClickButton button, Position gridPos, ItemLocatio
             }
             switch (button) {
                 case ClickButton::Left:
-                    asm_thunks::ClickBelt(beltX, beltY, player->pInventory);
+                    lod114d::asm_thunks::ClickBelt(beltX, beltY, player->pInventory);
                     return ClickResult::Dispatched;
                 case ClickButton::Right:
-                    asm_thunks::ClickBeltRight(player->pInventory, player, false, slotIndex);
+                    lod114d::asm_thunks::ClickBeltRight(player->pInventory, player, false, slotIndex);
                     return ClickResult::Dispatched;
                 case ClickButton::ShiftLeft:
                     // Reference JSG:649-650 -- shift-left on belt routes through
                     // ClickBeltRight with HoldShift=1 (potion-use pathway).
-                    asm_thunks::ClickBeltRight(player->pInventory, player, true, slotIndex);
+                    lod114d::asm_thunks::ClickBeltRight(player->pInventory, player, true, slotIndex);
                     return ClickResult::Dispatched;
                 default:
                     return ClickResult::InvalidTarget;
@@ -1308,15 +1310,17 @@ ClickResult ClickContainerSlot(ClickButton button, Position gridPos, ItemLocatio
 
         switch (button) {
             case ClickButton::Left:
-                asm_thunks::LeftClickItem(entry->locationCode, player, player->pInventory, px, py, 1U, entry->layout);
+                lod114d::asm_thunks::LeftClickItem(entry->locationCode, player, player->pInventory, px, py, 1U,
+                                                   entry->layout);
                 return ClickResult::Dispatched;
             case ClickButton::ShiftLeft:
-                asm_thunks::LeftClickItem(entry->locationCode, player, player->pInventory, px, py, 5U, entry->layout);
+                lod114d::asm_thunks::LeftClickItem(entry->locationCode, player, player->pInventory, px, py, 5U,
+                                                   entry->layout);
                 return ClickResult::Dispatched;
             case ClickButton::Right:
                 // Reference D2Helpers.cpp:800 -- ClickItemRight_ASM expects
                 // (x, y, location, pPlayer, pInventory).
-                asm_thunks::ClickItemRight(px, py, entry->locationCode, player, player->pInventory);
+                lod114d::asm_thunks::ClickItemRight(px, py, entry->locationCode, player, player->pInventory);
                 return ClickResult::Dispatched;
             default:
                 return ClickResult::InvalidTarget;
@@ -1383,17 +1387,17 @@ void ClickPartyMember(const Party& party, PartyMode mode) {
             if (data == nullptr || (data->nCharFlags & std::to_underlying(CharFlag::Hardcore)) == 0) {
                 return;
             }
-            asm_thunks::HostilePartyUnit(rosterPtr, 2U);
+            lod114d::asm_thunks::HostilePartyUnit(rosterPtr, 2U);
             return;
         }
         case PartyMode::Unhostile:
-            asm_thunks::HostilePartyUnit(rosterPtr, 1U);
+            lod114d::asm_thunks::HostilePartyUnit(rosterPtr, 1U);
             return;
         case PartyMode::Hostile:
-            asm_thunks::HostilePartyUnit(rosterPtr, 3U);
+            lod114d::asm_thunks::HostilePartyUnit(rosterPtr, 3U);
             return;
         case PartyMode::HostileAlt:
-            asm_thunks::HostilePartyUnit(rosterPtr, 4U);
+            lod114d::asm_thunks::HostilePartyUnit(rosterPtr, 4U);
             return;
         case PartyMode::Invite:
             // Already partied with the target -- refuse re-invite.
@@ -1709,7 +1713,7 @@ int32_t SendIPC(uint32_t mode, std::string_view data, uintptr_t targetHwnd, std:
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast) - COPYDATASTRUCT.lpData isn't mutated
     cds.lpData = const_cast<char*>(buffer.c_str());
     // Synchronous across processes: this thread is parked until the manager handles the message.
-    const profiling::ScopedSleep waiting;
+    const utils::profiling::ScopedSleep waiting;
     return static_cast<int32_t>(SendMessageW(target, WM_COPYDATA, reinterpret_cast<WPARAM>(d2gfx::WINDOW_GetWindow()),
                                              reinterpret_cast<LPARAM>(&cds)));
 }
@@ -1813,7 +1817,7 @@ bool RevealLevel(uint32_t levelNo, bool drawPresets) {
         const uint32_t playerLevelNo = (playerLevel != nullptr) ? static_cast<uint32_t>(playerLevel->nLevelId) : 0U;
         const bool isOtherLevel = (playerLevelNo != 0U && playerLevelNo != levelNo);
         if (isOtherLevel) {
-            *d2client::gpAutomapLayer = asm_thunks::InitAutomapLayerForLevel(levelNo);
+            *d2client::gpAutomapLayer = lod114d::asm_thunks::InitAutomapLayerForLevel(levelNo);
         }
 
         for (auto* room = target->pFirstRoomEx; room != nullptr; room = room->pDrlgRoomNext) {
@@ -1832,7 +1836,7 @@ bool RevealLevel(uint32_t levelNo, bool drawPresets) {
         }
 
         if (isOtherLevel) {
-            asm_thunks::InitAutomapLayerForLevel(playerLevelNo);
+            lod114d::asm_thunks::InitAutomapLayerForLevel(playerLevelNo);
         }
         return true;
     });
@@ -2002,9 +2006,9 @@ void SendClick(Point pos) {
     }
     constexpr auto SETTLE_DELAY = std::chrono::milliseconds{100};
     const LPARAM lp = static_cast<LPARAM>(pos.x) | (static_cast<LPARAM>(pos.y) << 16);
-    input::PostInjectedInput(hwnd, WM_LBUTTONDOWN, 0, lp);
+    core::input::PostInjectedInput(hwnd, WM_LBUTTONDOWN, 0, lp);
     std::this_thread::sleep_for(SETTLE_DELAY);
-    input::PostInjectedInput(hwnd, WM_LBUTTONUP, 0, lp);
+    core::input::PostInjectedInput(hwnd, WM_LBUTTONUP, 0, lp);
     // Trailing pause prevents tight script loops from racing the game's input pump.
     std::this_thread::sleep_for(SETTLE_DELAY);
 }
@@ -2018,9 +2022,9 @@ void SendKey(uint32_t key) {
     LPARAM lpDown = 1;
     lpDown |= static_cast<LPARAM>(MapVirtualKeyW(key, MAPVK_VK_TO_VSC)) << 16;
     LPARAM lpUp = lpDown | static_cast<LPARAM>(0xC0000000U);
-    input::PostInjectedInput(hwnd, WM_KEYDOWN, key, lpDown);
+    core::input::PostInjectedInput(hwnd, WM_KEYDOWN, key, lpDown);
     std::this_thread::sleep_for(SETTLE_DELAY);
-    input::PostInjectedInput(hwnd, WM_KEYUP, key, lpUp);
+    core::input::PostInjectedInput(hwnd, WM_KEYUP, key, lpUp);
     // See SendClick -- trailing pause keeps tight script loops from racing the
     // game's input pump.
     std::this_thread::sleep_for(SETTLE_DELAY);

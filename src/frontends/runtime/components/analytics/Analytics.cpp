@@ -292,7 +292,7 @@ std::string IsoNow() {
 // `Compatibility` JS object), so this is the state as of the settle delay.
 std::vector<std::string> CompatibilityOverrides() {
     std::vector<std::string> overrides;
-    for (const auto& flag : config::CompatibilityFlags::Instance().All()) {
+    for (const auto& flag : core::config::CompatibilityFlags::Instance().All()) {
         if (flag.enabled != flag.defaultEnabled) {
             overrides.push_back((flag.enabled ? "+" : "-") + flag.name);
         }
@@ -373,7 +373,7 @@ bool PostEvent(const EventContext& ctx, const std::shared_ptr<spdlog::logger>& l
     props["installId"] = ctx.installId;
     event["props"] = std::move(props);
 
-    http::Request request;
+    core::http::Request request;
     request.method = "POST";
     request.url = std::string(ctx.host) + std::string(EVENT_PATH);
     request.headers = {
@@ -386,8 +386,8 @@ bool PostEvent(const EventContext& ctx, const std::shared_ptr<spdlog::logger>& l
     request.timeoutMs = NETWORK_TIMEOUT_MS;
     request.totalTimeoutMs = TOTAL_TIMEOUT_MS;
 
-    http::Response response;
-    const std::string error = http::Perform(request, response);
+    core::http::Response response;
+    const std::string error = core::http::Perform(request, response);
     if (!error.empty()) {
         logger->debug("analytics: {} request failed ({})", eventName, error);
         return false;
@@ -461,7 +461,7 @@ void Analytics::Stop() {
 }
 
 void Analytics::Run(const std::stop_token& stopToken) {
-    thread_utils::SetThreadDescription("d2bs analytics");
+    utils::threads::SetThreadDescription("d2bs analytics");
 
     // Top frame of the reporter thread, so an escaping exception is
     // std::terminate() and takes the game with it. std::random_device (session
@@ -519,7 +519,7 @@ void Analytics::WatchProfiles(std::unique_lock<std::mutex>& lock, const std::sto
         }
 
         if (pending.empty()) {
-            const std::string name = config::GetAppConfig().GetProfileName();
+            const std::string name = core::config::GetAppConfig().GetProfileName();
             if (name.empty()) {
                 continue;  // no profile yet - a script hasn't logged in
             }
@@ -570,7 +570,7 @@ bool Analytics::SendStartupEvent() {
     // a sorted, comma-joined string because Aptabase props are scalar - it
     // groups and "contains"-filters cleanly in the dashboard.
     std::vector<std::string> features = game::GetActiveFeatures();
-    const auto& appConfig = config::GetAppConfig();
+    const auto& appConfig = core::config::GetAppConfig();
     if (appConfig.inspectorPort.load() > 0) {
         features.emplace_back("inspector");
     }

@@ -11,6 +11,7 @@
 #include "config/ProfileData.h"
 
 using namespace d2bs::config;
+using namespace d2bs::core::config;
 
 namespace {
 

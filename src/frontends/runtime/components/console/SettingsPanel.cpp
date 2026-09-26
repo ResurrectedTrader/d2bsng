@@ -65,13 +65,13 @@ void SpeedSlider(float current) {
     // Override BeginRow's full-width default so the Reset button fits on the
     // same line. ~60px is enough for "Reset" in the default font with padding.
     ImGui::SetNextItemWidth(-60.0F);
-    if (ImGui::SliderFloat("##v", &value, speedhack::MIN_SPEED, speedhack::MAX_SPEED, "%.2fx",
+    if (ImGui::SliderFloat("##v", &value, core::speedhack::MIN_SPEED, core::speedhack::MAX_SPEED, "%.2fx",
                            ImGuiSliderFlags_Logarithmic)) {
-        speedhack::SetSpeed(value);
+        core::speedhack::SetSpeed(value);
     }
     ImGui::SameLine();
     if (ImGui::SmallButton("Reset")) {
-        speedhack::SetSpeed(1.0F);
+        core::speedhack::SetSpeed(1.0F);
     }
     EndRow();
 }
@@ -100,7 +100,7 @@ void EnumRow(const char* label, E value) {
 }  // namespace
 
 void SettingsPanel::Draw() {
-    auto& config = config::GetAppConfig();
+    auto& config = core::config::GetAppConfig();
 
     // Scroll this panel's body in its own child so the console tab bar stays
     // pinned as the collapsing sections expand. Other panels are short enough not
@@ -188,19 +188,20 @@ void SettingsPanel::Draw() {
             const bool enabled = stored > 0;
             int32_t port = std::abs(stored);
             if (port == 0) {
-                port = config::DEFAULT_INSPECTOR_PORT;
+                port = core::config::DEFAULT_INSPECTOR_PORT;
             }
 
             BeginRow("Chrome DevTools");
             bool inspectorOn = enabled;
             if (ImGui::Checkbox("##v", &inspectorOn)) {
-                ScriptEngine::Instance().SetInspector(inspectorOn, port);
+                script::ScriptEngine::Instance().SetInspector(inspectorOn, port);
             }
             EndRow();
 
             BeginRow("Port");
-            if (ImGui::DragInt("##v", &port, 1.0F, config::MIN_INSPECTOR_PORT, config::MAX_INSPECTOR_PORT)) {
-                ScriptEngine::Instance().SetInspector(enabled, port);
+            if (ImGui::DragInt("##v", &port, 1.0F, core::config::MIN_INSPECTOR_PORT,
+                               core::config::MAX_INSPECTOR_PORT)) {
+                script::ScriptEngine::Instance().SetInspector(enabled, port);
             }
             EndRow();
 

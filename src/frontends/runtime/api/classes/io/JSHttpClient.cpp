@@ -7,7 +7,7 @@
 
 #include "http/Client.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 namespace {
 
@@ -105,7 +105,7 @@ bool ReadBoolOption(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Lo
 // options are rejected (not silently ignored). Returns false with a pending
 // exception on any rejection / V8 error; true otherwise.
 bool ApplyOptions(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Local<v8::Object> options,
-                  http::Request& request, bool allowMethod, bool allowBody, bool& binary) {
+                  core::http::Request& request, bool allowMethod, bool allowBody, bool& binary) {
     if (allowMethod && !ReadStringOption(isolate, context, options, "method", request.method)) {
         return false;
     }
@@ -190,7 +190,7 @@ bool ApplyOptions(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Loca
 
 // Build the plain JS response object returned to scripts.
 v8::Local<v8::Value> BuildResponseObject(v8::Isolate* isolate, v8::Local<v8::Context> context,
-                                         const http::Response& response, bool binary) {
+                                         const core::http::Response& response, bool binary) {
     v8::EscapableHandleScope scope(isolate);
     auto object = v8::Object::New(isolate);
 
@@ -234,7 +234,7 @@ void RequestImpl(const v8::FunctionCallbackInfo<v8::Value>& args, std::string_vi
     auto* isolate = args.GetIsolate();
     auto context = isolate->GetCurrentContext();
 
-    http::Request request;
+    core::http::Request request;
     request.method = std::string(defaultMethod);
     bool binary = false;
 
@@ -286,8 +286,8 @@ void RequestImpl(const v8::FunctionCallbackInfo<v8::Value>& args, std::string_vi
         return;
     }
 
-    http::Response response;
-    std::string error = http::Perform(request, response);
+    core::http::Response response;
+    std::string error = core::http::Perform(request, response);
     if (!error.empty()) {
         error::ThrowError(isolate, "HTTP request failed: " + error);
         return;
@@ -389,4 +389,4 @@ void JSHttpClient::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functio
         });
 }
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

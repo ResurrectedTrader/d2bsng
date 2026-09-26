@@ -23,7 +23,7 @@
 
 namespace d2bs::game {
 
-using imports::extras::D2WinControlStrc;
+using lod114d::imports::extras::D2WinControlStrc;
 
 namespace {
 
@@ -34,12 +34,12 @@ D2WinControlStrc* AsCtrl(void* p) noexcept {
 }
 
 void PostMouseMessage(uint32_t msg, int32_t x, int32_t y) {
-    auto* hwnd = imports::d2gfx::WINDOW_GetWindow();
+    auto* hwnd = lod114d::imports::d2gfx::WINDOW_GetWindow();
     if (hwnd == nullptr) {
         return;
     }
     const LPARAM lp = (x & 0xFFFF) | ((y & 0xFFFF) << 16);
-    input::PostInjectedInput(hwnd, msg, 0, lp);
+    core::input::PostInjectedInput(hwnd, msg, 0, lp);
 }
 
 }  // namespace
@@ -53,7 +53,7 @@ void* Control::ResolvePtr() const {
         return cached;
     }
     void* resolved = nullptr;
-    for (auto* p = *imports::d2win::gpFirstControl; p != nullptr; p = p->pNext) {
+    for (auto* p = *lod114d::imports::d2win::gpFirstControl; p != nullptr; p = p->pNext) {
         if (p->dwType == type_ && p->rect == bounds_) {
             resolved = p;
             break;
@@ -95,7 +95,8 @@ void Control::SetText(const std::string& text) const {
         return;
     }
     auto wide = utils::ToWStr(text);
-    GameThread::Execute([ctrl, wide = std::move(wide)] { imports::d2win::CONTROL_SetText(ctrl, wide.c_str()); });
+    GameThread::Execute(
+        [ctrl, wide = std::move(wide)] { lod114d::imports::d2win::CONTROL_SetText(ctrl, wide.c_str()); });
 }
 
 Rect Control::Bounds() const {
@@ -167,7 +168,7 @@ bool Control::HasLocaleText(int32_t localeId) const {
     if (ctrl == nullptr) {
         return false;
     }
-    const auto* localeText = imports::d2lang::D2LANG_GetLocaleText(static_cast<uint16_t>(localeId));
+    const auto* localeText = lod114d::imports::d2lang::D2LANG_GetLocaleText(static_cast<uint16_t>(localeId));
     if (localeText == nullptr) {
         return false;
     }
@@ -253,7 +254,7 @@ std::vector<Control::TextLine> Control::TextLines() const {
 }
 
 std::optional<Control> Control::GetFirst() {
-    auto* first = *imports::d2win::gpFirstControl;
+    auto* first = *lod114d::imports::d2win::gpFirstControl;
     if (first == nullptr) {
         return std::nullopt;
     }

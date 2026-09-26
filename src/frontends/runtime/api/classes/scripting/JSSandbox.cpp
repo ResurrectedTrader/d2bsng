@@ -5,7 +5,7 @@
 #include "config/AppConfig.h"
 #include "utils/utils.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 // Helper: get the sandbox context's global object (the inner scope)
 static v8::Local<v8::Object> GetInnerGlobal(v8::Isolate* isolate, SandboxData* data) {
@@ -67,7 +67,7 @@ void JSSandbox::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
             std::string source = convert::ToString(isolate, args[0]);
 
             v8::Local<v8::Script> script;
-            if (!runtime::script::CompileSource(isolate, sandboxContext, std::move(source), "sandbox").ToLocal(&script))
+            if (!script::CompileSource(isolate, sandboxContext, std::move(source), "sandbox").ToLocal(&script))
                 return;
 
             v8::Local<v8::Value> result;
@@ -108,7 +108,7 @@ void JSSandbox::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
             }
 
             // Resolve path from libs/
-            auto resolved = config::GetPathRelScript("libs/" + filename);
+            auto resolved = core::config::GetPathRelScript("libs/" + filename);
             if (resolved.empty() || !std::filesystem::exists(resolved)) {
                 args.GetReturnValue().SetFalse();
                 return;
@@ -128,8 +128,7 @@ void JSSandbox::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
             v8::Context::Scope contextScope(sandboxContext);
 
             v8::Local<v8::Script> script;
-            if (!runtime::script::CompileSource(isolate, sandboxContext, std::move(source), filename)
-                     .ToLocal(&script)) {
+            if (!script::CompileSource(isolate, sandboxContext, std::move(source), filename).ToLocal(&script)) {
                 args.GetReturnValue().SetFalse();
                 return;
             }
@@ -260,4 +259,4 @@ void JSSandbox::NamedPropertyEnumerator(const v8::PropertyCallbackInfo<v8::Array
     }
 }
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

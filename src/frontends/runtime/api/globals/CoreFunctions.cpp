@@ -37,16 +37,16 @@
 #include "utils/threadutils.h"
 #include "utils/utils.h"
 
-namespace d2bs::api::globals {
+namespace d2bs::runtime::api::globals {
 
-using namespace d2bs::api;
+using namespace d2bs::runtime::api;
 
 // getPacket / sendPacket share packet-construction logic. This helper extracts
 // either an ArrayBuffer/TypedArray or (byteSize, value) pairs into `out`.
 static bool BuildPacketFromArgs(const v8::FunctionCallbackInfo<v8::Value>& args, std::vector<uint8_t>& out) {
     auto* isolate = args.GetIsolate();
 
-    if (!config::GetAppConfig().enableUnsupported.load()) {
+    if (!core::config::GetAppConfig().enableUnsupported.load()) {
         error::WarnAndReturnFalse(args, "Packet API requires EnableUnsupported = true in d2bs.ini");
         return false;
     }
@@ -105,7 +105,7 @@ static bool BuildPacketFromArgs(const v8::FunctionCallbackInfo<v8::Value>& args,
 
 // Resolve an include path: looks in libs/ subdirectory only
 static std::filesystem::path FindIncludePath(const std::string& relativePath) {
-    auto resolved = config::GetPathRelScript("libs/" + relativePath);
+    auto resolved = core::config::GetPathRelScript("libs/" + relativePath);
     if (!resolved.empty() && std::filesystem::exists(resolved))
         return resolved;
     return {};
@@ -113,7 +113,7 @@ static std::filesystem::path FindIncludePath(const std::string& relativePath) {
 
 // Resolve a script path: direct path only (matching d2bs reference behavior)
 static std::filesystem::path FindScriptPath(const std::string& relativePath) {
-    auto resolved = config::GetPathRelScript(relativePath);
+    auto resolved = core::config::GetPathRelScript(relativePath);
     if (!resolved.empty() && std::filesystem::exists(resolved))
         return resolved;
     return {};
@@ -148,9 +148,9 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             // Identify the originating script/isolate by short name - same
             // value the per-script logger is named after; cheaper than going
             // through the logger when we're not actually logging via spdlog.
-            auto* script = ScriptEngine::Instance().GetScript(isolate);
+            auto* script = script::ScriptEngine::Instance().GetScript(isolate);
             std::string name = script ? script->GetName() : "js";
-            const auto source = (script != nullptr && script->GetMode() == ScriptMode::Console)
+            const auto source = (script != nullptr && script->GetMode() == script::ScriptMode::Console)
                                     ? game::console::MessageSource::ConsolePrint
                                     : game::console::MessageSource::Print;
 
@@ -186,13 +186,13 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             // Clamp to at least 1ms so events are always processed
             // ToUint32 follows ECMAScript ToUint32: NaN/undefined/arrays -> 0
             uint32_t ms = std::max(convert::ToUint32(isolate, args[0]), 1U);
-            auto* script = ScriptEngine::Instance().GetScript(isolate);
+            auto* script = script::ScriptEngine::Instance().GetScript(isolate);
             if (script) {
                 // Snapshot the JS stack at this yield only when the console's
                 // Stacktraces panel has this script selected (mode != Off) -
                 // otherwise it's a full stack walk on every delay(). On the
                 // script's own thread here, so it's synchronous, no interrupt.
-                if (script->GetStackCaptureMode() != StackCaptureMode::Off) {
+                if (script->GetStackCaptureMode() != script::StackCaptureMode::Off) {
                     script->RefreshLastStackTrace();
                 }
                 script->ExecuteEvents(std::chrono::milliseconds(ms));
@@ -224,7 +224,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto* script = ScriptEngine::Instance().GetScript(isolate);
+            auto* script = script::ScriptEngine::Instance().GetScript(isolate);
             if (!script) {
                 return;
             }
@@ -255,7 +255,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto* script = ScriptEngine::Instance().GetScript(isolate);
+            auto* script = script::ScriptEngine::Instance().GetScript(isolate);
             if (!script) {
                 return;
             }
@@ -289,18 +289,19 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             auto absPath = FindScriptPath(file);
             if (absPath.empty()) {
-                GetLogger(isolate)->warn("load: could not find file \"{}\"", file);
+                script::GetLogger(isolate)->warn("load: could not find file \"{}\"", file);
                 return;
             }
 
-            auto* currentScript = ScriptEngine::Instance().GetScript(isolate);
+            auto* currentScript = script::ScriptEngine::Instance().GetScript(isolate);
             if (!currentScript) {
                 return;
             }
 
             auto mode = currentScript->GetMode();
-            if (mode == ScriptMode::Console) {
-                mode = (game::GetGameState() == game::GameState::InGame) ? ScriptMode::InGame : ScriptMode::OutOfGame;
+            if (mode == script::ScriptMode::Console) {
+                mode = (game::GetGameState() == game::GameState::InGame) ? script::ScriptMode::InGame
+                                                                         : script::ScriptMode::OutOfGame;
             }
 
             std::vector<std::vector<uint8_t>> serializedArgs;
@@ -316,7 +317,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 std::free(data);  // NOLINT(cppcoreguidelines-no-malloc) - V8's ValueSerializer allocates with realloc()
             }
 
-            auto newScript = ScriptEngine::Instance().StartScript(absPath, mode, std::move(serializedArgs));
+            auto newScript = script::ScriptEngine::Instance().StartScript(absPath, mode, std::move(serializedArgs));
             if (newScript) {
                 auto scriptObj = classes::JSScript::Create(isolate, newScript.get());
                 args.GetReturnValue().Set(scriptObj);
@@ -343,7 +344,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
 
             if (stopCurrent) {
-                auto* script = ScriptEngine::Instance().GetScript(isolate);
+                auto* script = script::ScriptEngine::Instance().GetScript(isolate);
                 if (script) {
                     script->Stop();
                     // TerminateExecution ensures code after stop() does not run (reference returns JS_FALSE for same
@@ -351,7 +352,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     isolate->TerminateExecution();
                 }
             } else {
-                ScriptEngine::Instance().StopAllScripts();
+                script::ScriptEngine::Instance().StopAllScripts();
                 isolate->TerminateExecution();
             }
         });
@@ -380,7 +381,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
             const auto multiplier = static_cast<float>(convert::ToDouble(args.GetIsolate(), args[0]));
-            speedhack::SetSpeed(multiplier);
+            core::speedhack::SetSpeed(multiplier);
         });
 
     /// @description Returns the current speedhack time multiplier.
@@ -388,7 +389,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @returns {number} - the current speed multiplier
     function::Register(
         isolate, global, "getSpeed", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            args.GetReturnValue().Set(convert::ToJS(args.GetIsolate(), speedhack::GetSpeed()));
+            args.GetReturnValue().Set(convert::ToJS(args.GetIsolate(), core::speedhack::GetSpeed()));
         });
 
     /// @description Returns a pseudo-random integer. Uniform over [low, high] only when high >= low + 2; when high <=
@@ -444,8 +445,8 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                                      "c1 \xff"
                                      "c3" +
                                      std::string(D2BS_VERSION);
-            auto* script = ScriptEngine::Instance().GetScript(isolate);
-            const auto source = (script != nullptr && script->GetMode() == ScriptMode::Console)
+            auto* script = script::ScriptEngine::Instance().GetScript(isolate);
+            const auto source = (script != nullptr && script->GetMode() == script::ScriptMode::Console)
                                     ? game::console::MessageSource::ConsolePrint
                                     : game::console::MessageSource::Print;
             game::console::OnMessage({
@@ -481,7 +482,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             v8::Local<v8::StackTrace> stackTrace =
                 v8::StackTrace::CurrentStackTrace(isolate, 50, v8::StackTrace::kDetailed);
 
-            auto logger = GetLogger(isolate);
+            auto logger = script::GetLogger(isolate);
             logger->info("JavaScript Stack Trace:");
 
             for (int32_t i = 0; i < stackTrace->GetFrameCount(); ++i) {
@@ -501,7 +502,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 logger->info("  at {} ({}:{}:{})", functionName, scriptName, lineNumber, column);
             }
 
-            logger->info("Native stack trace:\n{}", thread_utils::GetThreadStacktrace());
+            logger->info("Native stack trace:\n{}", utils::threads::GetThreadStacktrace());
 
             args.GetReturnValue().Set(true);
         });
@@ -513,9 +514,9 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     function::Register(
         isolate, global, "debugLog", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            auto* script = ScriptEngine::Instance().GetScript(isolate);
+            auto* script = script::ScriptEngine::Instance().GetScript(isolate);
             std::string name = script ? script->GetName() : "js";
-            const auto source = (script != nullptr && script->GetMode() == ScriptMode::Console)
+            const auto source = (script != nullptr && script->GetMode() == script::ScriptMode::Console)
                                     ? game::console::MessageSource::ConsolePrint
                                     : game::console::MessageSource::Print;
 
@@ -574,16 +575,16 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             std::string data = convert::ToString(isolate, args[4]);
 
             // JS `mode` 0/1/2 maps 1:1 to the Transaction enum values.
-            if (mode > static_cast<uint32_t>(runtime::dde::Transaction::Evaluate)) {
+            if (mode > static_cast<uint32_t>(dde::Transaction::Evaluate)) {
                 return;
             }
-            auto txn = static_cast<runtime::dde::Transaction>(mode);
+            auto txn = static_cast<dde::Transaction>(mode);
 
             // Matches reference/d2bs JSCore.cpp my_sendDDE: never throws on DDE failure; any failure
             // is logged and the JS return value stays undefined (caller sees no response). Only
             // Request sets a return value, and only on successful payload retrieval.
-            auto result = runtime::dde::DdeService::Instance().Send(txn, server, topic, item, data);
-            if (txn == runtime::dde::Transaction::Request && result) {
+            auto result = dde::DdeService::Instance().Send(txn, server, topic, item, data);
+            if (txn == dde::Transaction::Request && result) {
                 args.GetReturnValue().Set(convert::ToJS(isolate, *result));
             }
         });
@@ -601,7 +602,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            ScriptBroadcastEventDispatch(args);
+            events::ScriptBroadcastEventDispatch(args);
             args.GetReturnValue().SetNull();
         });
 
@@ -646,7 +647,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
 
             std::string path = convert::ToString(isolate, args[0]);
-            if (config::IsValidPath(path)) {
+            if (core::config::IsValidPath(path)) {
                 game::LoadMpq(path);
             }
         });
@@ -807,7 +808,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             std::string path = convert::ToString(isolate, args[0]);
 
-            auto fullPath = config::GetPathRelScript(path);
+            auto fullPath = core::config::GetPathRelScript(path);
             if (fullPath.empty()) {
                 auto msg = "Invalid path: " + path;
                 error::ThrowError(isolate, msg);
@@ -843,11 +844,11 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     function::Register(
         isolate, global, "getScript", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            auto& engine = ScriptEngine::Instance();
+            auto& engine = script::ScriptEngine::Instance();
 
             args.GetReturnValue().SetNull();
 
-            std::shared_ptr<Script> targetScript;
+            std::shared_ptr<script::Script> targetScript;
 
             if (args.Length() == 0) {
                 // No arguments: return first script
@@ -903,7 +904,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         isolate, global, "getScripts", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             auto context = isolate->GetCurrentContext();
-            auto& engine = ScriptEngine::Instance();
+            auto& engine = script::ScriptEngine::Instance();
 
             auto scripts = engine.GetAllScripts();
             auto array = v8::Array::New(isolate, static_cast<int32_t>(scripts.size()));
@@ -935,14 +936,14 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto* script = ScriptEngine::Instance().GetScript(isolate);
+            auto* script = script::ScriptEngine::Instance().GetScript(isolate);
             if (!script)
                 return;
 
             auto fn = args[0].As<v8::Function>();
             uint32_t delayMs = convert::ToUint32(isolate, args[1]);
 
-            auto event = std::make_shared<DelayedEvent>(v8::Global<v8::Function>(isolate, fn));
+            auto event = std::make_shared<events::DelayedEvent>(v8::Global<v8::Function>(isolate, fn));
             script->AddDelayedEvent(event);
             script->PostEvent(event, delayMs);
             args.GetReturnValue().Set(event->EventId());
@@ -962,7 +963,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto* script = ScriptEngine::Instance().GetScript(isolate);
+            auto* script = script::ScriptEngine::Instance().GetScript(isolate);
             if (!script)
                 return;
 
@@ -986,14 +987,14 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto* script = ScriptEngine::Instance().GetScript(isolate);
+            auto* script = script::ScriptEngine::Instance().GetScript(isolate);
             if (!script)
                 return;
 
             auto fn = args[0].As<v8::Function>();
             uint32_t repeatMs = convert::ToUint32(isolate, args[1]);
 
-            auto event = std::make_shared<DelayedEvent>(v8::Global<v8::Function>(isolate, fn), repeatMs);
+            auto event = std::make_shared<events::DelayedEvent>(v8::Global<v8::Function>(isolate, fn), repeatMs);
             script->AddDelayedEvent(event);
             script->PostEvent(event, repeatMs);
             args.GetReturnValue().Set(event->EventId());
@@ -1013,7 +1014,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto* script = ScriptEngine::Instance().GetScript(isolate);
+            auto* script = script::ScriptEngine::Instance().GetScript(isolate);
             if (!script)
                 return;
 
@@ -1044,7 +1045,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto* script = ScriptEngine::Instance().GetScript(isolate);
+            auto* script = script::ScriptEngine::Instance().GetScript(isolate);
             if (!script)
                 return;
 
@@ -1073,7 +1074,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto* script = ScriptEngine::Instance().GetScript(isolate);
+            auto* script = script::ScriptEngine::Instance().GetScript(isolate);
             if (!script)
                 return;
 
@@ -1094,7 +1095,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             std::string eventName = convert::ToString(isolate, args[0]);
 
-            auto* script = ScriptEngine::Instance().GetScript(isolate);
+            auto* script = script::ScriptEngine::Instance().GetScript(isolate);
             if (!script)
                 return;
 
@@ -1106,7 +1107,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @returns {undefined}
     function::Register(
         isolate, global, "clearAllEvents", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* script = ScriptEngine::Instance().GetScript(args.GetIsolate());
+            auto* script = script::ScriptEngine::Instance().GetScript(args.GetIsolate());
             if (!script)
                 return;
 
@@ -1114,4 +1115,4 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 }
 
-}  // namespace d2bs::api::globals
+}  // namespace d2bs::runtime::api::globals

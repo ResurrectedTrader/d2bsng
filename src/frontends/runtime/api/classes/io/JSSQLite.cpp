@@ -4,7 +4,7 @@
 
 #include "config/AppConfig.h"
 
-namespace d2bs::api::classes {
+namespace d2bs::runtime::api::classes {
 
 static std::string PathToUtf8(const std::filesystem::path& path) {
     // In C++20+, u8string() returns std::u8string (char8_t based)
@@ -75,7 +75,7 @@ void JSSQLite::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
             path = ":memory:";
         } else if (pathStr[0] != ':') {
             // Regular file path - must pass sandbox validation
-            auto sandboxed = config::GetPathRelScript(pathStr);
+            auto sandboxed = core::config::GetPathRelScript(pathStr);
             if (sandboxed.empty()) {
                 error::ThrowError(isolate, "Invalid file path");
                 return;
@@ -437,4 +437,4 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
         });
 }
 
-}  // namespace d2bs::api::classes
+}  // namespace d2bs::runtime::api::classes

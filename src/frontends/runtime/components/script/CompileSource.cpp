@@ -10,7 +10,7 @@ namespace d2bs::runtime::script {
 
 v8::MaybeLocal<v8::Script> CompileSource(v8::Isolate* isolate, v8::Local<v8::Context> context, std::string source,
                                          std::string_view originName) {
-    auto& compat = config::CompatibilityFlags::Instance();
+    auto& compat = core::config::CompatibilityFlags::Instance();
 
     // Strip UTF-8 BOM. Always applied - this is source hygiene, not a
     // compatibility behavior, so it is not gated by a flag.
@@ -233,7 +233,7 @@ constexpr std::string_view PRELUDE_DELAY = R"(
 }  // namespace
 
 void ApplyCompatibilityPrelude(v8::Isolate* isolate, v8::Local<v8::Context> context) {
-    auto& compat = config::CompatibilityFlags::Instance();
+    auto& compat = core::config::CompatibilityFlags::Instance();
 
     std::string prelude;
     if (compat.IsEnabled("stringContains")) {

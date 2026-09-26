@@ -62,19 +62,19 @@ ImVec4 ColorForLevel(MessageLevel level) {
     return {0.85F, 0.85F, 0.85F, 1.00F};
 }
 
-ImVec4 ColorForState(ScriptState state) {
+ImVec4 ColorForState(script::ScriptState state) {
     switch (state) {
-        case ScriptState::Starting:
+        case script::ScriptState::Starting:
             return {1.00F, 0.85F, 0.30F, 1.00F};
-        case ScriptState::Ready:
+        case script::ScriptState::Ready:
             return {0.55F, 0.85F, 1.00F, 1.00F};
-        case ScriptState::Running:
+        case script::ScriptState::Running:
             return {0.35F, 0.85F, 0.35F, 1.00F};
-        case ScriptState::Paused:
+        case script::ScriptState::Paused:
             return {1.00F, 1.00F, 0.30F, 1.00F};
-        case ScriptState::Stopping:
+        case script::ScriptState::Stopping:
             return {1.00F, 0.55F, 0.15F, 1.00F};
-        case ScriptState::Stopped:
+        case script::ScriptState::Stopped:
             return {0.60F, 0.60F, 0.60F, 1.00F};
     }
     return {0.85F, 0.85F, 0.85F, 1.00F};

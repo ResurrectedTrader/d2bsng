@@ -81,7 +81,7 @@ class GameLoop {
 
     // Attributes the caller's scope to `phase` on the game thread's timeline. Inert on other
     // threads, so a hook that can fire elsewhere uses it unconditionally.
-    [[nodiscard]] profiling::Timeline::Scope InPhase(FramePhase phase) { return frame_.Nest(phase); }
+    [[nodiscard]] utils::profiling::Timeline::Scope InPhase(FramePhase phase) { return frame_.Nest(phase); }
 
 #ifdef D2BS_TEST_HOOKS
     // Drop all accumulated tick state (previous snapshot, game-start anchor) so
@@ -144,7 +144,7 @@ class GameLoop {
     // False until the first OnSleep acquires the write lock. Game-thread-only - no sync needed.
     bool writeLockHeld_ = false;
     // Where the game thread's time goes, for the Profiling panel. Game-thread-only.
-    profiling::Timeline frame_;
+    utils::profiling::Timeline frame_;
 };
 
 }  // namespace d2bs::runtime::gameloop

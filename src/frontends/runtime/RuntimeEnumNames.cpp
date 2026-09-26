@@ -17,7 +17,7 @@
 #include "components/script/ScriptTypes.h"
 #include "utils/EnumNaming.h"
 
-namespace d2bs::api::globals {
+namespace d2bs::runtime::api::globals {
 
 std::string EnumName(FileMode value) {
     static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
@@ -36,7 +36,7 @@ std::string format_as(FileMode value) {
 
 // NOLINTEND(readability-identifier-naming)
 
-}  // namespace d2bs::api::globals
+}  // namespace d2bs::runtime::api::globals
 
 namespace d2bs::runtime::characterstate {
 
@@ -161,44 +161,44 @@ std::string format_as(ReductionType value) {
 
 }  // namespace d2bs::runtime::navigation
 
-namespace d2bs {
+namespace d2bs::runtime::script {
 
 std::string EnumName(StackCaptureMode value) {
-    static constexpr auto ENTRIES = std::to_array<::d2bs::utils::EnumEntry>({
-        {.bits = ::d2bs::utils::EnumBits(StackCaptureMode::Off), .name = "Off"},
-        {.bits = ::d2bs::utils::EnumBits(StackCaptureMode::OnYield), .name = "OnYield"},
-        {.bits = ::d2bs::utils::EnumBits(StackCaptureMode::OnEveryCall), .name = "OnEveryCall"},
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(StackCaptureMode::Off), .name = "Off"},
+        {.bits = utils::EnumBits(StackCaptureMode::OnYield), .name = "OnYield"},
+        {.bits = utils::EnumBits(StackCaptureMode::OnEveryCall), .name = "OnEveryCall"},
     });
-    return ::d2bs::utils::NameEnumValue("StackCaptureMode", ENTRIES, std::to_underlying(value));
+    return utils::NameEnumValue("StackCaptureMode", ENTRIES, std::to_underlying(value));
 }
 
 std::string EnumName(ScriptState value) {
-    static constexpr auto ENTRIES = std::to_array<::d2bs::utils::EnumEntry>({
-        {.bits = ::d2bs::utils::EnumBits(ScriptState::Starting), .name = "Starting"},
-        {.bits = ::d2bs::utils::EnumBits(ScriptState::Ready), .name = "Ready"},
-        {.bits = ::d2bs::utils::EnumBits(ScriptState::Running), .name = "Running"},
-        {.bits = ::d2bs::utils::EnumBits(ScriptState::Paused), .name = "Paused"},
-        {.bits = ::d2bs::utils::EnumBits(ScriptState::Stopping), .name = "Stopping"},
-        {.bits = ::d2bs::utils::EnumBits(ScriptState::Stopped), .name = "Stopped"},
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(ScriptState::Starting), .name = "Starting"},
+        {.bits = utils::EnumBits(ScriptState::Ready), .name = "Ready"},
+        {.bits = utils::EnumBits(ScriptState::Running), .name = "Running"},
+        {.bits = utils::EnumBits(ScriptState::Paused), .name = "Paused"},
+        {.bits = utils::EnumBits(ScriptState::Stopping), .name = "Stopping"},
+        {.bits = utils::EnumBits(ScriptState::Stopped), .name = "Stopped"},
     });
-    return ::d2bs::utils::NameEnumValue("ScriptState", ENTRIES, std::to_underlying(value));
+    return utils::NameEnumValue("ScriptState", ENTRIES, std::to_underlying(value));
 }
 
 std::string EnumName(ScriptMode value) {
-    static constexpr auto ENTRIES = std::to_array<::d2bs::utils::EnumEntry>({
-        {.bits = ::d2bs::utils::EnumBits(ScriptMode::InGame), .name = "InGame"},
-        {.bits = ::d2bs::utils::EnumBits(ScriptMode::OutOfGame), .name = "OutOfGame"},
-        {.bits = ::d2bs::utils::EnumBits(ScriptMode::Console), .name = "Console"},
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(ScriptMode::InGame), .name = "InGame"},
+        {.bits = utils::EnumBits(ScriptMode::OutOfGame), .name = "OutOfGame"},
+        {.bits = utils::EnumBits(ScriptMode::Console), .name = "Console"},
     });
-    return ::d2bs::utils::NameEnumValue("ScriptMode", ENTRIES, std::to_underlying(value));
+    return utils::NameEnumValue("ScriptMode", ENTRIES, std::to_underlying(value));
 }
 
 std::string EnumName(DrawableHandler value) {
-    static constexpr auto ENTRIES = std::to_array<::d2bs::utils::EnumEntry>({
-        {.bits = ::d2bs::utils::EnumBits(DrawableHandler::Click), .name = "Click"},
-        {.bits = ::d2bs::utils::EnumBits(DrawableHandler::Hover), .name = "Hover"},
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(DrawableHandler::Click), .name = "Click"},
+        {.bits = utils::EnumBits(DrawableHandler::Hover), .name = "Hover"},
     });
-    return ::d2bs::utils::NameEnumValue("DrawableHandler", ENTRIES, std::to_underlying(value));
+    return utils::NameEnumValue("DrawableHandler", ENTRIES, std::to_underlying(value));
 }
 
 // NOLINTBEGIN(readability-identifier-naming) - fmt's customisation point name
@@ -221,4 +221,4 @@ std::string format_as(DrawableHandler value) {
 
 // NOLINTEND(readability-identifier-naming)
 
-}  // namespace d2bs
+}  // namespace d2bs::runtime::script

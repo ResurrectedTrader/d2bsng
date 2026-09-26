@@ -71,8 +71,8 @@ std::vector<NativeBindingSample> SnapshotNativeBindings() {
     const std::scoped_lock lock(tables.mutex);
     samples.reserve(tables.functions.size() + tables.accessors.size());
 
-    const auto take = [&samples](std::string_view name, profiling::NativeCall kind,
-                                 const profiling::NativeStats& stats) {
+    const auto take = [&samples](std::string_view name, utils::profiling::NativeCall kind,
+                                 const utils::profiling::NativeStats& stats) {
         const uint64_t calls = stats.calls.load(std::memory_order_relaxed);
         if (calls == 0) {
             return;
@@ -85,11 +85,11 @@ std::vector<NativeBindingSample> SnapshotNativeBindings() {
     };
 
     for (const auto& entry : tables.functions) {
-        take(entry.name, profiling::NativeCall::Function, entry.stats);
+        take(entry.name, utils::profiling::NativeCall::Function, entry.stats);
     }
     for (const auto& entry : tables.accessors) {
-        take(entry.name, profiling::NativeCall::Getter, entry.getStats);
-        take(entry.name, profiling::NativeCall::Setter, entry.setStats);
+        take(entry.name, utils::profiling::NativeCall::Getter, entry.getStats);
+        take(entry.name, utils::profiling::NativeCall::Setter, entry.setStats);
     }
     return samples;
 }
@@ -97,7 +97,7 @@ std::vector<NativeBindingSample> SnapshotNativeBindings() {
 void ResetNativeBindings() {
     auto& tables = GetTables();
     const std::scoped_lock lock(tables.mutex);
-    const auto clear = [](profiling::NativeStats& stats) {
+    const auto clear = [](utils::profiling::NativeStats& stats) {
         stats.cycles.store(0, std::memory_order_relaxed);
         stats.calls.store(0, std::memory_order_relaxed);
         stats.blockedCycles.store(0, std::memory_order_relaxed);
@@ -122,7 +122,7 @@ void MethodTrampoline(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (binding == nullptr || binding->callback == nullptr) {
         return;
     }
-    const profiling::ScopedNativeCall timing(profiling::NativeCall::Function, binding->stats);
+    const utils::profiling::ScopedNativeCall timing(utils::profiling::NativeCall::Function, binding->stats);
     binding->callback(args);
 }
 
@@ -133,7 +133,7 @@ void PropertyGetterTrampoline(v8::Local<v8::Name> property, const v8::PropertyCa
     if (accessors == nullptr || accessors->getter == nullptr) {
         return;
     }
-    const profiling::ScopedNativeCall timing(profiling::NativeCall::Getter, accessors->getStats);
+    const utils::profiling::ScopedNativeCall timing(utils::profiling::NativeCall::Getter, accessors->getStats);
     accessors->getter(property, info);
 }
 
@@ -145,7 +145,7 @@ void PropertySetterTrampoline(v8::Local<v8::Name> property, v8::Local<v8::Value>
     if (accessors == nullptr || accessors->setter == nullptr) {
         return;
     }
-    const profiling::ScopedNativeCall timing(profiling::NativeCall::Setter, accessors->setStats);
+    const utils::profiling::ScopedNativeCall timing(utils::profiling::NativeCall::Setter, accessors->setStats);
     accessors->setter(property, value, info);
 }
 

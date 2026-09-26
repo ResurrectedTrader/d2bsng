@@ -6,7 +6,7 @@
 namespace d2bs::runtime::profile {
 
 std::optional<config::ProfileData> Load(const std::string& name) {
-    auto& cfg = config::GetAppConfig();
+    auto& cfg = core::config::GetAppConfig();
     if (!cfg.store) {
         return std::nullopt;
     }
@@ -14,7 +14,7 @@ std::optional<config::ProfileData> Load(const std::string& name) {
 }
 
 std::optional<config::ProfileData> LoadActive() {
-    auto name = config::GetAppConfig().GetProfileName();
+    auto name = core::config::GetAppConfig().GetProfileName();
     if (name.empty()) {
         return std::nullopt;
     }
@@ -41,12 +41,12 @@ bool Switch(const std::string& name) {
     // atomically (release store paired with the game loop's acquire load), so
     // there's no observable window where the latch is clear but the name is
     // stale.
-    config::GetAppConfig().SetProfileName(name);
+    core::config::GetAppConfig().SetProfileName(name);
     return true;
 }
 
 bool Add(const config::ProfileData& profile) {
-    auto& cfg = config::GetAppConfig();
+    auto& cfg = core::config::GetAppConfig();
     if (!cfg.store || profile.name.empty()) {
         return false;
     }

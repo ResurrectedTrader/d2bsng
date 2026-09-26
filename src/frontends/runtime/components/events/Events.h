@@ -19,7 +19,7 @@
 #include "game/Console.h"
 #include "game/Types.h"
 
-namespace d2bs {
+namespace d2bs::runtime::events {
 
 // EVENT_NAME is the one place each event's script-visible name is written: Name() returns it, the
 // dispatcher probes it via the type, and scripts/extract_api.py reads it for the API docs.
@@ -467,10 +467,10 @@ class BroadcastEvent : public BaseEvent {
                 if (deserializer.ReadValue(cx).ToLocal(&jsArg)) {
                     deserializedArgs.push_back(jsArg);
                 } else {
-                    GetLogger(isolate)->critical("Failed to deserialize broadcast event argument");
+                    script::GetLogger(isolate)->critical("Failed to deserialize broadcast event argument");
                 }
             } else {
-                GetLogger(isolate)->critical("Failed to read broadcast event header");
+                script::GetLogger(isolate)->critical("Failed to read broadcast event header");
             }
         }
         return deserializedArgs;
@@ -527,9 +527,9 @@ class BroadcastEvent : public BaseEvent {
 // when the event runs, so a handler cleared in between simply does not fire.
 
 // The drawable's handler from the script that owns `isolate`; empty if it has none.
-inline v8::Local<v8::Function> DrawableHandlerFor(v8::Isolate* isolate, const runtime::drawing::Drawable& drawable,
-                                                  DrawableHandler which) {
-    auto* script = ScriptEngine::Instance().GetScript(isolate);
+inline v8::Local<v8::Function> DrawableHandlerFor(v8::Isolate* isolate, const drawing::Drawable& drawable,
+                                                  script::DrawableHandler which) {
+    auto* script = script::ScriptEngine::Instance().GetScript(isolate);
     if (script == nullptr) {
         return {};
     }
@@ -545,20 +545,19 @@ class ScreenHookClickEvent : public BlockableEvent {
     }
 
    public:
-    ScreenHookClickEvent(std::shared_ptr<const runtime::drawing::Drawable> drawable, game::ClickButton button,
-                         game::Point pos)
+    ScreenHookClickEvent(std::shared_ptr<const drawing::Drawable> drawable, game::ClickButton button, game::Point pos)
         : drawable_(std::move(drawable)), button_(button), pos_(pos) {}
 
     void Execute(v8::Isolate* isolate, const std::vector<v8::Local<v8::Function>>& /*fns*/) override {
         v8::HandleScope scope(isolate);
-        BlockableEvent::Execute(isolate, {DrawableHandlerFor(isolate, *drawable_, DrawableHandler::Click)});
+        BlockableEvent::Execute(isolate, {DrawableHandlerFor(isolate, *drawable_, script::DrawableHandler::Click)});
     }
 
     static constexpr std::string_view EVENT_NAME = "ScreenHookClick";
     [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 
    private:
-    std::shared_ptr<const runtime::drawing::Drawable> drawable_;
+    std::shared_ptr<const drawing::Drawable> drawable_;
     game::ClickButton button_;
     game::Point pos_;
 };
@@ -574,19 +573,19 @@ class ScreenHookHoverEvent : public BaseEvent {
     }
 
    public:
-    ScreenHookHoverEvent(std::shared_ptr<const runtime::drawing::Drawable> drawable, game::Point pos, bool entered)
+    ScreenHookHoverEvent(std::shared_ptr<const drawing::Drawable> drawable, game::Point pos, bool entered)
         : drawable_(std::move(drawable)), pos_(pos), entered_(entered) {}
 
     void Execute(v8::Isolate* isolate, const std::vector<v8::Local<v8::Function>>& /*fns*/) override {
         v8::HandleScope scope(isolate);
-        BaseEvent::Execute(isolate, {DrawableHandlerFor(isolate, *drawable_, DrawableHandler::Hover)});
+        BaseEvent::Execute(isolate, {DrawableHandlerFor(isolate, *drawable_, script::DrawableHandler::Hover)});
     }
 
     static constexpr std::string_view EVENT_NAME = "ScreenHookHover";
     [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 
    private:
-    std::shared_ptr<const runtime::drawing::Drawable> drawable_;
+    std::shared_ptr<const drawing::Drawable> drawable_;
     game::Point pos_;
     bool entered_;
 };
@@ -610,7 +609,7 @@ class EvaluateEvent : public BaseEvent {
         auto cx = isolate->GetCurrentContext();
         auto src = api::convert::ToJS(isolate, code);
 
-        v8::ScriptOrigin origin(api::convert::ToJS(isolate, runtime::script::COMMAND_LINE_NAME));
+        v8::ScriptOrigin origin(api::convert::ToJS(isolate, script::COMMAND_LINE_NAME));
         v8::Local<v8::Script> snippet;
         v8::Local<v8::Value> result;
         if (v8::Script::Compile(cx, src, &origin).ToLocal(&snippet) && snippet->Run(cx).ToLocal(&result)) {
@@ -618,7 +617,7 @@ class EvaluateEvent : public BaseEvent {
                 v8::String::Utf8Value resultStr(isolate, result);
                 game::console::OnMessage({
                     .source = game::console::MessageSource::EvaluateResult,
-                    .name = std::string{runtime::script::COMMAND_LINE_NAME},
+                    .name = std::string{script::COMMAND_LINE_NAME},
                     .level = game::console::MessageLevel::Info,
                     .text = std::string(*resultStr, resultStr.length()),
                 });
@@ -630,7 +629,7 @@ class EvaluateEvent : public BaseEvent {
                 v8::String::Utf8Value errorStr(isolate, message->Get());
                 game::console::OnMessage({
                     .source = game::console::MessageSource::EvaluateResult,
-                    .name = std::string{runtime::script::COMMAND_LINE_NAME},
+                    .name = std::string{script::COMMAND_LINE_NAME},
                     .level = game::console::MessageLevel::Error,
                     .text = std::string(*errorStr, errorStr.length()),
                 });
@@ -642,4 +641,4 @@ class EvaluateEvent : public BaseEvent {
     [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 };
 
-}  // namespace d2bs
+}  // namespace d2bs::runtime::events

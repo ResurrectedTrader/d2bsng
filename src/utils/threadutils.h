@@ -8,7 +8,7 @@
 #include <string_view>
 #include <vector>
 
-namespace d2bs::thread_utils {
+namespace d2bs::utils::threads {
 // Calls fn(handle, tid) for every thread of this process. The handle carries query-limited rights
 // and is closed after the call. A few microseconds per thread via NtGetNextThread; the Toolhelp
 // fallback walks every thread on the system and costs tens of milliseconds.
@@ -83,4 +83,4 @@ LONG WINAPI ExceptionHandler(PEXCEPTION_POINTERS exceptionInfo);
 // active filter does anything. Returns EXCEPTION_CONTINUE_SEARCH so it
 // doesn't intervene - purely diagnostic.
 LONG WINAPI VectoredExceptionHandler(PEXCEPTION_POINTERS exceptionInfo);
-}  // namespace d2bs::thread_utils
+}  // namespace d2bs::utils::threads

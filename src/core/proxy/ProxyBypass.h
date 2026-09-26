@@ -15,7 +15,7 @@
 // Header-only so both the framework (JSSocket) and the port hook share one
 // thread_local instance once linked into the DLL.
 
-namespace d2bs::proxy {
+namespace d2bs::core::proxy {
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables) - per-thread bypass state
 inline thread_local bool threadBypass = false;
@@ -40,4 +40,4 @@ class BypassScope {
     bool prev_;
 };
 
-}  // namespace d2bs::proxy
+}  // namespace d2bs::core::proxy

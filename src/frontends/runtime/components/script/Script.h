@@ -28,10 +28,12 @@ namespace d2bs::runtime::inspector {
 class ScriptInspector;
 }  // namespace d2bs::runtime::inspector
 
-namespace d2bs {
-
+namespace d2bs::runtime::events {
 class BaseEvent;
 class DelayedEvent;
+}  // namespace d2bs::runtime::events
+
+namespace d2bs::runtime::script {
 
 // Single JS stack frame. functionName / scriptName may be empty; the
 // renderer substitutes placeholders ("<anonymous>" / "<unknown>") at draw
@@ -167,12 +169,12 @@ class Script : public std::enable_shared_from_this<Script> {
     void ClearEvent(const std::string& eventName);
     void ClearAllEvents();
 
-    bool ExecuteEvent(const std::shared_ptr<BaseEvent>& event);
-    bool PostEvent(const std::shared_ptr<BaseEvent>& event, uint32_t delayMs = 0);
+    bool ExecuteEvent(const std::shared_ptr<events::BaseEvent>& event);
+    bool PostEvent(const std::shared_ptr<events::BaseEvent>& event, uint32_t delayMs = 0);
     void ExecuteEvents(std::chrono::milliseconds duration);
 
     // Delayed events (timers)
-    void AddDelayedEvent(const std::shared_ptr<DelayedEvent>& event);
+    void AddDelayedEvent(const std::shared_ptr<events::DelayedEvent>& event);
     bool RemoveDelayedEvent(uint32_t eventId);
 
     // Logger - per-script logger named after the script filename.
@@ -190,15 +192,15 @@ class Script : public std::enable_shared_from_this<Script> {
     // this script. Added and removed from V8 callbacks on the script's own
     // thread; iterated by the game thread via GetDrawables() for draw / hit
     // testing across all scripts.
-    void AddDrawable(std::shared_ptr<runtime::drawing::Drawable> drawable);
+    void AddDrawable(std::shared_ptr<drawing::Drawable> drawable);
     // Remove a drawable, drop its handlers, and run its onDestroy hook on the
     // script thread. If `fireLeaveEvent` is true and the drawable was hovered,
     // dispatches a hover-leave ScreenHookHoverEvent after releasing the lock.
     // TeardownIsolate passes false - the script's event loop has exited and a
     // same-thread ExecuteEvent would synchronously run user JS that's about to
     // be torn down.
-    void RemoveDrawable(const std::shared_ptr<runtime::drawing::Drawable>& drawable, bool fireLeaveEvent = true);
-    [[nodiscard]] std::vector<std::shared_ptr<runtime::drawing::Drawable>> GetDrawables();
+    void RemoveDrawable(const std::shared_ptr<drawing::Drawable>& drawable, bool fireLeaveEvent = true);
+    [[nodiscard]] std::vector<std::shared_ptr<drawing::Drawable>> GetDrawables();
 
     // A drawable's click / hover callbacks live here rather than on the
     // drawable, so the v8::Global is only ever created and destroyed on this
@@ -206,9 +208,8 @@ class Script : public std::enable_shared_from_this<Script> {
     // across a frame, which would otherwise release a GC root off-thread.
     // The drawable carries the matching hasClick / hasHover flag for
     // game-thread hit testing. An empty `handler` clears the slot.
-    void SetDrawableHandler(runtime::drawing::Drawable& drawable, DrawableHandler which,
-                            v8::Local<v8::Function> handler);
-    [[nodiscard]] v8::MaybeLocal<v8::Function> GetDrawableHandler(const runtime::drawing::Drawable& drawable,
+    void SetDrawableHandler(drawing::Drawable& drawable, DrawableHandler which, v8::Local<v8::Function> handler);
+    [[nodiscard]] v8::MaybeLocal<v8::Function> GetDrawableHandler(const drawing::Drawable& drawable,
                                                                   DrawableHandler which);
 
     // Game thread. Runs the drawable's handler on this script's event loop.
@@ -217,10 +218,9 @@ class Script : public std::enable_shared_from_this<Script> {
     // touches a script value. The click variant waits for the handler's block
     // vote and returns it; false if the handler is gone or the script is
     // tearing down.
-    bool DispatchDrawableClick(std::shared_ptr<const runtime::drawing::Drawable> drawable, game::ClickButton button,
+    bool DispatchDrawableClick(std::shared_ptr<const drawing::Drawable> drawable, game::ClickButton button,
                                game::Point pos);
-    void DispatchDrawableHover(std::shared_ptr<const runtime::drawing::Drawable> drawable, game::Point pos,
-                               bool entered);
+    void DispatchDrawableHover(std::shared_ptr<const drawing::Drawable> drawable, game::Point pos, bool entered);
 
    private:
     // Drops every handler and its listener counts. Caller holds eventFunctionsMutex_.
@@ -242,7 +242,7 @@ class Script : public std::enable_shared_from_this<Script> {
     std::filesystem::path path_;
     std::filesystem::path normalizedPath_;  // Lowercase for case-insensitive comparison
     // Where this thread's time goes inside delay(), for the Profiling panel. Script-thread-only.
-    profiling::Timeline idle_;
+    utils::profiling::Timeline idle_;
     ScriptMode mode_;
     std::vector<std::vector<uint8_t>> args_;
     std::atomic<ScriptState> state_{ScriptState::Stopped};
@@ -275,7 +275,7 @@ class Script : public std::enable_shared_from_this<Script> {
 
     // Delayed events (setTimeout/setInterval)
     std::mutex delayedEventMutex_;
-    std::unordered_map<uint32_t, std::shared_ptr<DelayedEvent>> delayedEvents_;
+    std::unordered_map<uint32_t, std::shared_ptr<events::DelayedEvent>> delayedEvents_;
 
     // Include tracking (no lock needed - includes only happen on script's own thread)
     std::set<std::filesystem::path> includes_;
@@ -287,15 +287,15 @@ class Script : public std::enable_shared_from_this<Script> {
     };
 
     std::shared_mutex drawablesMutex_;
-    std::vector<std::shared_ptr<runtime::drawing::Drawable>> drawables_;
+    std::vector<std::shared_ptr<drawing::Drawable>> drawables_;
     // Keyed by drawable identity; the entry is erased in RemoveDrawable before
     // the script's own shared_ptr drops, so a key never outlives its drawable.
-    std::unordered_map<const runtime::drawing::Drawable*, DrawableHandlers> drawableHandlers_;
+    std::unordered_map<const drawing::Drawable*, DrawableHandlers> drawableHandlers_;
 
     // V8 inspector (Chrome DevTools) attachment for this isolate. Created by
     // AttachInspector in SetupIsolate and destroyed in TeardownIsolate, both on
     // the script's own thread; touched only there.
-    std::unique_ptr<runtime::inspector::ScriptInspector> inspector_;
+    std::unique_ptr<inspector::ScriptInspector> inspector_;
 };
 
-}  // namespace d2bs
+}  // namespace d2bs::runtime::script
