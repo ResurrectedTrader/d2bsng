@@ -1,4 +1,4 @@
-#include "navigation/Pathfinder.h"
+#include "components/navigation/Pathfinder.h"
 
 #include <algorithm>
 #include <array>
@@ -13,7 +13,7 @@
 #include "game/Room.h"
 #include "utils/VirtualArray.h"
 
-namespace d2bs::navigation {
+namespace d2bs::runtime::navigation {
 
 namespace {
 
@@ -956,4 +956,4 @@ std::vector<Position> FindPath(const PathRequest& request) {
                           request.teleportHWeight);
 }
 
-}  // namespace d2bs::navigation
+}  // namespace d2bs::runtime::navigation

@@ -1,8 +1,8 @@
 #include <doctest/doctest.h>
 
-#include "navigation/Pathfinder.h"
+#include "components/navigation/Pathfinder.h"
 
-using namespace d2bs::navigation;
+using namespace d2bs::runtime::navigation;
 
 TEST_CASE("LevelGrid Contains checks bounds correctly") {
     LevelGrid grid({.origin = {.x = 100, .y = 200}, .size = {.width = 10, .height = 10}});

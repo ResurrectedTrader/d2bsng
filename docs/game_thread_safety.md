@@ -73,7 +73,7 @@ Bridge::Lock()" below - so a binding that only calls one of those needs nothing 
 
 **When NOT needed:**
 - Simple property getters (single ResolvePtr per access)
-- Single game method calls that return copied data (GetCollision), and the navigation library's composed reads (`navigation::GetExits`), which take a `GameReadLock` themselves
+- Single game method calls that return copied data (GetCollision), and the navigation component's composed reads (`runtime::navigation::GetExits`), which take a `GameReadLock` themselves
 
 ## HandleCache (HandleCache.h)
 

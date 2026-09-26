@@ -55,7 +55,7 @@ SRC = REPO_ROOT / "src"
 # Projects whose headers the code spells with the project directory's own name
 # ("utils/Strings.h"); every other project's headers are spelled relative to the
 # project directory ("game/Types.h" in contract).
-SPELLED_FROM_PARENT = {SRC / "utils", SRC / "navigation"}
+SPELLED_FROM_PARENT = {SRC / "utils"}
 # Directories never scanned: build output, and vendored code that keeps its own style.
 SKIP_DIRS = {"Release", "Debug", "x64", "Win32", "vcpkg_installed"}
 VENDORED = []  # e.g. SRC / "some" / "third_party" - paths under src/ to leave alone

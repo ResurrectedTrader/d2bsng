@@ -8,9 +8,9 @@
 
 #include "game/Unit.h"
 // ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
-#include "ServicesEnumNames.h"
+#include "RuntimeEnumNames.h"
 
-namespace d2bs::services::characterstate {
+namespace d2bs::runtime::characterstate {
 
 // How much of an item to emit. Structural is a strict subset of Full produced by the same
 // traversal, so hashing it can never miss a field Full would have sent. It drops the
@@ -66,4 +66,4 @@ nlohmann::json UnitToJson(const game::Unit& unit, Detail detail = Detail::Full);
 // fingerprint rather than the unit document's.
 nlohmann::json WearerStats(const game::Unit& wearer);
 
-}  // namespace d2bs::services::characterstate
+}  // namespace d2bs::runtime::characterstate

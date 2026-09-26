@@ -6,12 +6,12 @@
 // instead of live game memory.
 
 #include "Types.h"
-#include "navigation/Pathfinder.h"
+#include "components/navigation/Pathfinder.h"
 
 class TestActMap {
-    std::vector<const d2bs::navigation::LevelGrid*> grids_;
+    std::vector<const d2bs::runtime::navigation::LevelGrid*> grids_;
 
-    const d2bs::navigation::LevelGrid* FindGrid(int32_t x, int32_t y) const {
+    const d2bs::runtime::navigation::LevelGrid* FindGrid(int32_t x, int32_t y) const {
         if (x < 0 || y < 0)
             return nullptr;
         ::d2bs::game::Position pos{.x = static_cast<uint32_t>(x), .y = static_cast<uint32_t>(y)};
@@ -45,10 +45,10 @@ class TestActMap {
     };
 
     // Single grid (backward compatible)
-    explicit TestActMap(const d2bs::navigation::LevelGrid* grid) : grids_{grid} {}
+    explicit TestActMap(const d2bs::runtime::navigation::LevelGrid* grid) : grids_{grid} {}
 
     // Multiple grids (cross-level)
-    explicit TestActMap(std::vector<const d2bs::navigation::LevelGrid*> grids) : grids_(std::move(grids)) {}
+    explicit TestActMap(std::vector<const d2bs::runtime::navigation::LevelGrid*> grids) : grids_(std::move(grids)) {}
 
     int GetMapData(const Point& point) {
         auto* g = FindGrid(point.x, point.y);
