@@ -45,7 +45,7 @@ void PostMouseMessage(uint32_t msg, int32_t x, int32_t y) {
 }  // namespace
 
 void* Control::ResolvePtr() const {
-    GameReadLock guard;
+    assert(IsGameLockHeld() && "resolve under the game lock - use Resolve<T>()");
     if (type_ == ControlType::Unknown && bounds_ == Rect::Zero) {
         return nullptr;
     }
@@ -64,6 +64,7 @@ void* Control::ResolvePtr() const {
 }
 
 Control::operator bool() const {
+    GameReadLock guard;
     return ResolvePtr() != nullptr;
 }
 
@@ -78,11 +79,11 @@ Control Control::FromPtr(void* p) {
 }
 
 std::string Control::Text() const {
-    auto* ctrl = AsCtrl(ResolvePtr());
+    const auto ctrl = Resolve<D2WinControlStrc>();
     // CONTROL_CLOAKED_PASSWORD (33) is the dwIsCloaked sentinel the game uses
     // to mark a textbox as a password field - reference reads dwIsCloaked != 33
     // before exposing wText (reference/d2bs/JSControl.cpp:81).
-    if (ctrl == nullptr || ctrl->dwIsCloaked == CONTROL_CLOAKED_PASSWORD) {
+    if (!ctrl || ctrl->dwIsCloaked == CONTROL_CLOAKED_PASSWORD) {
         return {};
     }
     const wchar_t* src = ctrl->dwType == ControlType::Button ? ctrl->wText2.data() : ctrl->wText.data();
@@ -90,46 +91,48 @@ std::string Control::Text() const {
 }
 
 void Control::SetText(const std::string& text) const {
-    auto* ctrl = AsCtrl(ResolvePtr());
-    if (ctrl == nullptr || ctrl->dwType != ControlType::EditBox) {
+    if (Type() != ControlType::EditBox) {
         return;
     }
-    auto wide = utils::ToWStr(text);
-    GameThread::Execute(
-        [ctrl, wide = std::move(wide)] { lod114d::imports::d2win::CONTROL_SetText(ctrl, wide.c_str()); });
+    // Re-resolved on the game thread: a pointer resolved here goes stale while Execute waits.
+    GameThread::Execute([self = *this, wide = utils::ToWStr(text)] {
+        if (const auto ctrl = self.Resolve<D2WinControlStrc>(); ctrl && ctrl->dwType == ControlType::EditBox) {
+            lod114d::imports::d2win::CONTROL_SetText(ctrl, wide.c_str());
+        }
+    });
 }
 
 Rect Control::Bounds() const {
-    auto* ctrl = AsCtrl(ResolvePtr());
-    return ctrl != nullptr ? ctrl->rect : Rect::Zero;
+    const auto ctrl = Resolve<D2WinControlStrc>();
+    return ctrl ? ctrl->rect : Rect::Zero;
 }
 
 // Raw control state (dwState): 0x0D = difficulty button enabled, 0x04 = Bnet
 // diff unavailable, etc. The JS-visible "state" (this minus 2) and "disabled"
 // (raw) views are derived in the bindings.
 uint32_t Control::State() const {
-    auto* ctrl = AsCtrl(ResolvePtr());
-    return ctrl != nullptr ? ctrl->dwState : 0U;
+    const auto ctrl = Resolve<D2WinControlStrc>();
+    return ctrl ? ctrl->dwState : 0U;
 }
 
 // Reference's setter memset's the field with a single repeated byte (buggy:
 // fills 0x0D0D0D0D etc.); write the integer directly so State() round-trips.
 void Control::SetState(uint32_t value) const {
-    auto* ctrl = AsCtrl(ResolvePtr());
-    if (ctrl == nullptr) {
+    const auto ctrl = Resolve<D2WinControlStrc>();
+    if (!ctrl) {
         return;
     }
     ctrl->dwState = value;
 }
 
 bool Control::IsPassword() const {
-    auto* ctrl = AsCtrl(ResolvePtr());
-    return ctrl != nullptr && ctrl->dwIsCloaked == CONTROL_CLOAKED_PASSWORD;
+    const auto ctrl = Resolve<D2WinControlStrc>();
+    return ctrl && ctrl->dwIsCloaked == CONTROL_CLOAKED_PASSWORD;
 }
 
 ControlType Control::Type() const {
-    auto* ctrl = AsCtrl(ResolvePtr());
-    if (ctrl == nullptr) {
+    const auto ctrl = Resolve<D2WinControlStrc>();
+    if (!ctrl) {
         return ControlType::Unknown;
     }
     return ctrl->dwType;
@@ -137,35 +140,35 @@ ControlType Control::Type() const {
 
 // Character-index caret, not a 2D screen coordinate.
 uint32_t Control::CursorPos() const {
-    auto* ctrl = AsCtrl(ResolvePtr());
-    return ctrl != nullptr ? ctrl->dwCursorPos : 0U;
+    const auto ctrl = Resolve<D2WinControlStrc>();
+    return ctrl ? ctrl->dwCursorPos : 0U;
 }
 
 // Same memset bug as SetState; see SetState comment.
 void Control::SetCursorPos(uint32_t offset) const {
-    auto* ctrl = AsCtrl(ResolvePtr());
-    if (ctrl == nullptr) {
+    const auto ctrl = Resolve<D2WinControlStrc>();
+    if (!ctrl) {
         return;
     }
     ctrl->dwCursorPos = offset;
 }
 
 uint32_t Control::SelectStart() const {
-    auto* ctrl = AsCtrl(ResolvePtr());
-    return ctrl != nullptr ? ctrl->dwSelectStart : 0U;
+    const auto ctrl = Resolve<D2WinControlStrc>();
+    return ctrl ? ctrl->dwSelectStart : 0U;
 }
 
 uint32_t Control::SelectEnd() const {
-    auto* ctrl = AsCtrl(ResolvePtr());
-    return ctrl != nullptr ? ctrl->dwSelectEnd : 0U;
+    const auto ctrl = Resolve<D2WinControlStrc>();
+    return ctrl ? ctrl->dwSelectEnd : 0U;
 }
 
 bool Control::HasLocaleText(int32_t localeId) const {
     if (localeId < 0) {
         return false;
     }
-    auto* ctrl = AsCtrl(ResolvePtr());
-    if (ctrl == nullptr) {
+    const auto ctrl = Resolve<D2WinControlStrc>();
+    if (!ctrl) {
         return false;
     }
     const auto* localeText = lod114d::imports::d2lang::D2LANG_GetLocaleText(static_cast<uint16_t>(localeId));
@@ -189,8 +192,8 @@ bool Control::HasLocaleText(int32_t localeId) const {
 }
 
 Control Control::GetNext() const {
-    auto* ctrl = AsCtrl(ResolvePtr());
-    if (ctrl == nullptr) {
+    const auto ctrl = Resolve<D2WinControlStrc>();
+    if (!ctrl) {
         return Control{};
     }
     return FromPtr(ctrl->pNext);
@@ -207,9 +210,8 @@ void Control::Click(std::optional<Position> pos) const {
     uint32_t cx = 0U;
     uint32_t cy = 0U;
     {
-        GameReadLock guard;
-        auto* ctrl = AsCtrl(ResolvePtr());
-        if (ctrl == nullptr) {
+        const auto ctrl = Resolve<D2WinControlStrc>();
+        if (!ctrl) {
             return;
         }
         // D2 anchors a control's rect at its bottom-left: dwPosX is the left edge
@@ -229,8 +231,8 @@ void Control::Click(std::optional<Position> pos) const {
 }
 
 std::vector<Control::TextLine> Control::TextLines() const {
-    auto* ctrl = AsCtrl(ResolvePtr());
-    if (ctrl == nullptr || ctrl->dwType != ControlType::TextBox) {
+    const auto ctrl = Resolve<D2WinControlStrc>();
+    if (!ctrl || ctrl->dwType != ControlType::TextBox) {
         return {};
     }
     std::vector<TextLine> out;
@@ -254,6 +256,7 @@ std::vector<Control::TextLine> Control::TextLines() const {
 }
 
 std::optional<Control> Control::GetFirst() {
+    GameReadLock guard;
     auto* first = *lod114d::imports::d2win::gpFirstControl;
     if (first == nullptr) {
         return std::nullopt;

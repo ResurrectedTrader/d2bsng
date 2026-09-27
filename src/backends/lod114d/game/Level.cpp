@@ -18,16 +18,8 @@ namespace d2bs::game {
 
 using lod114d::imports::extras::D2DrlgLevelStrc;
 
-namespace {
-
-inline D2DrlgLevelStrc* AsLevel(void* p) noexcept {
-    return static_cast<D2DrlgLevelStrc*>(p);
-}
-
-}  // namespace
-
 void* Level::ResolvePtr() const {
-    GameReadLock guard;
+    assert(IsGameLockHeld() && "resolve under the game lock - use Resolve<T>()");
     if (id_ == 0) {
         return nullptr;
     }
@@ -40,11 +32,12 @@ void* Level::ResolvePtr() const {
 }
 
 Level::operator bool() const {
+    GameReadLock guard;
     return ResolvePtr() != nullptr;
 }
 
 std::string Level::Name() const {
-    if (ResolvePtr() == nullptr) {
+    if (!*this) {
         return {};
     }
     auto* txt = lod114d::imports::d2common::DATATBLS_GetLevelsTxtRecord(id_);
@@ -55,8 +48,8 @@ std::string Level::Name() const {
 }
 
 Rect Level::Bounds() const {
-    auto* level = AsLevel(ResolvePtr());
-    if (level == nullptr) {
+    const auto level = Resolve<D2DrlgLevelStrc>();
+    if (!level) {
         return Rect::Zero;
     }
     // nPosX/nPosY are signed in D2MOO and stored as -1 for "uninitialised";
@@ -70,8 +63,8 @@ Rect Level::Bounds() const {
 }
 
 Room Level::GetFirstRoom() const {
-    auto* level = AsLevel(ResolvePtr());
-    if (level == nullptr) {
+    const auto level = Resolve<D2DrlgLevelStrc>();
+    if (!level) {
         return Room{};
     }
     return Room::FromPtr(level->pFirstRoomEx);
@@ -81,6 +74,7 @@ std::optional<Level> Level::Get(uint32_t levelNo) {
     if (levelNo == 0) {
         return std::nullopt;
     }
+    GameReadLock guard;
     if (FindLevelInChain(levelNo) == nullptr) {
         return std::nullopt;
     }

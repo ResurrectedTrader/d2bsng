@@ -806,12 +806,11 @@ Property(isolate, inst, "propName", +[](v8::Local<v8::Name>, const v8::PropertyC
 
 Game types are identity-based handles with per-frame pointer caching (`HandleCache`). See `docs/game_thread_safety.md` for full details.
 
-- **GameReadLock** (in `ResolvePtr()`) - automatic, per-resolve. Scripts never block each other.
-- **Bridge::Lock()** - explicit, for V8 callbacks that iterate game data or do multi-step traversals. Place as the first line of the callback.
+- **GameReadLock** - the one read lock; shared and recursive, scripts never block each other. `ResolvePtr()` takes none and asserts (debug) that the caller holds the game lock; a backend accessor reads through `Resolved<T>` (`HandleCache.h`), which takes the lock before the resolve and holds it for its lifetime. V8 callbacks that iterate game data or do multi-step traversals hold one `game::GameReadLock` across the whole walk - taken right before the first game read (after argument checks) and released after the last, with V8 value creation outside it where that is easy.
 - **GameWriteLock** - game thread only. Held continuously across the frame body; released during `GameLoop::OnSleep`'s drain loop in `idleSleepInterval` slices so script readers can acquire `GameReadLock`, then reacquired before returning to the game's frame work. Bootstrap via `firstSleep_` first-tick handling.
 - **GameThread::Execute()** - post work to game thread from scripts. For menu operations requiring game thread (login, createGame, etc.).
 
-When implementing stubs: simple property reads just work (ResolvePtr handles locking). Iterating game linked lists or mutating game state needs `Bridge::Lock()`. Menu UI operations need `GameThread::Execute()`.
+When implementing stubs: read through `const auto u = Resolve<D2UnitStrc>();` (not `ResolvePtr()`; `u->field` for members, `u` itself where a game function wants the raw pointer), and end its scope before any `GameThread::Execute` / `PollUntil` / sleep - a lock-releasing wait invalidates it (debug builds assert via the release epoch), so re-resolve after the wait or inside posted work. Validity tests and static factories that read game memory hold an explicit `GameReadLock guard;`. Iterating game linked lists or mutating game state needs a `GameReadLock` across the walk. Menu UI operations need `GameThread::Execute()`.
 
 ### Game Abstraction Patterns
 
@@ -832,6 +831,14 @@ if (!d2bs::game::WaitForGameReady()) {
 
 // Control methods require menu state
 if (d2bs::game::GetGameState() != d2bs::game::GameState::Menu) return;
+```
+
+**Backend accessor pattern** (lock held from resolve to last dereference; see `docs/game_thread_safety.md`):
+```cpp
+uint32_t Unit::Mode() const {
+    const auto u = Resolve<D2UnitStrc>();
+    return u ? u->dwAnimMode : 0U;
+}
 ```
 
 **MyUnit::Resolve() sentinel for `me` object:**

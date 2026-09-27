@@ -124,7 +124,7 @@ bool IsChargeSkill(const D2SkillStrc* skill) {
 }  // namespace
 
 void* Unit::ResolvePtr() const {
-    GameReadLock guard;
+    assert(IsGameLockHeld() && "resolve under the game lock - use Resolve<T>()");
     if (kind_ == UnitKind::Player) {
         if (auto* cached = cache_.Get()) {
             return cached;
@@ -147,9 +147,9 @@ void* Unit::ResolvePtr() const {
 
 bool Unit::operator==(const Unit& other) const {
     // Pointer identity: handles the sentinel (me object, unitId_=0) because both resolve to GetPlayerUnit().
-    auto* lhs = ResolvePtr();
-    auto* rhs = other.ResolvePtr();
-    return lhs != nullptr && lhs == rhs;
+    const auto lhs = Resolve<D2UnitStrc>();
+    const auto rhs = other.Resolve<D2UnitStrc>();
+    return lhs && lhs == rhs;
 }
 
 Unit Unit::FromPtr(void* p) {
@@ -176,12 +176,12 @@ UnitType Unit::Type() const {
 }
 
 uint32_t Unit::ClassId() const {
-    auto* u = AsUnit(ResolvePtr());
+    const auto u = Resolve<D2UnitStrc>();
     return u ? static_cast<uint32_t>(u->dwClassId) : 0U;
 }
 
 uint32_t Unit::Mode() const {
-    auto* u = AsUnit(ResolvePtr());
+    const auto u = Resolve<D2UnitStrc>();
     return u ? u->dwAnimMode : 0U;
 }
 
@@ -189,28 +189,28 @@ uint32_t Unit::Id() const {
     // When kind_ == Player, unitId_ is always zero, which causes issues when stamping iteration cursor,
     // as it does a simple FindUnit.
     if (kind_ == UnitKind::Player) {
-        auto* u = AsUnit(ResolvePtr());
-        return u != nullptr ? u->dwUnitId : 0;
+        const auto u = Resolve<D2UnitStrc>();
+        return u ? u->dwUnitId : 0;
     }
     return unitId_;
 }
 
 uint32_t Unit::Act() const {
-    auto* u = AsUnit(ResolvePtr());
+    const auto u = Resolve<D2UnitStrc>();
     // Reference: pUnit->dwAct + 1 (game stores 0-based act, JS exposes 1-based).
     return u ? static_cast<uint32_t>(u->nAct) + 1U : 1U;
 }
 
 uint32_t Unit::FlagsEx() const {
-    auto* u = AsUnit(ResolvePtr());
-    return u != nullptr ? u->dwFlagEx : 0U;
+    const auto u = Resolve<D2UnitStrc>();
+    return u ? u->dwFlagEx : 0U;
 }
 
 // === Position ===
 
 Position Unit::Pos() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u) {
         return Position::Zero;
     }
     // GetClientCoordX/Y already apply the *5 subtile scale internally.
@@ -219,8 +219,8 @@ Position Unit::Pos() const {
 }
 
 Position Unit::TargetPos() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u) {
         return Position::Zero;
     }
     // Only player/monster/missile types carry a dynamic path with target coords.
@@ -239,8 +239,8 @@ Position Unit::TargetPos() const {
 }
 
 uint32_t Unit::Area() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u) {
         return 0U;
     }
     auto* room = lod114d::imports::d2common::UNITS_GetRoom(u);
@@ -253,8 +253,8 @@ uint32_t Unit::Area() const {
 // === Stats ===
 
 uint32_t Unit::Hp() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u) {
         return 0U;
     }
     // For hirelings, STAT_HP is encoded as a percentage instead of the actual
@@ -284,8 +284,8 @@ uint32_t Unit::Hp() const {
 }
 
 uint32_t Unit::HpMax() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u) {
         return 0U;
     }
     return static_cast<uint32_t>(lod114d::imports::d2common::STATLIST_UnitGetStatValue(u, STAT_MAXHP, 0)) >>
@@ -293,8 +293,8 @@ uint32_t Unit::HpMax() const {
 }
 
 uint32_t Unit::Mp() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u) {
         return 0U;
     }
     return static_cast<uint32_t>(lod114d::imports::d2common::STATLIST_UnitGetStatValue(u, STAT_MANA, 0)) >>
@@ -302,8 +302,8 @@ uint32_t Unit::Mp() const {
 }
 
 uint32_t Unit::MpMax() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u) {
         return 0U;
     }
     return static_cast<uint32_t>(lod114d::imports::d2common::STATLIST_UnitGetStatValue(u, STAT_MAXMANA, 0)) >>
@@ -311,8 +311,8 @@ uint32_t Unit::MpMax() const {
 }
 
 uint32_t Unit::Stamina() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u) {
         return 0U;
     }
     return static_cast<uint32_t>(lod114d::imports::d2common::STATLIST_UnitGetStatValue(u, STAT_STAMINA, 0)) >>
@@ -320,8 +320,8 @@ uint32_t Unit::Stamina() const {
 }
 
 uint32_t Unit::StaminaMax() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u) {
         return 0U;
     }
     return static_cast<uint32_t>(lod114d::imports::d2common::STATLIST_UnitGetStatValue(u, STAT_MAXSTAMINA, 0)) >>
@@ -329,16 +329,16 @@ uint32_t Unit::StaminaMax() const {
 }
 
 uint32_t Unit::CharLevel() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u) {
         return 0U;
     }
     return static_cast<uint32_t>(lod114d::imports::d2common::STATLIST_UnitGetStatValue(u, STAT_LEVEL, 0));
 }
 
 int32_t Unit::GetStat(uint32_t stat, uint32_t sub) const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u) {
         return 0;
     }
 
@@ -372,8 +372,8 @@ int32_t Unit::GetStat(uint32_t stat, uint32_t sub) const {
 }
 
 bool Unit::HasState(uint32_t stateId) const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u) {
         return false;
     }
     return lod114d::imports::d2common::STATES_CheckState(u, stateId) != 0;
@@ -426,8 +426,8 @@ bool StatEntryEqual(const StatEntry& a, const StatEntry& b) {
 }  // namespace
 
 std::vector<StatEntry> Unit::GetAllStats() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->pStatListEx == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->pStatListEx == nullptr) {
         return {};
     }
     auto* baseList = static_cast<D2StatListStrc*>(u->pStatListEx);
@@ -469,8 +469,8 @@ std::vector<StatEntry> Unit::GetAllStats() const {
 }
 
 std::vector<StatEntry> Unit::GetDetailedStats() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->pStatListEx == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->pStatListEx == nullptr) {
         return {};
     }
     std::vector<StatEntry> out;
@@ -500,9 +500,8 @@ std::vector<StatEntry> Unit::GetDetailedStats() const {
 }
 
 std::vector<StatListEntry> Unit::GetStatLists() const {
-    GameReadLock guard;
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->pStatListEx == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->pStatListEx == nullptr) {
         return {};
     }
     auto* ex = STATLIST_StatListExCast(static_cast<D2StatListStrc*>(u->pStatListEx));
@@ -544,8 +543,8 @@ std::vector<StatListEntry> Unit::GetStatLists() const {
 
 // Reference parity: GetUnitName(pUnit) - picks the right name source per type.
 std::string Unit::Name() const {
-    auto* unit = AsUnit(ResolvePtr());
-    if (unit == nullptr) {
+    const auto unit = Resolve<D2UnitStrc>();
+    if (!unit) {
         return {};
     }
     switch (unit->dwUnitType) {
@@ -582,8 +581,8 @@ std::string Unit::Name() const {
 }
 
 std::string Unit::ItemFullName() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return {};
     }
     // 256 wchars matches reference (JSUnit.cpp:1538, D2Helpers.cpp).
@@ -595,16 +594,16 @@ std::string Unit::ItemFullName() const {
 // === Unit info ===
 
 uint32_t Unit::Direction() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->pDynamicPath == nullptr || u->pDynamicPath->pRoom == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->pDynamicPath == nullptr || u->pDynamicPath->pRoom == nullptr) {
         return 0U;
     }
     return u->pDynamicPath->nDirection;
 }
 
 std::optional<uint32_t> Unit::SuperUniqueId() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_MONSTER || u->pMonsterData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_MONSTER || u->pMonsterData == nullptr) {
         return std::nullopt;
     }
     const auto flags = u->pMonsterData->nTypeFlag;
@@ -615,8 +614,8 @@ std::optional<uint32_t> Unit::SuperUniqueId() const {
 }
 
 uint32_t Unit::SpecType() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_MONSTER || u->pMonsterData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_MONSTER || u->pMonsterData == nullptr) {
         return 0U;
     }
     // `MonsterData::nTypeFlag` packs the monster-class flags one way; MonsterSpecType
@@ -639,16 +638,16 @@ uint32_t Unit::SpecType() const {
 }
 
 uint32_t Unit::ItemCount() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->pInventory == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->pInventory == nullptr) {
         return 0U;
     }
     return u->pInventory->dwItemCount;
 }
 
 std::optional<Unit> Unit::GetOwner() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u) {
         return std::nullopt;
     }
     switch (u->dwUnitType) {
@@ -681,8 +680,8 @@ std::optional<Unit> Unit::GetOwner() const {
 // === Item-specific ===
 
 std::string Unit::ItemCode() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM) {
         return {};
     }
     auto* txt = lod114d::imports::d2common::DATATBLS_GetItemsTxtRecord(u->dwClassId);
@@ -714,40 +713,40 @@ std::string Unit::Suffix() const {
 }
 
 uint16_t Unit::PrefixNum() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return 0U;
     }
     return u->pItemData->wMagicPrefix[0];
 }
 
 uint16_t Unit::SuffixNum() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return 0U;
     }
     return u->pItemData->wMagicSuffix[0];
 }
 
 uint16_t Unit::RarePrefixNum() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return 0U;
     }
     return u->pItemData->wRarePrefix;
 }
 
 uint16_t Unit::RareSuffixNum() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return 0U;
     }
     return u->pItemData->wRareSuffix;
 }
 
 uint16_t Unit::AutoAffixNum() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return 0U;
     }
     return u->pItemData->wAutoAffix;
@@ -791,8 +790,8 @@ std::array<std::optional<std::string>, Unit::MAX_AFFIX_SLOTS> Unit::Suffixes() c
 
 std::array<uint16_t, Unit::MAX_AFFIX_SLOTS> Unit::PrefixNums() const {
     std::array<uint16_t, MAX_AFFIX_SLOTS> out{};
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return out;
     }
     for (uint32_t i = 0; i < MAX_AFFIX_SLOTS; ++i) {
@@ -804,8 +803,8 @@ std::array<uint16_t, Unit::MAX_AFFIX_SLOTS> Unit::PrefixNums() const {
 
 std::array<uint16_t, Unit::MAX_AFFIX_SLOTS> Unit::SuffixNums() const {
     std::array<uint16_t, MAX_AFFIX_SLOTS> out{};
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return out;
     }
     for (uint32_t i = 0; i < MAX_AFFIX_SLOTS; ++i) {
@@ -816,24 +815,24 @@ std::array<uint16_t, Unit::MAX_AFFIX_SLOTS> Unit::SuffixNums() const {
 }
 
 ItemQuality Unit::Quality() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return ItemQuality::Inferior;
     }
     return static_cast<ItemQuality>(u->pItemData->dwQualityNo);
 }
 
 NodePage Unit::Node() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return NodePage::Equipped;
     }
     return static_cast<NodePage>(u->pItemData->pExtraData.nNodePosOther);
 }
 
 ItemLocation Unit::ItemLocation() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return ItemLocation::Null;
     }
     const auto location = static_cast<game::ItemLocation>(u->pItemData->pExtraData.nNodePos);
@@ -846,8 +845,8 @@ ItemLocation Unit::ItemLocation() const {
 }
 
 Size Unit::Size() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return Size::Zero;
     }
     auto* txt = lod114d::imports::d2common::DATATBLS_GetItemsTxtRecord(u->dwClassId);
@@ -858,8 +857,8 @@ Size Unit::Size() const {
 }
 
 uint32_t Unit::ItemType() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return 0U;
     }
     auto* txt = lod114d::imports::d2common::DATATBLS_GetItemsTxtRecord(u->dwClassId);
@@ -916,24 +915,24 @@ std::string Unit::Description() const {
 }
 
 BodyLocation Unit::BodyLocation() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return BodyLocation::None;
     }
     return static_cast<game::BodyLocation>(u->pItemData->nBodyLoc);
 }
 
 uint32_t Unit::ItemLevel() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return 0U;
     }
     return u->pItemData->dwItemLevel;
 }
 
 uint32_t Unit::LevelRequirement() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM) {
         return 0U;
     }
     auto* player = lod114d::imports::d2client::UNITS_GetPlayerUnit();
@@ -941,48 +940,48 @@ uint32_t Unit::LevelRequirement() const {
 }
 
 uint32_t Unit::GfxIndex() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return 0U;
     }
     return u->pItemData->nInvGfxIdx;
 }
 
 uint32_t Unit::ItemFlags() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return 0U;
     }
     return u->pItemData->dwItemFlags;
 }
 
 uint16_t Unit::ItemFormat() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return 0U;
     }
     return u->pItemData->wItemFormat;
 }
 
 std::optional<uint32_t> Unit::FileIndex() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr || u->pItemData->dwFileIndex < 0) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr || u->pItemData->dwFileIndex < 0) {
         return std::nullopt;
     }
     return static_cast<uint32_t>(u->pItemData->dwFileIndex);
 }
 
 uint32_t Unit::EarLevel() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return 0U;
     }
     return u->pItemData->nEarLvl;
 }
 
 std::string Unit::ItemPlayerName() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return {};
     }
     const std::string_view name{static_cast<const char*>(u->pItemData->szPlayerName),
@@ -991,11 +990,6 @@ std::string Unit::ItemPlayerName() const {
 }
 
 uint32_t Unit::ItemCost(ItemCostMode mode, uint32_t npcClassId, Difficulty difficulty) const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM) {
-        return 0U;
-    }
-
     // Reference parity: validate npcClassId has a monstats inventory; fall back
     // to Charsi when the lookup fails. The validation lives here (not at the JS
     // boundary) so every call site through ItemCost gets it for free.
@@ -1012,6 +1006,10 @@ uint32_t Unit::ItemCost(ItemCostMode mode, uint32_t npcClassId, Difficulty diffi
         internalMode = ITEM_PRICE_MODE_REPAIR;
     }
 
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM) {
+        return 0U;
+    }
     return lod114d::imports::d2common::ITEMS_GetTransactionCost(
         lod114d::imports::d2client::UNITS_GetPlayerUnit(), u, static_cast<D2C_Difficulties>(difficulty),
         *lod114d::imports::d2client::gpItemPriceList, resolvedNpc, static_cast<D2C_TransactionTypes>(internalMode));
@@ -1020,8 +1018,8 @@ uint32_t Unit::ItemCost(ItemCostMode mode, uint32_t npcClassId, Difficulty diffi
 // === Object-specific ===
 
 uint32_t Unit::ObjType() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_OBJECT || u->pObjectData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_OBJECT || u->pObjectData == nullptr) {
         return 0U;
     }
     // Reference: when the object lives in a level (GetLevelNoFromRoom != 0)
@@ -1035,8 +1033,8 @@ uint32_t Unit::ObjType() const {
 }
 
 bool Unit::IsLocked() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_OBJECT || u->pObjectData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_OBJECT || u->pObjectData == nullptr) {
         return false;
     }
     // Object `InteractType` packs the chest-locked bit at 0x80; the remaining 7 bits
@@ -1048,16 +1046,16 @@ bool Unit::IsLocked() const {
 // === Player-specific ===
 
 uint32_t Unit::RunWalk() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u != lod114d::imports::d2client::UNITS_GetPlayerUnit()) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u != lod114d::imports::d2client::UNITS_GetPlayerUnit()) {
         return 0U;
     }
     return *lod114d::imports::d2client::gbAlwaysRun;
 }
 
 uint32_t Unit::WeaponSwitch() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u != lod114d::imports::d2client::UNITS_GetPlayerUnit()) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u != lod114d::imports::d2client::UNITS_GetPlayerUnit()) {
         return 0U;
     }
     return *lod114d::imports::d2client::gnWeaponSwitch;
@@ -1066,8 +1064,8 @@ uint32_t Unit::WeaponSwitch() const {
 // === Traversal ===
 
 std::optional<Unit> Unit::GetFirstItem() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->pInventory == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->pInventory == nullptr) {
         return std::nullopt;
     }
     auto* item = lod114d::imports::d2common::INVENTORY_GetFirstItem(u->pInventory);
@@ -1087,8 +1085,8 @@ std::optional<Unit> Unit::GetFirstItem() const {
 }
 
 std::optional<Unit> Unit::GetNextItem() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return std::nullopt;
     }
     // Reference parity (Unit.cpp:GetInvNextUnit): the game's pNextItem chain
@@ -1125,9 +1123,8 @@ std::optional<Unit> Unit::GetFirstInGame(UnitType type) {
 }
 
 std::optional<Unit> Unit::GetNextInGame() const {
-    GameReadLock guard;
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u) {
         return std::nullopt;
     }
     if (auto* next = u->pListNext) {
@@ -1151,16 +1148,16 @@ std::optional<Unit> Unit::GetNextInGame() const {
 }
 
 std::string Unit::GetParentName() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_OBJECT || u->pObjectData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_OBJECT || u->pObjectData == nullptr) {
         return {};
     }
     return std::string{static_cast<const char*>(u->pObjectData->szOwner)};
 }
 
 Room Unit::GetRoom() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u) {
         return Room{};
     }
     auto* room = lod114d::imports::d2common::UNITS_GetRoom(u);
@@ -1185,12 +1182,15 @@ const D2SkillStrc* PickEquippedSkill(D2UnitStrc* u, Hand hand) {
 }  // namespace
 
 std::string Unit::GetSkillName(Hand hand) const {
-    auto* u = AsUnit(ResolvePtr());
-    const auto* skill = PickEquippedSkill(u, hand);
-    if (skill == nullptr || skill->pSkillsTxt == nullptr) {
-        return {};
+    uint16_t skillId = 0;
+    {
+        const auto u = Resolve<D2UnitStrc>();
+        const auto* skill = PickEquippedSkill(u, hand);
+        if (skill == nullptr || skill->pSkillsTxt == nullptr) {
+            return {};
+        }
+        skillId = static_cast<uint16_t>(skill->pSkillsTxt->nSkillId);
     }
-    const auto skillId = static_cast<uint16_t>(skill->pSkillsTxt->nSkillId);
     // Resolve display name through the standard skills->skilldesc->str-name->GetLocaleText chain.
     auto skillDescVal = GetTxtValue("skills", skillId, "skilldesc");
     auto* descRow = std::get_if<int64_t>(&skillDescVal);
@@ -1207,7 +1207,7 @@ std::string Unit::GetSkillName(Hand hand) const {
 }
 
 uint16_t Unit::GetSkillId(Hand hand) const {
-    auto* u = AsUnit(ResolvePtr());
+    const auto u = Resolve<D2UnitStrc>();
     const auto* skill = PickEquippedSkill(u, hand);
     if (skill == nullptr || skill->pSkillsTxt == nullptr) {
         return 0U;
@@ -1216,8 +1216,8 @@ uint16_t Unit::GetSkillId(Hand hand) const {
 }
 
 std::vector<Unit::SkillInfo> Unit::GetAllSkills() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->pSkills == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->pSkills == nullptr) {
         return {};
     }
     std::vector<SkillInfo> out;
@@ -1237,8 +1237,8 @@ std::vector<Unit::SkillInfo> Unit::GetAllSkills() const {
 
 std::optional<uint32_t> Unit::GetSkillLevel(uint16_t skillId, bool includeExtraLevels,
                                             std::optional<bool> charge) const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->pSkills == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->pSkills == nullptr) {
         return std::nullopt;
     }
     // charge filter:
@@ -1260,13 +1260,16 @@ std::optional<uint32_t> Unit::GetSkillLevel(uint16_t skillId, bool includeExtraL
 // === Actions ===
 
 void Unit::Move(Position target) const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr) {
-        return;
+    Point click = Point::Zero;
+    {
+        const auto u = Resolve<D2UnitStrc>();
+        if (!u) {
+            return;
+        }
+        // Player movement uses the script-supplied destination; for non-player
+        // units the click resolves against the unit's own position.
+        click = (u == lod114d::imports::d2client::UNITS_GetPlayerUnit()) ? target.ToPoint() : Pos().ToPoint();
     }
-    // Player movement uses the script-supplied destination; for non-player
-    // units the click resolves against the unit's own position.
-    const Point click = (u == lod114d::imports::d2client::UNITS_GetPlayerUnit()) ? target.ToPoint() : Pos().ToPoint();
     // ClickMapAt handles MapToAbsScreen translation, viewport offset, mouse
     // save/restore, AlwaysRun flag, and game-thread dispatch. The press/release
     // pair (clickType 0 then 2) with a small delay matches reference's pattern
@@ -1278,40 +1281,44 @@ void Unit::Move(Position target) const {
 }
 
 bool Unit::Interact() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u == lod114d::imports::d2client::UNITS_GetPlayerUnit()) {
-        return false;
-    }
-
-    // Items in inventory/stash use packet 0x20; belt items use 0x26. Reference
-    // hard-codes these because the underlying ClickItem path is gated behind
-    // additional UI state that the script context cannot drive directly.
-    //
-    // Reference parity (JSUnit.cpp:832): gate the inventory-style branch on
-    // dwAnimMode being neither IMODE_ONGROUND (3) nor IMODE_DROPPING (5).
-    // nNodePos on a ground-mode item still carries "the last container it was
-    // in", which can equal Inventory(1) or Stash(5), so the dwMode check is
-    // the canonical filter - without it, picking up a dropped stash item would
-    // mis-fire packet 0x20 with stale node coords.
-    if (u->dwUnitType == UNIT_ITEM && u->pItemData != nullptr && u->dwItemMode != IMODE_ONGROUND &&
-        u->dwItemMode != IMODE_DROPPING) {
-        const auto location = static_cast<game::ItemLocation>(u->pItemData->pExtraData.nNodePos);
-        if (location == ItemLocation::Inventory || location == ItemLocation::Stash) {
-            auto* player = lod114d::imports::d2client::UNITS_GetPlayerUnit();
-            D2GSPacketClt20 packet{};
-            packet.nHeader = 0x20U;
-            packet.nItemGUID = static_cast<int32_t>(u->dwUnitId);
-            packet.nPosX = static_cast<int32_t>(player ? lod114d::imports::d2common::UNITS_GetClientCoordX(player) : 0);
-            packet.nPosY = static_cast<int32_t>(player ? lod114d::imports::d2common::UNITS_GetClientCoordY(player) : 0);
-            lod114d::imports::d2net::CLIENT_Send(sizeof(packet), 1U, reinterpret_cast<uint8_t*>(&packet));
+    {
+        const auto u = Resolve<D2UnitStrc>();
+        if (!u || u == lod114d::imports::d2client::UNITS_GetPlayerUnit()) {
             return false;
         }
-        if (location == ItemLocation::Belt) {
-            D2GSPacketClt26 packet{};
-            packet.nHeader = 0x26U;
-            packet.nItemGUID = static_cast<int32_t>(u->dwUnitId);
-            lod114d::imports::d2net::CLIENT_Send(sizeof(packet), 1U, reinterpret_cast<uint8_t*>(&packet));
-            return false;
+
+        // Items in inventory/stash use packet 0x20; belt items use 0x26. Reference
+        // hard-codes these because the underlying ClickItem path is gated behind
+        // additional UI state that the script context cannot drive directly.
+        //
+        // Reference parity (JSUnit.cpp:832): gate the inventory-style branch on
+        // dwAnimMode being neither IMODE_ONGROUND (3) nor IMODE_DROPPING (5).
+        // nNodePos on a ground-mode item still carries "the last container it was
+        // in", which can equal Inventory(1) or Stash(5), so the dwMode check is
+        // the canonical filter - without it, picking up a dropped stash item would
+        // mis-fire packet 0x20 with stale node coords.
+        if (u->dwUnitType == UNIT_ITEM && u->pItemData != nullptr && u->dwItemMode != IMODE_ONGROUND &&
+            u->dwItemMode != IMODE_DROPPING) {
+            const auto location = static_cast<game::ItemLocation>(u->pItemData->pExtraData.nNodePos);
+            if (location == ItemLocation::Inventory || location == ItemLocation::Stash) {
+                auto* player = lod114d::imports::d2client::UNITS_GetPlayerUnit();
+                D2GSPacketClt20 packet{};
+                packet.nHeader = 0x20U;
+                packet.nItemGUID = static_cast<int32_t>(u->dwUnitId);
+                packet.nPosX =
+                    static_cast<int32_t>(player ? lod114d::imports::d2common::UNITS_GetClientCoordX(player) : 0);
+                packet.nPosY =
+                    static_cast<int32_t>(player ? lod114d::imports::d2common::UNITS_GetClientCoordY(player) : 0);
+                lod114d::imports::d2net::CLIENT_Send(sizeof(packet), 1U, reinterpret_cast<uint8_t*>(&packet));
+                return false;
+            }
+            if (location == ItemLocation::Belt) {
+                D2GSPacketClt26 packet{};
+                packet.nHeader = 0x26U;
+                packet.nItemGUID = static_cast<int32_t>(u->dwUnitId);
+                lod114d::imports::d2net::CLIENT_Send(sizeof(packet), 1U, reinterpret_cast<uint8_t*>(&packet));
+                return false;
+            }
         }
     }
 
@@ -1323,10 +1330,6 @@ bool Unit::Interact() const {
 }
 
 bool Unit::TakeWaypoint(uint32_t waypointId) const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr) {
-        return false;
-    }
     // Reference JSUnit.cpp:864-866: validate against levels.txt - `Waypoint`
     // column carries 255 for any level row that no waypoint reaches. Sending
     // the asm thunk for such an id can crash the game (see the historical
@@ -1339,6 +1342,10 @@ bool Unit::TakeWaypoint(uint32_t waypointId) const {
         }
     }
 
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u) {
+        return false;
+    }
     // Reference JSUnit.cpp:868 calls `D2CLIENT_TakeWaypoint(pUnit->dwUnitId,
     // nWaypointID)` where the first arg is the waypoint object's id and the
     // second is the destination area. The framework's `waypointId` param is
@@ -1356,8 +1363,8 @@ bool Unit::TakeWaypoint(uint32_t waypointId) const {
 }
 
 void Unit::Repair() const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u) {
         return;
     }
     // Reference: 17-byte repair packet with the recent-interact id at offset 1
@@ -1371,21 +1378,24 @@ void Unit::Repair() const {
 }
 
 ClickResult Unit::EquipItem() const {
-    if (*lod114d::imports::d2client::gpTransactionDialog != nullptr ||
-        *lod114d::imports::d2client::gnTransactionDialogs != 0 ||
-        *lod114d::imports::d2client::gnTransactionDialogs_2 != 0) {
-        return ClickResult::TransactionInProgress;
+    uint32_t bodyLoc = 0;
+    {
+        const auto u = Resolve<D2UnitStrc>();
+        if (*lod114d::imports::d2client::gpTransactionDialog != nullptr ||
+            *lod114d::imports::d2client::gnTransactionDialogs != 0 ||
+            *lod114d::imports::d2client::gnTransactionDialogs_2 != 0) {
+            return ClickResult::TransactionInProgress;
+        }
+        if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+            return ClickResult::InvalidTarget;
+        }
+        bodyLoc = u->pItemData->nBodyLoc;
+        if (bodyLoc >= lod114d::imports::d2client::gaBodyClickTable->size()) {
+            return ClickResult::InvalidTarget;
+        }
+        lod114d::imports::d2client::gCursorHover->x = -1;
+        lod114d::imports::d2client::gCursorHover->y = -1;
     }
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
-        return ClickResult::InvalidTarget;
-    }
-    const uint32_t bodyLoc = u->pItemData->nBodyLoc;
-    if (bodyLoc >= lod114d::imports::d2client::gaBodyClickTable->size()) {
-        return ClickResult::InvalidTarget;
-    }
-    lod114d::imports::d2client::gCursorHover->x = -1;
-    lod114d::imports::d2client::gCursorHover->y = -1;
     return GameThread::Execute([bodyLoc]() -> ClickResult {
         auto* player = lod114d::imports::d2client::UNITS_GetPlayerUnit();
         if (player == nullptr || player->pInventory == nullptr) {
@@ -1403,8 +1413,8 @@ ClickResult Unit::EquipItem() const {
 }
 
 bool Unit::UseMenu(uint32_t menuId) const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u) {
         return false;
     }
     auto* menu = lod114d::imports::d2client::gNPCMenu.Ptr();
@@ -1440,11 +1450,14 @@ bool Unit::UseMenu(uint32_t menuId) const {
 }
 
 void Unit::Overhead(const std::string& text) const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || text.empty()) {
+    if (text.empty()) {
         return;
     }
-    auto ansi = utils::ToStr(utils::ToWStr(text), CP_ACP);
+    const auto ansi = utils::ToStr(utils::ToWStr(text), CP_ACP);
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u) {
+        return;
+    }
     auto* msg = lod114d::imports::d2common::CHAT_AllocHoverMsg(nullptr, ansi.c_str(),
                                                                *lod114d::imports::d2client::gnOverheadTrigger);
     if (msg == nullptr) {
@@ -1460,8 +1473,8 @@ void Unit::Revive() const {
 }
 
 bool Unit::Shop(ShopMode mode) const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return false;
     }
 
@@ -1510,8 +1523,8 @@ bool Unit::Shop(ShopMode mode) const {
     if (parentInv->pOwner->dwUnitId != npc->dwUnitId) {
         return false;
     }
-    lod114d::imports::d2client::NPCS_ShopAction(npc, u, /*dwSell=*/0U, 0U, 0U, /*dwMode=*/static_cast<uint32_t>(mode),
-                                                1U, 0U);
+    lod114d::imports::d2client::NPCS_ShopAction(npc, u, /*dwSell=*/0U, 0U, 0U,
+                                                /*dwMode=*/static_cast<uint32_t>(mode), 1U, 0U);
     return true;
 }
 
@@ -1519,7 +1532,7 @@ bool Unit::SetSkill(uint16_t skillId, Hand hand, std::optional<uint32_t> itemId)
     // Hold the read lock across the pSkills linked-list walk below - without
     // it the chain could be mutated by the game thread between iterations.
     GameReadLock guard;
-    if (AsUnit(ResolvePtr()) == nullptr) {
+    if (!*this) {
         return false;
     }
     auto* player = lod114d::imports::d2client::UNITS_GetPlayerUnit();
@@ -1560,14 +1573,15 @@ bool Unit::SetSkill(uint16_t skillId, Hand hand, std::optional<uint32_t> itemId)
 }
 
 uint32_t Unit::GetMinionCount(uint32_t type) const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || (u->dwUnitType != UNIT_MONSTER && u->dwUnitType != UNIT_PLAYER)) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || (u->dwUnitType != UNIT_MONSTER && u->dwUnitType != UNIT_PLAYER)) {
         return 0U;
     }
     return lod114d::imports::d2client::UNITS_GetMinionCount(u, type);
 }
 
 uint32_t Unit::GetRepairCost(uint32_t npcClassId) const {
+    GameReadLock guard;
     auto* player = lod114d::imports::d2client::UNITS_GetPlayerUnit();
     if (player == nullptr) {
         return 0U;
@@ -1578,8 +1592,8 @@ uint32_t Unit::GetRepairCost(uint32_t npcClassId) const {
 }
 
 bool Unit::HasEnchant(uint32_t enchantId) const {
-    auto* u = AsUnit(ResolvePtr());
-    if (u == nullptr || u->dwUnitType != UNIT_MONSTER || u->pMonsterData == nullptr) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_MONSTER || u->pMonsterData == nullptr) {
         return false;
     }
     // Reference: 9 enchant slots in nMonUmod[0..8]. D2MOO declares the field 10
@@ -1621,6 +1635,7 @@ std::optional<Unit> Unit::Find(uint32_t id, std::optional<UnitType> type) {
 }
 
 std::optional<Unit> Unit::CursorItem() {
+    GameReadLock guard;
     auto* p = lod114d::imports::d2common::INVENTORY_GetCursorItem();
     if (p == nullptr) {
         return std::nullopt;
@@ -1629,6 +1644,7 @@ std::optional<Unit> Unit::CursorItem() {
 }
 
 std::optional<Unit> Unit::Selected() {
+    GameReadLock guard;
     auto* p = lod114d::imports::d2client::UNITS_GetSelectedUnit();
     if (p == nullptr) {
         return std::nullopt;
@@ -1637,6 +1653,7 @@ std::optional<Unit> Unit::Selected() {
 }
 
 std::optional<Unit> Unit::SelectedInventoryItem() {
+    GameReadLock guard;
     auto* p = *lod114d::imports::d2client::gpSelectedInvItem;
     if (p == nullptr) {
         return std::nullopt;
@@ -1650,6 +1667,7 @@ std::optional<Unit> Unit::SelectedInventoryItem() {
 }
 
 std::optional<Unit> Unit::InteractingNPC() {
+    GameReadLock guard;
     auto* p = lod114d::imports::d2client::UI_GetInteractingNPC();
     if (p == nullptr) {
         return std::nullopt;

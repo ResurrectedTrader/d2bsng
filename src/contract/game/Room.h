@@ -26,6 +26,12 @@ class Room {
 
     void* ResolvePtr() const;
 
+    // Resolves under a read lock held for the result's lifetime; see Resolved.
+    template <typename T>
+    Resolved<T> Resolve() const {
+        return Resolved<T>([this] { return ResolvePtr(); });
+    }
+
    public:
     explicit Room(uint32_t level = 0, Position pos = {}) : level_(level), pos_(pos) {}
     explicit operator bool() const;

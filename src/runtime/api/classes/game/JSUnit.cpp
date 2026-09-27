@@ -10,7 +10,6 @@
 #include "components/script/Script.h"
 #include "components/script/ScriptEngine.h"
 #include "config/AppConfig.h"
-#include "game/Bridge.h"
 #include "game/Constants.h"
 #include "game/Finders.h"
 #include "game/GameHelpers.h"
@@ -546,7 +545,6 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
-            auto lock = game::Bridge::Lock();
             info.GetReturnValue().Set(static_cast<uint8_t>(data->ItemLocation()));
         });
 
@@ -559,7 +557,6 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             auto* isolate = info.GetIsolate();
-            auto lock = game::Bridge::Lock();
             const auto tab = data->StashTab();
             if (!tab) {
                 return;
@@ -613,7 +610,6 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             auto* isolate = info.GetIsolate();
-            auto lock = game::Bridge::Lock();
             info.GetReturnValue().Set(convert::ToJS(isolate, data->Description()));
         });
 
@@ -962,7 +958,6 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 cursor.unitId = convert::ToUint32(isolate, args[2]);
             }
 
-            auto lock = game::Bridge::Lock();
             auto invItem = data->FindFirstInventoryItem(cursor);
             if (invItem) {
                 auto context = isolate->GetCurrentContext();
@@ -987,7 +982,6 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
 
-            auto lock = game::Bridge::Lock();
             // Reference parity: GetItems() returns Regular kind (not InventoryItem).
             auto items = data->GetItems();
             if (items.empty()) {
@@ -1438,7 +1432,6 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
 
-            auto lock = game::Bridge::Lock();
             auto lists = data->GetStatLists();
             auto context = isolate->GetCurrentContext();
             auto arr = v8::Array::New(isolate, static_cast<int32_t>(lists.size()));
@@ -1743,7 +1736,6 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 args.GetReturnValue().SetFalse();
                 return;
             }
-            auto lock = game::Bridge::Lock();
             args.GetReturnValue().Set(data->Shop(mode));
         });
 

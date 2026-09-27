@@ -10,7 +10,6 @@
 #include "api/core/Convert.h"
 #include "api/core/Error.h"
 #include "config/AppConfig.h"
-#include "game/Bridge.h"
 #include "game/GameHelpers.h"
 #include "game/StashTab.h"
 #include "game/Unit.h"
@@ -54,7 +53,6 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
         /// @type {string}
         Property(
             isolate, inst, "name", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto lock = game::Bridge::Lock();
                 info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), Unwrap(info.Holder())->Name()));
             });
 
@@ -63,7 +61,6 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
         /// @type {number}
         Property(
             isolate, inst, "gold", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto lock = game::Bridge::Lock();
                 info.GetReturnValue().Set(Unwrap(info.Holder())->Gold());
             });
 
@@ -74,7 +71,6 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
             isolate, inst, "items", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 auto* isolate = info.GetIsolate();
                 auto context = isolate->GetCurrentContext();
-                auto lock = game::Bridge::Lock();
                 const auto items = Unwrap(info.Holder())->GetItems();
                 auto arr = v8::Array::New(isolate, static_cast<int32_t>(items.size()));
                 uint32_t i = 0;

@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "GameHelpers.h"
+#include "game/GameLock.h"
 #include "game/HandleCache.h"
 #include "game/StashTab.h"
 #include "game/Types.h"
@@ -30,9 +31,18 @@ class Unit {
 
     void* ResolvePtr() const;
 
+    // Resolves under a read lock held for the result's lifetime; see Resolved.
+    template <typename T>
+    Resolved<T> Resolve() const {
+        return Resolved<T>([this] { return ResolvePtr(); });
+    }
+
    public:
     Unit() = default;
-    explicit operator bool() const { return ResolvePtr() != nullptr; }
+    explicit operator bool() const {
+        GameReadLock guard;
+        return ResolvePtr() != nullptr;
+    }
     bool operator==(const Unit& other) const;
 
     // Extracts unitId/type from a raw D2UnitStrc pointer.
