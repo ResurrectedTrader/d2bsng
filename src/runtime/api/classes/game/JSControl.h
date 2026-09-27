@@ -20,27 +20,19 @@ class JSControl : public ClassBase<JSControl, game::Control> {
     V8_CLASS_NOT_CONSTRUCTABLE
 
    private:
-    // Shared guard for every Control property/method callback: the client must be
-    // in the Menu state AND the underlying Control handle must still resolve to a
-    // valid game control. Returns the unwrapped Control* when both hold, else
-    // nullptr (caller should early-return).
+    // Shared guard for every Control property callback: the client must be in the
+    // Menu state AND the underlying Control handle must still resolve to a valid
+    // game control. Returns the locked Control when both hold, else an empty one
+    // (caller should early-return). Both checks and the caller's reads run under
+    // the one lock the result holds.
     //
-    // Works for property getters (PropertyCallbackInfo<v8::Value>, .Holder()),
-    // property setters (PropertyCallbackInfo<Boolean>, .Holder()) and methods
-    // (FunctionCallbackInfo<v8::Value>, .This()) via tag dispatch on InfoT.
+    // Works for property getters (PropertyCallbackInfo<v8::Value>) and property
+    // setters (PropertyCallbackInfo<Boolean>).
     template <typename InfoT>
-    static game::Control* MenuOnly(const InfoT& info) {
-        if (game::GetGameState() != game::GameState::Menu) {
-            return nullptr;
-        }
-        game::Control* data = nullptr;
-        if constexpr (std::is_same_v<InfoT, v8::FunctionCallbackInfo<v8::Value>>) {
-            data = Unwrap(info.Holder());
-        } else {
-            data = Unwrap(info.Holder());
-        }
-        if (!data || !*data) {
-            return nullptr;
+    static LockedHandle<game::Control> MenuOnly(const InfoT& info) {
+        auto data = Unwrap(info.Holder());
+        if (game::GetGameState() != game::GameState::Menu || !data || !*data) {
+            return LockedHandle<game::Control>(nullptr);
         }
         return data;
     }
@@ -56,35 +48,42 @@ class JSControl : public ClassBase<JSControl, game::Control> {
         Property(
             isolate, inst, "text",
             +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = MenuOnly(info);
-                if (!data)
-                    return;
-                // Reference: skip setting return value for password fields (dwIsCloaked==33)
-                // so JS sees undefined, matching reference behavior
-                if (data->IsPassword()) {
-                    return;
+                // Text can wait on the game thread, so it is read from a copy after the lock is dropped.
+                game::Control control;
+                {
+                    const auto data = MenuOnly(info);
+                    if (!data)
+                        return;
+                    // Reference: skip setting return value for password fields (dwIsCloaked==33)
+                    // so JS sees undefined, matching reference behavior
+                    if (data->IsPassword()) {
+                        return;
+                    }
+                    control = *data;
                 }
-                auto* isolate = info.GetIsolate();
-                info.GetReturnValue().Set(convert::ToJS(isolate, data->Text()));
+                info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), control.Text()));
             },
             +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value,
                 const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* data = MenuOnly(info);
-                if (!data)
-                    return;
-                // Only editable text controls (EditBox) support SetText
-                if (data->Type() != game::ControlType::EditBox || !value->IsString()) {
-                    return;
+                // SetText waits on the game thread, so it runs on a copy after the lock is dropped.
+                game::Control control;
+                {
+                    const auto data = MenuOnly(info);
+                    if (!data)
+                        return;
+                    // Only editable text controls (EditBox) support SetText
+                    if (data->Type() != game::ControlType::EditBox || !value->IsString()) {
+                        return;
+                    }
+                    control = *data;
                 }
-                auto* isolate = info.GetIsolate();
-                std::string text = convert::ToString(isolate, value);
-                data->SetText(text);
+                control.SetText(convert::ToString(info.GetIsolate(), value));
             });
         /// @description The control's left (x) screen coordinate.
         /// @type {number}
         Property(
             isolate, inst, "x", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = MenuOnly(info);
+                const auto data = MenuOnly(info);
                 if (!data)
                     return;
                 info.GetReturnValue().Set(static_cast<int32_t>(data->Bounds().origin.x));
@@ -93,7 +92,7 @@ class JSControl : public ClassBase<JSControl, game::Control> {
         /// @type {number}
         Property(
             isolate, inst, "y", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = MenuOnly(info);
+                const auto data = MenuOnly(info);
                 if (!data)
                     return;
                 info.GetReturnValue().Set(static_cast<int32_t>(data->Bounds().origin.y));
@@ -102,7 +101,7 @@ class JSControl : public ClassBase<JSControl, game::Control> {
         /// @type {number}
         Property(
             isolate, inst, "xsize", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = MenuOnly(info);
+                const auto data = MenuOnly(info);
                 if (!data)
                     return;
                 info.GetReturnValue().Set(static_cast<int32_t>(data->Bounds().size.width));
@@ -111,7 +110,7 @@ class JSControl : public ClassBase<JSControl, game::Control> {
         /// @type {number}
         Property(
             isolate, inst, "ysize", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = MenuOnly(info);
+                const auto data = MenuOnly(info);
                 if (!data)
                     return;
                 info.GetReturnValue().Set(static_cast<int32_t>(data->Bounds().size.height));
@@ -122,14 +121,14 @@ class JSControl : public ClassBase<JSControl, game::Control> {
         Property(
             isolate, inst, "state",
             +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = MenuOnly(info);
+                const auto data = MenuOnly(info);
                 if (!data)
                     return;
                 info.GetReturnValue().Set(static_cast<int32_t>(data->State()) - 2);
             },
             +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value,
                 const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* data = MenuOnly(info);
+                const auto data = MenuOnly(info);
                 if (!data)
                     return;
                 auto* isolate = info.GetIsolate();
@@ -148,7 +147,7 @@ class JSControl : public ClassBase<JSControl, game::Control> {
         Property(
             isolate, inst, "password",
             +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = MenuOnly(info);
+                const auto data = MenuOnly(info);
                 if (!data)
                     return;
                 info.GetReturnValue().Set(data->IsPassword());
@@ -158,7 +157,7 @@ class JSControl : public ClassBase<JSControl, game::Control> {
         /// @type {number}
         Property(
             isolate, inst, "type", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = MenuOnly(info);
+                const auto data = MenuOnly(info);
                 if (!data)
                     return;
                 info.GetReturnValue().Set(static_cast<uint32_t>(data->Type()));
@@ -168,14 +167,14 @@ class JSControl : public ClassBase<JSControl, game::Control> {
         Property(
             isolate, inst, "cursorpos",
             +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = MenuOnly(info);
+                const auto data = MenuOnly(info);
                 if (!data)
                     return;
                 info.GetReturnValue().Set(static_cast<int32_t>(data->CursorPos()));
             },
             +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value,
                 const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* data = MenuOnly(info);
+                const auto data = MenuOnly(info);
                 if (!data)
                     return;
                 if (!value->IsNumber()) {
@@ -191,7 +190,7 @@ class JSControl : public ClassBase<JSControl, game::Control> {
         Property(
             isolate, inst, "selectstart",
             +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = MenuOnly(info);
+                const auto data = MenuOnly(info);
                 if (!data)
                     return;
                 info.GetReturnValue().Set(static_cast<int32_t>(data->SelectStart()));
@@ -201,7 +200,7 @@ class JSControl : public ClassBase<JSControl, game::Control> {
         Property(
             isolate, inst, "selectend",
             +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = MenuOnly(info);
+                const auto data = MenuOnly(info);
                 if (!data)
                     return;
                 info.GetReturnValue().Set(static_cast<int32_t>(data->SelectEnd()));
@@ -211,14 +210,14 @@ class JSControl : public ClassBase<JSControl, game::Control> {
         Property(
             isolate, inst, "disabled",
             +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = MenuOnly(info);
+                const auto data = MenuOnly(info);
                 if (!data)
                     return;
                 info.GetReturnValue().Set(static_cast<int32_t>(data->State()));
             },
             +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value,
                 const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* data = MenuOnly(info);
+                const auto data = MenuOnly(info);
                 if (!data)
                     return;
                 if (!value->IsNumber()) {
@@ -236,10 +235,10 @@ class JSControl : public ClassBase<JSControl, game::Control> {
         /// handle is stale
         Method(
             isolate, proto, "getNext", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+                const auto data = Unwrap(args.This());
                 if (game::GetGameState() != game::GameState::Menu) {
                     return;
                 }
-                auto* data = Unwrap(args.This());
                 if (!data || !*data) {
                     args.GetReturnValue().SetFalse();
                     return;
@@ -260,13 +259,18 @@ class JSControl : public ClassBase<JSControl, game::Control> {
         /// @returns {undefined|number} - undefined normally; 0 if the control handle is stale
         Method(
             isolate, proto, "click", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                if (game::GetGameState() != game::GameState::Menu) {
-                    return;
-                }
-                auto* data = Unwrap(args.This());
-                if (!data || !*data) {
-                    args.GetReturnValue().Set(0);  // Reference returns 0 on stale control
-                    return;
+                // Click waits on the game thread, so it runs on a copy after the lock is dropped.
+                game::Control control;
+                {
+                    const auto data = Unwrap(args.This());
+                    if (game::GetGameState() != game::GameState::Menu) {
+                        return;
+                    }
+                    if (!data || !*data) {
+                        args.GetReturnValue().Set(0);  // Reference returns 0 on stale control
+                        return;
+                    }
+                    control = *data;
                 }
                 // Reference control_click (reference/d2bs/JSControl.cpp:202-209) seeds x/y
                 // as (uint32)-1, then overwrites both iff argc>1 and both args are ints
@@ -281,7 +285,7 @@ class JSControl : public ClassBase<JSControl, game::Control> {
                 if (args.Length() > 1 && args[0]->IsInt32() && args[1]->IsInt32()) {
                     pos = extract::Position(args, 0);
                 }
-                data->Click(pos);
+                control.Click(pos);
             });
         /// @description Sets the control's text to the given string.
         /// @signature setText(text: string)
@@ -289,20 +293,23 @@ class JSControl : public ClassBase<JSControl, game::Control> {
         /// @returns {undefined|number} - undefined normally; 0 if the control handle is stale
         Method(
             isolate, proto, "setText", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                if (game::GetGameState() != game::GameState::Menu) {
-                    return;
+                // SetText waits on the game thread, so it runs on a copy after the lock is dropped.
+                game::Control control;
+                {
+                    const auto data = Unwrap(args.This());
+                    if (game::GetGameState() != game::GameState::Menu) {
+                        return;
+                    }
+                    if (!data || !*data) {
+                        args.GetReturnValue().Set(0);  // Reference: INT_TO_JSVAL(0) on stale control
+                        return;
+                    }
+                    control = *data;
                 }
-                auto* data = Unwrap(args.This());
-                if (!data || !*data) {
-                    args.GetReturnValue().Set(0);  // Reference: INT_TO_JSVAL(0) on stale control
-                    return;
-                }
-                auto* isolate = args.GetIsolate();
                 if (args.Length() < 1 || !args[0]->IsString()) {
                     return;  // Silent return, matching reference
                 }
-                std::string text = convert::ToString(isolate, args[0]);
-                data->SetText(text);
+                control.SetText(convert::ToString(args.GetIsolate(), args[0]));
             });
         /// @description Returns the text lines of a list control (TextBox); undefined for other control types.
         /// @signature getText()
@@ -310,23 +317,27 @@ class JSControl : public ClassBase<JSControl, game::Control> {
         /// (multiple slots); 0 if the control handle is stale
         Method(
             isolate, proto, "getText", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                if (game::GetGameState() != game::GameState::Menu) {
-                    return;
-                }
-                auto* data = Unwrap(args.This());
-                if (!data || !*data) {
-                    args.GetReturnValue().Set(0);  // Reference: INT_TO_JSVAL(0) on stale control
-                    return;
+                // TextLines can wait on the game thread, so it is read from a copy after the lock is dropped.
+                game::Control control;
+                {
+                    const auto data = Unwrap(args.This());
+                    if (game::GetGameState() != game::GameState::Menu) {
+                        return;
+                    }
+                    if (!data || !*data) {
+                        args.GetReturnValue().Set(0);  // Reference: INT_TO_JSVAL(0) on stale control
+                        return;
+                    }
+                    // Only list controls (TextBox) have text lines
+                    if (data->Type() != game::ControlType::TextBox) {
+                        return;
+                    }
+                    control = *data;
                 }
                 auto* isolate = args.GetIsolate();
                 auto context = isolate->GetCurrentContext();
 
-                // Only list controls (TextBox) have text lines
-                if (data->Type() != game::ControlType::TextBox) {
-                    return;
-                }
-
-                auto lines = data->TextLines();
+                auto lines = control.TextLines();
                 auto array = v8::Array::New(isolate, static_cast<int32_t>(lines.size()));
 
                 for (size_t i = 0; i < lines.size(); ++i) {

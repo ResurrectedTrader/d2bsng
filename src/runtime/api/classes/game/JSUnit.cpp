@@ -4,6 +4,7 @@
 
 #include <chrono>
 #include <optional>
+#include <vector>
 
 #include "api/classes/game/JSStashTab.h"
 #include "api/core/Extract.h"
@@ -13,6 +14,7 @@
 #include "game/Constants.h"
 #include "game/Finders.h"
 #include "game/GameHelpers.h"
+#include "game/GameLock.h"
 
 namespace d2bs::runtime::api::classes {
 
@@ -29,7 +31,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {UnitType}
     Property(
         isolate, inst, "type", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             // No *data check as type is cached
             info.GetReturnValue().Set(static_cast<uint32_t>(data->Type()));
         });
@@ -38,7 +40,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "classid", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
@@ -49,7 +51,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "mode", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
@@ -60,7 +62,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {string}
     Property(
         isolate, inst, "name", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
@@ -72,7 +74,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "act", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
@@ -83,7 +85,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "flagsex", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
@@ -94,7 +96,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "gid", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             // No *data check as unit id is usually cached
             info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), static_cast<double>(data->Id())));
         });
@@ -103,7 +105,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "x", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
@@ -114,7 +116,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "y", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
@@ -126,7 +128,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "targetx", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
@@ -142,7 +144,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "targety", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
@@ -157,7 +159,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "area", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
@@ -168,7 +170,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "hp", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
@@ -179,7 +181,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "hpmax", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
@@ -190,7 +192,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "mp", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
@@ -201,7 +203,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "mpmax", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
@@ -212,7 +214,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "stamina", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
@@ -223,7 +225,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "staminamax", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
@@ -234,7 +236,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "charlvl", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
@@ -245,7 +247,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "itemcount", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
@@ -257,7 +259,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "owner", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
@@ -271,7 +273,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "ownertype", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
@@ -285,7 +287,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {MonsterSpecType}
     Property(
         isolate, inst, "spectype", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Monster) {
                 return;
             }
@@ -296,7 +298,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "direction", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
@@ -308,7 +310,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "uniqueid", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
@@ -319,7 +321,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {string}
     Property(
         isolate, inst, "code", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -335,7 +337,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {string}
     Property(
         isolate, inst, "prefix", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -347,7 +349,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {string}
     Property(
         isolate, inst, "suffix", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -359,7 +361,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "prefixnum", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -370,7 +372,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "suffixnum", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -382,7 +384,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "rareprefixnum", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -394,7 +396,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "raresuffixnum", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -409,7 +411,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {string[]}
     Property(
         isolate, inst, "prefixes", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -436,7 +438,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {string[]}
     Property(
         isolate, inst, "suffixes", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -460,7 +462,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number[]}
     Property(
         isolate, inst, "prefixnums", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -484,7 +486,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number[]}
     Property(
         isolate, inst, "suffixnums", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -507,7 +509,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {string}
     Property(
         isolate, inst, "fname", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -519,7 +521,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {ItemQuality}
     Property(
         isolate, inst, "quality", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -530,7 +532,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {NodePage}
     Property(
         isolate, inst, "node", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -541,7 +543,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {ItemLocation}
     Property(
         isolate, inst, "location", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -552,15 +554,18 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {StashTab|undefined}
     Property(
         isolate, inst, "stashTab", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
-                return;
+            std::optional<game::StashTab> tab;
+            {
+                const auto data = Unwrap(info.Holder());
+                if (!*data || data->Type() != UnitType::Item) {
+                    return;
+                }
+                tab = data->StashTab();
             }
-            auto* isolate = info.GetIsolate();
-            const auto tab = data->StashTab();
             if (!tab) {
                 return;
             }
+            auto* isolate = info.GetIsolate();
             auto obj = JSStashTab::CreateInstance(isolate, isolate->GetCurrentContext(),
                                                   std::make_unique<game::StashTab>(*tab));
             if (!obj.IsEmpty()) {
@@ -572,7 +577,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "sizex", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -583,7 +588,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "sizey", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -594,7 +599,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "itemType", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -605,19 +610,23 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {string}
     Property(
         isolate, inst, "description", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
-                return;
+            // Description waits on the game thread, so it runs on a copy after the lock is dropped.
+            game::Unit item;
+            {
+                const auto data = Unwrap(info.Holder());
+                if (!*data || data->Type() != UnitType::Item) {
+                    return;
+                }
+                item = *data;
             }
-            auto* isolate = info.GetIsolate();
-            info.GetReturnValue().Set(convert::ToJS(isolate, data->Description()));
+            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), item.Description()));
         });
 
     /// @description Equipment slot (body location) the item is worn in; Item units only.
     /// @type {BodyLocation}
     Property(
         isolate, inst, "bodylocation", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -628,7 +637,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "ilvl", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -639,7 +648,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "lvlreq", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -651,7 +660,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "gfx", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -664,7 +673,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "fileindex", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -675,7 +684,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "itemformat", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -686,7 +695,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "earlvl", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -697,7 +706,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {string}
     Property(
         isolate, inst, "playername", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
@@ -712,7 +721,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {MoveMode}
     Property(
         isolate, inst, "runwalk", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
@@ -727,7 +736,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {WeaponSet}
     Property(
         isolate, inst, "weaponswitch", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
@@ -748,7 +757,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {number}
     Property(
         isolate, inst, "objtype", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Object) {
                 return;
             }
@@ -760,7 +769,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @type {boolean}
     Property(
         isolate, inst, "islocked", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* data = Unwrap(info.Holder());
+            const auto data = Unwrap(info.Holder());
             if (!*data || data->Type() != UnitType::Object) {
                 return;
             }
@@ -788,7 +797,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Method(
         isolate, proto, "getNext", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            auto* data = Unwrap(args.This());
+            const auto data = Unwrap(args.This());
             if (!*data) {
                 args.GetReturnValue().SetFalse();
                 return;
@@ -852,7 +861,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @returns {boolean} - True once the repair request was sent; false if the unit handle is invalid.
     Method(
         isolate, proto, "repair", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* data = Unwrap(args.This());
+            const auto data = Unwrap(args.This());
             if (!*data) {
                 args.GetReturnValue().SetFalse();
                 return;
@@ -871,14 +880,19 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 args.GetReturnValue().SetFalse();
                 return;
             }
-            auto* data = Unwrap(args.This());
-            if (!*data) {
-                args.GetReturnValue().SetFalse();
-                return;
+            // UseMenu can wait on the game thread, so it runs on a copy after the lock is dropped.
+            game::Unit unit;
+            {
+                const auto data = Unwrap(args.This());
+                if (!*data) {
+                    args.GetReturnValue().SetFalse();
+                    return;
+                }
+                unit = *data;
             }
             auto* isolate = args.GetIsolate();
             uint32_t menuId = convert::ToUint32(isolate, args[0]);
-            args.GetReturnValue().Set(data->UseMenu(menuId));
+            args.GetReturnValue().Set(unit.UseMenu(menuId));
         });
 
     // Reference: returns early if unit is the player unit (can't interact with self).
@@ -899,22 +913,27 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             args.GetReturnValue().SetFalse();
-            auto* data = Unwrap(args.This());
-            if (!*data) {
-                return;
-            }
-            // Reference line 829: if unit is the player unit, return early
-            auto player = game::Unit::Player();
-            if (player && *data == player) {
-                return;
+            // Interact waits on the game thread, so the action runs on a copy after the lock is dropped.
+            game::Unit unit;
+            {
+                const auto data = Unwrap(args.This());
+                if (!*data) {
+                    return;
+                }
+                // Reference line 829: if unit is the player unit, return early
+                auto player = game::Unit::Player();
+                if (player && *data == player) {
+                    return;
+                }
+                unit = *data;
             }
             // Reference line 854: waypoint path requires UNIT_OBJECT and exactly 1 argument
-            if (data->Type() == UnitType::Object && args.Length() == 1 && args[0]->IsNumber()) {
+            if (unit.Type() == UnitType::Object && args.Length() == 1 && args[0]->IsNumber()) {
                 auto* isolate = args.GetIsolate();
                 uint32_t waypointId = convert::ToUint32(isolate, args[0]);
-                args.GetReturnValue().Set(data->TakeWaypoint(waypointId));
+                args.GetReturnValue().Set(unit.TakeWaypoint(waypointId));
             } else {
-                args.GetReturnValue().Set(data->Interact());
+                args.GetReturnValue().Set(unit.Interact());
             }
         });
 
@@ -940,11 +959,6 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
-            auto* data = Unwrap(args.This());
-            if (!*data) {
-                return;
-            }
-
             game::UnitCursorState cursor;
             if (args.Length() > 0 && args[0]->IsString()) {
                 cursor.name = convert::ToString(isolate, args[0]);
@@ -958,7 +972,14 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 cursor.unitId = convert::ToUint32(isolate, args[2]);
             }
 
-            auto invItem = data->FindFirstInventoryItem(cursor);
+            std::optional<game::Unit> invItem;
+            {
+                const auto data = Unwrap(args.This());
+                if (!*data) {
+                    return;
+                }
+                invItem = data->FindFirstInventoryItem(cursor);
+            }
             if (invItem) {
                 auto context = isolate->GetCurrentContext();
                 auto result = CreateInstance(isolate, context, std::make_unique<game::Unit>(*invItem));
@@ -977,13 +998,15 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
-            auto* data = Unwrap(args.This());
-            if (!*data) {
-                return;
+            std::vector<game::Unit> items;
+            {
+                const auto data = Unwrap(args.This());
+                if (!*data) {
+                    return;
+                }
+                // Reference parity: GetItems() returns Regular kind (not InventoryItem).
+                items = data->GetItems();
             }
-
-            // Reference parity: GetItems() returns Regular kind (not InventoryItem).
-            auto items = data->GetItems();
             if (items.empty()) {
                 return;
             }
@@ -1031,7 +1054,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
 
-            auto* data = Unwrap(args.This());
+            const auto data = Unwrap(args.This());
             if (!*data) {
                 args.GetReturnValue().SetFalse();
                 return;
@@ -1106,19 +1129,21 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
-            auto* data = Unwrap(args.This());
-            if (!*data) {
-                return;
-            }
             auto* isolate = args.GetIsolate();
-
-            if (data->Type() == UnitType::Object) {
-                auto ownerName = data->GetParentName();
-                args.GetReturnValue().Set(convert::ToJS(isolate, ownerName));
-                return;
+            std::optional<game::Unit> owner;
+            {
+                const auto data = Unwrap(args.This());
+                if (!*data) {
+                    return;
+                }
+                if (data->Type() == UnitType::Object) {
+                    auto ownerName = data->GetParentName();
+                    args.GetReturnValue().Set(convert::ToJS(isolate, ownerName));
+                    return;
+                }
+                owner = data->GetOwner();
             }
 
-            auto owner = data->GetOwner();
             if (!owner) {
                 args.GetReturnValue().SetNull();
                 return;
@@ -1137,15 +1162,18 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             args.GetReturnValue().SetNull();
-            auto* data = Unwrap(args.This());
-            if (!*data) {
-                return;
+            std::optional<game::Unit> merc;
+            {
+                const auto data = Unwrap(args.This());
+                if (!*data) {
+                    return;
+                }
+                // Reference line 1668: only players have mercenaries
+                if (data->Type() != UnitType::Player) {
+                    return;
+                }
+                merc = data->FindMerc();
             }
-            // Reference line 1668: only players have mercenaries
-            if (data->Type() != UnitType::Player) {
-                return;
-            }
-            auto merc = data->FindMerc();
             if (!merc) {
                 return;
             }
@@ -1167,7 +1195,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             // Reference: lpUnit ? FindUnit(lpUnit) : GetPlayerUnit()
-            auto* data = Unwrap(args.This());
+            const auto data = Unwrap(args.This());
             game::Unit unit;
             if (data && *data) {
                 unit = *data;
@@ -1202,7 +1230,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             if (args.Length() < 1 || !args[0]->IsNumber()) {
                 return;
             }
-            auto* data = Unwrap(args.This());
+            const auto data = Unwrap(args.This());
             if (!*data) {
                 return;
             }
@@ -1263,7 +1291,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 args.GetReturnValue().SetFalse();
                 return;
             }
-            auto* data = Unwrap(args.This());
+            const auto data = Unwrap(args.This());
             if (!*data) {
                 args.GetReturnValue().SetFalse();
                 return;
@@ -1295,12 +1323,6 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
 
-            auto* data = Unwrap(args.This());
-            if (!*data) {
-                args.GetReturnValue().SetFalse();
-                return;
-            }
-
             int32_t statId = convert::ToInt32(isolate, args[0]);
 
             uint32_t subIndex = 0;
@@ -1308,14 +1330,47 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 subIndex = convert::ToInt32(isolate, args[1]);
             }
 
+            std::vector<game::StatEntry> stats;
+            {
+                const auto data = Unwrap(args.This());
+                if (!*data) {
+                    args.GetReturnValue().SetFalse();
+                    return;
+                }
+                if (statId == -1) {
+                    stats = data->GetAllStats();
+                } else if (statId == -2) {
+                    stats = data->GetDetailedStats();
+                } else if (statId == static_cast<int32_t>(game::STAT_ITEMLEVELREQ)) {
+                    // Reference lines 916-940: special cases for the normal (statId >= 0) path
+                    // STAT_ITEMLEVELREQ: reference calls D2COMMON_GetItemLevelRequirement
+                    args.GetReturnValue().Set(data->LevelRequirement());
+                    return;
+                } else {
+                    // GetStat handles the >>8 shift for stats 6-11 internally.
+                    int32_t value = data->GetStat(static_cast<uint32_t>(statId), subIndex);
+                    // Stats EXP, LASTEXP, NEXTEXP: return as unsigned double
+                    // to handle large XP values that overflow int32_t.
+                    // Reference line 918-921: JS_NumberValue((unsigned int)value)
+                    if (statId == static_cast<int32_t>(game::STAT_EXP) ||
+                        statId == static_cast<int32_t>(game::STAT_LASTEXP) ||
+                        statId == static_cast<int32_t>(game::STAT_NEXTEXP)) {
+                        args.GetReturnValue().Set(
+                            convert::ToJS(isolate, static_cast<double>(static_cast<uint32_t>(value))));
+                        return;
+                    }
+                    args.GetReturnValue().Set(value);
+                    return;
+                }
+            }
+
             if (statId == -1) {
                 // Return flat array of [statId, subIndex, value] sub-arrays
                 // Reference: merges pUnit->pStats->StatVec with D2COMMON_GetStatList(pUnit, NULL, 0x40)
-                auto allStats = data->GetAllStats();
                 auto context = isolate->GetCurrentContext();
-                auto arr = v8::Array::New(isolate, static_cast<int32_t>(allStats.size()));
-                for (uint32_t i = 0; i < allStats.size(); ++i) {
-                    auto& entry = allStats[i];
+                auto arr = v8::Array::New(isolate, static_cast<int32_t>(stats.size()));
+                for (uint32_t i = 0; i < stats.size(); ++i) {
+                    auto& entry = stats[i];
                     auto statArr = v8::Array::New(isolate, 3);
                     statArr->Set(context, 0, convert::ToJS(isolate, entry.statId)).Check();
                     statArr->Set(context, 1, convert::ToJS(isolate, entry.subIndex)).Check();
@@ -1323,7 +1378,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                     arr->Set(context, i, statArr).Check();
                 }
                 args.GetReturnValue().Set(arr);
-            } else if (statId == -2) {
+            } else {
                 // Return sparse array indexed by statId with detailed charge info.
                 // Reference: InsertStatsToGenericObject builds sparse array where:
                 //   - For wSubIndex > 0x200: creates objects with {skill, level, charges, maxcharges}
@@ -1331,10 +1386,9 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 //   - For normal stats: creates sub-arrays indexed by subIndex containing the value
                 //   - Stats 6-11 (hp/mana/stamina) are right-shifted by 8
                 // Delegates to game::Unit::GetDetailedStats() for the raw data.
-                auto detailedStats = data->GetDetailedStats();
                 auto context = isolate->GetCurrentContext();
                 auto arr = v8::Array::New(isolate, 0);
-                for (const auto& entry : detailedStats) {
+                for (const auto& entry : stats) {
                     v8::HandleScope innerScope(isolate);
                     if (entry.subIndex > 0x200) {
                         // Charge/skill stat: build object with {skill, level, charges, maxcharges}
@@ -1389,26 +1443,6 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                     }
                 }
                 args.GetReturnValue().Set(arr);
-            } else {
-                // Reference lines 916-940: special cases for the normal (statId >= 0) path
-                if (statId == static_cast<int32_t>(game::STAT_ITEMLEVELREQ)) {
-                    // STAT_ITEMLEVELREQ: reference calls D2COMMON_GetItemLevelRequirement
-                    args.GetReturnValue().Set(data->LevelRequirement());
-                } else {
-                    // GetStat handles the >>8 shift for stats 6-11 internally.
-                    int32_t value = data->GetStat(static_cast<uint32_t>(statId), subIndex);
-                    // Stats EXP, LASTEXP, NEXTEXP: return as unsigned double
-                    // to handle large XP values that overflow int32_t.
-                    // Reference line 918-921: JS_NumberValue((unsigned int)value)
-                    if (statId == static_cast<int32_t>(game::STAT_EXP) ||
-                        statId == static_cast<int32_t>(game::STAT_LASTEXP) ||
-                        statId == static_cast<int32_t>(game::STAT_NEXTEXP)) {
-                        args.GetReturnValue().Set(
-                            convert::ToJS(isolate, static_cast<double>(static_cast<uint32_t>(value))));
-                        return;
-                    }
-                    args.GetReturnValue().Set(value);
-                }
             }
         });
 
@@ -1427,12 +1461,14 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
-            auto* data = Unwrap(args.This());
-            if (!*data) {
-                return;
+            std::vector<game::StatListEntry> lists;
+            {
+                const auto data = Unwrap(args.This());
+                if (!*data) {
+                    return;
+                }
+                lists = data->GetStatLists();
             }
-
-            auto lists = data->GetStatLists();
             auto context = isolate->GetCurrentContext();
             auto arr = v8::Array::New(isolate, static_cast<int32_t>(lists.size()));
             for (uint32_t i = 0; i < lists.size(); ++i) {
@@ -1451,7 +1487,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
-            auto* data = Unwrap(args.This());
+            const auto data = Unwrap(args.This());
             if (!*data) {
                 return;
             }
@@ -1476,7 +1512,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             if (args.Length() < 1 || !args[0]->IsNumber()) {
                 return;
             }
-            auto* data = Unwrap(args.This());
+            const auto data = Unwrap(args.This());
             if (!*data) {
                 return;
             }
@@ -1510,7 +1546,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             if (args.Length() < 1 || !args[0]->IsNumber()) {
                 return;
             }
-            auto* data = Unwrap(args.This());
+            const auto data = Unwrap(args.This());
             if (!*data) {
                 return;
             }
@@ -1530,7 +1566,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             if (args.Length() > 1) {
                 if (args[1]->IsObject()) {
                     // If NPC passed as a Unit object, unwrap and get its classId
-                    auto* npcUnit = Unwrap(args[1].As<v8::Object>());
+                    const auto npcUnit = Unwrap(args[1].As<v8::Object>());
                     if (npcUnit && *npcUnit) {
                         npcClassId = npcUnit->ClassId();
                     }
@@ -1566,10 +1602,15 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 args.GetReturnValue().SetFalse();
                 return;
             }
-            auto* data = Unwrap(args.This());
-            if (!*data) {
-                args.GetReturnValue().SetFalse();
-                return;
+            // The bind wait below pumps script events, so it polls a copy of the handle with no lock held.
+            game::Unit unit;
+            {
+                const auto data = Unwrap(args.This());
+                if (!*data) {
+                    args.GetReturnValue().SetFalse();
+                    return;
+                }
+                unit = *data;
             }
 
             uint16_t skillId = 0;
@@ -1596,7 +1637,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             game::Hand hand = convert::ToBool(isolate, args[1]) ? game::Hand::Left : game::Hand::Right;
             std::optional<uint32_t> itemId;
             if (args.Length() == 3 && args[2]->IsObject()) {
-                auto* itemUnit = Unwrap(args[2].As<v8::Object>());
+                const auto itemUnit = Unwrap(args[2].As<v8::Object>());
                 if (itemUnit && *itemUnit && itemUnit->Type() == UnitType::Item) {
                     itemId = itemUnit->Id();
                 }
@@ -1613,11 +1654,11 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             const auto deadline = std::chrono::steady_clock::now() + 1s;
             bool packetSent = false;
             while (std::chrono::steady_clock::now() < deadline) {
-                if (data->GetSkillId(hand) == skillId) {
+                if (unit.GetSkillId(hand) == skillId) {
                     args.GetReturnValue().Set(true);
                     return;
                 }
-                if (!packetSent && data->SetSkill(skillId, hand, itemId)) {
+                if (!packetSent && unit.SetSkill(skillId, hand, itemId)) {
                     packetSent = true;
                 }
                 script->ExecuteEvents(20ms);
@@ -1639,27 +1680,33 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
-            auto* data = Unwrap(args.This());
-            if (!*data) {
-                return;
-            }
-            auto player = game::Unit::Player();
-            if (!player) {
-                return;
-            }
-            // Reference line 1879-1881: if the unit IS the player, x,y args are required
-            if (*data == player) {
-                if (args.Length() < 2) {
+            // Move waits on the game thread, so it runs on a copy after the lock is dropped.
+            game::Unit unit;
+            game::Position target;
+            {
+                const auto data = Unwrap(args.This());
+                if (!*data) {
                     return;
                 }
+                auto player = game::Unit::Player();
+                if (!player) {
+                    return;
+                }
+                // Reference line 1879-1881: if the unit IS the player, x,y args are required
+                if (*data == player) {
+                    if (args.Length() < 2) {
+                        return;
+                    }
+                }
+                // If called with x,y arguments, use those; otherwise move to the unit's position.
+                // Explicit IsNumber gate preserves legacy behavior: non-numeric args (e.g. `move("foo","bar")`)
+                // must be treated as "no target given" rather than coercing to 0.
+                target = (args.Length() >= 2 && args[0]->IsNumber() && args[1]->IsNumber())
+                             ? extract::Position(args, 0).value_or(data->Pos())
+                             : data->Pos();
+                unit = *data;
             }
-            // If called with x,y arguments, use those; otherwise move to the unit's position.
-            // Explicit IsNumber gate preserves legacy behavior: non-numeric args (e.g. `move("foo","bar")`)
-            // must be treated as "no target given" rather than coercing to 0.
-            auto target = (args.Length() >= 2 && args[0]->IsNumber() && args[1]->IsNumber())
-                              ? extract::Position(args, 0).value_or(data->Pos())
-                              : data->Pos();
-            data->Move(target);
+            unit.Move(target);
         });
 
     /// @description Displays an overhead chat/floating-text message above the unit.
@@ -1674,12 +1721,12 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             }
             args.GetReturnValue().SetFalse();
             if (args.Length() > 0) {
-                auto* data = Unwrap(args.This());
+                auto* isolate = args.GetIsolate();
+                std::string text = convert::ToString(isolate, args[0]);
+                const auto data = Unwrap(args.This());
                 if (!*data) {
                     return;
                 }
-                auto* isolate = args.GetIsolate();
-                std::string text = convert::ToString(isolate, args[0]);
                 if (!text.empty()) {
                     data->Overhead(text);
                 }
@@ -1696,7 +1743,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
-            auto* data = Unwrap(args.This());
+            const auto data = Unwrap(args.This());
             if (!*data) {
                 return;
             }
@@ -1719,24 +1766,29 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 args.GetReturnValue().SetFalse();
                 return;
             }
-            auto* data = Unwrap(args.This());
-            if (!*data) {
-                args.GetReturnValue().SetFalse();
-                return;
-            }
-            // Reference line 1486: shop only works on items
-            if (data->Type() != UnitType::Item) {
-                args.GetReturnValue().SetFalse();
-                return;
-            }
             // Reference reads mode from argv[argc-1] (last argument)
             int32_t lastIdx = args.Length() - 1;
             auto mode = static_cast<game::ShopMode>(convert::ToInt32(isolate, args[lastIdx]));
+            // Shop can wait on the game thread, so it runs on a copy after the lock is dropped.
+            game::Unit item;
+            {
+                const auto data = Unwrap(args.This());
+                if (!*data) {
+                    args.GetReturnValue().SetFalse();
+                    return;
+                }
+                // Reference line 1486: shop only works on items
+                if (data->Type() != UnitType::Item) {
+                    args.GetReturnValue().SetFalse();
+                    return;
+                }
+                item = *data;
+            }
             if (mode != game::ShopMode::Sell && mode != game::ShopMode::Buy && mode != game::ShopMode::BuyFill) {
                 args.GetReturnValue().SetFalse();
                 return;
             }
-            args.GetReturnValue().Set(data->Shop(mode));
+            args.GetReturnValue().Set(item.Shop(mode));
         });
 
     /// @description Returns the number of minions of the given type this unit owns/has summoned; Monster and Player
@@ -1754,7 +1806,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             if (args.Length() < 1 || !args[0]->IsNumber()) {
                 return;
             }
-            auto* data = Unwrap(args.This());
+            const auto data = Unwrap(args.This());
             if (!*data) {
                 return;
             }
@@ -1779,6 +1831,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
+            // One lock across the player and NPC tests and the reads that follow them.
+            game::GameReadLock lock;
             // Reference line 1978: always uses D2CLIENT_GetPlayerUnit(), not `this`
             auto player = game::Unit::Player();
             if (!player) {
@@ -1802,11 +1856,14 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
         isolate, +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             auto context = isolate->GetCurrentContext();
-            auto* data = Unwrap(args.This());
-            if (!*data) {
-                return;
+            game::Position pos;
+            {
+                const auto data = Unwrap(args.This());
+                if (!*data) {
+                    return;
+                }
+                pos = data->Pos();
             }
-            auto pos = data->Pos();
 
             std::array<v8::Local<v8::Value>, 2> elements = {
                 convert::ToJS(isolate, pos.x),

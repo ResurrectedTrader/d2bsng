@@ -89,6 +89,7 @@ function::Register(isolate, global, "getControls", +[](const v8::FunctionCallbac
 **When to hold one:**
 - Multi-step game traversals (Player -> GetRoom -> GetLevel -> FirstRoom)
 - Building a result from several reads that must agree with each other
+- Testing a handle that did not come from `Unwrap` (`Unit::Player()`, `Unit::InteractingNPC()`) and then reading it (`getMercHP()`, `getDistance()`, `getArea()`) - a wrapper's own handle gets this from `Unwrap`, see "Bindings" below
 
 **Scope it tightly.** Take the lock right before the first game read - after argument validation and extraction, early returns and `WaitForGameReady` - and release it after the last one: copy what you need into locals inside a scope, then create V8 values, format, log or call back into scripts outside it. Reads that must agree with each other (a walk, or a unit and then its items) stay under one lock rather than several short ones.
 
@@ -96,7 +97,64 @@ The composed walks in `Finders.h` take it themselves - see "Which Callbacks Need
 a GameReadLock" below - so a binding that only calls one of those needs nothing of its own.
 
 **When NOT needed:**
-- Simple property getters and single game method calls that return copied data (GetCollision) - the backend accessor holds the lock for its own read through `Resolved<T>` (see "GameReadLock" above) - and the navigation component's composed reads (`runtime::navigation::GetExits`), which take a `GameReadLock` themselves
+- Single game method calls that return copied data (GetCollision) - the backend accessor holds the lock for its own read through `Resolved<T>` (see "GameReadLock" above) - and the navigation component's composed reads (`runtime::navigation::GetExits`), which take a `GameReadLock` themselves
+- Reads through a wrapper's own handle: `Unwrap` already holds one (next section)
+
+### Bindings - `Unwrap` returns a LockedHandle
+
+Every accessor on a handle resolves it again, so a binding that tests a handle and then reads it takes two lock windows - `if (!*data)` in one and `data->GetStat(n)` in the next - and the game thread can free the object in between. The script then sees `0` or `""` where it should have seen `undefined`. Nothing unsafe happens (each read re-resolves under its own lock), but the answer is inconsistent.
+
+So for the game handle natives - `game::Unit`, `Room`, `Level`, `Party`, `Control`, `StashTab`, named by the `GameHandle` concept (`api/core/LockedHandle.h`) - `ClassBase::Unwrap` returns a `LockedHandle<T>` rather than a `T*`. It takes a `GameReadLock` when it is created and holds it for its lifetime, and gives the handle through `->` / `*`, so the validity test and every read after it run against one game state. Its own `operator bool` is the pointer test (false when the receiver was not a wrapper of this class); `*data`'s bool is still the "does the game object exist" test. The accessors' own `Resolved<T>` locks nest inside it for free. Every other class - value natives such as `ExitInfo` and `PresetUnitInfo`, and the script-owned ones (File, SQLite, Socket, Script, the drawables, ...) - still gets its raw pointer; the choice is made from the type at compile time, and there is no unlocked `Unwrap` for a game handle.
+
+```cpp
+Property(isolate, inst, "hp", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
+    const auto data = Unwrap(info.Holder());  // lock taken here ...
+    if (!*data) {
+        return;                               // undefined: the unit is gone
+    }
+    info.GetReturnValue().Set(data->Hp());    // ... so the unit is still there for this read
+});                                           // ... and released here
+```
+
+While a `LockedHandle` is alive the game thread cannot take its write lock, so it follows the same rules as any `GameReadLock`, and a few more because it is taken on every property read:
+
+- **Arguments first, then the guard.** A conversion of an untyped value can run script (`valueOf`, `toString`, a getter), so a binding converts every argument it needs before its `Unwrap`, then takes one guard and does its checks and reads under it. A conversion of an argument already gated by `IsString` / `IsNumber` / `IsUint32` runs no script and can stay where it is.
+- **Never run script while holding it** - no callbacks, no `ExecuteEvents`, no calls into JS functions (the Unit iterator calls the array's iterator method only after the scope closes).
+- **Never wait while holding it.** `WaitForGameReady` sleeps without releasing anything, so it runs before the `Unwrap`. A method that can wait on the game thread on some backend (`Unit::Move`, `Interact`, `TakeWaypoint`, `UseMenu`, `Shop`, `EquipItem`, `Description`; `Control::Click`, `SetText`, `Text`, `TextLines`; `Room::Reveal`; `StashTab::Click`, `MoveGold`; `ClickMapAt`, `ClickItem`, `ClickPartyMember`, `LeaveParty`, `MoveNPC`; `setSkill`'s bind loop) runs on a copy of the handle after the scope closes. `GameThread::Execute` would hand the lock back anyway, but the binding's reads before it would then no longer agree with the result, and a plain sleep would stall the game.
+- **Build large results after it.** Scope the guard in a block, copy arrays and lists of handles out (stats, collision, items, rooms), and build the V8 arrays and instances after the block. A number or a single string is built directly under it.
+
+```cpp
+Method(isolate, proto, "getItems", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+    // WaitForGameReady first: it sleeps and must not hold the lock.
+    std::vector<game::Unit> items;
+    {
+        const auto data = Unwrap(args.This());
+        if (!*data) {
+            return;
+        }
+        items = data->GetItems();
+    }
+    // ... CreateInstance for each item, outside the lock ...
+});
+
+Method(isolate, proto, "move", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+    game::Unit unit;
+    {
+        const auto data = Unwrap(args.This());
+        if (!*data) {
+            return;
+        }
+        unit = *data;
+    }
+    unit.Move(target);  // waits on the game thread; the copy re-resolves on its own
+});
+```
+
+`const game::StashTab tab = *Unwrap(args.This());` is the one-line form of that copy: the temporary guard ends with the statement.
+
+The same guard covers a handle taken from an argument after `IsInstance` (`clickItem(unit)`, `getDistance(unit)`, `room.unitInRoom(unit)`): `const auto unitData = JSUnit::Unwrap(obj); if (!unitData || !*unitData) ...`. Two guards at once (`checkCollision`) are two re-entries of the same lock.
+
+One exception to "one game state per guard": the first resolve of a room or level the game has not built yet runs the level's init on the game thread, and hands the lock back while it does. The reads after it can then see a later frame than the ones before it. That is safe, because a guard holds identity handles, not raw pointers - every read re-resolves - but a binding cannot rely on its reads agreeing across such a resolve.
 
 ## HandleCache (HandleCache.h)
 
@@ -159,12 +217,14 @@ because they do more than the walk.
 `Level::GetPresetUnits` / `FindFirstPresetUnit` do not take it themselves - their bindings
 (`getPresetUnit()`, `getPresetUnits()`) hold one across the level lookup and the walk.
 
-Simple property getters and single-method calls returning copies do NOT need
-a lock of their own - each backend accessor holds the read lock across its own resolve and read.
+Single-method calls returning copies do NOT need a lock of their own - each backend
+accessor holds the read lock across its own resolve and read. A property getter or method
+on a game handle wrapper gets one from `Unwrap` (see "Bindings" above) and needs no other.
 
 Don't hold the lock across V8 allocation or other script-facing work: an allocation can
 trigger a GC whose weak callbacks run native destructors (`closesocket`,
 `sqlite3_close_v2`, `fclose`), and reading a script object's properties can run its getters,
 while the game thread waits on the write lock for the duration. Copy the game data out
 under the lock, then build the JS values after it (as `getControls()`, `getPresetUnits()`
-and `getRoom()` do).
+and `getRoom()` do). A number or a single string is cheap enough to build under it, as the
+bindings above do.

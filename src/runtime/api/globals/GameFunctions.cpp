@@ -356,6 +356,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
+            // One lock across the player test and the merc reads, so they all see the same frame.
+            game::GameReadLock lock;
             // Reference: global version always uses player unit
             auto player = game::Unit::Player();
             if (!player)
@@ -616,6 +618,13 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
+            const bool isLevelForm =
+                args.Length() >= 3 && args[0]->IsNumber() && args[1]->IsNumber() && args[2]->IsNumber();
+            std::optional<game::Position> coords;
+            if (args.Length() >= 2) {
+                coords = extract::Position(args, isLevelForm ? 1 : 0);
+            }
+
             game::Room room;
             {
                 game::GameReadLock lock;
@@ -655,20 +664,18 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     }
                 } else if (args.Length() >= 2) {
                     // getRoom(x, y) or getRoom(levelId, x, y): find room at coordinates
-                    auto pos = game::Position::Zero;
+                    const auto pos = coords.value_or(game::Position::Zero);
                     std::optional<game::Level> level;
 
-                    if (args.Length() >= 3 && args[0]->IsNumber() && args[1]->IsNumber() && args[2]->IsNumber()) {
+                    if (isLevelForm) {
                         // getRoom(levelId, x, y)
                         uint32_t levelId = convert::ToUint32(isolate, args[0]);
-                        pos = extract::Position(args, 1).value_or(game::Position::Zero);
                         level = game::Level::Get(levelId);
                         if (!level) {
                             return;
                         }
                     } else {
                         // getRoom(x, y): search from player's room
-                        pos = extract::Position(args, 0).value_or(game::Position::Zero);
                         auto player = game::Unit::Player();
                         if (!player) {
                             return;
@@ -751,7 +758,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 // If a unit object is passed, match by its unit ID
                 auto unitObj = args[0].As<v8::Object>();
                 if (JSUnit::IsInstance(unitObj)) {
-                    auto* unitData = JSUnit::Unwrap(unitObj);
+                    const auto unitData = JSUnit::Unwrap(unitObj);
                     if (unitData && *unitData) {
                         found = game::Party::FindById(unitData->Id());
                     } else {
@@ -919,6 +926,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 areaId = static_cast<uint32_t>(signedId);
             } else {
                 // Default: use player's current area
+                game::GameReadLock lock;
                 auto player = game::Unit::Player();
                 if (!player) {
                     return;
@@ -1236,13 +1244,18 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             if (args.Length() == 3 && args[2]->IsObject()) {
                 auto unitObj = args[2].As<v8::Object>();
                 if (JSUnit::IsInstance(unitObj)) {
-                    auto* unitData = JSUnit::Unwrap(unitObj);
-                    if (!unitData || !*unitData) {
-                        args.GetReturnValue().SetFalse();
-                        return;
+                    // ClickMapAt waits on the game thread, so it runs on a copy after the lock is dropped.
+                    game::Unit unit;
+                    {
+                        const auto unitData = JSUnit::Unwrap(unitObj);
+                        if (!unitData || !*unitData) {
+                            args.GetReturnValue().SetFalse();
+                            return;
+                        }
+                        unit = *unitData;
                     }
                     // Pass the unit to the unit-overload of ClickMapAt
-                    args.GetReturnValue().Set(d2bs::game::ClickMapAt(clickType, shift, *unitData));
+                    args.GetReturnValue().Set(d2bs::game::ClickMapAt(clickType, shift, unit));
                     return;
                 }
                 args.GetReturnValue().SetFalse();
@@ -1353,12 +1366,17 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                         args.GetReturnValue().SetNull();  // ref case A returns null here.
                         return;
                     }
-                    auto* data = JSUnit::Unwrap(obj);
-                    if (!data || !*data) {
-                        args.GetReturnValue().SetNull();  // ref case A returns null here too.
-                        return;
+                    // EquipItem waits on the game thread, so it runs on a copy after the lock is dropped.
+                    game::Unit item;
+                    {
+                        const auto data = JSUnit::Unwrap(obj);
+                        if (!data || !*data) {
+                            args.GetReturnValue().SetNull();  // ref case A returns null here too.
+                            return;
+                        }
+                        item = *data;
                     }
-                    result = data->EquipItem();
+                    result = item.EquipItem();
                     break;
                 }
                 case Shape::PlayerBodySlot: {
@@ -1378,14 +1396,19 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                         args.GetReturnValue().SetNull();
                         return;
                     }
-                    auto* data = JSUnit::Unwrap(obj);
-                    if (!data || !*data) {
-                        // Ref case C line 467-470: findUnit-fail / dwType-mismatch throws.
-                        error::ThrowError(isolate, "Object is not an item!");
-                        return;
+                    // ClickItem waits on the game thread, so it runs on a copy after the lock is dropped.
+                    game::Unit item;
+                    {
+                        const auto data = JSUnit::Unwrap(obj);
+                        if (!data || !*data) {
+                            // Ref case C line 467-470: findUnit-fail / dwType-mismatch throws.
+                            error::ThrowError(isolate, "Object is not an item!");
+                            return;
+                        }
+                        item = *data;
                     }
                     auto button = static_cast<game::ClickButton>(convert::ToUint32(isolate, args[0]));
-                    result = d2bs::game::ClickItem(button, *data);
+                    result = d2bs::game::ClickItem(button, item);
                     break;
                 }
                 case Shape::ContainerGrid: {
@@ -1471,59 +1494,65 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 args.GetReturnValue().SetFalse();
                 return;
             }
-            auto* partyData = JSParty::Unwrap(partyObj);
-            if (!partyData || !*partyData) {
-                args.GetReturnValue().SetFalse();
-                return;
-            }
-
             auto mode = static_cast<game::PartyMode>(convert::ToUint32(isolate, args[1]));
 
-            // Mode range check (reference supports modes 0-5)
-            if (mode > game::PartyMode::HostileAlt) {
-                args.GetReturnValue().SetFalse();
-                return;
-            }
-
-            // Prevent clicking self
-            auto player = game::Unit::Player();
-            if (player && partyData->Id() == player.Id()) {
-                args.GetReturnValue().SetFalse();
-                return;
-            }
-
-            // Reference JSGame.cpp:1104 - AllowLoot is a no-op in non-hardcore games.
-            if (mode == game::PartyMode::AllowLoot &&
-                !(game::GetCharFlags() & std::to_underlying(game::CharFlag::Hardcore))) {
-                args.GetReturnValue().SetFalse();
-                return;
-            }
-
-            // Resolve the player's roster entry once for the party-id checks below.
-            // Reference reads `mypUnit->wPartyId`; we obtain it via the same roster walk.
-            std::optional<uint16_t> playerPartyId;
-            if (player) {
-                if (auto playerRoster = game::Party::FindById(player.Id())) {
-                    playerPartyId = playerRoster->PartyId();
+            // ClickPartyMember and LeaveParty can wait on the game thread, so they run on a copy after the lock is
+            // dropped.
+            game::Party party;
+            {
+                const auto partyData = JSParty::Unwrap(partyObj);
+                if (!partyData || !*partyData) {
+                    args.GetReturnValue().SetFalse();
+                    return;
                 }
-            }
-            // Reference JSGame.cpp:1108 - Invite no-ops if both are already in the same party.
-            if (mode == game::PartyMode::Invite && partyData->PartyId() != game::NO_PARTY_ID && playerPartyId &&
-                *playerPartyId == partyData->PartyId()) {
-                args.GetReturnValue().SetFalse();
-                return;
-            }
 
-            // Reference JSGame.cpp:1112 - Leave no-ops if the target unit isn't in a party.
-            if (mode == game::PartyMode::Leave && partyData->PartyId() == game::NO_PARTY_ID) {
-                args.GetReturnValue().SetFalse();
-                return;
+                // Mode range check (reference supports modes 0-5)
+                if (mode > game::PartyMode::HostileAlt) {
+                    args.GetReturnValue().SetFalse();
+                    return;
+                }
+
+                // Prevent clicking self
+                auto player = game::Unit::Player();
+                if (player && partyData->Id() == player.Id()) {
+                    args.GetReturnValue().SetFalse();
+                    return;
+                }
+
+                // Reference JSGame.cpp:1104 - AllowLoot is a no-op in non-hardcore games.
+                if (mode == game::PartyMode::AllowLoot &&
+                    !(game::GetCharFlags() & std::to_underlying(game::CharFlag::Hardcore))) {
+                    args.GetReturnValue().SetFalse();
+                    return;
+                }
+
+                // Resolve the player's roster entry once for the party-id checks below.
+                // Reference reads `mypUnit->wPartyId`; we obtain it via the same roster walk.
+                std::optional<uint16_t> playerPartyId;
+                if (player) {
+                    if (auto playerRoster = game::Party::FindById(player.Id())) {
+                        playerPartyId = playerRoster->PartyId();
+                    }
+                }
+                // Reference JSGame.cpp:1108 - Invite no-ops if both are already in the same party.
+                if (mode == game::PartyMode::Invite && partyData->PartyId() != game::NO_PARTY_ID && playerPartyId &&
+                    *playerPartyId == partyData->PartyId()) {
+                    args.GetReturnValue().SetFalse();
+                    return;
+                }
+
+                // Reference JSGame.cpp:1112 - Leave no-ops if the target unit isn't in a party.
+                if (mode == game::PartyMode::Leave && partyData->PartyId() == game::NO_PARTY_ID) {
+                    args.GetReturnValue().SetFalse();
+                    return;
+                }
+                party = *partyData;
             }
 
             if (mode == game::PartyMode::Leave) {
                 game::LeaveParty();
             } else {
-                d2bs::game::ClickPartyMember(*partyData, mode);
+                d2bs::game::ClickPartyMember(party, mode);
             }
             args.GetReturnValue().Set(true);
         });
@@ -1981,16 +2010,22 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             // Helper: extract a Point from an object -- either JSUnit or plain {x, y}
             auto getObjectPoint = [&](v8::Local<v8::Object> obj) -> std::optional<game::Point> {
                 if (JSUnit::IsInstance(obj)) {
-                    auto* unitData = JSUnit::Unwrap(obj);
-                    // The validity check and the read must see the same unit. Only this branch:
-                    // extract::Point reads script-object properties, which can run script getters.
-                    game::GameReadLock lock;
+                    const auto unitData = JSUnit::Unwrap(obj);
                     if (!unitData || !*unitData) {
                         return std::nullopt;
                     }
                     return unitData->Pos().ToPoint();
                 }
                 return extract::Point(isolate, obj);
+            };
+
+            auto getPlayerPoint = []() -> std::optional<game::Point> {
+                game::GameReadLock lock;
+                auto player = game::Unit::Player();
+                if (!player) {
+                    return std::nullopt;
+                }
+                return player.Pos().ToPoint();
             };
 
             // (x1, y1, x2, y2) -- pure coordinate distance
@@ -2006,10 +2041,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             if (args.Length() == 1 && args[0]->IsObject()) {
                 auto p2 = getObjectPoint(args[0].As<v8::Object>());
                 if (p2) {
-                    auto player = game::Unit::Player();
-                    if (player) {
-                        auto p1 = player.Pos().ToPoint();
-                        args.GetReturnValue().Set(Distance(p1, *p2));
+                    if (auto p1 = getPlayerPoint()) {
+                        args.GetReturnValue().Set(Distance(*p1, *p2));
                         return;
                     }
                 }
@@ -2018,13 +2051,12 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             if (args.Length() == 2) {
                 // (x, y) -- distance from player to point
                 if (args[0]->IsNumber() && args[1]->IsNumber()) {
-                    auto player = game::Unit::Player();
-                    if (!player) {
+                    auto p1 = getPlayerPoint();
+                    if (!p1) {
                         return;
                     }
-                    auto p1 = player.Pos().ToPoint();
                     auto p2 = extract::Point(args, 0).value_or(game::Point::Zero);
-                    args.GetReturnValue().Set(Distance(p1, p2));
+                    args.GetReturnValue().Set(Distance(*p1, p2));
                     return;
                 }
                 // (obj, obj) -- distance between two objects
@@ -2142,12 +2174,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto* srcUnit = JSUnit::Unwrap(unitObj);
-            if (!srcUnit) {
-                return;
-            }
-
-            args.GetReturnValue().Set(JSUnit::CreateInstance(isolate, context, std::make_unique<game::Unit>(*srcUnit)));
+            const game::Unit copy = *JSUnit::Unwrap(unitObj);
+            args.GetReturnValue().Set(JSUnit::CreateInstance(isolate, context, std::make_unique<game::Unit>(copy)));
         });
 
     /// @description Accept a trade, or query trade state by mode.
@@ -2233,13 +2261,12 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto* unitData1 = JSUnit::Unwrap(unitObj1);
-            auto* unitData2 = JSUnit::Unwrap(unitObj2);
+            uint32_t mask = convert::ToUint32(isolate, args[2]);
+            const auto unitData1 = JSUnit::Unwrap(unitObj1);
+            const auto unitData2 = JSUnit::Unwrap(unitObj2);
             if (!unitData1 || !*unitData1 || !unitData2 || !*unitData2) {
                 return;
             }
-
-            uint32_t mask = convert::ToUint32(isolate, args[2]);
             args.GetReturnValue().Set(d2bs::game::CheckUnitCollision(*unitData1, *unitData2, mask));
         });
 
@@ -2280,20 +2307,28 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto* unitData = JSUnit::Unwrap(unitObj);
-            if (!unitData || !*unitData) {
-                return;
-            }
-
-            // Reference line 1435: unit must be a monster/NPC (type 1)
-            if (unitData->Type() != game::UnitType::Monster) {
-                error::ThrowError(isolate, "Invalid NPC passed to moveNPC!");
-                return;
-            }
-
             auto pos = extract::Position(args, 1).value_or(game::Position::Zero);
+            if (isolate->HasPendingException()) {
+                return;
+            }
 
-            d2bs::game::MoveNPC(unitData->Id(), pos);
+            // MoveNPC waits on the game thread, so it runs after the lock is dropped.
+            uint32_t unitId = 0;
+            {
+                const auto unitData = JSUnit::Unwrap(unitObj);
+                if (!unitData || !*unitData) {
+                    return;
+                }
+
+                // Reference line 1435: unit must be a monster/NPC (type 1)
+                if (unitData->Type() != game::UnitType::Monster) {
+                    error::ThrowError(isolate, "Invalid NPC passed to moveNPC!");
+                    return;
+                }
+                unitId = unitData->Id();
+            }
+
+            d2bs::game::MoveNPC(unitId, pos);
         });
 
     /// @description Reveal the player's current level on the automap.
@@ -2313,12 +2348,16 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 drawPresets = args[0]->BooleanValue(isolate);
             }
 
-            auto player = game::Unit::Player();
-            if (!player) {
-                return;
+            uint32_t levelNo = 0;
+            {
+                game::GameReadLock lock;
+                auto player = game::Unit::Player();
+                if (!player) {
+                    return;
+                }
+                levelNo = player.Area();
             }
-
-            uint32_t levelNo = player.Area();
+            // Outside the lock: RevealLevel waits on the game thread.
             game::RevealLevel(levelNo, drawPresets);
         });
 }

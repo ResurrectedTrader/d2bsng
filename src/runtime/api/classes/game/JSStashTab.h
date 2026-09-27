@@ -109,7 +109,9 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
                 }
                 const game::Position cell{.x = convert::ToUint32(isolate, args[0]),
                                           .y = convert::ToUint32(isolate, args[1])};
-                args.GetReturnValue().Set(Unwrap(args.This())->Click(cell) == game::ClickResult::Dispatched);
+                // Click can block while the tab is brought in, so it runs on a copy with no lock held.
+                const game::StashTab tab = *Unwrap(args.This());
+                args.GetReturnValue().Set(tab.Click(cell) == game::ClickResult::Dispatched);
             });
 
         /// @description Deposits carried gold into this tab. The stash panel must be open. Fire and forget like
@@ -122,7 +124,9 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
         Method(
             isolate, proto, "depositGold", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 if (const auto amount = GoldAmount(args)) {
-                    args.GetReturnValue().Set(Unwrap(args.This())->MoveGold(game::GoldActionMode::Deposit, *amount));
+                    // MoveGold waits on the game thread, so it runs on a copy with no lock held.
+                    const game::StashTab tab = *Unwrap(args.This());
+                    args.GetReturnValue().Set(tab.MoveGold(game::GoldActionMode::Deposit, *amount));
                 }
             });
 
@@ -136,7 +140,9 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
         Method(
             isolate, proto, "withdrawGold", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 if (const auto amount = GoldAmount(args)) {
-                    args.GetReturnValue().Set(Unwrap(args.This())->MoveGold(game::GoldActionMode::Withdraw, *amount));
+                    // MoveGold waits on the game thread, so it runs on a copy with no lock held.
+                    const game::StashTab tab = *Unwrap(args.This());
+                    args.GetReturnValue().Set(tab.MoveGold(game::GoldActionMode::Withdraw, *amount));
                 }
             });
     }
