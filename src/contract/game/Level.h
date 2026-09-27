@@ -25,6 +25,12 @@ class Level {
 
     void* ResolvePtr() const;
 
+    // Resolves under a read lock held for the result's lifetime; see Resolved.
+    template <typename T>
+    Resolved<T> Resolve() const {
+        return Resolved<T>([this] { return ResolvePtr(); });
+    }
+
    public:
     explicit Level(uint32_t id = 0) : id_(id) {}
     explicit operator bool() const;

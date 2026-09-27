@@ -23,7 +23,6 @@
 #include "components/navigation/Pathfinder.h"
 #include "components/script/ScriptEngine.h"
 #include "config/AppConfig.h"
-#include "game/Bridge.h"
 #include "game/Constants.h"
 #include "game/Control.h"
 #include "game/GameLock.h"
@@ -330,20 +329,22 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             uint32_t levelId = convert::ToUint32(isolate, args[0]);
             auto pos = extract::Position(args, 1).value();  // strict IsUint32 above guarantees this
 
-            auto lock = game::Bridge::Lock();
-
-            auto level = game::Level::Get(levelId);
-            if (!level) {
+            bool isLevelLoaded = false;
+            uint16_t collision = 0;
+            {
+                game::GameReadLock lock;
+                if (auto level = game::Level::Get(levelId)) {
+                    isLevelLoaded = true;
+                    if (auto room = level->FindRoomAt(pos)) {
+                        collision = room->CollisionAt(pos);
+                    }
+                }
+            }
+            if (!isLevelLoaded) {
                 error::ThrowError(isolate, "Level not loaded");
                 return;
             }
-
-            if (auto room = level->FindRoomAt(pos)) {
-                args.GetReturnValue().Set(room->CollisionAt(pos));
-                return;
-            }
-
-            args.GetReturnValue().Set(0);
+            args.GetReturnValue().Set(collision);
         });
 
     /// @description Get the player's mercenary HP as a percentage (0-100).
@@ -615,58 +616,13 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto lock = game::Bridge::Lock();
             game::Room room;
+            {
+                game::GameReadLock lock;
 
-            if (args.Length() == 0) {
-                // No args: return the level's first room2 (pRoom2First), not the player's current room2.
-                // Reference: D2CLIENT_GetPlayerUnit()->pPath->pRoom1->pRoom2->pLevel->pRoom2First
-                auto player = game::Unit::Player();
-                if (!player) {
-                    return;
-                }
-                auto playerRoom = player.GetRoom();
-                if (!playerRoom) {
-                    return;
-                }
-                auto level = playerRoom.GetLevel();
-                if (!level) {
-                    return;
-                }
-                room = level.GetFirstRoom();
-            } else if (args.Length() == 1 && args[0]->IsNumber()) {
-                // getRoom(levelId): get first room of the level, or player's room if 0
-                uint32_t levelId = convert::ToUint32(isolate, args[0]);
-                if (levelId == 0) {
-                    // Reference: levelId==0 returns player's current room
-                    auto player = game::Unit::Player();
-                    if (!player) {
-                        return;
-                    }
-                    room = player.GetRoom();
-                } else {
-                    auto level = game::Level::Get(levelId);
-                    if (!level) {
-                        return;
-                    }
-                    room = level->GetFirstRoom();
-                }
-            } else if (args.Length() >= 2) {
-                // getRoom(x, y) or getRoom(levelId, x, y): find room at coordinates
-                auto pos = game::Position::Zero;
-                std::optional<game::Level> level;
-
-                if (args.Length() >= 3 && args[0]->IsNumber() && args[1]->IsNumber() && args[2]->IsNumber()) {
-                    // getRoom(levelId, x, y)
-                    uint32_t levelId = convert::ToUint32(isolate, args[0]);
-                    pos = extract::Position(args, 1).value_or(game::Position::Zero);
-                    level = game::Level::Get(levelId);
-                    if (!level) {
-                        return;
-                    }
-                } else {
-                    // getRoom(x, y): search from player's room
-                    pos = extract::Position(args, 0).value_or(game::Position::Zero);
+                if (args.Length() == 0) {
+                    // No args: return the level's first room2 (pRoom2First), not the player's current room2.
+                    // Reference: D2CLIENT_GetPlayerUnit()->pPath->pRoom1->pRoom2->pLevel->pRoom2First
                     auto player = game::Unit::Player();
                     if (!player) {
                         return;
@@ -675,22 +631,69 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     if (!playerRoom) {
                         return;
                     }
-                    auto pRoomLevel = playerRoom.GetLevel();
-                    if (!pRoomLevel) {
+                    auto level = playerRoom.GetLevel();
+                    if (!level) {
                         return;
                     }
-                    level = pRoomLevel;
-                }
+                    room = level.GetFirstRoom();
+                } else if (args.Length() == 1 && args[0]->IsNumber()) {
+                    // getRoom(levelId): get first room of the level, or player's room if 0
+                    uint32_t levelId = convert::ToUint32(isolate, args[0]);
+                    if (levelId == 0) {
+                        // Reference: levelId==0 returns player's current room
+                        auto player = game::Unit::Player();
+                        if (!player) {
+                            return;
+                        }
+                        room = player.GetRoom();
+                    } else {
+                        auto level = game::Level::Get(levelId);
+                        if (!level) {
+                            return;
+                        }
+                        room = level->GetFirstRoom();
+                    }
+                } else if (args.Length() >= 2) {
+                    // getRoom(x, y) or getRoom(levelId, x, y): find room at coordinates
+                    auto pos = game::Position::Zero;
+                    std::optional<game::Level> level;
 
-                // Reference line 530: zero coordinates return undefined
-                if (pos.x == 0 || pos.y == 0)
-                    return;
+                    if (args.Length() >= 3 && args[0]->IsNumber() && args[1]->IsNumber() && args[2]->IsNumber()) {
+                        // getRoom(levelId, x, y)
+                        uint32_t levelId = convert::ToUint32(isolate, args[0]);
+                        pos = extract::Position(args, 1).value_or(game::Position::Zero);
+                        level = game::Level::Get(levelId);
+                        if (!level) {
+                            return;
+                        }
+                    } else {
+                        // getRoom(x, y): search from player's room
+                        pos = extract::Position(args, 0).value_or(game::Position::Zero);
+                        auto player = game::Unit::Player();
+                        if (!player) {
+                            return;
+                        }
+                        auto playerRoom = player.GetRoom();
+                        if (!playerRoom) {
+                            return;
+                        }
+                        auto pRoomLevel = playerRoom.GetLevel();
+                        if (!pRoomLevel) {
+                            return;
+                        }
+                        level = pRoomLevel;
+                    }
 
-                if (auto match = level->FindRoomAt(pos)) {
-                    room = *match;
-                } else {
-                    // Reference lines 561-567: if no room matched coordinates, fall back to level's first room
-                    room = level->GetFirstRoom();
+                    // Reference line 530: zero coordinates return undefined
+                    if (pos.x == 0 || pos.y == 0)
+                        return;
+
+                    if (auto match = level->FindRoomAt(pos)) {
+                        room = *match;
+                    } else {
+                        // Reference lines 561-567: if no room matched coordinates, fall back to level's first room
+                        room = level->GetFirstRoom();
+                    }
                 }
             }
 
@@ -722,8 +725,6 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
-
-            auto lock = game::Bridge::Lock();
 
             // No args: return first party member
             if (args.Length() == 0) {
@@ -786,8 +787,6 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto lock = game::Bridge::Lock();
-
             if (args.Length() < 1) {
                 args.GetReturnValue().SetFalse();
                 return;
@@ -803,13 +802,19 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 nClassId = convert::ToUint32(isolate, args[2]);
             }
 
-            auto level = game::Level::Get(areaId);
-            if (!level) {
+            bool isLevelLoaded = false;
+            std::optional<game::PresetUnitInfo> match;
+            {
+                game::GameReadLock lock;
+                if (auto level = game::Level::Get(areaId)) {
+                    isLevelLoaded = true;
+                    match = level->FindFirstPresetUnit(nType, nClassId);
+                }
+            }
+            if (!isLevelLoaded) {
                 error::ThrowError(isolate, "getPresetUnit failed, couldn't access the level!");
                 return;
             }
-
-            auto match = level->FindFirstPresetUnit(nType, nClassId);
             if (!match) {
                 args.GetReturnValue().SetFalse();
                 return;
@@ -841,8 +846,6 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto lock = game::Bridge::Lock();
-
             if (args.Length() < 1) {
                 args.GetReturnValue().SetFalse();
                 return;
@@ -858,13 +861,20 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 nClassId = convert::ToUint32(isolate, args[2]);
             }
 
-            auto level = game::Level::Get(areaId);
-            if (!level) {
+            bool isLevelLoaded = false;
+            std::vector<game::PresetUnitInfo> allPresets;
+            {
+                game::GameReadLock lock;
+                if (auto level = game::Level::Get(areaId)) {
+                    isLevelLoaded = true;
+                    allPresets = level->GetPresetUnits(nType, nClassId);
+                }
+            }
+            if (!isLevelLoaded) {
                 error::ThrowError(isolate, "getPresetUnits failed, couldn't access the level!");
                 return;
             }
 
-            auto allPresets = level->GetPresetUnits(nType, nClassId);
             auto array = v8::Array::New(isolate, static_cast<int32_t>(allPresets.size()));
             for (size_t i = 0; i < allPresets.size(); ++i) {
                 auto data = std::make_unique<game::PresetUnitInfo>(allPresets[i]);
@@ -965,7 +975,6 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         isolate, global, "getStashTabs", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             auto context = isolate->GetCurrentContext();
-            auto lock = game::Bridge::Lock();
             const auto tabs = game::GetStashTabs();
             auto arr = v8::Array::New(isolate, static_cast<int32_t>(tabs.size()));
             uint32_t i = 0;
@@ -1043,21 +1052,27 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             auto* isolate = args.GetIsolate();
 
-            auto array = v8::Array::New(isolate);
-
             // One read lock for the whole walk: collapses the per-control
-            // ResolvePtr locks to free recursive re-entries and pins a
+            // accessor locks to free recursive re-entries and pins a
             // consistent control-list snapshot for its duration.
-            auto lock = game::Bridge::Lock();
-            if (auto firstCtrl = game::Control::GetFirst()) {
-                auto context = isolate->GetCurrentContext();
-                uint32_t idx = 0;
-                for (auto ctrl = *firstCtrl; ctrl; ctrl = ctrl.GetNext()) {
-                    auto obj = JSControl::CreateInstance(isolate, context, std::make_unique<game::Control>(ctrl));
-                    if (obj.IsEmpty())
-                        continue;
-                    array->Set(context, idx++, obj).Check();
+            std::vector<game::Control> controls;
+            {
+                game::GameReadLock lock;
+                if (auto firstCtrl = game::Control::GetFirst()) {
+                    for (auto ctrl = *firstCtrl; ctrl; ctrl = ctrl.GetNext()) {
+                        controls.push_back(ctrl);
+                    }
                 }
+            }
+
+            auto array = v8::Array::New(isolate);
+            auto context = isolate->GetCurrentContext();
+            uint32_t idx = 0;
+            for (const auto& ctrl : controls) {
+                auto obj = JSControl::CreateInstance(isolate, context, std::make_unique<game::Control>(ctrl));
+                if (obj.IsEmpty())
+                    continue;
+                array->Set(context, idx++, obj).Check();
             }
 
             args.GetReturnValue().Set(array);
@@ -1147,7 +1162,6 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             auto* isolate = args.GetIsolate();
             auto context = isolate->GetCurrentContext();
 
-            auto lock = game::Bridge::Lock();
             auto lines = game::GetDialogLines();
             if (lines.empty()) {
                 return;
@@ -1332,7 +1346,6 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             // natural failure rval (null or throw), skipping the abstraction entirely.
             ClickResult result = ClickResult::InvalidTarget;
 
-            auto lock = game::Bridge::Lock();
             switch (shape) {
                 case Shape::PlayerBodySlotByItem: {
                     auto obj = args[0].As<v8::Object>();
@@ -1969,6 +1982,9 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             auto getObjectPoint = [&](v8::Local<v8::Object> obj) -> std::optional<game::Point> {
                 if (JSUnit::IsInstance(obj)) {
                     auto* unitData = JSUnit::Unwrap(obj);
+                    // The validity check and the read must see the same unit. Only this branch:
+                    // extract::Point reads script-object properties, which can run script getters.
+                    game::GameReadLock lock;
                     if (!unitData || !*unitData) {
                         return std::nullopt;
                     }
@@ -1985,12 +2001,6 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 args.GetReturnValue().Set(Distance(p1, p2));
                 return;
             }
-
-            // One read lock for every form below. Each resolves at least one unit, and both
-            // ResolvePtr and the Pos() after it take their own - the lock is depth-counted, so
-            // holding one here turns those into increments. Must stay below WaitForGameReady,
-            // which sleeps while the game loads.
-            const game::GameReadLock guard;
 
             // (obj) -- distance from player to object (JSUnit or {x,y})
             if (args.Length() == 1 && args[0]->IsObject()) {
@@ -2153,7 +2163,6 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto lock = game::Bridge::Lock();
             if (args.Length() > 0) {
                 auto mode = static_cast<game::AcceptTradeQueryMode>(convert::ToInt32(isolate, args[0]));
                 if (mode == game::AcceptTradeQueryMode::IsAccepted) {
@@ -2189,7 +2198,6 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto lock = game::Bridge::Lock();
             if (!game::TradeOK()) {
                 error::ThrowError(isolate, "Not in proper state to click ok to trade.");
             }
@@ -2305,7 +2313,6 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 drawPresets = args[0]->BooleanValue(isolate);
             }
 
-            auto lock = game::Bridge::Lock();
             auto player = game::Unit::Player();
             if (!player) {
                 return;

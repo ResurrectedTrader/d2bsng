@@ -8,6 +8,7 @@
 #include <array>
 #include <chrono>
 #include <limits>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -19,10 +20,10 @@
 #include "PlugY.h"
 #include "RoomData.h"
 #include "asm_thunks/asm_thunks.h"
-#include "game/Bridge.h"
 #include "game/Compatibility.h"
 #include "game/Constants.h"
 #include "game/Control.h"
+#include "game/GameLock.h"
 // ReSharper disable once CppUnusedIncludeDirective - inline Find*/Get* defs (declared in the handle headers)
 #include "game/Finders.h"
 #include "game/GameThread.h"
@@ -565,14 +566,17 @@ std::optional<std::string> GetTradeInfo(TradeInfoMode mode) {
 }
 
 bool IsTradeAccepted() {
+    GameReadLock guard;
     return *d2client::gbTradeAccepted != 0;
 }
 
 int32_t GetRecentTradeId() {
+    GameReadLock guard;
     return *d2client::gnRecentTradeId;
 }
 
 bool IsTradeBlocked() {
+    GameReadLock guard;
     return *d2client::gbTradeBlock != 0;
 }
 
@@ -584,13 +588,15 @@ bool AcceptTrade() {
     if (!WaitForGameReady()) {
         return false;
     }
-    auto guard = Bridge::Lock();
-    const auto state = *d2client::gnRecentTradeId;
-    if (state != 3 && state != 5 && state != 7) {
-        return false;
-    }
-    if (*d2client::gbTradeBlock != 0) {
-        return false;
+    {
+        GameReadLock guard;
+        const auto state = *d2client::gnRecentTradeId;
+        if (state != 3 && state != 5 && state != 7) {
+            return false;
+        }
+        if (*d2client::gbTradeBlock != 0) {
+            return false;
+        }
     }
     return GameThread::Execute([]() -> bool {
         if (*d2client::gbTradeAccepted != 0) {
@@ -612,24 +618,26 @@ bool TradeOK() {
     if (!WaitForGameReady()) {
         return false;
     }
-    auto guard = Bridge::Lock();
-    auto* tdi = *d2client::gpTransactionDialogsInfo;
-    if (tdi == nullptr || *d2client::gnTransactionDialogs != 1U) {
-        return false;
-    }
     auto* tradeOk = d2client::TRADE_OK.Ptr();
     if (tradeOk == nullptr) {
         return false;
     }
     bool matched = false;
-    const auto count = std::min<uint32_t>(tdi->dwNumLines, tdi->aDialogLines.size());
-    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by count above
-    for (uint32_t i = 0; i < count && !matched; ++i) {
-        if (tdi->aDialogLines[i].pfHandler == tradeOk) {
-            matched = true;
+    {
+        GameReadLock guard;
+        auto* tdi = *d2client::gpTransactionDialogsInfo;
+        if (tdi == nullptr || *d2client::gnTransactionDialogs != 1U) {
+            return false;
         }
+        const auto count = std::min<uint32_t>(tdi->dwNumLines, tdi->aDialogLines.size());
+        // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by count above
+        for (uint32_t i = 0; i < count && !matched; ++i) {
+            if (tdi->aDialogLines[i].pfHandler == tradeOk) {
+                matched = true;
+            }
+        }
+        // NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
     }
-    // NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
     if (!matched) {
         return false;
     }
@@ -935,17 +943,21 @@ std::optional<Size> ResolveBeltSize() {
     constexpr uint32_t BELT_TYPE_NONE = 2;
 
     uint32_t beltType = BELT_TYPE_NONE;
-    auto* player = d2client::UNITS_GetPlayerUnit();
-    if (player != nullptr && player->pInventory != nullptr) {
-        for (auto* item = d2common::INVENTORY_GetFirstItem(player->pInventory); item != nullptr;
-             item = d2common::INVENTORY_GetNextItem(item)) {
-            if (item->pItemData == nullptr || item->pItemData->nBodyLoc != static_cast<uint8_t>(BodyLocation::Belt)) {
-                continue;
+    {
+        GameReadLock guard;
+        auto* player = d2client::UNITS_GetPlayerUnit();
+        if (player != nullptr && player->pInventory != nullptr) {
+            for (auto* item = d2common::INVENTORY_GetFirstItem(player->pInventory); item != nullptr;
+                 item = d2common::INVENTORY_GetNextItem(item)) {
+                if (item->pItemData == nullptr ||
+                    item->pItemData->nBodyLoc != static_cast<uint8_t>(BodyLocation::Belt)) {
+                    continue;
+                }
+                if (const auto* txt = d2common::DATATBLS_GetItemsTxtRecord(item->dwClassId)) {
+                    beltType = txt->nBelt;
+                }
+                break;
             }
-            if (const auto* txt = d2common::DATATBLS_GetItemsTxtRecord(item->dwClassId)) {
-                beltType = txt->nBelt;
-            }
-            break;
         }
     }
 
@@ -985,7 +997,8 @@ std::optional<Size> GetGridSize(ItemLocation location) {
 //   1. Check TransactionDialog / TransactionDialogs / TransactionDialogs_2.
 //      If any are non-zero, return ClickResult::TransactionInProgress.
 //   2. Reset d2client::gCursorHover->x = d2client::gCursorHover->y = 0xFFFFFFFF.
-//   3. Acquire Bridge::Lock() (ref uses AutoCriticalRoom).
+// Both under a GameReadLock (ref uses AutoCriticalRoom) that ends before the
+// dispatch waits on the game thread.
 //
 // After the prelude, each method performs its specific dispatch. Return
 // values are used by the JS binding to reproduce ref's per-arg-shape rval
@@ -994,13 +1007,15 @@ std::optional<Size> GetGridSize(ItemLocation location) {
 // Reference: JSGame.cpp my_clickItem (lines 357-661).
 
 ClickResult ClickBodyLocation(BodyLocation slot, InventoryOwner owner) {
-    if (*d2client::gpTransactionDialog != nullptr || *d2client::gnTransactionDialogs != 0 ||
-        *d2client::gnTransactionDialogs_2 != 0) {
-        return ClickResult::TransactionInProgress;
+    {
+        GameReadLock guard;
+        if (*d2client::gpTransactionDialog != nullptr || *d2client::gnTransactionDialogs != 0 ||
+            *d2client::gnTransactionDialogs_2 != 0) {
+            return ClickResult::TransactionInProgress;
+        }
+        d2client::gCursorHover->x = -1;
+        d2client::gCursorHover->y = -1;
     }
-    d2client::gCursorHover->x = -1;
-    d2client::gCursorHover->y = -1;
-    auto guard = Bridge::Lock();
 
     const auto slotIdx = static_cast<uint32_t>(slot);
     if (owner == InventoryOwner::Player) {
@@ -1045,41 +1060,57 @@ ClickResult ClickBodyLocation(BodyLocation slot, InventoryOwner owner) {
 //   Belt                  -> screen coords from belt slot, ClickBelt or ClickBeltRight
 //   else (Ground, Trade)  -> InvalidTarget
 ClickResult ClickItem(ClickButton button, const Unit& item) {
-    if (*d2client::gpTransactionDialog != nullptr || *d2client::gnTransactionDialogs != 0 ||
-        *d2client::gnTransactionDialogs_2 != 0) {
-        return ClickResult::TransactionInProgress;
-    }
-    if (!item) {
-        return ClickResult::InvalidTarget;
-    }
-    if (item.Type() != UnitType::Item) {
-        return ClickResult::NotAnItem;
-    }
+    // Everything read from the item is copied out under this lock: the dispatches
+    // below wait on the game thread, which releases it.
+    auto location = ItemLocation::Null;
+    int32_t gridX = 0;
+    int32_t gridY = 0;
+    uint32_t bodyLoc = 0;
+    std::optional<uint32_t> ownerId;
+    bool isCursorItem = false;
+    {
+        GameReadLock guard;
+        if (*d2client::gpTransactionDialog != nullptr || *d2client::gnTransactionDialogs != 0 ||
+            *d2client::gnTransactionDialogs_2 != 0) {
+            return ClickResult::TransactionInProgress;
+        }
+        if (!item) {
+            return ClickResult::InvalidTarget;
+        }
+        if (item.Type() != UnitType::Item) {
+            return ClickResult::NotAnItem;
+        }
 
-    // Resolve the framework Unit handle to its raw D2UnitStrc -- we need
-    // pItemData->nBodyLoc / nInvPage and pItemPath grid coords directly.
-    auto* itemPtr = d2client::UNITS_GetServerSideUnit(item.Id(), UnitType::Item);
-    if (itemPtr == nullptr) {
-        itemPtr = d2client::UNITS_GetClientSideUnit(item.Id(), UnitType::Item);
-    }
-    if (itemPtr == nullptr || itemPtr->pItemData == nullptr || itemPtr->pStaticPath == nullptr) {
-        return ClickResult::InvalidTarget;
-    }
+        // Resolve the framework Unit handle to its raw D2UnitStrc -- we need
+        // pItemData->nBodyLoc / nInvPage and pItemPath grid coords directly.
+        auto* itemPtr = d2client::UNITS_GetServerSideUnit(item.Id(), UnitType::Item);
+        if (itemPtr == nullptr) {
+            itemPtr = d2client::UNITS_GetClientSideUnit(item.Id(), UnitType::Item);
+        }
+        if (itemPtr == nullptr || itemPtr->pItemData == nullptr || itemPtr->pStaticPath == nullptr) {
+            return ClickResult::InvalidTarget;
+        }
 
-    const auto location = static_cast<ItemLocation>(itemPtr->pItemData->pExtraData.nNodePos);
-    // Items store their grid position (or belt slot index, for belt items) in
-    // the static-path's game coords. Reference reads `pItemPath->dwPosX/Y`;
-    // D2MOO names the union variant `pStaticPath` and the coord pair `tGameCoords.nX/nY`.
-    const auto gridX = itemPtr->pStaticPath->tGameCoords.nX;
-    const auto gridY = itemPtr->pStaticPath->tGameCoords.nY;
+        if (plugy::IsActive() && plugy::HasStashTabs() && plugy::IsParkedItem(itemPtr)) {
+            return plugy::ClickParkedItem(button, item);
+        }
 
-    if (plugy::IsActive() && plugy::HasStashTabs() && plugy::IsParkedItem(itemPtr)) {
-        return plugy::ClickParkedItem(button, item);
+        location = static_cast<ItemLocation>(itemPtr->pItemData->pExtraData.nNodePos);
+        // Items store their grid position (or belt slot index, for belt items) in
+        // the static-path's game coords. Reference reads `pItemPath->dwPosX/Y`;
+        // D2MOO names the union variant `pStaticPath` and the coord pair `tGameCoords.nX/nY`.
+        gridX = itemPtr->pStaticPath->tGameCoords.nX;
+        gridY = itemPtr->pStaticPath->tGameCoords.nY;
+        bodyLoc = itemPtr->pItemData->nBodyLoc;
+        if (const auto* parentInv = itemPtr->pItemData->pExtraData.pParentInv;
+            parentInv != nullptr && parentInv->pOwner != nullptr) {
+            ownerId = parentInv->pOwner->dwUnitId;
+        }
+        isCursorItem = d2common::INVENTORY_GetCursorItem() == itemPtr;
+
+        d2client::gCursorHover->x = gridX;
+        d2client::gCursorHover->y = gridY;
     }
-
-    d2client::gCursorHover->x = gridX;
-    d2client::gCursorHover->y = gridY;
-    auto guard = Bridge::Lock();
 
     // Reference JSGame.cpp:483-493 -- when button == 4, short-circuit before
     // the location dispatch and route merc-owned items through MercItemAction.
@@ -1094,13 +1125,9 @@ ClickResult ClickItem(ClickButton button, const Unit& item) {
         if (!merc) {
             return ClickResult::InvalidTarget;
         }
-        const auto mercId = merc->Id();
-        if (itemPtr->pItemData->pExtraData.pParentInv == nullptr ||
-            itemPtr->pItemData->pExtraData.pParentInv->pOwner == nullptr ||
-            itemPtr->pItemData->pExtraData.pParentInv->pOwner->dwUnitId != mercId) {
+        if (ownerId != merc->Id()) {
             return ClickResult::InvalidTarget;
         }
-        const uint32_t bodyLoc = itemPtr->pItemData->nBodyLoc;
         return GameThread::Execute([bodyLoc]() -> ClickResult {
             d2client::MERCENARY_ItemAction(0x61, bodyLoc);
             return ClickResult::Dispatched;
@@ -1112,7 +1139,7 @@ ClickResult ClickItem(ClickButton button, const Unit& item) {
     // through BodyClickTable to equip the held item. Scripts pass the slot via
     // the same arg the framework casts to ClickButton; values 5..10 fall outside
     // the named enum and reach this branch as their raw ordinal.
-    if (d2common::INVENTORY_GetCursorItem() == itemPtr) {
+    if (isCursorItem) {
         const auto slot = static_cast<uint32_t>(button);
         if (slot < 1 || slot >= d2client::gaBodyClickTable->size()) {
             return ClickResult::InvalidTarget;
@@ -1135,7 +1162,6 @@ ClickResult ClickItem(ClickButton button, const Unit& item) {
 
     if (location == ItemLocation::Equip) {
         // Reference JSG:417-424 -- equip click via BodyClickTable[bodyLoc].
-        const uint32_t bodyLoc = itemPtr->pItemData->nBodyLoc;
         return GameThread::Execute([bodyLoc]() -> ClickResult {
             auto* player = d2client::UNITS_GetPlayerUnit();
             if (player == nullptr || player->pInventory == nullptr) {
@@ -1227,13 +1253,15 @@ ClickResult ClickItem(ClickButton button, const Unit& item) {
 }
 
 ClickResult ClickContainerSlot(ClickButton button, Position gridPos, ItemLocation container) {
-    if (*d2client::gpTransactionDialog != nullptr || *d2client::gnTransactionDialogs != 0 ||
-        *d2client::gnTransactionDialogs_2 != 0) {
-        return ClickResult::TransactionInProgress;
+    {
+        GameReadLock guard;
+        if (*d2client::gpTransactionDialog != nullptr || *d2client::gnTransactionDialogs != 0 ||
+            *d2client::gnTransactionDialogs_2 != 0) {
+            return ClickResult::TransactionInProgress;
+        }
+        d2client::gCursorHover->x = static_cast<int32_t>(gridPos.x);
+        d2client::gCursorHover->y = static_cast<int32_t>(gridPos.y);
     }
-    d2client::gCursorHover->x = static_cast<int32_t>(gridPos.x);
-    d2client::gCursorHover->y = static_cast<int32_t>(gridPos.y);
-    auto guard = Bridge::Lock();
 
     if (container == ItemLocation::Belt) {
         // Reference JSGame.cpp:617-650. Belt is a 4x4 grid (16 slots). The
@@ -1341,35 +1369,33 @@ ClickResult ClickContainerSlot(ClickButton button, Position gridPos, ItemLocatio
 // the naked thunk; ClickParty is a regular fastcall import (
 // IDA decompile shows it's __thiscall).
 void ClickPartyMember(const Party& party, PartyMode mode) {
-    if (party.Id() == 0) {
+    const auto partyId = party.Id();
+    if (partyId == 0) {
         return;
     }
+    // Held to the end: the dispatch below hands the roster pointer to the game.
+    GameReadLock guard;
     auto* myUnit = d2client::UNITS_GetPlayerUnit();
     if (myUnit == nullptr) {
         return;
     }
     // Resolve the framework Party handle to its raw RosterUnit pointer, plus
     // the player's own roster entry (the head of the list) so we can compare
-    // wPartyId fields. Walk under the read lock and copy the fields we need
-    // before releasing it.
+    // wPartyId fields.
     D2RosterUnitStrc* rosterPtr = nullptr;
     uint16_t targetPartyId = NO_PARTY_ID;
-    uint16_t myPartyId = NO_PARTY_ID;
     uint32_t targetUnitId = 0;
-    {
-        auto guard = Bridge::Lock();
-        auto* myRoster = *d2client::gpPlayerUnitList;
-        if (myRoster == nullptr) {
-            return;
-        }
-        myPartyId = myRoster->wPartyId;
-        for (auto* scan = myRoster; scan != nullptr; scan = scan->pNext) {
-            if (scan->dwUnitId == party.Id()) {
-                rosterPtr = scan;
-                targetPartyId = scan->wPartyId;
-                targetUnitId = scan->dwUnitId;
-                break;
-            }
+    auto* myRoster = *d2client::gpPlayerUnitList;
+    if (myRoster == nullptr) {
+        return;
+    }
+    const uint16_t myPartyId = myRoster->wPartyId;
+    for (auto* scan = myRoster; scan != nullptr; scan = scan->pNext) {
+        if (scan->dwUnitId == partyId) {
+            rosterPtr = scan;
+            targetPartyId = scan->wPartyId;
+            targetUnitId = scan->dwUnitId;
+            break;
         }
     }
     if (rosterPtr == nullptr) {
@@ -1425,6 +1451,7 @@ uint32_t CheckUnitCollision(const Unit& unit1, const Unit& unit2, uint32_t mask)
     const auto type1 = unit1.Type();
     const auto id2 = unit2.Id();
     const auto type2 = unit2.Type();
+    GameReadLock guard;
     auto* p1 = d2client::UNITS_GetServerSideUnit(id1, type1);
     if (p1 == nullptr) {
         p1 = d2client::UNITS_GetClientSideUnit(id1, type1);
@@ -1853,6 +1880,7 @@ bool IsScrollingText() {
     // an NPC dialog is scrolling in, the click handler is `D2CLIENT_CloseNPCTalk`
     // (clicking-through cuts the scroll short); once scrolling finishes, the
     // game swaps it for the dialog-line click handler.
+    GameReadLock guard;
     HWND d2Hwnd = d2gfx::WINDOW_GetWindow();
     auto* whht = storm::gWindowHandlers.Ptr();
     if (whht == nullptr || whht->pTable == nullptr || whht->dwLength == 0) {
@@ -1939,23 +1967,30 @@ void Cancel(CancelMode mode) {
 // === Dialog ===
 
 std::vector<DialogLine> GetDialogLines() {
-    auto guard = Bridge::Lock();
-    auto* tdi = *d2client::gpTransactionDialogsInfo;
-    if (tdi == nullptr) {
-        return {};
+    std::vector<std::pair<std::wstring, bool>> lines;
+    {
+        GameReadLock guard;
+        auto* tdi = *d2client::gpTransactionDialogsInfo;
+        if (tdi == nullptr) {
+            return {};
+        }
+        const auto count = std::min<uint32_t>(tdi->dwNumLines, tdi->aDialogLines.size());
+        lines.reserve(count);
+        // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by count above
+        for (uint32_t i = 0; i < count; ++i) {
+            const auto& line = tdi->aDialogLines[i];
+            // wcsnlen, not wcslen -- D2 doesn't always null-terminate the 120-char
+            // text buffer, and the unbounded scan walks off into the next page.
+            lines.emplace_back(std::wstring{line.wszText.data(), wcsnlen(line.wszText.data(), line.wszText.size())},
+                               line.bIsSelectable != 0);
+        }
+        // NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
     }
     std::vector<DialogLine> out;
-    const auto count = std::min<uint32_t>(tdi->dwNumLines, tdi->aDialogLines.size());
-    out.reserve(count);
-    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by count above
-    for (uint32_t i = 0; i < count; ++i) {
-        const auto& line = tdi->aDialogLines[i];
-        // wcsnlen, not wcslen -- D2 doesn't always null-terminate the 120-char
-        // text buffer, and the unbounded scan walks off into the next page.
-        std::wstring lineWide{line.wszText.data(), wcsnlen(line.wszText.data(), line.wszText.size())};
-        out.push_back({.text = utils::ToStr(lineWide, CP_UTF8), .isSelectable = line.bIsSelectable != 0});
+    out.reserve(lines.size());
+    for (const auto& [text, isSelectable] : lines) {
+        out.push_back({.text = utils::ToStr(text, CP_UTF8), .isSelectable = isSelectable});
     }
-    // NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
     return out;
 }
 
@@ -2036,7 +2071,7 @@ void SendKey(uint32_t key) {
 // `gamePos`. Game-coords are subtile x 5, so we divide before comparing -- same
 // observable result as reference's per-level rectangle check.
 Level FindLevelAt(Position gamePos) {
-    auto guard = Bridge::Lock();
+    GameReadLock guard;
     auto* player = d2client::UNITS_GetPlayerUnit();
     // `D2UnitStrc::pDrlgAct` is typed as D2MOO's `::D2DrlgActStrc*`; the bytes follow
     // the 1.14d allocation modeled by `extras::D2DrlgActStrc`.

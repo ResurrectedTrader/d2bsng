@@ -19,7 +19,7 @@ inline D2RosterUnitStrc* AsRoster(void* p) noexcept {
 }  // namespace
 
 void* Party::ResolvePtr() const {
-    GameReadLock guard;
+    assert(IsGameLockHeld() && "resolve under the game lock - use Resolve<T>()");
     if (id_ == 0) {
         return nullptr;
     }
@@ -38,6 +38,7 @@ void* Party::ResolvePtr() const {
 }
 
 Party::operator bool() const {
+    GameReadLock guard;
     return ResolvePtr() != nullptr;
 }
 
@@ -51,59 +52,59 @@ Party Party::FromPtr(void* p) {
 }
 
 Position Party::Pos() const {
-    auto* p = AsRoster(ResolvePtr());
-    if (p == nullptr) {
+    const auto p = Resolve<D2RosterUnitStrc>();
+    if (!p) {
         return Position::Zero;
     }
     return {.x = p->dwPosX, .y = p->dwPosY};
 }
 
 uint32_t Party::LevelId() const {
-    auto* p = AsRoster(ResolvePtr());
-    return p == nullptr ? 0 : p->dwLevelId;
+    const auto p = Resolve<D2RosterUnitStrc>();
+    return p ? p->dwLevelId : 0;
 }
 
 uint32_t Party::Id() const {
-    auto* p = AsRoster(ResolvePtr());
-    return p == nullptr ? 0 : p->dwUnitId;
+    const auto p = Resolve<D2RosterUnitStrc>();
+    return p ? p->dwUnitId : 0;
 }
 
 uint32_t Party::Life() const {
-    auto* p = AsRoster(ResolvePtr());
-    return p == nullptr ? 0 : p->dwPartyLife;
+    const auto p = Resolve<D2RosterUnitStrc>();
+    return p ? p->dwPartyLife : 0;
 }
 
 uint32_t Party::PartyFlag() const {
-    auto* p = AsRoster(ResolvePtr());
-    return p == nullptr ? 0 : p->dwPartyFlags;
+    const auto p = Resolve<D2RosterUnitStrc>();
+    return p ? p->dwPartyFlags : 0;
 }
 
 uint16_t Party::PartyId() const {
-    auto* p = AsRoster(ResolvePtr());
-    return p == nullptr ? static_cast<uint16_t>(0) : p->wPartyId;
+    const auto p = Resolve<D2RosterUnitStrc>();
+    return p ? p->wPartyId : static_cast<uint16_t>(0);
 }
 
 std::string Party::Name() const {
-    auto* p = AsRoster(ResolvePtr());
-    if (p == nullptr) {
+    const auto p = Resolve<D2RosterUnitStrc>();
+    if (!p) {
         return {};
     }
     return std::string{static_cast<const char*>(p->szName)};
 }
 
 uint32_t Party::ClassId() const {
-    auto* p = AsRoster(ResolvePtr());
-    return p == nullptr ? 0 : p->dwClassId;
+    const auto p = Resolve<D2RosterUnitStrc>();
+    return p ? p->dwClassId : 0;
 }
 
 uint32_t Party::CharacterLevel() const {
-    auto* p = AsRoster(ResolvePtr());
-    return p == nullptr ? 0 : p->wLevel;
+    const auto p = Resolve<D2RosterUnitStrc>();
+    return p ? p->wLevel : 0;
 }
 
 Party Party::GetNext() const {
-    auto* p = AsRoster(ResolvePtr());
-    if (p == nullptr) {
+    const auto p = Resolve<D2RosterUnitStrc>();
+    if (!p) {
         return Party();
     }
     return FromPtr(p->pNext);

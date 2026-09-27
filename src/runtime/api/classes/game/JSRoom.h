@@ -9,7 +9,6 @@
 #include "api/core/Class.h"
 #include "api/core/Convert.h"
 #include "api/core/Error.h"
-#include "game/Bridge.h"
 #include "game/GameHelpers.h"
 #include "game/Room.h"
 
@@ -172,7 +171,6 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                     drawPresets = args[0]->BooleanValue(args.GetIsolate());
                 }
 
-                auto lock = game::Bridge::Lock();
                 args.GetReturnValue().Set(data->Reveal(drawPresets));
             });
 
@@ -206,7 +204,6 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                     nClass = convert::ToUint32(isolate, args[1]);
                 }
 
-                auto lock = game::Bridge::Lock();
                 auto presets = data->GetPresetUnits(nType, nClass);
                 auto array = v8::Array::New(isolate, static_cast<int32_t>(presets.size()));
 
@@ -239,7 +236,6 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                     return;  // Returns undefined - reference returns undefined when room is null
                 }
 
-                auto lock = game::Bridge::Lock();
                 auto collision = data->GetCollision();
                 auto outerArray = v8::Array::New(isolate, static_cast<int32_t>(collision.size()));
 
@@ -335,7 +331,6 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                     return;
                 }
                 int32_t nStat = convert::ToInt32(isolate, args[0]);
-                auto lock = game::Bridge::Lock();
                 args.GetReturnValue().Set(data->GetStat(nStat));
             });
 

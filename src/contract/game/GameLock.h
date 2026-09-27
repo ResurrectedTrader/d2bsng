@@ -13,8 +13,8 @@ namespace d2bs::game {
 
 // Recursive shared (read) lock for script threads.
 // First acquisition per thread takes the real shared_lock (~30ns).
-// Nested acquisitions (e.g., Room::ResolvePtr -> Level::ResolvePtr) just
-// increment a thread-local counter (~1ns).
+// Nested acquisitions (e.g., a walk under one GameReadLock whose accessors each
+// hold a Resolved<T>) just increment a thread-local counter (~1ns).
 // Multiple script threads hold shared locks concurrently - scripts don't block each other.
 // When the current thread already holds the GameWriteLock, construction is a
 // no-op: the writer has exclusive access on this thread, so a shared_lock on
@@ -23,6 +23,7 @@ class GameReadLock {
     // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables) - thread-local by design
     inline static std::shared_mutex mutex_;
     inline static thread_local int32_t depth_ = 0;
+    inline static thread_local uint64_t releaseEpoch_ = 0;
     // Defined in GameLock.cpp rather than inline: a COMDAT thread_local with a
     // non-trivial destructor breaks lld's LTO ("Associative COMDAT symbol ...
     // does not exist"). Same for GameWriteLock::manual_.
@@ -45,10 +46,16 @@ class GameReadLock {
     // Diagnostic helpers - mirror GameWriteLock::IsHeldByCurrentThread so
     // hang-investigation code can log who is holding what at the moment of
     // interest. RecursionDepth lets callers distinguish "outer scope holds"
-    // from "deeply nested" cases (common when a V8 callback enters under
-    // Bridge::Lock and then resolves several handles via ResolvePtr).
+    // from "deeply nested" cases (common when a V8 callback takes a lock
+    // and then resolves several handles).
     static bool IsHeldByCurrentThread() { return depth_ > 0; }
     static int32_t RecursionDepth() { return depth_; }
+
+    // Counts the times this thread has handed its game lock back mid-scope (a
+    // GameReadLockReleaser that released a held read lock, or a GameWriteLockReleaser
+    // that released the write lock). Every game pointer this thread resolved before
+    // the count moved may since have been freed or relinked by the game thread.
+    static uint64_t ReleaseEpoch() { return releaseEpoch_; }
 };
 
 // Exclusive (write) lock for the game thread.
@@ -98,6 +105,12 @@ class GameWriteLock {
     static void Release();
     static bool IsHeldByCurrentThread() { return active_ != nullptr; }
 };
+
+// Whether this thread may read game memory: it holds a GameReadLock, or it is the
+// game thread holding the GameWriteLock.
+inline bool IsGameLockHeld() {
+    return GameReadLock::IsHeldByCurrentThread() || GameWriteLock::IsHeldByCurrentThread();
+}
 
 inline void GameWriteLock::Acquire() {
     assert(active_ == nullptr && "GameWriteLock::Acquire while lock already held");
@@ -158,6 +171,7 @@ class GameWriteLockReleaser {
         if (released_) {
             assert(released_->lock_.owns_lock() && "GameWriteLock in unexpected state at release");
             released_->lock_.unlock();
+            ++GameReadLock::releaseEpoch_;
             // Null the thread-local so nested releasers observe "no lock held" and
             // correctly no-op instead of double-unlocking.
             GameWriteLock::active_ = nullptr;
@@ -189,6 +203,7 @@ class GameReadLockReleaser {
         if (savedDepth_ > 0) {
             GameReadLock::depth_ = 0;
             GameReadLock::lock_.unlock();
+            ++GameReadLock::releaseEpoch_;
         }
     }
 

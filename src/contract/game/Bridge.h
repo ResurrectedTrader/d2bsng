@@ -1,7 +1,5 @@
 #pragma once
 
-#include "game/GameLock.h"
-
 namespace d2bs::game {
 
 // Static initializer that resolves all fn:: and var:: pointers from Game.exe offsets.
@@ -15,12 +13,6 @@ class Bridge {
    public:
     [[nodiscard]] static bool Init();
     static void Shutdown();
-
-    // Acquire a shared (read) lock on game memory. Use in V8 callbacks that
-    // access multiple game properties for a consistent view within a single frame.
-    // Inner ResolvePtr() calls are recursive re-entries (free - just counter increment).
-    // RAII - released on scope exit.
-    static GameReadLock Lock() { return {}; }
 
     Bridge() = delete;
 };

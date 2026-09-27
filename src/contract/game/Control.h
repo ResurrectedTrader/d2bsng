@@ -21,6 +21,12 @@ class Control {
 
     void* ResolvePtr() const;
 
+    // Resolves under a read lock held for the result's lifetime; see Resolved.
+    template <typename T>
+    Resolved<T> Resolve() const {
+        return Resolved<T>([this] { return ResolvePtr(); });
+    }
+
    public:
     explicit Control(ControlType type = ControlType::Unknown, Rect bounds = {}) : type_(type), bounds_(bounds) {}
     explicit operator bool() const;

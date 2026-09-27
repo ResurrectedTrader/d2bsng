@@ -40,7 +40,7 @@ inline D2DrlgRoomStrc* AsDrlgRoom(void* p) noexcept {
 }  // namespace
 
 void* Room::ResolvePtr() const {
-    GameReadLock guard;
+    assert(IsGameLockHeld() && "resolve under the game lock - use Resolve<T>()");
     if (level_ == 0)
         return nullptr;
     if (auto* cached = cache_.Get())
@@ -52,6 +52,7 @@ void* Room::ResolvePtr() const {
 }
 
 Room::operator bool() const {
+    GameReadLock guard;
     return ResolvePtr() != nullptr;
 }
 
@@ -68,8 +69,8 @@ Room Room::FromPtr(void* p) {
 }
 
 int32_t Room::Number() const {
-    auto* drlgRoom = AsDrlgRoom(ResolvePtr());
-    if (drlgRoom == nullptr)
+    const auto drlgRoom = Resolve<D2DrlgRoomStrc>();
+    if (!drlgRoom)
         return 0;
     if (drlgRoom->nType != DRLGTYPE_PRESET || drlgRoom->pMaze == nullptr)
         return -1;
@@ -79,8 +80,8 @@ int32_t Room::Number() const {
 }
 
 int32_t Room::SubNumber() const {
-    auto* drlgRoom = AsDrlgRoom(ResolvePtr());
-    if (drlgRoom == nullptr)
+    const auto drlgRoom = Resolve<D2DrlgRoomStrc>();
+    if (!drlgRoom)
         return 0;
     if (drlgRoom->nType != DRLGTYPE_PRESET || drlgRoom->pMaze == nullptr || drlgRoom->pMaze->pMap == nullptr)
         return -1;
@@ -91,8 +92,8 @@ int32_t Room::SubNumber() const {
 }
 
 Rect Room::Bounds() const {
-    auto* drlgRoom = AsDrlgRoom(ResolvePtr());
-    if (drlgRoom == nullptr)
+    const auto drlgRoom = Resolve<D2DrlgRoomStrc>();
+    if (!drlgRoom)
         return Rect::Zero;
     return {
         .origin = {.x = static_cast<uint32_t>(drlgRoom->nTileXPos * SUBTILE_SCALE),
@@ -103,8 +104,8 @@ Rect Room::Bounds() const {
 }
 
 uint32_t Room::Flags() const {
-    auto* drlgRoom = AsDrlgRoom(ResolvePtr());
-    if (drlgRoom == nullptr)
+    const auto drlgRoom = Resolve<D2DrlgRoomStrc>();
+    if (!drlgRoom)
         return 0;
     // Reference's `dwPresetType` (renamed `nType` in D2MOO at 0x1C) is what the
     // legacy `flags` accessor exposes - DRLGTYPE_MAZE / PRESET / OUTDOOR.
@@ -112,18 +113,18 @@ uint32_t Room::Flags() const {
 }
 
 uint32_t Room::CorrectTomb() const {
-    auto* drlgRoom = AsDrlgRoom(ResolvePtr());
-    if (drlgRoom == nullptr || drlgRoom->pLevel == nullptr || drlgRoom->pLevel->pDrlg == nullptr)
+    const auto drlgRoom = Resolve<D2DrlgRoomStrc>();
+    if (!drlgRoom || drlgRoom->pLevel == nullptr || drlgRoom->pLevel->pDrlg == nullptr)
         return 0;
     return static_cast<uint32_t>(drlgRoom->pLevel->pDrlg->nStaffTombLevel);
 }
 
 std::vector<std::vector<uint16_t>> Room::GetCollision() const {
-    auto* drlgRoom = AsDrlgRoom(ResolvePtr());
-    if (drlgRoom == nullptr) {
+    const auto drlgRoom = Resolve<D2DrlgRoomStrc>();
+    if (!drlgRoom) {
         return {};
     }
-    RoomDataGuard guard(drlgRoom);
+    RoomDataGuard roomData(drlgRoom);
     auto* activeRoom = drlgRoom->pRoom;
     if (activeRoom == nullptr || activeRoom->pCollisionGrid == nullptr) {
         return {};
@@ -145,11 +146,11 @@ std::vector<std::vector<uint16_t>> Room::GetCollision() const {
 }
 
 std::vector<uint16_t> Room::GetCollisionFlat() const {
-    auto* drlgRoom = AsDrlgRoom(ResolvePtr());
-    if (drlgRoom == nullptr) {
+    const auto drlgRoom = Resolve<D2DrlgRoomStrc>();
+    if (!drlgRoom) {
         return {};
     }
-    RoomDataGuard guard(drlgRoom);
+    RoomDataGuard roomData(drlgRoom);
     auto* activeRoom = drlgRoom->pRoom;
     if (activeRoom == nullptr || activeRoom->pCollisionGrid == nullptr) {
         return {};
@@ -165,11 +166,11 @@ std::vector<uint16_t> Room::GetCollisionFlat() const {
 }
 
 uint16_t Room::CollisionAt(Position pos) const {
-    auto* drlgRoom = AsDrlgRoom(ResolvePtr());
-    if (drlgRoom == nullptr) {
+    const auto drlgRoom = Resolve<D2DrlgRoomStrc>();
+    if (!drlgRoom) {
         return 0;
     }
-    RoomDataGuard guard(drlgRoom);
+    RoomDataGuard roomData(drlgRoom);
     auto* activeRoom = drlgRoom->pRoom;
     if (activeRoom == nullptr || activeRoom->pCollisionGrid == nullptr) {
         return 0;
@@ -192,22 +193,22 @@ uint16_t Room::CollisionAt(Position pos) const {
 }
 
 Room Room::GetNext() const {
-    auto* drlgRoom = AsDrlgRoom(ResolvePtr());
-    if (drlgRoom == nullptr)
+    const auto drlgRoom = Resolve<D2DrlgRoomStrc>();
+    if (!drlgRoom)
         return Room();
     return FromPtr(drlgRoom->pDrlgRoomNext);
 }
 
 Room Room::GetFirst() const {
-    auto* drlgRoom = AsDrlgRoom(ResolvePtr());
-    if (drlgRoom == nullptr || drlgRoom->pLevel == nullptr)
+    const auto drlgRoom = Resolve<D2DrlgRoomStrc>();
+    if (!drlgRoom || drlgRoom->pLevel == nullptr)
         return Room();
     return FromPtr(drlgRoom->pLevel->pFirstRoomEx);
 }
 
 std::vector<Room> Room::GetNearby() const {
-    auto* drlgRoom = AsDrlgRoom(ResolvePtr());
-    if (drlgRoom == nullptr || drlgRoom->ppRoomsNear == nullptr)
+    const auto drlgRoom = Resolve<D2DrlgRoomStrc>();
+    if (!drlgRoom || drlgRoom->ppRoomsNear == nullptr)
         return {};
     const auto count = static_cast<size_t>(drlgRoom->nRoomsNear);
     std::vector<Room> out;
@@ -221,24 +222,24 @@ std::vector<Room> Room::GetNearby() const {
 }
 
 Level Room::GetLevel() const {
-    auto* drlgRoom = AsDrlgRoom(ResolvePtr());
-    if (drlgRoom == nullptr || drlgRoom->pLevel == nullptr)
+    const auto drlgRoom = Resolve<D2DrlgRoomStrc>();
+    if (!drlgRoom || drlgRoom->pLevel == nullptr)
         return Level();
     return Level(static_cast<uint32_t>(drlgRoom->pLevel->nLevelId));
 }
 
 std::optional<Unit> Room::GetFirstUnit() const {
-    auto* drlgRoom = AsDrlgRoom(ResolvePtr());
-    if (drlgRoom == nullptr || drlgRoom->pRoom == nullptr || drlgRoom->pRoom->pUnitFirst == nullptr)
+    const auto drlgRoom = Resolve<D2DrlgRoomStrc>();
+    if (!drlgRoom || drlgRoom->pRoom == nullptr || drlgRoom->pRoom->pUnitFirst == nullptr)
         return std::nullopt;
     return Unit::FromPtr(drlgRoom->pRoom->pUnitFirst);
 }
 
 std::vector<PresetUnitInfo> Room::GetPresetUnits(std::optional<uint32_t> type, std::optional<uint32_t> classId) const {
-    auto* drlgRoom = AsDrlgRoom(ResolvePtr());
-    if (drlgRoom == nullptr)
+    const auto drlgRoom = Resolve<D2DrlgRoomStrc>();
+    if (!drlgRoom)
         return {};
-    RoomDataGuard guard(drlgRoom);
+    RoomDataGuard roomData(drlgRoom);
     const Position roomPos{.x = static_cast<uint32_t>(drlgRoom->nTileXPos),
                            .y = static_cast<uint32_t>(drlgRoom->nTileYPos)};
 
@@ -248,7 +249,7 @@ std::vector<PresetUnitInfo> Room::GetPresetUnits(std::optional<uint32_t> type, s
     // level). Walked here so framework callers see the destination as a
     // populated field on PresetUnitInfo without needing a second boundary
     // call. Reference: D2Helpers.cpp::GetTileLevelNo.
-    auto resolveTileTarget = [drlgRoom](uint32_t presetTileId) -> uint32_t {
+    auto resolveTileTarget = [&drlgRoom](uint32_t presetTileId) -> uint32_t {
         for (auto* warp = drlgRoom->pRoomTiles; warp != nullptr; warp = warp->pNext) {
             if (warp->pPresetTileId == nullptr || warp->pDrlgRoom == nullptr || warp->pDrlgRoom->pLevel == nullptr) {
                 continue;
@@ -282,8 +283,8 @@ std::vector<PresetUnitInfo> Room::GetPresetUnits(std::optional<uint32_t> type, s
 }
 
 uint32_t Room::GetStat(uint32_t statIndex) const {
-    auto* drlgRoom = AsDrlgRoom(ResolvePtr());
-    if (drlgRoom == nullptr)
+    const auto drlgRoom = Resolve<D2DrlgRoomStrc>();
+    if (!drlgRoom)
         return 0;
     // Indices 4-7 read DrlgRoom (no ActiveRoom needed); indices 0-3, 9-16 require ActiveRoom.
     if (statIndex == 4)
@@ -294,7 +295,7 @@ uint32_t Room::GetStat(uint32_t statIndex) const {
         return static_cast<uint32_t>(drlgRoom->nTileWidth);
     if (statIndex == 7)
         return static_cast<uint32_t>(drlgRoom->nTileHeight);
-    RoomDataGuard guard(drlgRoom);
+    RoomDataGuard roomData(drlgRoom);
     auto* activeRoom = drlgRoom->pRoom;
     if (activeRoom == nullptr)
         return 0;
@@ -338,23 +339,29 @@ uint32_t Room::GetStat(uint32_t statIndex) const {
 }
 
 bool Room::Reveal(bool drawPresets) const {
-    auto* drlgRoom = AsDrlgRoom(ResolvePtr());
-    if (drlgRoom == nullptr || drlgRoom->pLevel == nullptr)
-        return false;
-    RoomDataGuard guard(drlgRoom);
-    auto* activeRoom = drlgRoom->pRoom;
-    if (activeRoom == nullptr)
-        return false;
-    auto* player = lod114d::imports::d2client::UNITS_GetPlayerUnit();
-    if (player == nullptr)
-        return false;
+    {
+        const auto drlgRoom = Resolve<D2DrlgRoomStrc>();
+        if (!drlgRoom || drlgRoom->pLevel == nullptr || lod114d::imports::d2client::UNITS_GetPlayerUnit() == nullptr)
+            return false;
+    }
 
     // Reveal mutates layer state (`*AutomapLayer`, `RevealAutomapRoom`,
     // `AddAutomapCell`), all of which the engine touches each frame on
     // the game thread. Marshal the entire body through GameThread::Execute
     // so the writes interleave atomically with the engine's frame work.
     // Reference (Room.cpp:14) wraps the same code in an AutoCriticalRoom.
-    return GameThread::Execute([activeRoom, drlgRoom, player, drawPresets]() -> bool {
+    // The room is re-resolved there: a pointer resolved here goes stale while Execute waits.
+    return GameThread::Execute([self = *this, drawPresets]() -> bool {
+        const auto drlgRoom = self.Resolve<D2DrlgRoomStrc>();
+        if (!drlgRoom || drlgRoom->pLevel == nullptr)
+            return false;
+        RoomDataGuard roomData(drlgRoom);
+        auto* activeRoom = drlgRoom->pRoom;
+        if (activeRoom == nullptr)
+            return false;
+        auto* player = lod114d::imports::d2client::UNITS_GetPlayerUnit();
+        if (player == nullptr)
+            return false;
         // If the room being revealed is on a different level than the
         // player's current automap layer, switch layers around the reveal
         // call. The dynamic-path room pointer is typed as D2MOO's
@@ -395,9 +402,9 @@ std::optional<Room> Room::Find(uint32_t level, Position pos) {
 }
 
 bool Room::operator==(const Room& other) const {
-    auto* lhs = ResolvePtr();
-    auto* rhs = other.ResolvePtr();
-    return lhs != nullptr && lhs == rhs;
+    const auto lhs = Resolve<D2DrlgRoomStrc>();
+    const auto rhs = other.Resolve<D2DrlgRoomStrc>();
+    return lhs && lhs == rhs;
 }
 
 }  // namespace d2bs::game
