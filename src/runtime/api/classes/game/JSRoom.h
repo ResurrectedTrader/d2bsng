@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstring>
+#include <vector>
 
 #include <v8.h>
 
@@ -29,7 +30,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @type {number}
         Property(
             isolate, inst, "number", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.Holder());
                 if (!*data) {
                     return;
                 }
@@ -40,7 +41,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @type {number}
         Property(
             isolate, inst, "x", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.Holder());
                 if (!*data) {
                     return;
                 }
@@ -53,7 +54,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @type {number}
         Property(
             isolate, inst, "y", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.Holder());
                 if (!*data) {
                     return;
                 }
@@ -66,7 +67,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @type {number}
         Property(
             isolate, inst, "xsize", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.Holder());
                 if (!*data) {
                     return;
                 }
@@ -77,7 +78,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @type {number}
         Property(
             isolate, inst, "ysize", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.Holder());
                 if (!*data) {
                     return;
                 }
@@ -88,7 +89,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @type {number}
         Property(
             isolate, inst, "subnumber", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.Holder());
                 if (!*data) {
                     return;
                 }
@@ -99,7 +100,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @type {number}
         Property(
             isolate, inst, "area", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.Holder());
                 if (!*data) {
                     info.GetReturnValue().Set(0);
                     return;
@@ -112,7 +113,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @type {number}
         Property(
             isolate, inst, "level", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.Holder());
                 if (!*data) {
                     info.GetReturnValue().Set(0);
                     return;
@@ -124,7 +125,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @type {number}
         Property(
             isolate, inst, "correcttomb", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.Holder());
                 if (!*data) {
                     info.GetReturnValue().Set(0);
                     return;
@@ -138,7 +139,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @returns {boolean} - true if advanced; false at end of chain or when unresolved.
         Method(
             isolate, proto, "getNext", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                auto* data = Unwrap(args.This());
+                const auto data = Unwrap(args.This());
                 if (!*data) {
                     args.GetReturnValue().SetFalse();
                     return;
@@ -161,17 +162,21 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 if (!game::IsGameReady()) {
                     return;
                 }
-                auto* data = Unwrap(args.This());
-                if (!*data) {
-                    return;
-                }
-
                 bool drawPresets = false;
                 if (args.Length() >= 1 && args[0]->IsBoolean()) {
                     drawPresets = args[0]->BooleanValue(args.GetIsolate());
                 }
 
-                args.GetReturnValue().Set(data->Reveal(drawPresets));
+                // Reveal waits on the game thread, so the room is copied out rather than revealed under the lock.
+                game::Room room;
+                {
+                    const auto data = Unwrap(args.This());
+                    if (!*data) {
+                        return;
+                    }
+                    room = *data;
+                }
+                args.GetReturnValue().Set(room.Reveal(drawPresets));
             });
 
         /// @description Returns PresetUnit objects in this room, optionally filtered by unit type and class id.
@@ -187,10 +192,6 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                     return;
                 }
                 auto context = isolate->GetCurrentContext();
-                auto* data = Unwrap(args.This());
-                if (!*data) {
-                    return;  // Returns undefined - reference returns undefined when room is null
-                }
 
                 // IsUint32 (not IsNumber): scripts pass -1 to mean "no filter" - IsUint32 rejects
                 // negative values, leaving the optional as nullopt. IsNumber would accept -1 and
@@ -204,7 +205,14 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                     nClass = convert::ToUint32(isolate, args[1]);
                 }
 
-                auto presets = data->GetPresetUnits(nType, nClass);
+                std::vector<game::PresetUnitInfo> presets;
+                {
+                    const auto data = Unwrap(args.This());
+                    if (!*data) {
+                        return;  // Returns undefined - reference returns undefined when room is null
+                    }
+                    presets = data->GetPresetUnits(nType, nClass);
+                }
                 auto array = v8::Array::New(isolate, static_cast<int32_t>(presets.size()));
 
                 for (uint32_t i = 0; i < presets.size(); ++i) {
@@ -231,12 +239,14 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                     return;
                 }
                 auto context = isolate->GetCurrentContext();
-                auto* data = Unwrap(args.This());
-                if (!*data) {
-                    return;  // Returns undefined - reference returns undefined when room is null
+                std::vector<std::vector<uint16_t>> collision;
+                {
+                    const auto data = Unwrap(args.This());
+                    if (!*data) {
+                        return;  // Returns undefined - reference returns undefined when room is null
+                    }
+                    collision = data->GetCollision();
                 }
-
-                auto collision = data->GetCollision();
                 auto outerArray = v8::Array::New(isolate, static_cast<int32_t>(collision.size()));
 
                 for (size_t y = 0; y < collision.size(); ++y) {
@@ -263,12 +273,14 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 if (!game::IsGameReady()) {
                     return;
                 }
-                auto* data = Unwrap(args.This());
-                if (!*data) {
-                    return;  // Returns undefined - reference returns undefined when room is null
+                std::vector<uint16_t> flat;
+                {
+                    const auto data = Unwrap(args.This());
+                    if (!*data) {
+                        return;  // Returns undefined - reference returns undefined when room is null
+                    }
+                    flat = data->GetCollisionFlat();
                 }
-
-                auto flat = data->GetCollisionFlat();
                 if (flat.empty()) {
                     return;  // Returns undefined - reference returns undefined when collision data is null
                 }
@@ -286,13 +298,13 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
             isolate, proto, "getNearby", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
                 auto context = isolate->GetCurrentContext();
-                auto* data = Unwrap(args.This());
-                if (!*data) {
-                    args.GetReturnValue().Set(v8::Array::New(isolate, 0));
-                    return;
+                std::vector<game::Room> nearby;
+                {
+                    const auto data = Unwrap(args.This());
+                    if (*data) {
+                        nearby = data->GetNearby();
+                    }
                 }
-
-                auto nearby = data->GetNearby();
                 auto array = v8::Array::New(isolate, static_cast<int32_t>(nearby.size()));
 
                 for (uint32_t i = 0; i < nearby.size(); ++i) {
@@ -326,7 +338,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 if (args.Length() < 1 || !args[0]->IsNumber()) {
                     return;
                 }
-                auto* data = Unwrap(args.This());
+                const auto data = Unwrap(args.This());
                 if (!*data) {
                     return;
                 }
@@ -342,13 +354,16 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
             isolate, proto, "getFirst", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
                 auto context = isolate->GetCurrentContext();
-                auto* data = Unwrap(args.This());
-                if (!*data) {
-                    return;
-                }
-                auto first = data->GetFirst();
-                if (!first) {
-                    return;
+                game::Room first;
+                {
+                    const auto data = Unwrap(args.This());
+                    if (!*data) {
+                        return;
+                    }
+                    first = data->GetFirst();
+                    if (!first) {
+                        return;
+                    }
                 }
                 auto obj = CreateInstance(isolate, context, std::make_unique<game::Room>(first));
                 if (obj.IsEmpty())
@@ -366,7 +381,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 if (args.Length() < 1 || !args[0]->IsObject()) {
                     return;  // Returns undefined, matching reference early-return
                 }
-                auto* data = Unwrap(args.This());
+                const auto data = Unwrap(args.This());
                 if (!*data) {
                     return;  // undefined, matching reference
                 }
@@ -376,7 +391,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 if (!JSUnit::IsInstance(unitObj)) {
                     return;  // undefined, matching reference
                 }
-                auto* unitData = JSUnit::Unwrap(unitObj);
+                const auto unitData = JSUnit::Unwrap(unitObj);
                 if (!unitData || !*unitData) {
                     return;  // undefined, matching reference
                 }

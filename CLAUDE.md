@@ -807,6 +807,7 @@ Property(isolate, inst, "propName", +[](v8::Local<v8::Name>, const v8::PropertyC
 Game types are identity-based handles with per-frame pointer caching (`HandleCache`). See `docs/game_thread_safety.md` for full details.
 
 - **GameReadLock** - the one read lock; shared and recursive, scripts never block each other. `ResolvePtr()` takes none and asserts (debug) that the caller holds the game lock; a backend accessor reads through `Resolved<T>` (`HandleCache.h`), which takes the lock before the resolve and holds it for its lifetime. V8 callbacks that iterate game data or do multi-step traversals hold one `game::GameReadLock` across the whole walk - taken right before the first game read (after argument checks) and released after the last, with V8 value creation outside it where that is easy.
+- **LockedHandle** - for the game handle natives (Unit, Room, Level/Area, Party, Control, StashTab; the `GameHandle` concept in `api/core/LockedHandle.h`), `ClassBase::Unwrap` returns a `LockedHandle<T>` that holds a `GameReadLock` for its lifetime, so a binding's `if (!*data)` and its `data->...` reads see one game state. Other classes still get a raw pointer. While one is alive: convert V8 arguments before it, never run script or wait (`WaitForGameReady` goes first; waiting actions such as `Move` / `Click` / `Reveal` run on a copy of the handle after the guard's scope), and build large arrays and instances after it.
 - **GameWriteLock** - game thread only. Held continuously across the frame body; released during `GameLoop::OnSleep`'s drain loop in `idleSleepInterval` slices so script readers can acquire `GameReadLock`, then reacquired before returning to the game's frame work. Bootstrap via `firstSleep_` first-tick handling.
 - **GameThread::Execute()** - post work to game thread from scripts. For menu operations requiring game thread (login, createGame, etc.).
 
@@ -816,12 +817,19 @@ When implementing stubs: read through `const auto u = Resolve<D2UnitStrc>();` (n
 
 **JS API -> Game Layer delegation:**
 ```cpp
-// Property getter pattern
-auto* myUnit = Unwrap(info.Holder());
-if (!myUnit) return;
-auto unit = myUnit->Resolve();
-if (!unit) return;
-info.GetReturnValue().Set(unit.Pos().x);
+// Property getter pattern: the LockedHandle keeps the test and the read in one lock
+const auto data = Unwrap(info.Holder());
+if (!*data) return;
+info.GetReturnValue().Set(data->Pos().x);
+
+// Method that allocates or waits: copy out under the guard, then work outside it
+game::Unit unit;
+{
+    const auto data = Unwrap(args.This());
+    if (!*data) return;
+    unit = *data;
+}
+unit.Move(target);
 
 // Method with WaitForGameReady
 if (!d2bs::game::WaitForGameReady()) {

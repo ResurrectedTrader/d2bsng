@@ -10,6 +10,7 @@
 #include "Convert.h"
 #include "Error.h"
 #include "InstanceTracker.h"
+#include "LockedHandle.h"
 #include "components/script/NativeCallHook.h"
 
 namespace d2bs::runtime::api {
@@ -97,6 +98,15 @@ class ClassBase {
     static constexpr int32_t TYPE_TAG_FIELD = 1;
     static constexpr int32_t INTERNAL_FIELD_COUNT = 2;
 
+    static NativeType* NativeOf(v8::Local<v8::Object> obj) {
+        if (obj.IsEmpty() || obj->InternalFieldCount() < INTERNAL_FIELD_COUNT ||
+            obj->GetAlignedPointerFromInternalField(TYPE_TAG_FIELD, v8::kEmbedderDataTypeTagDefault) != &typeTag_) {
+            return nullptr;
+        }
+        return static_cast<NativeType*>(
+            obj->GetAlignedPointerFromInternalField(NATIVE_PTR_FIELD, v8::kEmbedderDataTypeTagDefault));
+    }
+
    public:
     // Instance-tracker row for this class, resolved once. ClassId takes a lock and scans the name
     // table, which must not happen per object - this is on the construction path of every wrapper.
@@ -149,13 +159,20 @@ class ClassBase {
     // V8 14 removed AccessorSignature, so a script that lifts a getter onto a foreign
     // receiver can reach that. Deliberate, and not defended against: scripts are trusted
     // here (they already have sockets, files and raw packet access).
-    static NativeType* Unwrap(v8::Local<v8::Object> obj) {
-        if (obj.IsEmpty() || obj->InternalFieldCount() < INTERNAL_FIELD_COUNT ||
-            obj->GetAlignedPointerFromInternalField(TYPE_TAG_FIELD, v8::kEmbedderDataTypeTagDefault) != &typeTag_) {
-            return nullptr;
-        }
-        return static_cast<NativeType*>(
-            obj->GetAlignedPointerFromInternalField(NATIVE_PTR_FIELD, v8::kEmbedderDataTypeTagDefault));
+    //
+    // A game handle (GameHandle) comes back inside a LockedHandle instead, so the binding's
+    // validity test and its reads run under one read lock; see LockedHandle for the rules
+    // while it is held.
+    static NativeType* Unwrap(v8::Local<v8::Object> obj)
+        requires(!GameHandle<NativeType>)
+    {
+        return NativeOf(obj);
+    }
+
+    static LockedHandle<NativeType> Unwrap(v8::Local<v8::Object> obj)
+        requires GameHandle<NativeType>
+    {
+        return LockedHandle<NativeType>(NativeOf(obj));
     }
 
     // Wrap native pointer into V8 object's internal fields. Stamping the tag here (rather

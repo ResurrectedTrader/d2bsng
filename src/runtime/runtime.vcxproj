@@ -197,6 +197,7 @@
     <ClInclude Include="api\core\Error.h" />
     <ClInclude Include="api\core\Function.h" />
     <ClInclude Include="api\core\InstanceTracker.h" />
+    <ClInclude Include="api\core\LockedHandle.h" />
     <!-- API Globals -->
     <ClInclude Include="api\globals\Constants.h" />
     <ClInclude Include="api\globals\CoreFunctions.h" />
