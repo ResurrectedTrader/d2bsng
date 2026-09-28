@@ -17,6 +17,13 @@ on:
         type: choice
         options: [patch, minor, major]
         default: patch
+      # The UI only offers a one-line box, so a multi-line changelog comes from the CLI:
+      #   gh workflow run release.yml -f bump=minor -f changelog="$(cat changelog.md)"
+      changelog:
+        description: "Release notes (markdown). Replaces the generated commit list; empty keeps the commit list."
+        type: string
+        required: false
+        default: ""
 
 concurrency:
   group: release
@@ -270,6 +277,9 @@ jobs:
       - name: Tag + GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
+          # Through the environment, never interpolated into the script, so
+          # markdown with quotes, backticks or $(...) stays inert text.
+          CHANGELOG: ${{ inputs.changelog }}
         run: |
           v="v${{ needs.version.outputs.version }}"
           repo_url="${{ github.server_url }}/${{ github.repository }}"
@@ -291,11 +301,17 @@ jobs:
           fmt="- %s ([${bt}%h${bt}](${repo_url}/commit/%H))"
           range="HEAD"
           [ -n "$prev" ] && range="${prev}..HEAD"
+          # A hand-written `changelog` input replaces the commit list, which is
+          # mostly noise when refactors dominate the range.
           {
-            echo "## Commits"
-            echo
-            git log --no-merges --pretty=format:"$fmt" "$range"
-            echo
+            if [ -n "$CHANGELOG" ]; then
+              printf '%s\n' "$CHANGELOG"
+            else
+              echo "## Commits"
+              echo
+              git log --no-merges --pretty=format:"$fmt" "$range"
+              echo
+            fi
             if [ -n "$prev" ]; then
               echo
               echo "**Full Changelog**: ${repo_url}/compare/${prev}...${v}"
