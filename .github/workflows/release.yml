@@ -1,10 +1,10 @@
 name: Release
 
 # Manual only (Actions -> Release -> Run workflow). Computes the next version
-# ONCE, bakes it into the DLL, builds + tests (the `build` job) while the API
-# surface is extracted in parallel (the `api` job), then - if both pass - tags
-# that version and publishes d2bs.dll + .pdb + d2bsng.d.ts + api.json, then
-# deploys the docs.
+# ONCE, fetches the dependencies once (the `deps` job), bakes the version into
+# the DLL, builds + tests (the `build` job) while the API surface is extracted
+# in parallel (the `api` job), then - if both pass - tags that version and
+# publishes d2bs.dll + .pdb + d2bsng.d.ts + api.json, then deploys the docs.
 #
 # The version is decided up front (the `version` job) and reused for both the
 # baked-in D2BS_VERSION and the git tag, so they can never drift. The release
@@ -64,9 +64,105 @@ jobs:
             echo "version=${major}.${minor}.${patch}" >> "$GITHUB_OUTPUT"
           fi
 
+  deps:
+    name: Dependencies
+    # Fills the two caches `build` and `api` restore: vcpkg's binary cache and
+    # the V8 archive. Both jobs need both, and on a cold cache they used to
+    # download V8 and compile every vcpkg package side by side.
+    runs-on: windows-latest
+    outputs:
+      v8-version: ${{ steps.v8.outputs.version }}
+      vcpkg-key: ${{ steps.vcpkg.outputs.cache-primary-key }}
+    env:
+      # vcpkg's ABI-keyed binary cache. Caching THIS (not the vcpkg_installed
+      # install tree) is what lets a build reuse prebuilt packages: vcpkg re-runs
+      # `install` on every build and rebuilds from source unless it finds a
+      # matching archive here.
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/.vcpkg-cache
+      # Pinned vcpkg commit (tool + builtin registry); matches builtin-baseline
+      # in vcpkg.json. Bumping it deliberately invalidates the binary cache.
+      VCPKG_REF: 9e44ec0e9f247d77c230ced0ee66c76296837807
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore vcpkg binary cache
+        id: vcpkg
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          # run_id (+ job) keeps every save key unique so a fresh run always
+          # saves (a runner-image compiler bump changes package ABIs without
+          # changing any file here); the prefix restore-keys then pick up the
+          # most recent cache.
+          key: vcpkg-${{ runner.os }}-${{ env.VCPKG_REF }}-${{ hashFiles('vcpkg.json', 'tests/runtime/vcpkg.json') }}-${{ github.run_id }}-${{ github.job }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-${{ env.VCPKG_REF }}-${{ hashFiles('vcpkg.json', 'tests/runtime/vcpkg.json') }}-
+            vcpkg-${{ runner.os }}-${{ env.VCPKG_REF }}-
+      - name: Set up pinned vcpkg
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          # Pin vcpkg (tool + builtin registry) to a fixed commit so the runner
+          # image's bundled vcpkg can't drift our ABI hashes / dependency versions
+          # out from under the binary cache.
+          $vcpkgDir = "$env:RUNNER_TEMP\vcpkg"
+          git clone --quiet https://github.com/microsoft/vcpkg.git $vcpkgDir
+          git -C $vcpkgDir checkout --quiet $env:VCPKG_REF
+          & "$vcpkgDir\bootstrap-vcpkg.bat" -disableMetrics
+          if ($LASTEXITCODE -ne 0) { throw "vcpkg bootstrap failed" }
+          "VCPKG_ROOT=$vcpkgDir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      # Both manifests (the solution's and the test project's), for the same
+      # triplet MSBuild's integration uses, so `build` and `api` find every
+      # package prebuilt. The install trees are throwaway; the binary cache is
+      # what the other jobs restore.
+      - name: Build vcpkg packages
+        shell: pwsh
+        run: |
+          foreach ($root in @('.', 'tests\runtime')) {
+            $installRoot = Join-Path $env:RUNNER_TEMP "vcpkg_installed\$($root -replace '[\\.]', '_')"
+            & "$env:VCPKG_ROOT\vcpkg.exe" install --triplet x86-windows-static --x-manifest-root="$root" --x-install-root="$installRoot"
+            if ($LASTEXITCODE -ne 0) { throw "vcpkg install failed for manifest $root" }
+          }
+      - name: Save vcpkg binary cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: ${{ steps.vcpkg.outputs.cache-primary-key }}
+      # The V8 version is read out of the build rather than restated, so the key
+      # cannot drift from what the build wants, and a version bump is a new key
+      # and a new directory rather than a stale hit.
+      - name: Resolve V8 version
+        id: v8
+        shell: pwsh
+        run: |
+          $props = [xml](Get-Content Directory.Build.props -Raw)
+          $node = $props.SelectSingleNode('//V8Version')
+          if (-not $node) { throw "V8Version not found in Directory.Build.props" }
+          "version=$($node.InnerText.Trim())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+      - name: Check V8 cache
+        id: v8cache
+        uses: actions/cache/restore@v4
+        with:
+          path: dependencies/v8/${{ steps.v8.outputs.version }}
+          key: v8-${{ runner.os }}-${{ steps.v8.outputs.version }}
+          lookup-only: true
+      # build.ps1 deps runs only the FetchV8 target: it downloads and unpacks
+      # the headers and monolith, compiling nothing.
+      - name: Fetch V8
+        if: steps.v8cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          .\build.ps1 deps
+          if ($LASTEXITCODE -ne 0) { throw "V8 fetch failed" }
+      - name: Save V8 cache
+        if: steps.v8cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: dependencies/v8/${{ steps.v8.outputs.version }}
+          key: v8-${{ runner.os }}-${{ steps.v8.outputs.version }}
+
   build:
     name: Build
-    needs: version
+    needs: [version, deps]
     runs-on: windows-latest
     env:
       # vcpkg's ABI-keyed binary cache. Caching THIS (not the vcpkg_installed
@@ -81,14 +177,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: true   # D2MOO headers only; its external/ submodules are not used
+      # Filled by `deps` in this run; the prefix keys are only a fallback.
       - name: Restore vcpkg binary cache
-        id: vcpkg
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
-          # run_id (+ job) keeps every save key unique so a fresh build always
-          # saves; the prefix restore-keys then pick up the most recent cache.
-          key: vcpkg-${{ runner.os }}-${{ env.VCPKG_REF }}-${{ hashFiles('vcpkg.json', 'tests/runtime/vcpkg.json') }}-${{ github.run_id }}-${{ github.job }}
+          key: ${{ needs.deps.outputs.vcpkg-key }}
           restore-keys: |
             vcpkg-${{ runner.os }}-${{ env.VCPKG_REF }}-${{ hashFiles('vcpkg.json', 'tests/runtime/vcpkg.json') }}-
             vcpkg-${{ runner.os }}-${{ env.VCPKG_REF }}-
@@ -108,27 +202,13 @@ jobs:
           & "$vcpkgDir\vcpkg.exe" integrate install
           if ($LASTEXITCODE -ne 0) { throw "vcpkg integrate failed" }
           "VCPKG_ROOT=$vcpkgDir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-      # The build fetches V8 itself - headers and monolith, out of one archive,
-      # into dependencies/v8/<version>/ (Directory.Build.props declares the
-      # version; scripts/fetch_v8.ps1 unpacks it before anything compiles). So
-      # there is nothing to download here. All this does is stop a runner from
-      # pulling over a gigabyte on every run, and it reads the version out of
-      # the build rather than restating it, so the key cannot drift from what
-      # the build actually wants - and a version bump is a new key and a new
-      # directory rather than a stale hit.
-      - name: Resolve V8 version
-        id: v8
-        shell: pwsh
-        run: |
-          $props = [xml](Get-Content Directory.Build.props -Raw)
-          $node = $props.SelectSingleNode('//V8Version')
-          if (-not $node) { throw "V8Version not found in Directory.Build.props" }
-          "version=$($node.InnerText.Trim())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-      - name: Cache V8
-        uses: actions/cache@v4
+      # Filled by `deps`. On a miss the build's own FetchV8 target downloads
+      # the archive instead, so this only saves the download.
+      - name: Restore V8
+        uses: actions/cache/restore@v4
         with:
-          path: dependencies/v8/${{ steps.v8.outputs.version }}
-          key: v8-${{ runner.os }}-${{ steps.v8.outputs.version }}
+          path: dependencies/v8/${{ needs.deps.outputs.v8-version }}
+          key: v8-${{ runner.os }}-${{ needs.deps.outputs.v8-version }}
       - name: Build (Release)
         shell: pwsh
         env:
@@ -137,15 +217,6 @@ jobs:
           # released builds ever carry a key. See docs/analytics.md.
           D2BS_ANALYTICS_KEY: ${{ secrets.APTABASE_APP_KEY }}
         run: .\build.ps1 Release -Version ${{ needs.version.outputs.version }}
-      # Save vcpkg's binary cache right after the build populates it. Always
-      # save: the run_id-unique key never collides, and we want the cache kept
-      # even if a later step (doc-gen, upload) fails.
-      - name: Save vcpkg binary cache
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
-          key: ${{ steps.vcpkg.outputs.cache-primary-key }}
       # The solution build above already produced Release/js_tests.exe (the
       # doctest suite; it links no V8), so run it here instead of rebuilding it
       # from scratch in a second job.
@@ -171,7 +242,7 @@ jobs:
     # packages, MSVC + SDK), never the built DLL, so it runs alongside `build`
     # rather than after it. api.json + d.ts ship as release assets; the docs
     # site is assembled later (deploy-docs) from all releases.
-    needs: version
+    needs: [version, deps]
     runs-on: windows-latest
     env:
       VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/.vcpkg-cache
@@ -182,17 +253,29 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: true   # LaunchOptions.cpp (a backend TU) pulls D2MOO headers
-      # Restore only - `build` saves. On a cold cache (VCPKG_REF bump) this job
-      # builds the deps from source too; that is a once-per-bump cost, accepted
-      # so the extraction stays off the release's critical path.
+      # Both caches are filled by `deps` in this run.
       - name: Restore vcpkg binary cache
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
-          key: vcpkg-${{ runner.os }}-${{ env.VCPKG_REF }}-${{ hashFiles('vcpkg.json', 'tests/runtime/vcpkg.json') }}-${{ github.run_id }}-${{ github.job }}
+          key: ${{ needs.deps.outputs.vcpkg-key }}
           restore-keys: |
             vcpkg-${{ runner.os }}-${{ env.VCPKG_REF }}-${{ hashFiles('vcpkg.json', 'tests/runtime/vcpkg.json') }}-
             vcpkg-${{ runner.os }}-${{ env.VCPKG_REF }}-
+      # extract_api.py compiles the bindings against the V8 headers, which are
+      # not in the repository.
+      - name: Restore V8
+        id: v8
+        uses: actions/cache/restore@v4
+        with:
+          path: dependencies/v8/${{ needs.deps.outputs.v8-version }}
+          key: v8-${{ runner.os }}-${{ needs.deps.outputs.v8-version }}
+      - name: Fetch V8
+        if: steps.v8.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          .\build.ps1 deps
+          if ($LASTEXITCODE -ne 0) { throw "V8 fetch failed" }
       - name: Set up pinned vcpkg
         shell: pwsh
         run: |
@@ -214,8 +297,11 @@ jobs:
         shell: pwsh
         run: |
           pip install --quiet libclang
+          if ($LASTEXITCODE -ne 0) { throw "pip install libclang failed" }
           python scripts/extract_api.py -o api.json
+          if ($LASTEXITCODE -ne 0) { throw "extract_api.py failed" }
           python scripts/gen_dts.py api.json -o d2bsng.d.ts --version "${{ needs.version.outputs.version }}"
+          if ($LASTEXITCODE -ne 0) { throw "gen_dts.py failed" }
       - name: Upload API artifacts
         uses: actions/upload-artifact@v4
         with:
