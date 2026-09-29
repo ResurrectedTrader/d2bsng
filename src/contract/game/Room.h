@@ -45,17 +45,16 @@ class Room {
     int32_t Number() const;
     int32_t SubNumber() const;
     Rect Bounds() const;
-    uint32_t Flags() const;
     uint32_t LevelId() const { return level_; }
     uint32_t CorrectTomb() const;
 
     // Collision (via the room's ActiveRoom side, with AddRoomData /
     // RemoveRoomData if needed).
-    std::vector<std::vector<uint16_t>> GetCollision() const;
-    std::vector<uint16_t> GetCollisionFlat() const;
+    std::vector<std::vector<CollisionFlag>> GetCollision() const;
+    std::vector<CollisionFlag> GetCollisionFlat() const;
     // Single collision cell, in absolute game coordinates (same space as Bounds()).
     // Returns 0 when the room has no collision data or the position lies outside it.
-    uint16_t CollisionAt(Position pos) const;
+    CollisionFlag CollisionAt(Position pos) const;
 
     // Traversal
     Room GetNext() const;
@@ -67,7 +66,7 @@ class Room {
     std::optional<Unit> GetFirstUnit() const;
 
     // Preset units
-    std::vector<PresetUnitInfo> GetPresetUnits(std::optional<uint32_t> type = std::nullopt,
+    std::vector<PresetUnitInfo> GetPresetUnits(std::optional<UnitType> type = std::nullopt,
                                                std::optional<uint32_t> classId = std::nullopt) const;
 
     // Stats (stat index for various room properties).

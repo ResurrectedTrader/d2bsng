@@ -5,6 +5,8 @@
 // that the reference pathfinding code expects, reading from a flat grid
 // instead of live game memory.
 
+#include <utility>
+
 #include "Types.h"
 #include "components/navigation/Pathfinder.h"
 
@@ -54,7 +56,7 @@ class TestActMap {
         auto* g = FindGrid(point.x, point.y);
         if (!g)
             return Avoid;
-        return g->Get({.x = static_cast<uint32_t>(point.x), .y = static_cast<uint32_t>(point.y)});
+        return std::to_underlying(g->Get({.x = static_cast<uint32_t>(point.x), .y = static_cast<uint32_t>(point.y)}));
     }
 
     int SpaceGetData(const Point& point, int32_t radius = 1) {

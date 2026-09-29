@@ -9,6 +9,7 @@
 #include <variant>
 #include <vector>
 
+#include "game/Constants.h"
 #include "game/Types.h"
 
 namespace d2bs::game {
@@ -52,7 +53,7 @@ std::string GetPlayerName();
 std::string GetRealmName();
 std::string GetRealmShort();
 Difficulty GetMaxDiff();
-uint32_t GetCharFlags();
+CharFlag GetCharFlags();
 std::optional<uint8_t> IsLadder();
 
 // === GameStructInfo Queries ===
@@ -68,7 +69,7 @@ Point AutomapToScreen(Point p);
 Point AbsScreenToMap(Point p);
 
 // === UI ===
-bool GetUIFlag(uint32_t flag);
+bool GetUIFlag(UiFlag flag);
 
 // === Text Rendering ===
 Size GetTextSize(const std::string& text, uint32_t font);
@@ -104,7 +105,7 @@ bool ClickMapAt(uint32_t clickType, bool shift, Point pos);
 bool ClickMapAt(uint32_t clickType, bool shift, const Unit& unit);
 bool SubmitItem(const Unit& item);
 void Transmute();
-bool TestPvpFlag(const Unit& a, const Unit& b, uint32_t flag);
+bool TestPvpFlag(const Unit& a, const Unit& b, RosterFlag flag);
 bool HasWaypoint(uint32_t waypointId);
 bool IsTownByLevelNo(uint32_t levelNo);
 std::string GetLocaleString(uint16_t localeId);
@@ -122,7 +123,7 @@ TxtValue GetTxtValue(std::string_view table, uint32_t row, std::string_view colu
 // unknown or its game data is not currently loaded (e.g. out of game).
 std::optional<uint32_t> GetTxtTableRowCount(std::string_view table);
 
-int32_t GetQuestFlag(uint32_t quest, uint32_t flag);
+int32_t GetQuestFlag(uint32_t quest, QuestFlag flag);
 // === Weapon / Stat / Skill Actions ===
 void SwapWeapon();
 void UseStatPoint(uint32_t stat, uint32_t count);
@@ -166,7 +167,7 @@ ClickResult ClickItem(ClickButton button, const Unit& item);
 ClickResult ClickContainerSlot(ClickButton button, Position gridPos, ItemLocation container);
 void ClickPartyMember(const Party& party, PartyMode mode);
 void LeaveParty();
-uint32_t CheckUnitCollision(const Unit& unit1, const Unit& unit2, uint32_t mask);
+uint32_t CheckUnitCollision(const Unit& unit1, const Unit& unit2, CollisionFlag mask);
 // === Skill Name Tables ===
 std::optional<uint16_t> GetSkillByName(std::string_view name);
 

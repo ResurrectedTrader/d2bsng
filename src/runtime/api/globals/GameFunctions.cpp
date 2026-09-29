@@ -310,7 +310,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param levelId {number} - level id
     /// @param x {number} - world x coordinate
     /// @param y {number} - world y coordinate
-    /// @returns {number} - collision flag at the cell, or 0 if no room contains the position
+    /// @returns {CollisionFlag} - collision flags at the cell, or 0 if no room contains the position
     /// @throws {Error} - the level is not loaded
     function::Register(
         isolate, global, "getCollision", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -330,7 +330,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             auto pos = extract::Position(args, 1).value();  // strict IsUint32 above guarantees this
 
             bool isLevelLoaded = false;
-            uint16_t collision = 0;
+            auto collision = game::CollisionFlag::None;
             {
                 game::GameReadLock lock;
                 if (auto level = game::Level::Get(levelId)) {
@@ -344,7 +344,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 error::ThrowError(isolate, "Level not loaded");
                 return;
             }
-            args.GetReturnValue().Set(collision);
+            args.GetReturnValue().Set(std::to_underlying(collision));
         });
 
     /// @description Get the player's mercenary HP as a percentage (0-100).
@@ -504,8 +504,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Query whether a UI flag is set.
-    /// @signature getUIFlag(flag: number)
-    /// @param flag {number} - UI flag id
+    /// @signature getUIFlag(flag: UiFlag)
+    /// @param flag {UiFlag} - UI flag id
     /// @returns {boolean|undefined} - true if the flag is set, undefined if missing arg
     function::Register(
         isolate, global, "getUIFlag", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -520,8 +520,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t flag = convert::ToUint32(isolate, args[0]);
-            args.GetReturnValue().Set(game::GetUIFlag(flag) != 0);
+            const auto flag = static_cast<game::UiFlag>(convert::ToUint32(isolate, args[0]));
+            args.GetReturnValue().Set(game::GetUIFlag(flag));
         });
 
     /// @description Query trade-related info by mode.
@@ -778,9 +778,9 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Find the first preset unit in a level, optionally filtered by type and class id.
-    /// @signature getPresetUnit(areaId: number, type?: number, classId?: number)
+    /// @signature getPresetUnit(areaId: number, type?: UnitType|number, classId?: number)
     /// @param areaId {number} - level/area id
-    /// @param type {number} - unit type to match; pass -1 or omit to match any type.
+    /// @param type {UnitType|number} - unit type to match; pass -1 or omit to match any type.
     /// @param classId {number} - unit class id to match; pass -1 or omit to match any class.
     /// @returns {PresetUnit|false} - the first matching preset unit, or false if none
     /// @throws {Error} - the level cannot be accessed
@@ -800,10 +800,10 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
 
             uint32_t areaId = convert::ToUint32(isolate, args[0]);
-            std::optional<uint32_t> nType;
+            std::optional<game::UnitType> nType;
             std::optional<uint32_t> nClassId;
             if (args.Length() > 1 && args[1]->IsUint32()) {
-                nType = convert::ToUint32(isolate, args[1]);
+                nType = static_cast<game::UnitType>(convert::ToUint32(isolate, args[1]));
             }
             if (args.Length() > 2 && args[2]->IsUint32()) {
                 nClassId = convert::ToUint32(isolate, args[2]);
@@ -837,9 +837,9 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Get all preset units in a level as an array, optionally filtered by type and class id.
-    /// @signature getPresetUnits(areaId: number, type?: number, classId?: number)
+    /// @signature getPresetUnits(areaId: number, type?: UnitType|number, classId?: number)
     /// @param areaId {number} - level/area id
-    /// @param type {number} - unit type to match; pass -1 or omit to match any type.
+    /// @param type {UnitType|number} - unit type to match; pass -1 or omit to match any type.
     /// @param classId {number} - unit class id to match; pass -1 or omit to match any class.
     /// @returns {Array<PresetUnit>|false} - array of matching preset units (possibly empty), or false if no args
     /// @throws {Error} - the level cannot be accessed
@@ -859,10 +859,10 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
 
             uint32_t areaId = convert::ToUint32(isolate, args[0]);
-            std::optional<uint32_t> nType;
+            std::optional<game::UnitType> nType;
             std::optional<uint32_t> nClassId;
             if (args.Length() > 1 && args[1]->IsUint32()) {
-                nType = convert::ToUint32(isolate, args[1]);
+                nType = static_cast<game::UnitType>(convert::ToUint32(isolate, args[1]));
             }
             if (args.Length() > 2 && args[2]->IsUint32()) {
                 nClassId = convert::ToUint32(isolate, args[2]);
@@ -1087,10 +1087,10 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Test a PvP/relationship flag between two units.
-    /// @signature getPlayerFlag(unitId1: number, unitId2: number, flag: number)
+    /// @signature getPlayerFlag(unitId1: number, unitId2: number, flag: RosterFlag)
     /// @param unitId1 {number} - first unit id
     /// @param unitId2 {number} - second unit id
-    /// @param flag {number} - PvP flag mask to test
+    /// @param flag {RosterFlag} - relationship flag mask to test
     /// @returns {boolean|undefined} - flag test result, false if a unit is unresolved, undefined on bad args
     function::Register(
         isolate, global, "getPlayerFlag", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -1111,7 +1111,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             uint32_t unitId1 = convert::ToUint32(isolate, args[0]);
             uint32_t unitId2 = convert::ToUint32(isolate, args[1]);
-            uint32_t flag = convert::ToUint32(isolate, args[2]);
+            const auto flag = static_cast<game::RosterFlag>(convert::ToUint32(isolate, args[2]));
 
             // Resolve both unit IDs to Unit handles. TestPvpFlag takes const Unit& and re-resolves
             // by id internally.
@@ -1520,8 +1520,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 }
 
                 // Reference JSGame.cpp:1104 - AllowLoot is a no-op in non-hardcore games.
-                if (mode == game::PartyMode::AllowLoot &&
-                    !(game::GetCharFlags() & std::to_underlying(game::CharFlag::Hardcore))) {
+                if (mode == game::PartyMode::AllowLoot && !HasFlag(game::GetCharFlags(), game::CharFlag::Hardcore)) {
                     args.GetReturnValue().SetFalse();
                     return;
                 }
@@ -1676,7 +1675,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 args.GetReturnValue().Set(static_cast<int32_t>(game::GetWeaponSwitch()));
             } else {
                 // Reference JSGame.cpp:1243 - classic D2 has no weapon switch.
-                if (!(game::GetCharFlags() & std::to_underlying(game::CharFlag::Expansion))) {
+                if (!HasFlag(game::GetCharFlags(), game::CharFlag::Expansion)) {
                     args.GetReturnValue().SetFalse();
                     return;
                 }
@@ -2232,10 +2231,10 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Check collision between two units against a mask.
-    /// @signature checkCollision(unit1: Unit, unit2: Unit, mask: number)
+    /// @signature checkCollision(unit1: Unit, unit2: Unit, mask: CollisionFlag)
     /// @param unit1 {Unit} - first unit object
     /// @param unit2 {Unit} - second unit object
-    /// @param mask {number} - collision mask
+    /// @param mask {CollisionFlag} - collision mask
     /// @returns {number|undefined} - collision result, or undefined on invalid args / unresolved units
     function::Register(
         isolate, global, "checkCollision", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -2261,7 +2260,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t mask = convert::ToUint32(isolate, args[2]);
+            const auto mask = static_cast<game::CollisionFlag>(convert::ToUint32(isolate, args[2]));
             const auto unitData1 = JSUnit::Unwrap(unitObj1);
             const auto unitData2 = JSUnit::Unwrap(unitObj2);
             if (!unitData1 || !*unitData1 || !unitData2 || !*unitData2) {

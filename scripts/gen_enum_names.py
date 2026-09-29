@@ -10,6 +10,10 @@ project's root and named after it (contract -> ContractEnumNames.h / .cpp):
                           declares, in each enumeration's own namespace,
                           EnumName(value) and format_as(value) (fmt's hook);
                           includes utils/EnumNaming.h for the std::formatter.
+                          An enumeration marked `/// @flags` (a comment line in
+                          the block right above it) also gets constexpr |, &, ^,
+                          ~, |=, &=, ^= and HasFlag / HasAnyFlag, forwarding to
+                          utils/EnumFlags.h, so a flag set keeps its type.
                           Every header that defines one of the enumerations
                           includes it, so an enumeration cannot be used without
                           its names - and, being only declarations, it is cheap.
@@ -61,6 +65,8 @@ SKIP_DIRS = {"Release", "Debug", "x64", "Win32", "vcpkg_installed"}
 VENDORED = []  # e.g. SRC / "some" / "third_party" - paths under src/ to leave alone
 SUFFIX = "EnumNames"
 SHARED_HEADER = "utils/EnumNaming.h"
+FLAGS_HEADER = "utils/EnumFlags.h"
+FLAGS_MARKER = "@flags"
 STD_INTS = {f"{s}int{n}_t" for s in ("", "u") for n in (8, 16, 32, 64)}
 BUILTIN_TYPE_WORDS = {"char", "short", "int", "long", "signed", "unsigned", "bool", "wchar_t", "char8_t",
                       "char16_t", "char32_t"}
@@ -152,6 +158,17 @@ def type_header(spelling):
     raise RuntimeError(f"underlying type '{spelling}' is not a builtin or standard integer type")
 
 
+def is_flags(lines, line):
+    """Whether the `///` doc lines directly above 1-based *line* carry @flags - the rule
+    extract_api.py's _enum_is_flags applies, so the docs and the operators agree."""
+    i = line - 2
+    while i >= 0 and lines[i].strip().startswith("///"):
+        if FLAGS_MARKER in lines[i]:
+            return True
+        i -= 1
+    return False
+
+
 def parse_project(project, headers):
     """{header path: [enumeration records]} for the namespace-scope enumerations of *headers*."""
     source = "".join(f'#include "{project.spell(h)}"\n' for h in headers)
@@ -171,6 +188,7 @@ def parse_project(project, headers):
         raise RuntimeError(f"libclang could not parse {project.vcxproj.name}'s headers:\n  " + "\n  ".join(fatal))
 
     wanted = {h.resolve(): h for h in headers}
+    lines = {h: h.read_text(encoding="utf-8", errors="replace").splitlines() for h in headers}
     found = {h: [] for h in headers}
     seen = set()
     for cursor in tu.cursor.walk_preorder():
@@ -199,9 +217,13 @@ def parse_project(project, headers):
                 include = type_header(underlying) if underlying else None
             except RuntimeError as err:
                 raise RuntimeError(f"{project.spell(header)}: {qualified}: {err}") from None
+            flags = is_flags(lines[header], cursor.extent.start.line)
+            if flags and not scoped:
+                raise RuntimeError(f"{project.spell(header)}: {qualified} is marked @flags but unscoped - its "
+                                   "operators would change what existing expressions over it mean")
             found[header].append({"name": cursor.spelling, "namespace": "::".join(scopes),
                                   "enumerators": enumerators, "scoped": scoped, "underlying": underlying,
-                                  "include": include})
+                                  "include": include, "flags": flags})
     return {h: e for h, e in found.items() if e}
 
 
@@ -227,10 +249,27 @@ def forward_declaration(e):
     return f"{keyword} {e['name']}" + (f" : {e['underlying']};" if e["underlying"] else ";")
 
 
+def flag_operators(e, u):
+    """The generated operator set for a @flags enumeration *e*, in its own namespace."""
+    n, attrs = e["name"], "[[nodiscard, gnu::always_inline]] constexpr"
+    return [
+        f"{attrs} {n} operator|({n} lhs, {n} rhs) {{ return {u}FlagOr(lhs, rhs); }}",
+        f"{attrs} {n} operator&({n} lhs, {n} rhs) {{ return {u}FlagAnd(lhs, rhs); }}",
+        f"{attrs} {n} operator^({n} lhs, {n} rhs) {{ return {u}FlagXor(lhs, rhs); }}",
+        f"{attrs} {n} operator~({n} value) {{ return {u}FlagNot(value); }}",
+        f"[[gnu::always_inline]] constexpr {n}& operator|=({n}& lhs, {n} rhs) {{ return lhs = lhs | rhs; }}",
+        f"[[gnu::always_inline]] constexpr {n}& operator&=({n}& lhs, {n} rhs) {{ return lhs = lhs & rhs; }}",
+        f"[[gnu::always_inline]] constexpr {n}& operator^=({n}& lhs, {n} rhs) {{ return lhs = lhs ^ rhs; }}",
+        f"{attrs} bool HasFlag({n} value, {n} flag) {{ return {u}FlagHas(value, flag); }}",
+        f"{attrs} bool HasAnyFlag({n} value, {n} flag) {{ return {u}FlagHasAny(value, flag); }}",
+    ]
+
+
 def render_header(enums):
     lines = [GENERATED, "", "#pragma once", ""]
     lines += [f"#include {h}" for h in sorted({e["include"] for e in enums if e["include"]} | {"<string>"})]
-    lines += ["", f'#include "{SHARED_HEADER}"']
+    shared = [SHARED_HEADER] + ([FLAGS_HEADER] if any(e["flags"] for e in enums) else [])
+    lines += [""] + [f'#include "{h}"' for h in sorted(shared)]
     for namespace, members in by_namespace(enums).items():
         lines += ["", f"namespace {namespace} {{", ""]
         lines += [forward_declaration(e) for e in members]
@@ -243,7 +282,15 @@ def render_header(enums):
         lines += [f"[[nodiscard]] std::string EnumName({e['name']} value);" for e in members]
         lines += ["", "// NOLINTBEGIN(readability-identifier-naming) - fmt's customisation point name"]
         lines += [f"[[nodiscard]] std::string format_as({e['name']} value);" for e in members]
-        lines += ["// NOLINTEND(readability-identifier-naming)", "", f"}}  // namespace {namespace}"]
+        lines += ["// NOLINTEND(readability-identifier-naming)"]
+        flagged = [e for e in members if e["flags"]]
+        if flagged:
+            u = utils_prefix(namespace)
+            lines += ["", "// Bit operations over the @flags enumerations: a value is an OR of their bits, and stays",
+                      "// its enumeration type through these. HasFlag needs every bit of `flag`, HasAnyFlag one."]
+            for e in flagged:
+                lines += [""] + flag_operators(e, u)
+        lines += ["", f"}}  // namespace {namespace}"]
     lines.append("")
     return "\n".join(lines)
 

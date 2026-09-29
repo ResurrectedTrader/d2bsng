@@ -278,7 +278,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
     /// @type {boolean}
     JSUnit::InstanceProperty(
         isolate, context, me, "playertype", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            info.GetReturnValue().Set((game::GetCharFlags() & std::to_underlying(game::CharFlag::Hardcore)) != 0);
+            info.GetReturnValue().Set(HasFlag(game::GetCharFlags(), game::CharFlag::Hardcore));
         });
 
     /// @description Full name of the Battle.net realm for the current session. Empty string when not on a realm.
@@ -338,7 +338,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
     /// @type {CharFlag}
     JSUnit::InstanceProperty(
         isolate, context, me, "charflags", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            info.GetReturnValue().Set(game::GetCharFlags());
+            info.GetReturnValue().Set(std::to_underlying(game::GetCharFlags()));
         });
 
     /// @description Screen resolution mode.

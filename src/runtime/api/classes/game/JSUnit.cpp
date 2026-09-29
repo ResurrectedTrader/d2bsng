@@ -4,6 +4,7 @@
 
 #include <chrono>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "api/classes/game/JSStashTab.h"
@@ -47,8 +48,9 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             info.GetReturnValue().Set(data->ClassId());
         });
 
-    /// @description Current animation/action mode of the unit (walking, attacking, dead, etc.).
-    /// @type {number}
+    /// @description Current animation/action mode of the unit (walking, attacking, dead, etc.); which set the value
+    /// comes from depends on the unit type (player, monster, object or item).
+    /// @type {PlayerMode|MonsterMode|ObjectMode|ItemMode}
     Property(
         isolate, inst, "mode", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
@@ -78,18 +80,19 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             if (!*data) {
                 return;
             }
-            info.GetReturnValue().Set(data->Act());
+            // The game stores a 0-based act, the JS API exposes it 1-based.
+            info.GetReturnValue().Set(std::to_underlying(data->Act()) + 1U);
         });
 
-    /// @description Extended unit flag bitmask (dwFlagEx); carries UNITFLAGEX_ISEXPANSION (0x2000000) per unit.
-    /// @type {number}
+    /// @description Extended unit flag bitmask (dwFlagEx).
+    /// @type {UnitFlagEx}
     Property(
         isolate, inst, "flagsex", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
-            info.GetReturnValue().Set(data->FlagsEx());
+            info.GetReturnValue().Set(std::to_underlying(data->FlagsEx()));
         });
 
     /// @description Global unit ID.
@@ -291,7 +294,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             if (!*data || data->Type() != UnitType::Monster) {
                 return;
             }
-            info.GetReturnValue().Set(data->SpecType());
+            info.GetReturnValue().Set(std::to_underlying(data->SpecType()));
         });
 
     /// @description Facing direction of the unit (game angle index, 0-63).
@@ -1251,9 +1254,9 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     // Reference line 1929-1941: no unit involved, uses global quest info directly.
     /// @description Returns the quest progress flag/state for the given quest and flag from the local player's quest
     /// data (the unit is ignored).
-    /// @signature getQuest(quest: number, flag: number)
+    /// @signature getQuest(quest: number, flag: QuestFlag)
     /// @param quest {number} - Required uint32 quest number.
-    /// @param flag {number} - Required uint32 quest flag.
+    /// @param flag {QuestFlag} - Required quest flag.
     /// @returns {number} - Quest flag/state value; false if the game was not ready.
     Method(
         isolate, proto, "getQuest", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -1266,7 +1269,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             }
             auto* isolate = args.GetIsolate();
             uint32_t nQuest = convert::ToUint32(isolate, args[0]);
-            uint32_t nFlag = convert::ToUint32(isolate, args[1]);
+            const auto nFlag = static_cast<game::QuestFlag>(convert::ToUint32(isolate, args[1]));
             args.GetReturnValue().Set(game::GetQuestFlag(nQuest, nFlag));
         });
 
@@ -1480,7 +1483,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @description Returns the item's full flags bitmask (identified, broken, socketed, ethereal, runeword, etc.);
     /// Item units only.
     /// @signature getFlags()
-    /// @returns {number} - Item flags bitmask, undefined if not an item, false if the game was not ready.
+    /// @returns {ItemFlag} - Item flags bitmask, undefined if not an item, false if the game was not ready.
     Method(
         isolate, proto, "getFlags", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
@@ -1495,12 +1498,12 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             if (data->Type() != UnitType::Item) {
                 return;
             }
-            args.GetReturnValue().Set(data->ItemFlags());
+            args.GetReturnValue().Set(std::to_underlying(data->ItemFlags()));
         });
 
     /// @description Tests whether the given item flag bit(s) are set in the item's flags bitmask; Item units only.
-    /// @signature getFlag(flag: number)
-    /// @param flag {number} - Required uint32 flag bit mask to test.
+    /// @signature getFlag(flag: ItemFlag)
+    /// @param flag {ItemFlag} - Required flag bit mask to test.
     /// @returns {boolean} - True if any masked flag bit is set, undefined if not an item, false if the game was not
     /// ready.
     Method(
@@ -1521,8 +1524,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             auto* isolate = args.GetIsolate();
-            uint32_t flag = convert::ToUint32(isolate, args[0]);
-            args.GetReturnValue().Set((data->ItemFlags() & flag) > 0);
+            const auto flag = static_cast<game::ItemFlag>(convert::ToUint32(isolate, args[0]));
+            args.GetReturnValue().Set(HasAnyFlag(data->ItemFlags(), flag));
         });
 
     /// @description Computes the buy/sell/repair cost of this item at an NPC; Item units only.

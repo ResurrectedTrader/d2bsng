@@ -11,7 +11,7 @@ TEST_CASE("Walk mode with penalties avoids wall-adjacent tiles") {
     // Create a corridor with a wall along y=5 from x=5 to x=25
     // The path from (5,10) to (25,10) should prefer staying away from the wall
     for (uint32_t x = 5; x <= 25; x++) {
-        coll.primary.Set({.x = x, .y = 5}, collision::BLOCK_WALK);
+        coll.primary.Set({.x = x, .y = 5}, CollisionFlag::Wall);
     }
 
     // Walk with penalties (ReductionType::Walk uses penalties)
@@ -43,7 +43,7 @@ TEST_CASE("Object penalty increases path cost near objects") {
     coll.primary = LevelGrid({.size = {.width = 20, .height = 20}});
 
     // Place an object in the direct path
-    coll.primary.Set({.x = 10, .y = 10}, collision::OBJECT);
+    coll.primary.Set({.x = 10, .y = 10}, CollisionFlag::Object);
 
     // GetPenalty should return 60 for tiles with object in cross
     CHECK(coll.GetPenalty({.x = 10, .y = 11}) == 60);  // (10, 11) has object at (10, 10) in cross
@@ -55,7 +55,7 @@ TEST_CASE("Closed door penalty is highest among cross penalties") {
     coll.primary = LevelGrid({.size = {.width = 20, .height = 20}});
 
     // Place a closed door
-    coll.primary.Set({.x = 10, .y = 10}, collision::CLOSED_DOOR);
+    coll.primary.Set({.x = 10, .y = 10}, CollisionFlag::Door);
 
     CHECK(coll.GetPenalty({.x = 10, .y = 11}) == 80);
     CHECK(coll.GetPenalty({.x = 10, .y = 9}) == 80);

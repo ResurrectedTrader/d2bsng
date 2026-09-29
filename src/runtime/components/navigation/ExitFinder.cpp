@@ -134,7 +134,7 @@ std::vector<ExitInfo> GetExits(game::Level level) {
     // tileTargetLevelId (resolved game-side via pRoomTiles).
     // -----------------------------------------------------------------
     for (auto room = level.GetFirstRoom(); room; room = room.GetNext()) {
-        for (const auto& preset : room.GetPresetUnits(std::to_underlying(UnitType::Tile))) {
+        for (const auto& preset : room.GetPresetUnits(UnitType::Tile)) {
             if (preset.tileTargetLevelId == 0) {
                 continue;
             }

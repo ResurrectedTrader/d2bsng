@@ -136,11 +136,11 @@ TEST_SUITE("Reference comparison: raw A*") {
 
     TEST_CASE("narrow corridor -- exact match") {
         // 3-tile-wide corridor: only one sensible path (straight through)
-        LevelGrid grid({.size = {.width = 40, .height = 40}}, collision::BLOCK_WALK);
+        LevelGrid grid({.size = {.width = 40, .height = 40}}, CollisionFlag::Wall);
         for (uint32_t x = 0; x < 40; x++) {
-            grid.Set({.x = x, .y = 19}, 0);
-            grid.Set({.x = x, .y = 20}, 0);
-            grid.Set({.x = x, .y = 21}, 0);
+            grid.Set({.x = x, .y = 19}, CollisionFlag::None);
+            grid.Set({.x = x, .y = 20}, CollisionFlag::None);
+            grid.Set({.x = x, .y = 21}, CollisionFlag::None);
         }
 
         auto ours = RunOursNone(grid, {.x = 5, .y = 20}, {.x = 35, .y = 20});
@@ -189,7 +189,7 @@ TEST_SUITE("Reference comparison: raw A*") {
     TEST_CASE("unreachable destination -- both empty") {
         LevelGrid grid({.size = {.width = 20, .height = 10}});
         for (uint32_t y = 0; y < 10; y++)
-            grid.Set({.x = 10, .y = y}, collision::BLOCK_WALK);
+            grid.Set({.x = 10, .y = y}, CollisionFlag::Wall);
 
         auto ours = RunOursNone(grid, {.x = 5, .y = 5}, {.x = 15, .y = 5});
         auto ref = RunReferenceNone(grid, {.x = 5, .y = 5}, {.x = 15, .y = 5});
@@ -202,7 +202,7 @@ TEST_SUITE("Reference comparison: raw A*") {
     TEST_CASE("vertical wall -- equivalent cost") {
         LevelGrid grid({.size = {.width = 50, .height = 50}});
         for (uint32_t y = 0; y < 40; y++)
-            grid.Set({.x = 25, .y = y}, collision::BLOCK_WALK);
+            grid.Set({.x = 25, .y = y}, CollisionFlag::Wall);
 
         auto ours = RunOursNone(grid, {.x = 10, .y = 25}, {.x = 40, .y = 25});
         auto ref = RunReferenceNone(grid, {.x = 10, .y = 25}, {.x = 40, .y = 25});
@@ -212,7 +212,7 @@ TEST_SUITE("Reference comparison: raw A*") {
     TEST_CASE("horizontal wall -- equivalent cost") {
         LevelGrid grid({.size = {.width = 50, .height = 50}});
         for (uint32_t x = 0; x < 40; x++)
-            grid.Set({.x = x, .y = 25}, collision::BLOCK_WALK);
+            grid.Set({.x = x, .y = 25}, CollisionFlag::Wall);
 
         auto ours = RunOursNone(grid, {.x = 25, .y = 10}, {.x = 25, .y = 40});
         auto ref = RunReferenceNone(grid, {.x = 25, .y = 10}, {.x = 25, .y = 40});
@@ -222,9 +222,9 @@ TEST_SUITE("Reference comparison: raw A*") {
     TEST_CASE("L-shaped obstacle -- equivalent cost") {
         LevelGrid grid({.size = {.width = 50, .height = 50}});
         for (uint32_t x = 10; x <= 35; x++)
-            grid.Set({.x = x, .y = 20}, collision::BLOCK_WALK);
+            grid.Set({.x = x, .y = 20}, CollisionFlag::Wall);
         for (uint32_t y = 20; y <= 45; y++)
-            grid.Set({.x = 35, .y = y}, collision::BLOCK_WALK);
+            grid.Set({.x = 35, .y = y}, CollisionFlag::Wall);
 
         auto ours = RunOursNone(grid, {.x = 20, .y = 15}, {.x = 40, .y = 30});
         auto ref = RunReferenceNone(grid, {.x = 20, .y = 15}, {.x = 40, .y = 30});
@@ -234,11 +234,11 @@ TEST_SUITE("Reference comparison: raw A*") {
     TEST_CASE("maze-like grid -- equivalent cost") {
         LevelGrid grid({.size = {.width = 30, .height = 30}});
         for (uint32_t x = 5; x < 25; x++)
-            grid.Set({.x = x, .y = 10}, collision::BLOCK_WALK);
-        grid.Set({.x = 24, .y = 10}, 0);  // gap at right end
+            grid.Set({.x = x, .y = 10}, CollisionFlag::Wall);
+        grid.Set({.x = 24, .y = 10}, CollisionFlag::None);  // gap at right end
         for (uint32_t x = 5; x < 25; x++)
-            grid.Set({.x = x, .y = 20}, collision::BLOCK_WALK);
-        grid.Set({.x = 5, .y = 20}, 0);  // gap at left end
+            grid.Set({.x = x, .y = 20}, CollisionFlag::Wall);
+        grid.Set({.x = 5, .y = 20}, CollisionFlag::None);  // gap at left end
 
         auto ours = RunOursNone(grid, {.x = 15, .y = 5}, {.x = 15, .y = 25});
         auto ref = RunReferenceNone(grid, {.x = 15, .y = 5}, {.x = 15, .y = 25});
@@ -249,11 +249,11 @@ TEST_SUITE("Reference comparison: raw A*") {
         LevelGrid grid({.size = {.width = 40, .height = 40}});
         // U shape: walls on three sides forcing a detour
         for (uint32_t x = 10; x <= 30; x++)
-            grid.Set({.x = x, .y = 10}, collision::BLOCK_WALK);
+            grid.Set({.x = x, .y = 10}, CollisionFlag::Wall);
         for (uint32_t y = 10; y <= 30; y++)
-            grid.Set({.x = 10, .y = y}, collision::BLOCK_WALK);
+            grid.Set({.x = 10, .y = y}, CollisionFlag::Wall);
         for (uint32_t x = 10; x <= 30; x++)
-            grid.Set({.x = x, .y = 30}, collision::BLOCK_WALK);
+            grid.Set({.x = x, .y = 30}, CollisionFlag::Wall);
 
         auto ours = RunOursNone(grid, {.x = 20, .y = 20}, {.x = 35, .y = 20});
         auto ref = RunReferenceNone(grid, {.x = 20, .y = 20}, {.x = 35, .y = 20});
@@ -264,11 +264,11 @@ TEST_SUITE("Reference comparison: raw A*") {
         LevelGrid grid({.size = {.width = 60, .height = 60}});
         // Scattered walls
         for (uint32_t y = 5; y < 35; y++)
-            grid.Set({.x = 15, .y = y}, collision::BLOCK_WALK);
+            grid.Set({.x = 15, .y = y}, CollisionFlag::Wall);
         for (uint32_t y = 25; y < 55; y++)
-            grid.Set({.x = 30, .y = y}, collision::BLOCK_WALK);
+            grid.Set({.x = 30, .y = y}, CollisionFlag::Wall);
         for (uint32_t y = 5; y < 45; y++)
-            grid.Set({.x = 45, .y = y}, collision::BLOCK_WALK);
+            grid.Set({.x = 45, .y = y}, CollisionFlag::Wall);
 
         auto ours = RunOursNone(grid, {.x = 5, .y = 30}, {.x = 55, .y = 30});
         auto ref = RunReferenceNone(grid, {.x = 5, .y = 30}, {.x = 55, .y = 30});
@@ -308,7 +308,7 @@ TEST_SUITE("Reference comparison: walk reduction") {
         // different but equally-optimal detours.
         LevelGrid grid({.size = {.width = 50, .height = 50}});
         for (uint32_t y = 0; y < 40; y++)
-            grid.Set({.x = 25, .y = y}, collision::BLOCK_WALK);
+            grid.Set({.x = 25, .y = y}, CollisionFlag::Wall);
 
         auto ours = RunOursWalk(grid, {.x = 10, .y = 25}, {.x = 40, .y = 25}, 20);
         auto ref = RunReferenceWalk(grid, {.x = 10, .y = 25}, {.x = 40, .y = 25}, 20);

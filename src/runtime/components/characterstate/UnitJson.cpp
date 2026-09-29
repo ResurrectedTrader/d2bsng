@@ -112,7 +112,7 @@ void VisitItem(UnitVisitor& visitor, const game::Unit& item, Detail detail) {
     visitor.Str("code", code);
 
     visitor.Int("quality", static_cast<int64_t>(item.Quality()));
-    visitor.Int("itemFlags", item.ItemFlags());
+    visitor.Int("itemFlags", std::to_underlying(item.ItemFlags()));
     visitor.Int("format", item.ItemFormat());
     const auto fileIndex = item.FileIndex();
     visitor.Int("fileIndex", fileIndex.has_value() ? static_cast<int64_t>(*fileIndex) : -1);
@@ -165,7 +165,7 @@ void VisitItem(UnitVisitor& visitor, const game::Unit& item, Detail detail) {
 }
 
 void VisitWearer(UnitVisitor& visitor, const game::Unit& wearer) {
-    visitor.Int("flagsEx", wearer.FlagsEx());
+    visitor.Int("flagsEx", std::to_underlying(wearer.FlagsEx()));
     visitor.Str("name", wearer.Name());
 
     // A skill level is the one thing the stat lists can't carry. `level` is the bonused

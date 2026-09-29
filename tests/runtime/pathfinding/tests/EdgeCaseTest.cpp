@@ -21,7 +21,7 @@ TEST_CASE("unreachable destination returns empty path") {
 
     // Complete wall dividing the grid vertically at x=10
     for (uint32_t y = 0; y < 10; y++) {
-        coll.primary.Set({.x = 10, .y = y}, collision::BLOCK_WALK);
+        coll.primary.Set({.x = 10, .y = y}, CollisionFlag::Wall);
     }
 
     auto path = FindPathOnGrid(coll, {.x = 5, .y = 5}, {.x = 15, .y = 5}, ReductionType::None, 20, {});
@@ -34,7 +34,7 @@ TEST_CASE("cancellation via stop_token returns empty") {
 
     // Block most of the grid to force A* to explore many nodes (>256 iterations)
     for (uint32_t y = 2; y < 999; y++) {
-        coll.primary.Set({.x = 500, .y = y}, collision::BLOCK_WALK);
+        coll.primary.Set({.x = 500, .y = y}, CollisionFlag::Wall);
     }
 
     std::stop_source src;

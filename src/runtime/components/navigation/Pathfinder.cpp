@@ -68,7 +68,7 @@ int32_t PortalH(Point cur, Point end, const std::vector<Point>& portals, const C
 
 // --- LevelGrid ---
 
-void LevelGrid::Set(Position p, uint16_t value) {
+void LevelGrid::Set(Position p, CollisionFlag value) {
     if (!Contains(p))
         return;
     data[CellIndex(rect, p)] = value;
@@ -106,7 +106,7 @@ std::vector<Point> CollisionLookup::FindPortals(Point start, Point end) const {
         auto pos = p.ToPosition();
         if (!g.rect.Contains(pos))
             return false;
-        return (g.GetUnchecked(pos) & (collision::BLOCK_WALK | collision::BLOCK_PLAYER)) == 0;
+        return !HasAnyFlag(g.GetUnchecked(pos), BLOCKS_WALK);
     };
 
     std::vector<Point> portals;
@@ -149,7 +149,7 @@ std::vector<Point> CollisionLookup::FindPortals(Point start, Point end) const {
 // --- Build collision grid from game level ---
 
 LevelGrid BuildLevelGrid(game::Level level) {
-    LevelGrid grid(level.Bounds(), collision::AVOID);
+    LevelGrid grid(level.Bounds(), CollisionFlag::All);
     grid.levelId = level.Id();
     grid.mapSeed = game::GetMapSeed();
 
@@ -168,7 +168,7 @@ LevelGrid BuildLevelGrid(game::Level level) {
         // Position subtraction inside CellIndex cannot underflow here.
         for (uint32_t ry = 0; ry < rows; ry++) {
             Position dst{.x = rb.origin.x, .y = rb.origin.y + ry};
-            std::memcpy(&grid.data[CellIndex(grid.rect, dst)], &collData[ry * roomW], roomW * sizeof(uint16_t));
+            std::memcpy(&grid.data[CellIndex(grid.rect, dst)], &collData[ry * roomW], roomW * sizeof(CollisionFlag));
         }
     }
 
@@ -179,7 +179,7 @@ LevelGrid BuildLevelGrid(game::Level level) {
             auto roomPos = room.Bounds().origin;
             for (const auto& preset : room.GetPresetUnits()) {
                 if (preset.id == 435) {
-                    grid.Set(roomPos + preset.posInRoom, collision::AVOID);
+                    grid.Set(roomPos + preset.posInRoom, CollisionFlag::All);
                 }
             }
         }
@@ -190,13 +190,13 @@ LevelGrid BuildLevelGrid(game::Level level) {
 
 // --- CollisionLookup members (after BuildLevelGrid) ---
 
-uint16_t CollisionLookup::Get(Point p) {
+CollisionFlag CollisionLookup::Get(Point p) {
     if (p.x < 0 || p.y < 0)
-        return collision::AVOID;
+        return CollisionFlag::All;
     return Get(p.ToPosition());
 }
 
-uint16_t CollisionLookup::Get(Position p) {
+CollisionFlag CollisionLookup::Get(Position p) {
     if (primary.Contains(p))
         return primary.GetUnchecked(p);
     if (lastHit != nullptr && lastHit->Contains(p))
@@ -209,36 +209,36 @@ uint16_t CollisionLookup::Get(Position p) {
     }
     auto level = d2bs::game::FindLevelAt(p);
     if (!level)
-        return collision::AVOID;
+        return CollisionFlag::All;
     auto& grid = secondary[level.Id()] = BuildLevelGrid(level);
     if (grid.Contains(p)) {
         lastHit = &grid;
         return grid.GetUnchecked(p);
     }
-    return collision::AVOID;
+    return CollisionFlag::All;
 }
 
-uint16_t CollisionLookup::GetCross(Point p) {
+CollisionFlag CollisionLookup::GetCross(Point p) {
     return Get(p) | Get(Point{.x = p.x - 1, .y = p.y}) | Get(Point{.x = p.x + 1, .y = p.y}) |
            Get(Point{.x = p.x, .y = p.y - 1}) | Get(Point{.x = p.x, .y = p.y + 1});
 }
 
-uint16_t CollisionLookup::GetWide(Point p) {
+CollisionFlag CollisionLookup::GetWide(Point p) {
     return Get(p) | Get(Point{.x = p.x - 2, .y = p.y}) | Get(Point{.x = p.x + 2, .y = p.y}) |
            Get(Point{.x = p.x, .y = p.y - 2}) | Get(Point{.x = p.x, .y = p.y + 2});
 }
 
 bool CollisionLookup::IsBlockedSlow(Point p) {
-    return ((collision::BLOCK_WALK | collision::BLOCK_PLAYER) & GetCross(p)) != 0;
+    return HasAnyFlag(GetCross(p), BLOCKS_WALK);
 }
 
 int32_t CollisionLookup::GetPenaltySlow(Point p) {
-    if (((collision::BLOCK_WALK | collision::BLOCK_PLAYER) & GetWide(p)) != 0)
+    if (HasAnyFlag(GetWide(p), BLOCKS_WALK))
         return 50;
-    uint16_t cross = GetCross(p);
-    if ((cross & collision::OBJECT) != 0)
+    const CollisionFlag cross = GetCross(p);
+    if (HasAnyFlag(cross, CollisionFlag::Object))
         return 60;
-    if ((cross & collision::CLOSED_DOOR) != 0)
+    if (HasAnyFlag(cross, CollisionFlag::Door))
         return 80;
 
     // Light penalty for being near obstacles diagonally
@@ -246,8 +246,8 @@ int32_t CollisionLookup::GetPenaltySlow(Point p) {
         for (int32_t dy = -1; dy <= 1; dy++) {
             if (dx == 0 && dy == 0)
                 continue;
-            uint16_t adj = GetCross(Point{.x = p.x + dx, .y = p.y + dy});
-            if ((adj & (collision::OBJECT | collision::CLOSED_DOOR | collision::BLOCK_WALK)) != 0) {
+            const CollisionFlag adj = GetCross(Point{.x = p.x + dx, .y = p.y + dy});
+            if (HasAnyFlag(adj, CollisionFlag::Object | CollisionFlag::Door | CollisionFlag::Wall)) {
                 return 10;
             }
         }
@@ -256,7 +256,7 @@ int32_t CollisionLookup::GetPenaltySlow(Point p) {
 }
 
 void CollisionLookup::MutatePoint(Point& pt) {
-    std::array<std::array<int32_t, 7>, 7> area{};
+    std::array<std::array<CollisionFlag, 7>, 7> area{};
     for (int32_t i = -3; i <= 3; i++) {
         for (int32_t j = -3; j <= 3; j++) {
             if ((i == 0 && j == 0) || (std::abs(i) + std::abs(j)) == 6)
@@ -265,7 +265,6 @@ void CollisionLookup::MutatePoint(Point& pt) {
             area[static_cast<size_t>(3 + i)][static_cast<size_t>(3 + j)] = Get(Point{.x = pt.x + i, .y = pt.y + j});
         }
     }
-    constexpr uint16_t MASK = collision::BLOCK_WALK | collision::BLOCK_PLAYER;
     for (int32_t i = -2; i <= 2; i++) {
         for (int32_t j = -2; j <= 2; j++) {
             if ((i == 0 && j == 0) || std::abs(i + j) == 1)
@@ -273,10 +272,10 @@ void CollisionLookup::MutatePoint(Point& pt) {
             auto ai = static_cast<size_t>(3 + i);
             auto aj = static_cast<size_t>(3 + j);
             // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index)
-            auto combined = static_cast<uint16_t>(area[ai][aj] | area[ai + 1][aj] | area[ai - 1][aj] |
-                                                  area[ai][aj + 1] | area[ai][aj - 1]);
+            const CollisionFlag combined =
+                area[ai][aj] | area[ai + 1][aj] | area[ai - 1][aj] | area[ai][aj + 1] | area[ai][aj - 1];
             // NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
-            if ((MASK & combined) == 0) {
+            if (!HasAnyFlag(combined, BLOCKS_WALK)) {
                 pt.x += i;
                 pt.y += j;
                 return;
@@ -927,7 +926,7 @@ std::vector<Position> FindPathOnGrid(CollisionLookup& collision, Position start,
 // games points at different room layouts.
 //
 // The cache is per-thread so concurrent script threads don't contend, and
-// because each LevelGrid is a self-contained vector<uint16_t> copy of the
+// because each LevelGrid is a self-contained vector<CollisionFlag> copy of the
 // game's collision masks, it's safe to keep without holding a GameReadLock
 // outside the build path.
 //

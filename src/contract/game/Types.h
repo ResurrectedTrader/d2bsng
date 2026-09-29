@@ -68,6 +68,59 @@ enum class ControlType : uint32_t {
 // Password field marker for D2WinControlStrc::dwIsCloaked.
 constexpr uint32_t CONTROL_CLOAKED_PASSWORD = 33;
 
+// A control's raw state word (1.14d's D2WinControlStrc::dwState; Control.disabled).
+// The JS `state` property is this minus Normal, so scripts see 0-3 there.
+enum class ControlState : uint32_t {
+    Hidden = 0,  // e.g. character-create OK before a class is picked
+    Normal = 2,
+    Disabled = 4,              // a greyed-out button, an unavailable Battle.net difficulty
+    Active = 5,                // an edit box with focus, a ticked checkbox, a clickable button
+    DifficultyEnabled = 0x0D,  // a selectable single-player difficulty button
+};
+
+// 1.14d's UI panel-state ids (getUIFlag). Values follow D2MOO's D2C_UIvars; D2R
+// renumbered its own panel table.
+enum class UiFlag : uint32_t {
+    Game = 0x00,
+    Inventory = 0x01,
+    StatScreen = 0x02,
+    MiniSkill = 0x03,  // skill selection
+    SkillTree = 0x04,
+    ChatBox = 0x05,
+    NewStats = 0x06,   // red new-stats button
+    NewSkills = 0x07,  // red new-skills button
+    NpcMenu = 0x08,
+    EscMenu = 0x09,
+    Automap = 0x0A,
+    Config = 0x0B,  // key configuration
+    NpcShop = 0x0C,
+    HoldAlt = 0x0D,  // item-label highlight
+    Anvil = 0x0E,    // imbue / socket / personalize / orifice
+    QuestScreen = 0x0F,
+    IniScroll = 0x10,  // Inifuss tree scroll
+    QuestLog = 0x11,   // red quest-log button
+    Unknown18 = 0x12,
+    HirIcons = 0x13,
+    Waypoint = 0x14,
+    MiniPanel = 0x15,
+    PartyScreen = 0x16,
+    MpTrade = 0x17,
+    MsgLog = 0x18,
+    Stash = 0x19,
+    Cube = 0x1A,
+    SteegStone = 0x1B,
+    GuildVault = 0x1C,
+    Unknown29 = 0x1D,
+    Unknown30 = 0x1E,
+    BeltRows = 0x1F,
+    Unknown32 = 0x20,
+    HelpScreen = 0x21,
+    HelpButton = 0x22,
+    HireIcons = 0x23,
+    MercInventory = 0x24,
+    RecipeScroll = 0x25,
+};
+
 // ============================================================================
 // Party / NPC interaction
 // ============================================================================
@@ -79,6 +132,26 @@ enum class PartyMode : uint32_t {
     Leave = 3,
     Hostile = 4,
     HostileAlt = 5,
+};
+
+// A roster member's party button state (Party.partyflag); a single value, not a
+// bit set. Values follow D2MOO's D2C_RosterControlFlags, which D2R keeps.
+enum class PartyState : uint32_t {
+    Invite = 0,
+    InParty = 1,
+    Accept = 2,
+    Leave = 3,
+    Cancel = 4,
+};
+
+// Per-pair relationship bits between two players (getPlayerFlag). Values follow
+// D2MOO's D2C_RosterInfoFlags, which D2R keeps.
+/// @flags
+enum class RosterFlag : uint32_t {
+    Loot = 0x01,
+    Ignore = 0x02,
+    Squelch = 0x04,
+    Hostile = 0x08,
 };
 
 enum class CancelMode : int32_t {
@@ -140,6 +213,7 @@ enum class CharacterClass : uint32_t {
     Barbarian = 4,
     Druid = 5,
     Assassin = 6,
+    Warlock = 7,  // D2R 3.0 (Reign of the Warlock) only
 };
 
 enum class Difficulty : uint32_t {
@@ -286,6 +360,199 @@ enum class MonsterSpecType : uint32_t {
     Champion = 0x02,
     Unique = 0x04,  // unique / boss
     Minion = 0x08,
+};
+
+// Collision-grid cell bits (Room collision, getCollision, checkCollision masks).
+// Values and names follow D2MOO's D2C_CollisionMaskFlags; D2R keeps the same bits.
+/// @flags
+enum class CollisionFlag : uint16_t {
+    None = 0x0000,
+    Wall = 0x0001,            // 'black space' in arcane sanctuary, cliff walls etc; blocks players
+    Visible = 0x0002,         // tile obstacles you can't shoot over
+    MissileBarrier = 0x0004,  // used inconsistently; guards against missiles / flying units
+    NoPlayer = 0x0008,
+    Preset = 0x0010,  // set on some floors, not others
+    Blank = 0x0020,   // returned for an invalid subtile
+    Missile = 0x0040,
+    Player = 0x0080,
+    Monster = 0x0100,
+    Item = 0x0200,
+    Object = 0x0400,
+    Door = 0x0800,
+    NoPath = 0x1000,  // set for units sometimes, but not always
+    Pet = 0x2000,     // tied to whether an attackable monster is present
+    Corpse = 0x8000,  // also used by portals
+    All = 0xFFFF,
+
+    Water = Missile | Player,
+    MaskInvalid = Blank | MissileBarrier | Visible | Wall,
+    MaskPlayerPath = Wall | NoPlayer | Object | Door | NoPath,
+    MaskPlayerFlying = Door | MissileBarrier,
+    MaskPlayerWhirlwind = Wall | Object | Door,
+    MaskRadialBarrier = Door | MissileBarrier | Wall,
+    MaskFlyingUnit = MissileBarrier | Door | NoPath,
+    MaskMonsterThatCanOpenDoors = Wall | Object | NoPath | Pet,
+    MaskMonsterMissile = Monster | Wall,
+    MaskMonsterPath = MaskMonsterThatCanOpenDoors | Door,
+    MaskDoorBlockVisibility = Door | MissileBarrier | Visible,
+    MaskBlocksDoor = Player | Monster | Corpse,
+    MaskSpawn = Wall | Item | Object | Door | NoPath | Pet,
+    MaskPlacement = MaskSpawn | Preset | Monster,
+};
+
+// Item unit flag bits (Unit.getFlags / getFlag). Values follow D2MOO's D2C_ItemFlags;
+// D2R keeps them and adds the Chronicle bits.
+/// @flags
+enum class ItemFlag : uint32_t {
+    NewItem = 0x00000001,
+    Target = 0x00000002,
+    Targeting = 0x00000004,
+    Deleted = 0x00000008,
+    Identified = 0x00000010,
+    Quantity = 0x00000020,
+    SwitchIn = 0x00000040,
+    SwitchOut = 0x00000080,
+    Broken = 0x00000100,
+    Repaired = 0x00000200,
+    Socketed = 0x00000800,
+    NoSell = 0x00001000,
+    InStore = 0x00002000,
+    NoEquip = 0x00004000,
+    Named = 0x00008000,
+    IsEar = 0x00010000,
+    StartItem = 0x00020000,
+    Init = 0x00080000,
+    CompactSave = 0x00200000,
+    Ethereal = 0x00400000,
+    JustSaved = 0x00800000,
+    Personalized = 0x01000000,
+    // Set only while a gamble item is serialized; its bitstream then ends at the
+    // item code (D2MOO names it IFLAG_LOWQUALITY but uses it this way).
+    Gamble = 0x02000000,
+    Runeword = 0x04000000,
+    Item = 0x08000000,
+    // D2R only: the item carries a Chronicle drop record after its stat lists,
+    // the full form (drop time and up to 8 account ids) or the short one (one id).
+    ChronicleRecord = 0x10000000,
+    ChronicleRecordShort = 0x20000000,
+};
+
+// The game's 0-based act index (the JS `act` property is 1-based).
+enum class Act : uint8_t {
+    I = 0,
+    II = 1,
+    III = 2,
+    IV = 3,
+    V = 4,
+};
+
+// Unit.mode, by unit type: player (PlayerMode), monster (MonsterMode), object
+// (ObjectMode) and item (ItemMode) animation modes. Values follow D2MOO's
+// D2C_PlayerModes / D2C_MonModes / D2C_ObjModes / D2C_ItemModes; D2R keeps them.
+enum class PlayerMode : uint32_t {
+    Death = 0,
+    Neutral = 1,
+    Walk = 2,
+    Run = 3,
+    GetHit = 4,
+    TownNeutral = 5,
+    TownWalk = 6,
+    Attack1 = 7,
+    Attack2 = 8,
+    Block = 9,
+    Cast = 10,
+    Throw = 11,
+    Kick = 12,
+    Skill1 = 13,
+    Skill2 = 14,
+    Skill3 = 15,
+    Skill4 = 16,
+    Dead = 17,
+    Sequence = 18,
+    Knockback = 19,
+};
+
+enum class MonsterMode : uint32_t {
+    Death = 0,
+    Neutral = 1,
+    Walk = 2,
+    GetHit = 3,
+    Attack1 = 4,
+    Attack2 = 5,
+    Block = 6,
+    Cast = 7,
+    Skill1 = 8,
+    Skill2 = 9,
+    Skill3 = 10,
+    Skill4 = 11,
+    Dead = 12,
+    Knockback = 13,
+    Sequence = 14,
+    Run = 15,
+};
+
+enum class ObjectMode : uint32_t {
+    Neutral = 0,
+    Operating = 1,
+    Opened = 2,
+    Special1 = 3,
+    Special2 = 4,
+    Special3 = 5,
+    Special4 = 6,
+    Special5 = 7,
+};
+
+enum class ItemMode : uint32_t {
+    Stored = 0,  // inventory, cube or stash
+    Equip = 1,
+    InBelt = 2,
+    OnGround = 3,
+    OnCursor = 4,
+    Dropping = 5,
+    Socketed = 6,
+};
+
+// Extended unit flag bits (Unit.flagsex). Values follow D2MOO's D2C_UnitFlagsEx;
+// D2R keeps them and adds SharedStash.
+/// @flags
+enum class UnitFlagEx : uint32_t {
+    HasInventory = 0x00000001,
+    UpdateInventory = 0x00000002,
+    IsVendorItem = 0x00000004,
+    IsShapeshifted = 0x00000008,
+    ItemInit = 0x00000010,
+    IsInLineOfSight = 0x00000080,
+    HasBeenDeleted = 0x00000100,
+    StoreOwnerInfo = 0x00000400,
+    IsCorpse = 0x00001000,
+    PathRelated = 0x00002000,
+    Teleported = 0x00010000,  // needs a resync
+    StoreLastAttacker = 0x00020000,
+    NoDraw = 0x00040000,
+    IsExpansion = 0x02000000,
+    ServerUnit = 0x04000000,
+    SharedStash = 0x08000000,  // D2R only: a shared stash tab's owner unit
+};
+
+// A quest record's per-quest bit index (getQuest's flag). Values follow D2MOO's
+// D2C_OriginalQuestFlags; D2R keeps them.
+enum class QuestFlag : uint32_t {
+    RewardGranted = 0,
+    RewardPending = 1,
+    Started = 2,
+    LeaveTown = 3,
+    EnterArea = 4,
+    Custom1 = 5,
+    Custom2 = 6,
+    Custom3 = 7,
+    Custom4 = 8,
+    Custom5 = 9,
+    Custom6 = 10,
+    Custom7 = 11,
+    UpdateQuestLog = 12,
+    PrimaryGoalDone = 13,
+    CompletedNow = 14,
+    CompletedBefore = 15,
 };
 
 // Value-space enums for JS API number properties. The game getters return the
@@ -442,12 +709,12 @@ struct StatListEntry {
 
 // Result row for Room::GetPresetUnits (static placements within a room).
 struct PresetUnitInfo {
-    uint32_t type = 0;
+    UnitType type{};
     Position roomPos;
     Position posInRoom;  // game coordinates - see docs/coords.md
     uint32_t id = 0;
     uint32_t level = 0;
-    // For UNIT_TILE presets (type == 5), the destination level reached by
+    // For UnitType::Tile presets, the destination level reached by
     // walking the tile transition - looked up via Room2::pRoomTiles in
     // game-impl. 0 for non-tile presets or tile presets that don't appear
     // in pRoomTiles (e.g. cosmetic tiles).

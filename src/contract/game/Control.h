@@ -38,8 +38,8 @@ class Control {
     std::string Text() const;
     void SetText(const std::string& text) const;
     Rect Bounds() const;
-    uint32_t State() const;
-    void SetState(uint32_t value) const;
+    ControlState State() const;
+    void SetState(ControlState value) const;
     bool IsPassword() const;
     ControlType Type() const;
     // Text-caret character offset within the EditBox wide-string buffer

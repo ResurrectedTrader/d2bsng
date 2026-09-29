@@ -24,6 +24,7 @@ using Point = game::Point;
 using Position = game::Position;
 using Size = game::Size;
 using Rect = game::Rect;
+using CollisionFlag = game::CollisionFlag;
 
 enum class ReductionType : int32_t {
     Walk = 0,
@@ -32,13 +33,9 @@ enum class ReductionType : int32_t {
     JSCallback = 3,
 };
 
-namespace collision {
-inline constexpr uint16_t BLOCK_WALK = 0x0001;
-inline constexpr uint16_t BLOCK_PLAYER = 0x0008;
-inline constexpr uint16_t OBJECT = 0x0400;
-inline constexpr uint16_t CLOSED_DOOR = 0x0800;
-inline constexpr uint16_t AVOID = 0xFFFF;
-}  // namespace collision
+// The cell bits a walking player cannot stand on. Cells outside every loaded
+// level, and cells to route around, read as CollisionFlag::All.
+inline constexpr CollisionFlag BLOCKS_WALK = CollisionFlag::Wall | CollisionFlag::NoPlayer;
 
 // Row-major cell index for `pos` within rectangle `r`. Shared by LevelGrid,
 // LevelNodes (in Pathfinder.cpp), and the fast-path window helpers below.
@@ -48,7 +45,7 @@ inline constexpr uint16_t AVOID = 0xFFFF;
 }
 
 struct LevelGrid {
-    std::vector<uint16_t> data;
+    std::vector<CollisionFlag> data;
     Rect rect;
 
     // Identity of the grid: which level it represents, and the map seed of
@@ -62,14 +59,16 @@ struct LevelGrid {
     uint32_t mapSeed = 0;
 
     LevelGrid() = default;
-    LevelGrid(Rect r, uint16_t fill = 0) : data(r.size.Area(), fill), rect(r) {}
+    LevelGrid(Rect r, CollisionFlag fill = CollisionFlag::None) : data(r.size.Area(), fill), rect(r) {}
 
     [[gnu::always_inline]] bool Contains(Position p) const { return rect.Contains(p); }
     // Unchecked read - caller has verified Contains(p). Used by CollisionLookup
     // hot paths to skip a second Contains() after the primary/secondary probe.
-    [[gnu::always_inline]] uint16_t GetUnchecked(Position p) const { return data[CellIndex(rect, p)]; }
-    [[gnu::always_inline]] uint16_t Get(Position p) const { return Contains(p) ? GetUnchecked(p) : collision::AVOID; }
-    void Set(Position p, uint16_t value);
+    [[gnu::always_inline]] CollisionFlag GetUnchecked(Position p) const { return data[CellIndex(rect, p)]; }
+    [[gnu::always_inline]] CollisionFlag Get(Position p) const {
+        return Contains(p) ? GetUnchecked(p) : CollisionFlag::All;
+    }
+    void Set(Position p, CollisionFlag value);
 };
 
 // Pre-validated view into a LevelGrid's cell data. Built by OpenWindow() once
@@ -77,20 +76,20 @@ struct LevelGrid {
 // point fits entirely inside the grid. Cross()/Wide() then perform direct
 // reads with no per-cell bounds tests - this is the fast-path backbone.
 struct GridWindow {
-    std::span<const uint16_t> cells;
+    std::span<const CollisionFlag> cells;
     ptrdiff_t stride;  // signed so stride arithmetic with negative offsets needs no casts
     ptrdiff_t base;    // flat index of the window's center cell
 
     // Hides the signed->unsigned conversion that span::operator[] requires.
-    [[gnu::always_inline]] uint16_t At(ptrdiff_t idx) const { return cells[static_cast<size_t>(idx)]; }
+    [[gnu::always_inline]] CollisionFlag At(ptrdiff_t idx) const { return cells[static_cast<size_t>(idx)]; }
 
     // OR of a 5-cell plus-stencil at radius 1 around (base + dx, base + dy):
     //   . # .
     //   # # #
     //   . # .
-    [[gnu::always_inline]] uint16_t Cross(ptrdiff_t dx = 0, ptrdiff_t dy = 0) const {
+    [[gnu::always_inline]] CollisionFlag Cross(ptrdiff_t dx = 0, ptrdiff_t dy = 0) const {
         ptrdiff_t c = base + (dy * stride) + dx;
-        return static_cast<uint16_t>(At(c) | At(c - 1) | At(c + 1) | At(c - stride) | At(c + stride));
+        return At(c) | At(c - 1) | At(c + 1) | At(c - stride) | At(c + stride);
     }
 
     // OR of a 5-cell plus-stencil at radius 2 around `base`:
@@ -99,9 +98,9 @@ struct GridWindow {
     //   # . # . #
     //   . . . . .
     //   . . # . .
-    [[gnu::always_inline]] uint16_t Wide() const {
+    [[gnu::always_inline]] CollisionFlag Wide() const {
         ptrdiff_t s2 = 2 * stride;
-        return static_cast<uint16_t>(At(base) | At(base - 2) | At(base + 2) | At(base - s2) | At(base + s2));
+        return At(base) | At(base - 2) | At(base + 2) | At(base - s2) | At(base + s2);
     }
 };
 
@@ -134,26 +133,25 @@ struct CollisionLookup {
     LevelGrid* lastHit = nullptr;
 
     // Point lookup. Checks primary, then secondary, then lazily loads adjacent levels.
-    uint16_t Get(Point p);
+    CollisionFlag Get(Point p);
     // Position overload - same lookup, skips the negative-coord guard.
-    uint16_t Get(Position p);
+    CollisionFlag Get(Position p);
 
     // 5-tile cross: center OR 4 cardinal neighbors
-    uint16_t GetCross(Point p);
+    CollisionFlag GetCross(Point p);
 
     // Wide cross: center OR 4 cardinal at distance 2
-    uint16_t GetWide(Point p);
+    CollisionFlag GetWide(Point p);
 
-    // Blocked if (BLOCK_WALK | BLOCK_PLAYER) set in cross. Tries primary then
+    // Blocked if any BLOCKS_WALK bit is set in cross. Tries primary then
     // lastHit for one direct-array cross-OR via OpenWindow, falling back to
     // the generic per-probe IsBlockedSlow at grid boundaries.
     [[gnu::always_inline]] bool IsBlocked(Point p) {
-        constexpr uint16_t MASK = collision::BLOCK_WALK | collision::BLOCK_PLAYER;
         if (auto w = OpenWindow(primary, p, 1))
-            return (w->Cross() & MASK) != 0;
+            return HasAnyFlag(w->Cross(), BLOCKS_WALK);
         if (lastHit != nullptr && lastHit != &primary) {
             if (auto w = OpenWindow(*lastHit, p, 1))
-                return (w->Cross() & MASK) != 0;
+                return HasAnyFlag(w->Cross(), BLOCKS_WALK);
         }
         return IsBlockedSlow(p);
     }
@@ -171,21 +169,20 @@ struct CollisionLookup {
             auto w = OpenWindow(g, p, 2);
             if (!w)
                 return std::nullopt;
-            constexpr uint16_t BLOCK = collision::BLOCK_WALK | collision::BLOCK_PLAYER;
-            constexpr uint16_t ADJ = collision::OBJECT | collision::CLOSED_DOOR | collision::BLOCK_WALK;
-            if ((w->Wide() & BLOCK) != 0)
+            constexpr CollisionFlag ADJ = CollisionFlag::Object | CollisionFlag::Door | CollisionFlag::Wall;
+            if (HasAnyFlag(w->Wide(), BLOCKS_WALK))
                 return 50;
-            uint16_t cross = w->Cross();
-            if ((cross & collision::OBJECT) != 0)
+            const CollisionFlag cross = w->Cross();
+            if (HasAnyFlag(cross, CollisionFlag::Object))
                 return 60;
-            if ((cross & collision::CLOSED_DOOR) != 0)
+            if (HasAnyFlag(cross, CollisionFlag::Door))
                 return 80;
             // 8 cardinally-adjacent cross probes (diagonal-neighbour penalty).
             for (ptrdiff_t dy = -1; dy <= 1; dy++) {
                 for (ptrdiff_t dx = -1; dx <= 1; dx++) {
                     if (dx == 0 && dy == 0)
                         continue;
-                    if ((w->Cross(dx, dy) & ADJ) != 0)
+                    if (HasAnyFlag(w->Cross(dx, dy), ADJ))
                         return 10;
                 }
             }

@@ -65,7 +65,7 @@ TEST_CASE("Teleport A* navigates around wall") {
 
     // Vertical wall at x=50, from y=0 to y=90 (gap at y=91..99)
     for (uint32_t y = 0; y < 91; y++) {
-        coll.primary.Set({.x = 50, .y = y}, collision::BLOCK_WALK);
+        coll.primary.Set({.x = 50, .y = y}, CollisionFlag::Wall);
     }
 
     auto path = FindPathOnGrid(coll, {.x = 25, .y = 50}, {.x = 75, .y = 50}, ReductionType::Teleport, 20, {});

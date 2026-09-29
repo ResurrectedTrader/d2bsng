@@ -343,9 +343,9 @@ Difficulty GetMaxDiff() {
     return data != nullptr ? static_cast<Difficulty>(data->nMaxDiff) : Difficulty::Normal;
 }
 
-uint32_t GetCharFlags() {
+CharFlag GetCharFlags() {
     auto* data = *d2launch::gpBnetData;
-    return data != nullptr ? static_cast<uint32_t>(data->nCharFlags) : 0U;
+    return data != nullptr ? static_cast<CharFlag>(data->nCharFlags) : CharFlag{};
 }
 
 std::optional<uint8_t> IsLadder() {
@@ -423,8 +423,14 @@ Point AbsScreenToMap(Point p) {
 
 // === UI ===
 
-bool GetUIFlag(uint32_t flag) {
-    return d2client::UI_GetVar(flag) != 0;
+static_assert(std::to_underlying(UiFlag::Automap) == UI_AUTOMAP);
+static_assert(std::to_underlying(UiFlag::NpcShop) == UI_NPCSHOP);
+static_assert(std::to_underlying(UiFlag::Cube) == UI_CUBE);
+static_assert(std::to_underlying(UiFlag::MercInventory) == UI_MERCINV);
+static_assert(std::to_underlying(UiFlag::RecipeScroll) == UI_RECIPESCROLL);
+
+bool GetUIFlag(UiFlag flag) {
+    return d2client::UI_GetVar(std::to_underlying(flag)) != 0;
 }
 
 // === Text Rendering ===
@@ -815,8 +821,8 @@ void Transmute() {
     });
 }
 
-bool TestPvpFlag(const Unit& a, const Unit& b, uint32_t flag) {
-    return d2client::PLAYERLIST_CheckFlag(a.Id(), b.Id(), flag) != 0;
+bool TestPvpFlag(const Unit& a, const Unit& b, RosterFlag flag) {
+    return d2client::PLAYERLIST_CheckFlag(a.Id(), b.Id(), std::to_underlying(flag)) != 0;
 }
 
 bool HasWaypoint(uint32_t waypointId) {
@@ -859,8 +865,12 @@ std::optional<uint32_t> GetTxtTableRowCount(std::string_view table) {
     return extras::GetTxtTableRowCount(table);
 }
 
-int32_t GetQuestFlag(uint32_t quest, uint32_t flag) {
-    return d2common::QUESTRECORD_GetQuestFlag(d2client::QUESTRECORD_GetQuestInfo(), quest, flag);
+static_assert(std::to_underlying(QuestFlag::RewardGranted) == QFLAG_REWARDGRANTED);
+static_assert(std::to_underlying(QuestFlag::Started) == QFLAG_STARTED);
+static_assert(std::to_underlying(QuestFlag::CompletedBefore) == QFLAG_COMPLETEDBEFORE);
+
+int32_t GetQuestFlag(uint32_t quest, QuestFlag flag) {
+    return d2common::QUESTRECORD_GetQuestFlag(d2client::QUESTRECORD_GetQuestInfo(), quest, std::to_underlying(flag));
 }
 
 // === Weapon / Stat / Skill Actions ===
@@ -868,8 +878,7 @@ int32_t GetQuestFlag(uint32_t quest, uint32_t flag) {
 // Reference JSGame.cpp:1239-1251 -- packet 0x60. Gated by EXPAC because LoD
 // classes are the only ones with a secondary weapon set.
 void SwapWeapon() {
-    auto* data = *d2launch::gpBnetData;
-    if (data == nullptr || (data->nCharFlags & std::to_underlying(CharFlag::Expansion)) == 0) {
+    if (!HasFlag(GetCharFlags(), CharFlag::Expansion)) {
         return;
     }
     std::array<uint8_t, 1> packet = {0x60};
@@ -1409,8 +1418,7 @@ void ClickPartyMember(const Party& party, PartyMode mode) {
     switch (mode) {
         case PartyMode::AllowLoot: {
             // Loot only applies on hardcore.
-            auto* data = *d2launch::gpBnetData;
-            if (data == nullptr || (data->nCharFlags & std::to_underlying(CharFlag::Hardcore)) == 0) {
+            if (!HasFlag(GetCharFlags(), CharFlag::Hardcore)) {
                 return;
             }
             lod114d::asm_thunks::HostilePartyUnit(rosterPtr, 2U);
@@ -1446,7 +1454,7 @@ void LeaveParty() {
     d2client::PARTY_Leave();
 }
 
-uint32_t CheckUnitCollision(const Unit& unit1, const Unit& unit2, uint32_t mask) {
+uint32_t CheckUnitCollision(const Unit& unit1, const Unit& unit2, CollisionFlag mask) {
     const auto id1 = unit1.Id();
     const auto type1 = unit1.Type();
     const auto id2 = unit2.Id();
@@ -1463,7 +1471,7 @@ uint32_t CheckUnitCollision(const Unit& unit1, const Unit& unit2, uint32_t mask)
     if (p1 == nullptr || p2 == nullptr) {
         return 0;
     }
-    return d2common::UNITS_TestCollisionWithUnit(p1, p2, mask);
+    return d2common::UNITS_TestCollisionWithUnit(p1, p2, std::to_underlying(mask));
 }
 
 // === Skill Name Tables ===

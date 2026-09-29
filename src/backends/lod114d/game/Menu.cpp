@@ -25,11 +25,6 @@ namespace d2bs::game {
 
 namespace {
 
-// One reference: a CONTROL_BUTTON dwState value for "selectable" in the
-// difficulty buttons. 0x0D matches reference Profile.cpp:174-188 (the in-game
-// "enabled" state of normal/nightmare/hell on the SP difficulty screen).
-constexpr uint32_t DIFFICULTY_BUTTON_ENABLED = 0x0D;
-
 // D2 string-table (.tbl) indices passed to Control::Find as its localeId filter,
 // mirroring the reference OOG_GetLocation's per-control labels: the id is
 // resolved to its locale string and matched against the control's text (Button
@@ -261,7 +256,7 @@ LoginResult Login(const config::ProfileData& profile) {
                     auto hell = Control::Find(ControlType::Button, 264, 383, 272, 35);
 
                     auto clickIfEnabled = [](const std::optional<Control>& c) {
-                        if (!c || c->State() != DIFFICULTY_BUTTON_ENABLED) {
+                        if (!c || c->State() != ControlState::DifficultyEnabled) {
                             return false;
                         }
                         c->Click();
@@ -534,7 +529,7 @@ bool CreateGame(const std::string& name, const std::string& password, Difficulty
             };
             const auto attempt = [](uint32_t x, uint32_t y) -> bool {
                 auto c = Control::Find(ControlType::Button, x, y, 272, 35);
-                if (!c || c->State() != DIFFICULTY_BUTTON_ENABLED) {
+                if (!c || c->State() != ControlState::DifficultyEnabled) {
                     return false;
                 }
                 c->Click();
@@ -572,9 +567,6 @@ bool CreateGame(const std::string& name, const std::string& password, Difficulty
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    // Bnet difficulty radio buttons: distinct dwState value (0x04 means
-    // "unavailable"; anything else is selectable).
-    constexpr uint32_t BNET_DIFF_UNAVAILABLE = 0x04;
     const auto pickBnetButton = [](Difficulty d) -> std::optional<Position> {
         switch (d) {
             case Difficulty::Normal:
@@ -591,7 +583,7 @@ bool CreateGame(const std::string& name, const std::string& password, Difficulty
     const bool diffOk = GameThread::Execute([&]() -> bool {
         const auto tryBnet = [](uint32_t x, uint32_t y) -> bool {
             auto c = Control::Find(ControlType::Button, x, y, 16, 16);
-            if (!c || c->State() == BNET_DIFF_UNAVAILABLE) {
+            if (!c || c->State() == ControlState::Disabled) {
                 return false;
             }
             c->Click();
@@ -825,7 +817,7 @@ OutOfGameLocation GetOutOfGameLocation() {
             // is picked. New-account's OK is visible (5), so its verify-password
             // textbox is checked after this miss.
             if (auto okBtn = Control::Find(ControlType::Button, 627, 572, 128, 35, std::to_underlying(StringId::Ok));
-                okBtn && okBtn->State() == 0) {
+                okBtn && okBtn->State() == ControlState::Hidden) {
                 return OutOfGameLocation::CharacterCreate;
             }
             if (findControl(ControlType::TextBox, 321, 448, 300, 32, StringId::VerifyPassword)) {

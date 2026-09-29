@@ -101,6 +101,7 @@
     <ClInclude Include="CaseInsensitiveMap.h" />
     <ClInclude Include="crypto.h" />
     <ClInclude Include="DeferGuard.h" />
+    <ClInclude Include="EnumFlags.h" />
     <ClInclude Include="EnumNaming.h" />
     <ClInclude Include="Profiling.h" />
     <ClInclude Include="Strings.h" />

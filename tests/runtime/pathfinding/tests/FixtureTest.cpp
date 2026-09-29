@@ -25,7 +25,7 @@ MapFixture MakeSyntheticFixture() {
     for (uint32_t y = fixture.grid.rect.origin.y; y < fixture.grid.rect.origin.y + fixture.grid.rect.size.height; y++) {
         if (y >= 599 && y <= 601)
             continue;
-        fixture.grid.Set({.x = 600, .y = y}, collision::BLOCK_WALK);
+        fixture.grid.Set({.x = 600, .y = y}, CollisionFlag::Wall);
     }
 
     return fixture;
@@ -59,8 +59,8 @@ TEST_SUITE("MapFixture") {
             CHECK(loaded->grid.data[i] == original.grid.data[i]);
         }
 
-        CHECK(loaded->grid.Get({.x = 600, .y = 550}) == collision::BLOCK_WALK);
-        CHECK(loaded->grid.Get({.x = 600, .y = 600}) == 0);  // gap
+        CHECK(loaded->grid.Get({.x = 600, .y = 550}) == CollisionFlag::Wall);
+        CHECK(loaded->grid.Get({.x = 600, .y = 600}) == CollisionFlag::None);  // gap
         // NOLINTEND(bugprone-unchecked-optional-access)
 
         std::filesystem::remove_all(dir);

@@ -84,13 +84,13 @@ inline D2DrlgRoomStrc* FindRoomInLevelByPos(D2DrlgLevelStrc* lvl, Position pos) 
 // Returns the chosen cell number for `preset`, or -1 to skip.
 inline int32_t PickPresetCellNo(const lod114d::imports::extras::D2PresetUnitStrc* preset, uint32_t levelNo) {
     int32_t cell = -1;
-    if (preset->nUnitType == 1) {  // Special NPCs
+    if (preset->nUnitType == UnitType::Monster) {  // Special NPCs
         if (preset->nIndex == 256) {
             cell = 300;  // Izzy
         } else if (preset->nIndex == 745) {
             cell = 745;  // Hephasto
         }
-    } else if (preset->nUnitType == 2) {  // Objects
+    } else if (preset->nUnitType == UnitType::Object) {
         if (preset->nIndex == 580 && levelNo == 79) {
             cell = 318;  // Lower Kurast uberchest hint
         } else if (preset->nIndex == 371) {
