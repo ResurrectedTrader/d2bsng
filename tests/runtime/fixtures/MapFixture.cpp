@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <fstream>
+#include <utility>
 
 namespace d2bs::test {
 
@@ -57,9 +58,9 @@ std::optional<MapFixture> MapFixture::Load(const std::filesystem::path& path) {
     if (!file.good())
         return std::nullopt;
 
-    std::vector<uint16_t> data(cellCount);
+    std::vector<runtime::navigation::CollisionFlag> data(cellCount);
     for (size_t i = 0; i < cellCount; i++) {
-        data[i] = static_cast<uint16_t>(raw[i] & 0xFFFF);
+        data[i] = static_cast<runtime::navigation::CollisionFlag>(raw[i] & 0xFFFF);
     }
 
     MapFixture fixture;
@@ -84,7 +85,7 @@ bool MapFixture::Save(const std::filesystem::path& path) const {
     // Write as int32 per cell (matching d2bs binary dump format)
     auto cellCount = grid.rect.size.Area();
     for (size_t i = 0; i < cellCount; i++) {
-        auto val = static_cast<int32_t>(grid.data[i]);
+        auto val = static_cast<int32_t>(std::to_underlying(grid.data[i]));
         file.write(reinterpret_cast<const char*>(&val), sizeof(val));
     }
     file.flush();

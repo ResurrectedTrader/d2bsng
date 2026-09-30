@@ -177,7 +177,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
                 return;
             }
 
-            int32_t index = convert::ToInt32(isolate, args[0]);
+            int32_t index = convert::To<int32_t>(isolate, args[0]);
             if (index < 0 || index >= sqlite3_column_count(data->handle)) {
                 error::ThrowRangeError(isolate, "Column index out of range");
                 return;
@@ -214,7 +214,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
                 return;
             }
 
-            int32_t index = convert::ToInt32(isolate, args[0]);
+            int32_t index = convert::To<int32_t>(isolate, args[0]);
             if (index < 0 || index >= sqlite3_column_count(data->handle)) {
                 error::ThrowRangeError(isolate, "Column index out of range");
                 return;
@@ -334,7 +334,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
                 return;
             }
 
-            int32_t count = convert::ToInt32(isolate, args[0]);
+            int32_t count = convert::To<int32_t>(isolate, args[0]);
             int32_t skipped = 0;
 
             for (int32_t i = 0; i < count; i++) {
@@ -438,7 +438,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
             int32_t colNum = -1;
 
             if (args[0]->IsNumber()) {
-                colNum = convert::ToInt32(isolate, args[0]);
+                colNum = convert::To<int32_t>(isolate, args[0]);
             } else if (args[0]->IsString()) {
                 std::string paramName = convert::ToString(isolate, args[0]);
                 colNum = sqlite3_bind_parameter_index(data->handle, paramName.c_str());

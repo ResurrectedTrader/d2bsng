@@ -8,7 +8,19 @@
 #include <D2Roster.h>  // D2RosterUnitStrc
 #pragma clang diagnostic pop
 
+#include <utility>
+
 namespace d2bs::game {
+
+static_assert(std::to_underlying(PartyState::Invite) == ROSTERCONTROLFLAG_INVITE);
+static_assert(std::to_underlying(PartyState::InParty) == ROSTERCONTROLFLAG_INPARTY);
+static_assert(std::to_underlying(PartyState::Accept) == ROSTERCONTROLFLAG_ACCEPT);
+static_assert(std::to_underlying(PartyState::Leave) == ROSTERCONTROLFLAG_LEAVE);
+static_assert(std::to_underlying(PartyState::Cancel) == ROSTERCONTROLFLAG_CANCEL);
+static_assert(std::to_underlying(RosterFlag::Loot) == ROSTERINFOFLAG_LOOT);
+static_assert(std::to_underlying(RosterFlag::Ignore) == ROSTERINFOFLAG_IGNORE);
+static_assert(std::to_underlying(RosterFlag::Squelch) == ROSTERINFOFLAG_SQUELCH);
+static_assert(std::to_underlying(RosterFlag::Hostile) == ROSTERINFOFLAG_HOSTILE);
 
 namespace {
 
@@ -74,9 +86,9 @@ uint32_t Party::Life() const {
     return p ? p->dwPartyLife : 0;
 }
 
-uint32_t Party::PartyFlag() const {
+PartyState Party::PartyState() const {
     const auto p = Resolve<D2RosterUnitStrc>();
-    return p ? p->dwPartyFlags : 0;
+    return p ? static_cast<game::PartyState>(p->dwPartyFlags) : PartyState::Invite;
 }
 
 uint16_t Party::PartyId() const {

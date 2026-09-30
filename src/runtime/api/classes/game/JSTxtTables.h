@@ -107,7 +107,7 @@ class JSTxtTables : public ClassBase<JSTxtTables, TxtTablesData> {
                 if (!table) {
                     return;
                 }
-                uint32_t row = convert::ToUint32(isolate, args[1]);
+                uint32_t row = convert::To<uint32_t>(isolate, args[1]);
                 args.GetReturnValue().Set(BuildTxtRow(isolate, isolate->GetCurrentContext(), *table, row));
             });
 
@@ -127,7 +127,7 @@ class JSTxtTables : public ClassBase<JSTxtTables, TxtTablesData> {
                 if (!table) {
                     return;
                 }
-                uint32_t row = convert::ToUint32(isolate, args[1]);
+                uint32_t row = convert::To<uint32_t>(isolate, args[1]);
                 args.GetReturnValue().Set(ResolveTxtCell(isolate, *table, row, args[2]));
             });
     }

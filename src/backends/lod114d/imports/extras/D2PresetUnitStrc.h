@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "game/Types.h"
+
 // 1.14d-correct layout. D2MOO's `::D2PresetUnitStrc` has different offsets
 // for 1.14d (D2MOO was reverse-engineered against 1.10c). Reference d2bs's
 // CODE reads these fields at the bytes pinned here, and reference works on
@@ -30,13 +32,13 @@ struct D2PresetUnitStrc;
 
 // NOLINTBEGIN(readability-identifier-naming) - struct fields match binary layout
 struct D2PresetUnitStrc {
-    uint32_t _1;              // 0x00 - opaque (reference PresetUnit._1)
-    int32_t nIndex;           // 0x04 - reference PresetUnit::dwTxtFileNo
-    int32_t nXpos;            // 0x08 - reference PresetUnit::dwPosX
-    D2PresetUnitStrc* pNext;  // 0x0C - reference PresetUnit::pPresetNext
-    uint32_t _3;              // 0x10 - opaque (reference PresetUnit._3)
-    int32_t nUnitType;        // 0x14 - reference PresetUnit::dwType
-    int32_t nYpos;            // 0x18 - reference PresetUnit::dwPosY
+    uint32_t _1;               // 0x00 - opaque (reference PresetUnit._1)
+    int32_t nIndex;            // 0x04 - reference PresetUnit::dwTxtFileNo
+    int32_t nXpos;             // 0x08 - reference PresetUnit::dwPosX
+    D2PresetUnitStrc* pNext;   // 0x0C - reference PresetUnit::pPresetNext
+    uint32_t _3;               // 0x10 - opaque (reference PresetUnit._3)
+    game::UnitType nUnitType;  // 0x14 - reference PresetUnit::dwType
+    int32_t nYpos;             // 0x18 - reference PresetUnit::dwPosY
 };
 // NOLINTEND(readability-identifier-naming)
 

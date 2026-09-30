@@ -53,8 +53,8 @@ class Unit {
     uint32_t ClassId() const;
     uint32_t Mode() const;
     uint32_t Id() const;
-    uint32_t Act() const;
-    uint32_t FlagsEx() const;
+    Act Act() const;
+    UnitFlagEx FlagsEx() const;
 
     // === Position ===
     // Pos()/TargetPos() are in game coordinates (same convention as Room/Level
@@ -87,7 +87,7 @@ class Unit {
     // === Unit info ===
     uint32_t Direction() const;
     std::optional<uint32_t> SuperUniqueId() const;
-    uint32_t SpecType() const;
+    MonsterSpecType SpecType() const;
     uint32_t ItemCount() const;
 
     // Resolves the owning unit. Game-impl dispatches three ways on Type():
@@ -133,7 +133,7 @@ class Unit {
     uint32_t ItemLevel() const;
     uint32_t LevelRequirement() const;
     uint32_t GfxIndex() const;
-    uint32_t ItemFlags() const;
+    ItemFlag ItemFlags() const;
     uint16_t ItemFormat() const;
     std::optional<uint32_t> FileIndex() const;
     uint32_t EarLevel() const;

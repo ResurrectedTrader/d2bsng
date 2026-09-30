@@ -33,24 +33,20 @@ Rect Room::Bounds() const {
     return Rect::Zero;
 }
 
-uint32_t Room::Flags() const {
-    return 0;
-}
-
 uint32_t Room::CorrectTomb() const {
     return 0;
 }
 
-std::vector<std::vector<uint16_t>> Room::GetCollision() const {
+std::vector<std::vector<CollisionFlag>> Room::GetCollision() const {
     return {};
 }
 
-std::vector<uint16_t> Room::GetCollisionFlat() const {
+std::vector<CollisionFlag> Room::GetCollisionFlat() const {
     return {};
 }
 
-uint16_t Room::CollisionAt(Position /*pos*/) const {
-    return 0;
+CollisionFlag Room::CollisionAt(Position /*pos*/) const {
+    return CollisionFlag::None;
 }
 
 Room Room::GetNext() const {
@@ -73,7 +69,7 @@ std::optional<Unit> Room::GetFirstUnit() const {
     return std::nullopt;
 }
 
-std::vector<PresetUnitInfo> Room::GetPresetUnits(std::optional<uint32_t> /*type*/,
+std::vector<PresetUnitInfo> Room::GetPresetUnits(std::optional<UnitType> /*type*/,
                                                  std::optional<uint32_t> /*classId*/) const {
     return {};
 }

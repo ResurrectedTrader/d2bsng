@@ -134,7 +134,7 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
 
             std::string name = convert::ToString(isolate, args[0]);
-            int32_t type = convert::ToInt32(isolate, args[1]);
+            int32_t type = convert::To<int32_t>(isolate, args[1]);
 
             bool hardcore = false;
             if (args.Length() > 2 && args[2]->IsBoolean()) {
@@ -213,7 +213,7 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     error::ThrowTypeError(isolate, "Invalid arguments specified to createGame");
                     return;
                 }
-                diff = convert::ToInt32(isolate, args[2]);
+                diff = convert::To<int32_t>(isolate, args[2]);
             }
 
             if (diff < 0 || diff > static_cast<int32_t>(game::Difficulty::HighestAvailable)) {
@@ -333,7 +333,7 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     error::ThrowError(isolate, "Invalid argument passed to addProfile");
                     return;
                 }
-                spdifficulty = convert::ToInt32(isolate, args[6]);
+                spdifficulty = convert::To<int32_t>(isolate, args[6]);
             }
 
             // Validate spdifficulty range

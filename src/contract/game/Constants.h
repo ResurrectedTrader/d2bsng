@@ -30,14 +30,21 @@ constexpr uint32_t MAX_WAYPOINT_ID = 40;
 // RosterUnit::wPartyId sentinel for "not in a party".
 constexpr uint16_t NO_PARTY_ID = std::numeric_limits<uint16_t>::max();
 
-// Character flags (BnetData::nCharFlags). Reference Constants.h PLAYER_TYPE_*.
-// Surfaced in the API docs for me.charflags; test against the raw nCharFlags
-// value with std::to_underlying(CharFlag::X).
+// Character flags (me.charflags; 1.14d's BnetData::nCharFlags). Values follow
+// D2MOO's CLIENTSAVEFLAG_*, which D2R keeps; the names of the bits D2MOO leaves
+// unnamed are D2R's.
 /// @flags
 enum class CharFlag : uint32_t {
-    Hardcore = 0x04,
-    Expansion = 0x20,
-    Ladder = 0x40,
+    Newbie = 0x0001,
+    Error = 0x0002,  // D2MOO: set at character creation for realm characters
+    Hardcore = 0x0004,
+    Dead = 0x0008,
+    SaveProcess = 0x0010,
+    Expansion = 0x0020,
+    Ladder = 0x0040,
+    NeedsRenaming = 0x0080,
+    ProgressionMask = 0x1F00,  // acts completed across all difficulties
+    WeaponSwitch = 0x2000,
 };
 
 // Mercenary class IDs (dwTxtFileNo) - used to filter summoned monsters

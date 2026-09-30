@@ -629,6 +629,12 @@ tables. It adds the pair's include to every header that defines an enumeration a
 lists the pair in the `.vcxproj`; `.gitattributes` marks the pairs generated, so GitHub
 collapses them in diffs. The shared lookup and the `std::formatter` live in
 `utils/EnumNaming.h`.
+An enumeration marked `/// @flags` (the same marker the API docs read) also gets `constexpr`
+`|`, `&`, `^`, `~`, `|=`, `&=`, `^=` and `HasFlag(value, flag)` (every bit of `flag`) /
+`HasAnyFlag(value, flag)`, in its own namespace so argument-dependent lookup finds them; they
+forward to `utils/EnumFlags.h`. A flag set so stays its enumeration type - test bits with
+`HasFlag`, not `std::to_underlying(a) & std::to_underlying(b)`. Only scoped enumerations may
+be marked (operators on an unscoped one would change what existing expressions mean).
 **Rerun the script after adding, removing or changing an enumeration** (`pip install
 libclang` once); CI's `--check` fails otherwise. A covered enumeration must be
 forward-declarable - scoped, or unscoped with a fixed underlying type - and that type

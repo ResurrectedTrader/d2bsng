@@ -8,7 +8,7 @@ TEST_CASE("Walk reduction on straight horizontal line") {
     CollisionLookup coll;
     coll.primary = LevelGrid({.size = {.width = 110, .height = 20}});
 
-    // Use interior points to avoid edge mutation (cross check hits AVOID at boundary)
+    // Use interior points to avoid edge mutation (cross check hits CollisionFlag::All at boundary)
     auto raw = FindPathOnGrid(coll, {.x = 5, .y = 10}, {.x = 104, .y = 10}, ReductionType::None, 20, {});
     auto reduced = FindPathOnGrid(coll, {.x = 5, .y = 10}, {.x = 104, .y = 10}, ReductionType::Walk, 20, {});
 
@@ -42,7 +42,7 @@ TEST_CASE("Walk reduction preserves endpoints around corner") {
 
     // L-shaped wall forcing a corner path
     for (uint32_t x = 10; x < 20; x++) {
-        coll.primary.Set({.x = x, .y = 15}, collision::BLOCK_WALK);
+        coll.primary.Set({.x = x, .y = 15}, CollisionFlag::Wall);
     }
 
     auto reduced = FindPathOnGrid(coll, {.x = 5, .y = 10}, {.x = 25, .y = 20}, ReductionType::Walk, 20, {});

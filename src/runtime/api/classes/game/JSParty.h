@@ -1,6 +1,9 @@
 #pragma once
 
+#include <utility>
+
 #include <v8.h>
+
 #include "api/core/Class.h"
 #include "api/core/Convert.h"
 #include "api/core/Error.h"
@@ -78,15 +81,15 @@ class JSParty : public ClassBase<JSParty, game::Party> {
                 info.GetReturnValue().Set(static_cast<int32_t>(data->Life()));
             });
 
-        /// @description The party member's party-relationship flags bitmask (e.g. partied / hostile state).
-        /// @type {number}
+        /// @description The party member's party button state (invite / in party / accept / leave / cancel).
+        /// @type {PartyState}
         Property(
             isolate, inst, "partyflag", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());
                 if (!*data) {
                     return;
                 }
-                info.GetReturnValue().Set(static_cast<int32_t>(data->PartyFlag()));
+                info.GetReturnValue().Set(std::to_underlying(data->PartyState()));
             });
 
         /// @description The ID of the party the member belongs to (shared by all members of the same party).

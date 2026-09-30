@@ -20,7 +20,7 @@ TEST_CASE("Walk A* navigates around vertical wall") {
 
     // Vertical wall at x=10 from y=0 to y=15 (with cross-blocked neighbors)
     for (uint32_t y = 0; y < 16; y++) {
-        coll.primary.Set({.x = 10, .y = y}, collision::BLOCK_WALK);
+        coll.primary.Set({.x = 10, .y = y}, CollisionFlag::Wall);
     }
 
     auto path = FindPathOnGrid(coll, {.x = 5, .y = 10}, {.x = 15, .y = 10}, ReductionType::None, 20, {});
@@ -68,7 +68,7 @@ TEST_CASE("Walk A* straight line produces optimal length") {
     CollisionLookup coll;
     coll.primary = LevelGrid({.size = {.width = 50, .height = 20}});
 
-    // Use interior points to avoid edge mutation (cross check hits AVOID at grid boundary)
+    // Use interior points to avoid edge mutation (cross check hits CollisionFlag::All at grid boundary)
     auto path = FindPathOnGrid(coll, {.x = 5, .y = 10}, {.x = 45, .y = 10}, ReductionType::None, 20, {});
     CHECK_FALSE(path.empty());
     // Horizontal path should be exactly 41 tiles (5..45 inclusive)

@@ -23,6 +23,8 @@
 #pragma clang diagnostic pop
 
 #include <cstdint>
+#include <ranges>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -31,7 +33,35 @@ namespace d2bs::game {
 using lod114d::imports::extras::D2ActiveRoomStrc;
 using lod114d::imports::extras::D2DrlgRoomStrc;
 
+static_assert(std::to_underlying(CollisionFlag::Wall) == COLLIDE_WALL);
+static_assert(std::to_underlying(CollisionFlag::Visible) == COLLIDE_VISIBLE);
+static_assert(std::to_underlying(CollisionFlag::NoPlayer) == COLLIDE_NOPLAYER);
+static_assert(std::to_underlying(CollisionFlag::Corpse) == COLLIDE_CORPSE);
+static_assert(std::to_underlying(CollisionFlag::Water) == COLLIDE_WATER);
+static_assert(std::to_underlying(CollisionFlag::MaskInvalid) == COLLIDE_MASK_INVALID);
+static_assert(std::to_underlying(CollisionFlag::MaskPlayerPath) == COLLIDE_MASK_PLAYER_PATH);
+static_assert(std::to_underlying(CollisionFlag::MaskPlayerFlying) == COLLIDE_MASK_PLAYER_FLYING);
+static_assert(std::to_underlying(CollisionFlag::MaskPlayerWhirlwind) == COLLIDE_MASK_PLAYER_WW);
+static_assert(std::to_underlying(CollisionFlag::MaskRadialBarrier) == COLLIDE_MASK_RADIAL_BARRIER);
+static_assert(std::to_underlying(CollisionFlag::MaskFlyingUnit) == COLLIDE_MASK_FLYING_UNIT);
+static_assert(std::to_underlying(CollisionFlag::MaskMonsterThatCanOpenDoors) ==
+              COLLIDE_MASK_MONSTER_THAT_CAN_OPEN_DOORS);
+static_assert(std::to_underlying(CollisionFlag::MaskMonsterMissile) == COLLIDE_MASK_MONSTER_MISSILE);
+static_assert(std::to_underlying(CollisionFlag::MaskMonsterPath) == COLLIDE_MASK_MONSTER_PATH);
+static_assert(std::to_underlying(CollisionFlag::MaskDoorBlockVisibility) == COLLIDE_MASK_DOOR_BLOCK_VIS);
+static_assert(std::to_underlying(CollisionFlag::MaskBlocksDoor) == COLLIDE_MASK_BLOCKS_DOOR);
+static_assert(std::to_underlying(CollisionFlag::MaskPlacement) == COLLIDE_MASK_PLACEMENT);
+static_assert(sizeof(CollisionFlag) == sizeof(uint16_t));
+
 namespace {
+
+// D2MOO types the grid as raw words; converted on the copy rather than read through
+// an enum pointer.
+std::vector<CollisionFlag> CopyCells(const uint16_t* cells, size_t count) {
+    return std::span(cells, count) |
+           std::views::transform([](uint16_t cell) { return static_cast<CollisionFlag>(cell); }) |
+           std::ranges::to<std::vector>();
+}
 
 inline D2DrlgRoomStrc* AsDrlgRoom(void* p) noexcept {
     return static_cast<D2DrlgRoomStrc*>(p);
@@ -103,15 +133,6 @@ Rect Room::Bounds() const {
     };
 }
 
-uint32_t Room::Flags() const {
-    const auto drlgRoom = Resolve<D2DrlgRoomStrc>();
-    if (!drlgRoom)
-        return 0;
-    // Reference's `dwPresetType` (renamed `nType` in D2MOO at 0x1C) is what the
-    // legacy `flags` accessor exposes - DRLGTYPE_MAZE / PRESET / OUTDOOR.
-    return static_cast<uint32_t>(drlgRoom->nType);
-}
-
 uint32_t Room::CorrectTomb() const {
     const auto drlgRoom = Resolve<D2DrlgRoomStrc>();
     if (!drlgRoom || drlgRoom->pLevel == nullptr || drlgRoom->pLevel->pDrlg == nullptr)
@@ -119,7 +140,7 @@ uint32_t Room::CorrectTomb() const {
     return static_cast<uint32_t>(drlgRoom->pLevel->pDrlg->nStaffTombLevel);
 }
 
-std::vector<std::vector<uint16_t>> Room::GetCollision() const {
+std::vector<std::vector<CollisionFlag>> Room::GetCollision() const {
     const auto drlgRoom = Resolve<D2DrlgRoomStrc>();
     if (!drlgRoom) {
         return {};
@@ -135,17 +156,17 @@ std::vector<std::vector<uint16_t>> Room::GetCollision() const {
     }
     const auto width = static_cast<uint32_t>(grid->pRoomCoords.nSubtileWidth);
     const auto height = static_cast<uint32_t>(grid->pRoomCoords.nSubtileHeight);
-    std::vector<std::vector<uint16_t>> out;
+    std::vector<std::vector<CollisionFlag>> out;
     out.reserve(height);
     const uint16_t* p = grid->pCollisionMask;
     for (uint32_t j = 0; j < height; ++j) {
-        out.emplace_back(p, p + width);
+        out.push_back(CopyCells(p, width));
         p += width;
     }
     return out;
 }
 
-std::vector<uint16_t> Room::GetCollisionFlat() const {
+std::vector<CollisionFlag> Room::GetCollisionFlat() const {
     const auto drlgRoom = Resolve<D2DrlgRoomStrc>();
     if (!drlgRoom) {
         return {};
@@ -162,22 +183,22 @@ std::vector<uint16_t> Room::GetCollisionFlat() const {
     const auto width = static_cast<uint32_t>(grid->pRoomCoords.nSubtileWidth);
     const auto height = static_cast<uint32_t>(grid->pRoomCoords.nSubtileHeight);
     const auto count = static_cast<size_t>(width) * height;
-    return {grid->pCollisionMask, grid->pCollisionMask + count};
+    return CopyCells(grid->pCollisionMask, count);
 }
 
-uint16_t Room::CollisionAt(Position pos) const {
+CollisionFlag Room::CollisionAt(Position pos) const {
     const auto drlgRoom = Resolve<D2DrlgRoomStrc>();
     if (!drlgRoom) {
-        return 0;
+        return CollisionFlag::None;
     }
     RoomDataGuard roomData(drlgRoom);
     auto* activeRoom = drlgRoom->pRoom;
     if (activeRoom == nullptr || activeRoom->pCollisionGrid == nullptr) {
-        return 0;
+        return CollisionFlag::None;
     }
     auto* grid = activeRoom->pCollisionGrid;
     if (grid->pCollisionMask == nullptr) {
-        return 0;
+        return CollisionFlag::None;
     }
     // Offsets against the grid's own origin, which bounds the position before the unsigned
     // subtraction. Matches D2's own indexing (D2Collision.cpp) and the reference's.
@@ -186,10 +207,10 @@ uint16_t Room::CollisionAt(Position pos) const {
     const auto width = static_cast<uint32_t>(grid->pRoomCoords.nSubtileWidth);
     const auto height = static_cast<uint32_t>(grid->pRoomCoords.nSubtileHeight);
     if (pos.x < originX || pos.y < originY || pos.x >= originX + width || pos.y >= originY + height) {
-        return 0;
+        return CollisionFlag::None;
     }
     const uint32_t index = ((pos.y - originY) * width) + (pos.x - originX);
-    return grid->pCollisionMask[index];
+    return static_cast<CollisionFlag>(grid->pCollisionMask[index]);
 }
 
 Room Room::GetNext() const {
@@ -235,7 +256,7 @@ std::optional<Unit> Room::GetFirstUnit() const {
     return Unit::FromPtr(drlgRoom->pRoom->pUnitFirst);
 }
 
-std::vector<PresetUnitInfo> Room::GetPresetUnits(std::optional<uint32_t> type, std::optional<uint32_t> classId) const {
+std::vector<PresetUnitInfo> Room::GetPresetUnits(std::optional<UnitType> type, std::optional<uint32_t> classId) const {
     const auto drlgRoom = Resolve<D2DrlgRoomStrc>();
     if (!drlgRoom)
         return {};
@@ -263,7 +284,7 @@ std::vector<PresetUnitInfo> Room::GetPresetUnits(std::optional<uint32_t> type, s
 
     std::vector<PresetUnitInfo> out;
     for (auto* preset = drlgRoom->pPresetUnits; preset != nullptr; preset = preset->pNext) {
-        const auto presetType = static_cast<uint32_t>(preset->nUnitType);
+        const auto presetType = preset->nUnitType;
         const auto presetIndex = static_cast<uint32_t>(preset->nIndex);
         if (type && presetType != *type)
             continue;
@@ -275,8 +296,7 @@ std::vector<PresetUnitInfo> Room::GetPresetUnits(std::optional<uint32_t> type, s
             .posInRoom = {.x = static_cast<uint32_t>(preset->nXpos), .y = static_cast<uint32_t>(preset->nYpos)},
             .id = presetIndex,
             .level = 0,
-            .tileTargetLevelId =
-                (presetType == std::to_underlying(UnitType::Tile)) ? resolveTileTarget(presetIndex) : 0,
+            .tileTargetLevelId = presetType == UnitType::Tile ? resolveTileTarget(presetIndex) : 0,
         });
     }
     return out;

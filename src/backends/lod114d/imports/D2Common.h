@@ -3,6 +3,7 @@
 // ReSharper disable once CppUnusedIncludeDirective
 #include "D2MOOConfig.h"
 #include "ImportTypes.h"
+#include "game/Types.h"
 
 #include "extras/D2ActiveRoomStrc.h"
 #include "extras/D2DrlgActStrc.h"
@@ -137,7 +138,7 @@ inline StdcallFunc<void(D2DrlgActStrc* /*pAct*/, int32_t /*nLevelId*/, int32_t /
 // QUESTRECORD_ family uses elsewhere, but the offset is distinct from
 // QUESTRECORD_GetQuestState in 1.10f-MOO, so this entry takes its own
 // QUESTRECORD_ name rather than aliasing the MOO ordinal.
-inline StdcallFunc<int32_t(D2BitBufferStrc* /*pQuestRecord*/, uint32_t /*dwQuest*/, uint32_t /*dwFlag*/)>
+inline StdcallFunc<int32_t(D2BitBufferStrc* /*pQuestRecord*/, uint32_t /*dwQuest*/, game::QuestFlag /*dwFlag*/)>
     QUESTRECORD_GetQuestFlag{0x25C310};
 
 // Coordinate transforms: the in/out args are two contiguous int32_t cells (X

@@ -102,9 +102,16 @@ namespace d2bs::game {
 
 std::string EnumName(CharFlag value) {
     static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(CharFlag::Newbie), .name = "Newbie"},
+        {.bits = utils::EnumBits(CharFlag::Error), .name = "Error"},
         {.bits = utils::EnumBits(CharFlag::Hardcore), .name = "Hardcore"},
+        {.bits = utils::EnumBits(CharFlag::Dead), .name = "Dead"},
+        {.bits = utils::EnumBits(CharFlag::SaveProcess), .name = "SaveProcess"},
         {.bits = utils::EnumBits(CharFlag::Expansion), .name = "Expansion"},
         {.bits = utils::EnumBits(CharFlag::Ladder), .name = "Ladder"},
+        {.bits = utils::EnumBits(CharFlag::NeedsRenaming), .name = "NeedsRenaming"},
+        {.bits = utils::EnumBits(CharFlag::ProgressionMask), .name = "ProgressionMask"},
+        {.bits = utils::EnumBits(CharFlag::WeaponSwitch), .name = "WeaponSwitch"},
     });
     return utils::NameEnumValue("CharFlag", ENTRIES, std::to_underlying(value));
 }
@@ -223,6 +230,61 @@ std::string EnumName(ControlType value) {
     return utils::NameEnumValue("ControlType", ENTRIES, std::to_underlying(value));
 }
 
+std::string EnumName(ControlState value) {
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(ControlState::Hidden), .name = "Hidden"},
+        {.bits = utils::EnumBits(ControlState::Normal), .name = "Normal"},
+        {.bits = utils::EnumBits(ControlState::Disabled), .name = "Disabled"},
+        {.bits = utils::EnumBits(ControlState::Active), .name = "Active"},
+        {.bits = utils::EnumBits(ControlState::DifficultyEnabled), .name = "DifficultyEnabled"},
+    });
+    return utils::NameEnumValue("ControlState", ENTRIES, std::to_underlying(value));
+}
+
+std::string EnumName(UiFlag value) {
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(UiFlag::Game), .name = "Game"},
+        {.bits = utils::EnumBits(UiFlag::Inventory), .name = "Inventory"},
+        {.bits = utils::EnumBits(UiFlag::StatScreen), .name = "StatScreen"},
+        {.bits = utils::EnumBits(UiFlag::MiniSkill), .name = "MiniSkill"},
+        {.bits = utils::EnumBits(UiFlag::SkillTree), .name = "SkillTree"},
+        {.bits = utils::EnumBits(UiFlag::ChatBox), .name = "ChatBox"},
+        {.bits = utils::EnumBits(UiFlag::NewStats), .name = "NewStats"},
+        {.bits = utils::EnumBits(UiFlag::NewSkills), .name = "NewSkills"},
+        {.bits = utils::EnumBits(UiFlag::NpcMenu), .name = "NpcMenu"},
+        {.bits = utils::EnumBits(UiFlag::EscMenu), .name = "EscMenu"},
+        {.bits = utils::EnumBits(UiFlag::Automap), .name = "Automap"},
+        {.bits = utils::EnumBits(UiFlag::Config), .name = "Config"},
+        {.bits = utils::EnumBits(UiFlag::NpcShop), .name = "NpcShop"},
+        {.bits = utils::EnumBits(UiFlag::HoldAlt), .name = "HoldAlt"},
+        {.bits = utils::EnumBits(UiFlag::Anvil), .name = "Anvil"},
+        {.bits = utils::EnumBits(UiFlag::QuestScreen), .name = "QuestScreen"},
+        {.bits = utils::EnumBits(UiFlag::IniScroll), .name = "IniScroll"},
+        {.bits = utils::EnumBits(UiFlag::QuestLog), .name = "QuestLog"},
+        {.bits = utils::EnumBits(UiFlag::Unknown18), .name = "Unknown18"},
+        {.bits = utils::EnumBits(UiFlag::HirIcons), .name = "HirIcons"},
+        {.bits = utils::EnumBits(UiFlag::Waypoint), .name = "Waypoint"},
+        {.bits = utils::EnumBits(UiFlag::MiniPanel), .name = "MiniPanel"},
+        {.bits = utils::EnumBits(UiFlag::PartyScreen), .name = "PartyScreen"},
+        {.bits = utils::EnumBits(UiFlag::MpTrade), .name = "MpTrade"},
+        {.bits = utils::EnumBits(UiFlag::MsgLog), .name = "MsgLog"},
+        {.bits = utils::EnumBits(UiFlag::Stash), .name = "Stash"},
+        {.bits = utils::EnumBits(UiFlag::Cube), .name = "Cube"},
+        {.bits = utils::EnumBits(UiFlag::SteegStone), .name = "SteegStone"},
+        {.bits = utils::EnumBits(UiFlag::GuildVault), .name = "GuildVault"},
+        {.bits = utils::EnumBits(UiFlag::Unknown29), .name = "Unknown29"},
+        {.bits = utils::EnumBits(UiFlag::Unknown30), .name = "Unknown30"},
+        {.bits = utils::EnumBits(UiFlag::BeltRows), .name = "BeltRows"},
+        {.bits = utils::EnumBits(UiFlag::Unknown32), .name = "Unknown32"},
+        {.bits = utils::EnumBits(UiFlag::HelpScreen), .name = "HelpScreen"},
+        {.bits = utils::EnumBits(UiFlag::HelpButton), .name = "HelpButton"},
+        {.bits = utils::EnumBits(UiFlag::HireIcons), .name = "HireIcons"},
+        {.bits = utils::EnumBits(UiFlag::MercInventory), .name = "MercInventory"},
+        {.bits = utils::EnumBits(UiFlag::RecipeScroll), .name = "RecipeScroll"},
+    });
+    return utils::NameEnumValue("UiFlag", ENTRIES, std::to_underlying(value));
+}
+
 std::string EnumName(PartyMode value) {
     static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
         {.bits = utils::EnumBits(PartyMode::AllowLoot), .name = "AllowLoot"},
@@ -233,6 +295,27 @@ std::string EnumName(PartyMode value) {
         {.bits = utils::EnumBits(PartyMode::HostileAlt), .name = "HostileAlt"},
     });
     return utils::NameEnumValue("PartyMode", ENTRIES, std::to_underlying(value));
+}
+
+std::string EnumName(PartyState value) {
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(PartyState::Invite), .name = "Invite"},
+        {.bits = utils::EnumBits(PartyState::InParty), .name = "InParty"},
+        {.bits = utils::EnumBits(PartyState::Accept), .name = "Accept"},
+        {.bits = utils::EnumBits(PartyState::Leave), .name = "Leave"},
+        {.bits = utils::EnumBits(PartyState::Cancel), .name = "Cancel"},
+    });
+    return utils::NameEnumValue("PartyState", ENTRIES, std::to_underlying(value));
+}
+
+std::string EnumName(RosterFlag value) {
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(RosterFlag::Loot), .name = "Loot"},
+        {.bits = utils::EnumBits(RosterFlag::Ignore), .name = "Ignore"},
+        {.bits = utils::EnumBits(RosterFlag::Squelch), .name = "Squelch"},
+        {.bits = utils::EnumBits(RosterFlag::Hostile), .name = "Hostile"},
+    });
+    return utils::NameEnumValue("RosterFlag", ENTRIES, std::to_underlying(value));
 }
 
 std::string EnumName(CancelMode value) {
@@ -300,6 +383,7 @@ std::string EnumName(CharacterClass value) {
         {.bits = utils::EnumBits(CharacterClass::Barbarian), .name = "Barbarian"},
         {.bits = utils::EnumBits(CharacterClass::Druid), .name = "Druid"},
         {.bits = utils::EnumBits(CharacterClass::Assassin), .name = "Assassin"},
+        {.bits = utils::EnumBits(CharacterClass::Warlock), .name = "Warlock"},
     });
     return utils::NameEnumValue("CharacterClass", ENTRIES, std::to_underlying(value));
 }
@@ -447,6 +531,206 @@ std::string EnumName(MonsterSpecType value) {
     return utils::NameEnumValue("MonsterSpecType", ENTRIES, std::to_underlying(value));
 }
 
+std::string EnumName(CollisionFlag value) {
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(CollisionFlag::None), .name = "None"},
+        {.bits = utils::EnumBits(CollisionFlag::Wall), .name = "Wall"},
+        {.bits = utils::EnumBits(CollisionFlag::Visible), .name = "Visible"},
+        {.bits = utils::EnumBits(CollisionFlag::MissileBarrier), .name = "MissileBarrier"},
+        {.bits = utils::EnumBits(CollisionFlag::NoPlayer), .name = "NoPlayer"},
+        {.bits = utils::EnumBits(CollisionFlag::Preset), .name = "Preset"},
+        {.bits = utils::EnumBits(CollisionFlag::Blank), .name = "Blank"},
+        {.bits = utils::EnumBits(CollisionFlag::Missile), .name = "Missile"},
+        {.bits = utils::EnumBits(CollisionFlag::Player), .name = "Player"},
+        {.bits = utils::EnumBits(CollisionFlag::Monster), .name = "Monster"},
+        {.bits = utils::EnumBits(CollisionFlag::Item), .name = "Item"},
+        {.bits = utils::EnumBits(CollisionFlag::Object), .name = "Object"},
+        {.bits = utils::EnumBits(CollisionFlag::Door), .name = "Door"},
+        {.bits = utils::EnumBits(CollisionFlag::NoPath), .name = "NoPath"},
+        {.bits = utils::EnumBits(CollisionFlag::Pet), .name = "Pet"},
+        {.bits = utils::EnumBits(CollisionFlag::Corpse), .name = "Corpse"},
+        {.bits = utils::EnumBits(CollisionFlag::All), .name = "All"},
+        {.bits = utils::EnumBits(CollisionFlag::Water), .name = "Water"},
+        {.bits = utils::EnumBits(CollisionFlag::MaskInvalid), .name = "MaskInvalid"},
+        {.bits = utils::EnumBits(CollisionFlag::MaskPlayerPath), .name = "MaskPlayerPath"},
+        {.bits = utils::EnumBits(CollisionFlag::MaskPlayerFlying), .name = "MaskPlayerFlying"},
+        {.bits = utils::EnumBits(CollisionFlag::MaskPlayerWhirlwind), .name = "MaskPlayerWhirlwind"},
+        {.bits = utils::EnumBits(CollisionFlag::MaskRadialBarrier), .name = "MaskRadialBarrier"},
+        {.bits = utils::EnumBits(CollisionFlag::MaskFlyingUnit), .name = "MaskFlyingUnit"},
+        {.bits = utils::EnumBits(CollisionFlag::MaskMonsterThatCanOpenDoors), .name = "MaskMonsterThatCanOpenDoors"},
+        {.bits = utils::EnumBits(CollisionFlag::MaskMonsterMissile), .name = "MaskMonsterMissile"},
+        {.bits = utils::EnumBits(CollisionFlag::MaskMonsterPath), .name = "MaskMonsterPath"},
+        {.bits = utils::EnumBits(CollisionFlag::MaskDoorBlockVisibility), .name = "MaskDoorBlockVisibility"},
+        {.bits = utils::EnumBits(CollisionFlag::MaskBlocksDoor), .name = "MaskBlocksDoor"},
+        {.bits = utils::EnumBits(CollisionFlag::MaskSpawn), .name = "MaskSpawn"},
+        {.bits = utils::EnumBits(CollisionFlag::MaskPlacement), .name = "MaskPlacement"},
+    });
+    return utils::NameEnumValue("CollisionFlag", ENTRIES, std::to_underlying(value));
+}
+
+std::string EnumName(ItemFlag value) {
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(ItemFlag::NewItem), .name = "NewItem"},
+        {.bits = utils::EnumBits(ItemFlag::Target), .name = "Target"},
+        {.bits = utils::EnumBits(ItemFlag::Targeting), .name = "Targeting"},
+        {.bits = utils::EnumBits(ItemFlag::Deleted), .name = "Deleted"},
+        {.bits = utils::EnumBits(ItemFlag::Identified), .name = "Identified"},
+        {.bits = utils::EnumBits(ItemFlag::Quantity), .name = "Quantity"},
+        {.bits = utils::EnumBits(ItemFlag::SwitchIn), .name = "SwitchIn"},
+        {.bits = utils::EnumBits(ItemFlag::SwitchOut), .name = "SwitchOut"},
+        {.bits = utils::EnumBits(ItemFlag::Broken), .name = "Broken"},
+        {.bits = utils::EnumBits(ItemFlag::Repaired), .name = "Repaired"},
+        {.bits = utils::EnumBits(ItemFlag::Socketed), .name = "Socketed"},
+        {.bits = utils::EnumBits(ItemFlag::NoSell), .name = "NoSell"},
+        {.bits = utils::EnumBits(ItemFlag::InStore), .name = "InStore"},
+        {.bits = utils::EnumBits(ItemFlag::NoEquip), .name = "NoEquip"},
+        {.bits = utils::EnumBits(ItemFlag::Named), .name = "Named"},
+        {.bits = utils::EnumBits(ItemFlag::IsEar), .name = "IsEar"},
+        {.bits = utils::EnumBits(ItemFlag::StartItem), .name = "StartItem"},
+        {.bits = utils::EnumBits(ItemFlag::Init), .name = "Init"},
+        {.bits = utils::EnumBits(ItemFlag::CompactSave), .name = "CompactSave"},
+        {.bits = utils::EnumBits(ItemFlag::Ethereal), .name = "Ethereal"},
+        {.bits = utils::EnumBits(ItemFlag::JustSaved), .name = "JustSaved"},
+        {.bits = utils::EnumBits(ItemFlag::Personalized), .name = "Personalized"},
+        {.bits = utils::EnumBits(ItemFlag::Gamble), .name = "Gamble"},
+        {.bits = utils::EnumBits(ItemFlag::Runeword), .name = "Runeword"},
+        {.bits = utils::EnumBits(ItemFlag::Item), .name = "Item"},
+        {.bits = utils::EnumBits(ItemFlag::ChronicleRecord), .name = "ChronicleRecord"},
+        {.bits = utils::EnumBits(ItemFlag::ChronicleRecordShort), .name = "ChronicleRecordShort"},
+    });
+    return utils::NameEnumValue("ItemFlag", ENTRIES, std::to_underlying(value));
+}
+
+std::string EnumName(Act value) {
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(Act::I), .name = "I"},
+        {.bits = utils::EnumBits(Act::II), .name = "II"},
+        {.bits = utils::EnumBits(Act::III), .name = "III"},
+        {.bits = utils::EnumBits(Act::IV), .name = "IV"},
+        {.bits = utils::EnumBits(Act::V), .name = "V"},
+    });
+    return utils::NameEnumValue("Act", ENTRIES, std::to_underlying(value));
+}
+
+std::string EnumName(PlayerMode value) {
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(PlayerMode::Death), .name = "Death"},
+        {.bits = utils::EnumBits(PlayerMode::Neutral), .name = "Neutral"},
+        {.bits = utils::EnumBits(PlayerMode::Walk), .name = "Walk"},
+        {.bits = utils::EnumBits(PlayerMode::Run), .name = "Run"},
+        {.bits = utils::EnumBits(PlayerMode::GetHit), .name = "GetHit"},
+        {.bits = utils::EnumBits(PlayerMode::TownNeutral), .name = "TownNeutral"},
+        {.bits = utils::EnumBits(PlayerMode::TownWalk), .name = "TownWalk"},
+        {.bits = utils::EnumBits(PlayerMode::Attack1), .name = "Attack1"},
+        {.bits = utils::EnumBits(PlayerMode::Attack2), .name = "Attack2"},
+        {.bits = utils::EnumBits(PlayerMode::Block), .name = "Block"},
+        {.bits = utils::EnumBits(PlayerMode::Cast), .name = "Cast"},
+        {.bits = utils::EnumBits(PlayerMode::Throw), .name = "Throw"},
+        {.bits = utils::EnumBits(PlayerMode::Kick), .name = "Kick"},
+        {.bits = utils::EnumBits(PlayerMode::Skill1), .name = "Skill1"},
+        {.bits = utils::EnumBits(PlayerMode::Skill2), .name = "Skill2"},
+        {.bits = utils::EnumBits(PlayerMode::Skill3), .name = "Skill3"},
+        {.bits = utils::EnumBits(PlayerMode::Skill4), .name = "Skill4"},
+        {.bits = utils::EnumBits(PlayerMode::Dead), .name = "Dead"},
+        {.bits = utils::EnumBits(PlayerMode::Sequence), .name = "Sequence"},
+        {.bits = utils::EnumBits(PlayerMode::Knockback), .name = "Knockback"},
+    });
+    return utils::NameEnumValue("PlayerMode", ENTRIES, std::to_underlying(value));
+}
+
+std::string EnumName(MonsterMode value) {
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(MonsterMode::Death), .name = "Death"},
+        {.bits = utils::EnumBits(MonsterMode::Neutral), .name = "Neutral"},
+        {.bits = utils::EnumBits(MonsterMode::Walk), .name = "Walk"},
+        {.bits = utils::EnumBits(MonsterMode::GetHit), .name = "GetHit"},
+        {.bits = utils::EnumBits(MonsterMode::Attack1), .name = "Attack1"},
+        {.bits = utils::EnumBits(MonsterMode::Attack2), .name = "Attack2"},
+        {.bits = utils::EnumBits(MonsterMode::Block), .name = "Block"},
+        {.bits = utils::EnumBits(MonsterMode::Cast), .name = "Cast"},
+        {.bits = utils::EnumBits(MonsterMode::Skill1), .name = "Skill1"},
+        {.bits = utils::EnumBits(MonsterMode::Skill2), .name = "Skill2"},
+        {.bits = utils::EnumBits(MonsterMode::Skill3), .name = "Skill3"},
+        {.bits = utils::EnumBits(MonsterMode::Skill4), .name = "Skill4"},
+        {.bits = utils::EnumBits(MonsterMode::Dead), .name = "Dead"},
+        {.bits = utils::EnumBits(MonsterMode::Knockback), .name = "Knockback"},
+        {.bits = utils::EnumBits(MonsterMode::Sequence), .name = "Sequence"},
+        {.bits = utils::EnumBits(MonsterMode::Run), .name = "Run"},
+    });
+    return utils::NameEnumValue("MonsterMode", ENTRIES, std::to_underlying(value));
+}
+
+std::string EnumName(ObjectMode value) {
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(ObjectMode::Neutral), .name = "Neutral"},
+        {.bits = utils::EnumBits(ObjectMode::Operating), .name = "Operating"},
+        {.bits = utils::EnumBits(ObjectMode::Opened), .name = "Opened"},
+        {.bits = utils::EnumBits(ObjectMode::Special1), .name = "Special1"},
+        {.bits = utils::EnumBits(ObjectMode::Special2), .name = "Special2"},
+        {.bits = utils::EnumBits(ObjectMode::Special3), .name = "Special3"},
+        {.bits = utils::EnumBits(ObjectMode::Special4), .name = "Special4"},
+        {.bits = utils::EnumBits(ObjectMode::Special5), .name = "Special5"},
+    });
+    return utils::NameEnumValue("ObjectMode", ENTRIES, std::to_underlying(value));
+}
+
+std::string EnumName(ItemMode value) {
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(ItemMode::Stored), .name = "Stored"},
+        {.bits = utils::EnumBits(ItemMode::Equip), .name = "Equip"},
+        {.bits = utils::EnumBits(ItemMode::InBelt), .name = "InBelt"},
+        {.bits = utils::EnumBits(ItemMode::OnGround), .name = "OnGround"},
+        {.bits = utils::EnumBits(ItemMode::OnCursor), .name = "OnCursor"},
+        {.bits = utils::EnumBits(ItemMode::Dropping), .name = "Dropping"},
+        {.bits = utils::EnumBits(ItemMode::Socketed), .name = "Socketed"},
+    });
+    return utils::NameEnumValue("ItemMode", ENTRIES, std::to_underlying(value));
+}
+
+std::string EnumName(UnitFlagEx value) {
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(UnitFlagEx::HasInventory), .name = "HasInventory"},
+        {.bits = utils::EnumBits(UnitFlagEx::UpdateInventory), .name = "UpdateInventory"},
+        {.bits = utils::EnumBits(UnitFlagEx::IsVendorItem), .name = "IsVendorItem"},
+        {.bits = utils::EnumBits(UnitFlagEx::IsShapeshifted), .name = "IsShapeshifted"},
+        {.bits = utils::EnumBits(UnitFlagEx::ItemInit), .name = "ItemInit"},
+        {.bits = utils::EnumBits(UnitFlagEx::IsInLineOfSight), .name = "IsInLineOfSight"},
+        {.bits = utils::EnumBits(UnitFlagEx::HasBeenDeleted), .name = "HasBeenDeleted"},
+        {.bits = utils::EnumBits(UnitFlagEx::StoreOwnerInfo), .name = "StoreOwnerInfo"},
+        {.bits = utils::EnumBits(UnitFlagEx::IsCorpse), .name = "IsCorpse"},
+        {.bits = utils::EnumBits(UnitFlagEx::PathRelated), .name = "PathRelated"},
+        {.bits = utils::EnumBits(UnitFlagEx::Teleported), .name = "Teleported"},
+        {.bits = utils::EnumBits(UnitFlagEx::StoreLastAttacker), .name = "StoreLastAttacker"},
+        {.bits = utils::EnumBits(UnitFlagEx::NoDraw), .name = "NoDraw"},
+        {.bits = utils::EnumBits(UnitFlagEx::IsExpansion), .name = "IsExpansion"},
+        {.bits = utils::EnumBits(UnitFlagEx::ServerUnit), .name = "ServerUnit"},
+        {.bits = utils::EnumBits(UnitFlagEx::SharedStash), .name = "SharedStash"},
+    });
+    return utils::NameEnumValue("UnitFlagEx", ENTRIES, std::to_underlying(value));
+}
+
+std::string EnumName(QuestFlag value) {
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(QuestFlag::RewardGranted), .name = "RewardGranted"},
+        {.bits = utils::EnumBits(QuestFlag::RewardPending), .name = "RewardPending"},
+        {.bits = utils::EnumBits(QuestFlag::Started), .name = "Started"},
+        {.bits = utils::EnumBits(QuestFlag::LeaveTown), .name = "LeaveTown"},
+        {.bits = utils::EnumBits(QuestFlag::EnterArea), .name = "EnterArea"},
+        {.bits = utils::EnumBits(QuestFlag::Custom1), .name = "Custom1"},
+        {.bits = utils::EnumBits(QuestFlag::Custom2), .name = "Custom2"},
+        {.bits = utils::EnumBits(QuestFlag::Custom3), .name = "Custom3"},
+        {.bits = utils::EnumBits(QuestFlag::Custom4), .name = "Custom4"},
+        {.bits = utils::EnumBits(QuestFlag::Custom5), .name = "Custom5"},
+        {.bits = utils::EnumBits(QuestFlag::Custom6), .name = "Custom6"},
+        {.bits = utils::EnumBits(QuestFlag::Custom7), .name = "Custom7"},
+        {.bits = utils::EnumBits(QuestFlag::UpdateQuestLog), .name = "UpdateQuestLog"},
+        {.bits = utils::EnumBits(QuestFlag::PrimaryGoalDone), .name = "PrimaryGoalDone"},
+        {.bits = utils::EnumBits(QuestFlag::CompletedNow), .name = "CompletedNow"},
+        {.bits = utils::EnumBits(QuestFlag::CompletedBefore), .name = "CompletedBefore"},
+    });
+    return utils::NameEnumValue("QuestFlag", ENTRIES, std::to_underlying(value));
+}
+
 std::string EnumName(GameType value) {
     static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
         {.bits = utils::EnumBits(GameType::Classic), .name = "Classic"},
@@ -513,7 +797,23 @@ std::string format_as(ControlType value) {
     return EnumName(value);
 }
 
+std::string format_as(ControlState value) {
+    return EnumName(value);
+}
+
+std::string format_as(UiFlag value) {
+    return EnumName(value);
+}
+
 std::string format_as(PartyMode value) {
+    return EnumName(value);
+}
+
+std::string format_as(PartyState value) {
+    return EnumName(value);
+}
+
+std::string format_as(RosterFlag value) {
     return EnumName(value);
 }
 
@@ -594,6 +894,42 @@ std::string format_as(BodyLocation value) {
 }
 
 std::string format_as(MonsterSpecType value) {
+    return EnumName(value);
+}
+
+std::string format_as(CollisionFlag value) {
+    return EnumName(value);
+}
+
+std::string format_as(ItemFlag value) {
+    return EnumName(value);
+}
+
+std::string format_as(Act value) {
+    return EnumName(value);
+}
+
+std::string format_as(PlayerMode value) {
+    return EnumName(value);
+}
+
+std::string format_as(MonsterMode value) {
+    return EnumName(value);
+}
+
+std::string format_as(ObjectMode value) {
+    return EnumName(value);
+}
+
+std::string format_as(ItemMode value) {
+    return EnumName(value);
+}
+
+std::string format_as(UnitFlagEx value) {
+    return EnumName(value);
+}
+
+std::string format_as(QuestFlag value) {
     return EnumName(value);
 }
 

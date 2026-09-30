@@ -50,6 +50,14 @@
 
 namespace d2bs::game {
 
+static_assert(std::to_underlying(ItemFlag::NewItem) == IFLAG_NEWITEM);
+static_assert(std::to_underlying(ItemFlag::Identified) == IFLAG_IDENTIFIED);
+static_assert(std::to_underlying(ItemFlag::Socketed) == IFLAG_SOCKETED);
+static_assert(std::to_underlying(ItemFlag::IsEar) == IFLAG_ISEAR);
+static_assert(std::to_underlying(ItemFlag::Ethereal) == IFLAG_ETHEREAL);
+static_assert(std::to_underlying(ItemFlag::Gamble) == IFLAG_LOWQUALITY);
+static_assert(std::to_underlying(ItemFlag::Item) == IFLAG_ITEM);
+
 namespace {
 
 inline D2UnitStrc* AsUnit(void* p) noexcept {
@@ -195,15 +203,14 @@ uint32_t Unit::Id() const {
     return unitId_;
 }
 
-uint32_t Unit::Act() const {
+Act Unit::Act() const {
     const auto u = Resolve<D2UnitStrc>();
-    // Reference: pUnit->dwAct + 1 (game stores 0-based act, JS exposes 1-based).
-    return u ? static_cast<uint32_t>(u->nAct) + 1U : 1U;
+    return u ? static_cast<game::Act>(u->nAct) : Act::I;
 }
 
-uint32_t Unit::FlagsEx() const {
+UnitFlagEx Unit::FlagsEx() const {
     const auto u = Resolve<D2UnitStrc>();
-    return u ? u->dwFlagEx : 0U;
+    return u ? static_cast<UnitFlagEx>(u->dwFlagEx) : UnitFlagEx{};
 }
 
 // === Position ===
@@ -613,26 +620,26 @@ std::optional<uint32_t> Unit::SuperUniqueId() const {
     return u->pMonsterData->wBossHcIdx;
 }
 
-uint32_t Unit::SpecType() const {
+MonsterSpecType Unit::SpecType() const {
     const auto u = Resolve<D2UnitStrc>();
     if (!u || u->dwUnitType != UNIT_MONSTER || u->pMonsterData == nullptr) {
-        return 0U;
+        return MonsterSpecType{};
     }
     // `MonsterData::nTypeFlag` packs the monster-class flags one way; MonsterSpecType
     // is the layout the JS API expects. Repack rather than pass the raw byte through.
     const auto flags = u->pMonsterData->nTypeFlag;
-    uint32_t spec = 0U;
+    MonsterSpecType spec{};
     if ((flags & MONTYPEFLAG_MINION) != 0) {
-        spec |= std::to_underlying(MonsterSpecType::Minion);
+        spec |= MonsterSpecType::Minion;
     }
     if ((flags & MONTYPEFLAG_UNIQUE) != 0) {
-        spec |= std::to_underlying(MonsterSpecType::Unique);
+        spec |= MonsterSpecType::Unique;
     }
     if ((flags & MONTYPEFLAG_CHAMPION) != 0) {
-        spec |= std::to_underlying(MonsterSpecType::Champion);
+        spec |= MonsterSpecType::Champion;
     }
     if ((flags & MONTYPEFLAG_UNIQUE) != 0 && (flags & MONTYPEFLAG_SUPERUNIQUE) != 0) {
-        spec |= std::to_underlying(MonsterSpecType::SuperUnique);
+        spec |= MonsterSpecType::SuperUnique;
     }
     return spec;
 }
@@ -947,12 +954,12 @@ uint32_t Unit::GfxIndex() const {
     return u->pItemData->nInvGfxIdx;
 }
 
-uint32_t Unit::ItemFlags() const {
+ItemFlag Unit::ItemFlags() const {
     const auto u = Resolve<D2UnitStrc>();
     if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
-        return 0U;
+        return ItemFlag{};
     }
-    return u->pItemData->dwItemFlags;
+    return static_cast<ItemFlag>(u->pItemData->dwItemFlags);
 }
 
 uint16_t Unit::ItemFormat() const {
@@ -1356,7 +1363,7 @@ bool Unit::TakeWaypoint(uint32_t waypointId) const {
     // (e.g. because the destination is the same act and the menu state stayed
     // in the waypoint dialog), explicitly close the interact UI so subsequent
     // scripts don't see a stale interaction state.
-    if (lod114d::imports::d2client::UI_GetVar(UI_GAME) == 0) {
+    if (lod114d::imports::d2client::UI_GetVar(UiFlag::Game) == 0) {
         lod114d::imports::d2client::UI_CloseInteract();
     }
     return true;
@@ -1488,7 +1495,7 @@ bool Unit::Shop(ShopMode mode) const {
     // Reference JSUnit.cpp:1491-1494: ShopAction assumes the NPC shop UI window
     // has set up its render targets / hover items. Calling it outside that
     // lifecycle can corrupt transaction-dialog state.
-    if (lod114d::imports::d2client::UI_GetVar(UI_NPCSHOP) == 0) {
+    if (lod114d::imports::d2client::UI_GetVar(UiFlag::NpcShop) == 0) {
         return false;
     }
 

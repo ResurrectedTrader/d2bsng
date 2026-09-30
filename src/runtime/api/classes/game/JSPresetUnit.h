@@ -1,6 +1,9 @@
 #pragma once
 
+#include <utility>
+
 #include <v8.h>
+
 #include "api/core/Class.h"
 #include "api/core/Error.h"
 #include "game/Room.h"
@@ -18,13 +21,12 @@ class JSPresetUnit : public ClassBase<JSPresetUnit, game::PresetUnitInfo> {
 
     static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
         auto inst = tpl->InstanceTemplate();
-        /// @description Unit type code identifying the kind of preset object.
-        /// 1 = monster, 2 = object, 5 = tile.
-        /// @type {number}
+        /// @description Unit type of the preset (monster, object or tile).
+        /// @type {UnitType}
         Property(
             isolate, inst, "type", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 auto* data = Unwrap(info.Holder());
-                info.GetReturnValue().Set(data->type);
+                info.GetReturnValue().Set(std::to_underlying(data->type));
             });
 
         /// @description X coordinate of the containing room in room-grid units.

@@ -53,8 +53,6 @@ constexpr size_t BUCKET_COUNT = 6;
 // bits, which the record load clears, so a quest done in a prior game reads as
 // incomplete.
 constexpr uint32_t QUEST_COUNT = 41;
-constexpr uint32_t QFLAG_REWARDGRANTED = 0;
-constexpr uint32_t QFLAG_REWARDPENDING = 1;
 constexpr uint32_t WAYPOINT_COUNT = 39;
 
 json BuildItems(const std::vector<game::Unit>& items) {
@@ -118,7 +116,7 @@ json BuildIdentity() {
     identity["account"] = game::GetAccountName();
     identity["realm"] = game::GetRealmShort();
     identity["difficulty"] = game::GetDifficulty();
-    identity["charFlags"] = game::GetCharFlags();
+    identity["charFlags"] = std::to_underlying(game::GetCharFlags());
     // hardcore/expansion are derivable from charFlags; ladder is a separate BnetData
     // flag, so it stays here.
     identity["ladder"] = game::IsLadder().value_or(0) != 0;
@@ -131,8 +129,8 @@ json BuildProgression() {
 
     json quests = json::array();
     for (uint32_t questId = 0; questId < QUEST_COUNT; ++questId) {
-        if (game::GetQuestFlag(questId, QFLAG_REWARDGRANTED) != 0 ||
-            game::GetQuestFlag(questId, QFLAG_REWARDPENDING) != 0) {
+        if (game::GetQuestFlag(questId, game::QuestFlag::RewardGranted) ||
+            game::GetQuestFlag(questId, game::QuestFlag::RewardPending)) {
             quests.push_back(questId);  // reward granted or pending == completed
         }
     }
@@ -497,7 +495,7 @@ void CharacterState::RecordKill(uint32_t unitId) {
     if (const auto superUnique = monster->SuperUniqueId()) {
         ++killsBySuperUnique_[*superUnique];
     } else {
-        ++killsByClass_[{monster->ClassId(), monster->SpecType()}];
+        ++killsByClass_[{monster->ClassId(), std::to_underlying(monster->SpecType())}];
     }
 }
 

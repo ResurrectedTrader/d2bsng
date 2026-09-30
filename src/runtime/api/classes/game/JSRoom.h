@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstring>
+#include <utility>
 #include <vector>
 
 #include <v8.h>
@@ -180,8 +181,8 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
             });
 
         /// @description Returns PresetUnit objects in this room, optionally filtered by unit type and class id.
-        /// @signature getPresetUnits(type?: number, classId?: number)
-        /// @param type {number} - unit type to match; pass -1 or omit to match any type.
+        /// @signature getPresetUnits(type?: UnitType|number, classId?: number)
+        /// @param type {UnitType|number} - unit type to match; pass -1 or omit to match any type.
         /// @param classId {number} - unit class id to match; pass -1 or omit to match any class.
         /// @returns {PresetUnit[]} - matching PresetUnit objects (possibly empty); undefined when game not ready
         /// or room unresolved.
@@ -196,13 +197,13 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 // IsUint32 (not IsNumber): scripts pass -1 to mean "no filter" - IsUint32 rejects
                 // negative values, leaving the optional as nullopt. IsNumber would accept -1 and
                 // store 0xFFFFFFFF as an engaged optional, breaking "no filter" semantics.
-                std::optional<uint32_t> nType;
+                std::optional<game::UnitType> nType;
                 std::optional<uint32_t> nClass;
                 if (args.Length() > 0 && args[0]->IsUint32()) {
-                    nType = convert::ToUint32(isolate, args[0]);
+                    nType = convert::To<game::UnitType>(isolate, args[0]);
                 }
                 if (args.Length() > 1 && args[1]->IsUint32()) {
-                    nClass = convert::ToUint32(isolate, args[1]);
+                    nClass = convert::To<uint32_t>(isolate, args[1]);
                 }
 
                 std::vector<game::PresetUnitInfo> presets;
@@ -239,7 +240,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                     return;
                 }
                 auto context = isolate->GetCurrentContext();
-                std::vector<std::vector<uint16_t>> collision;
+                std::vector<std::vector<game::CollisionFlag>> collision;
                 {
                     const auto data = Unwrap(args.This());
                     if (!*data) {
@@ -254,7 +255,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                     const auto& row = collision[y];
                     auto innerArray = v8::Array::New(isolate, static_cast<int32_t>(row.size()));
                     for (size_t x = 0; x < row.size(); ++x) {
-                        innerArray->Set(context, x, convert::ToJS(isolate, row[x])).Check();
+                        innerArray->Set(context, x, convert::ToJS(isolate, std::to_underlying(row[x]))).Check();
                     }
                     outerArray->Set(context, y, innerArray).Check();
                 }
@@ -273,7 +274,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 if (!game::IsGameReady()) {
                     return;
                 }
-                std::vector<uint16_t> flat;
+                std::vector<game::CollisionFlag> flat;
                 {
                     const auto data = Unwrap(args.This());
                     if (!*data) {
@@ -284,7 +285,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 if (flat.empty()) {
                     return;  // Returns undefined - reference returns undefined when collision data is null
                 }
-                size_t byteLength = flat.size() * sizeof(uint16_t);
+                size_t byteLength = flat.size() * sizeof(game::CollisionFlag);
                 auto backing = v8::ArrayBuffer::NewBackingStore(isolate, byteLength);
                 std::memcpy(backing->Data(), flat.data(), byteLength);
                 auto buffer = v8::ArrayBuffer::New(isolate, std::move(backing));
@@ -342,7 +343,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 if (!*data) {
                     return;
                 }
-                int32_t nStat = convert::ToInt32(isolate, args[0]);
+                int32_t nStat = convert::To<int32_t>(isolate, args[0]);
                 args.GetReturnValue().Set(data->GetStat(nStat));
             });
 

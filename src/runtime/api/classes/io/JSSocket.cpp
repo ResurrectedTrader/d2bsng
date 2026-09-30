@@ -185,7 +185,7 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
 
             // Note: We are not implementing a host whitelist for this project for now.
             std::string host = convert::ToString(isolate, args[0]);
-            int32_t port = convert::ToInt32(isolate, args[1]);
+            int32_t port = convert::To<int32_t>(isolate, args[1]);
 
             // Initialize Winsock
             WSADATA wsaData;

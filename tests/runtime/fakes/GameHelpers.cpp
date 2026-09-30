@@ -77,8 +77,8 @@ std::string GetRealmShort() {
 Difficulty GetMaxDiff() {
     return Difficulty::Normal;
 }
-uint32_t GetCharFlags() {
-    return 0;
+CharFlag GetCharFlags() {
+    return CharFlag{};
 }
 std::optional<uint8_t> IsLadder() {
     return {};
@@ -113,7 +113,7 @@ Point AbsScreenToMap(Point p) {
 }
 
 // === UI ===
-bool GetUIFlag(uint32_t /*flag*/) {
+bool GetUIFlag(UiFlag /*flag*/) {
     return false;
 }
 
@@ -171,7 +171,7 @@ bool SubmitItem(const Unit& /*item*/) {
     return false;
 }
 void Transmute() {}
-bool TestPvpFlag(const Unit& /*a*/, const Unit& /*b*/, uint32_t /*flag*/) {
+bool TestPvpFlag(const Unit& /*a*/, const Unit& /*b*/, RosterFlag /*flag*/) {
     return false;
 }
 bool HasWaypoint(uint32_t /*waypointId*/) {
@@ -187,8 +187,8 @@ std::string GetLocaleString(uint16_t /*localeId*/) {
 int32_t GetBaseStat(const std::string& /*table*/, uint32_t /*row*/, const std::string& /*column*/) {
     return 0;
 }
-int32_t GetQuestFlag(uint32_t /*act*/, uint32_t /*quest*/) {
-    return 0;
+bool GetQuestFlag(uint32_t /*quest*/, QuestFlag /*flag*/) {
+    return false;
 }
 
 // === Weapon / Stat / Skill Actions ===
@@ -212,7 +212,7 @@ ClickResult ClickContainerSlot(ClickButton /*button*/, Position /*gridPos*/, Ite
 }
 void ClickPartyMember(const Party& /*rosterUnit*/, PartyMode /*mode*/) {}
 void LeaveParty() {}
-uint32_t CheckUnitCollision(const Unit& /*unit1*/, const Unit& /*unit2*/, uint32_t /*mask*/) {
+uint32_t CheckUnitCollision(const Unit& /*unit1*/, const Unit& /*unit2*/, CollisionFlag /*mask*/) {
     return 0;
 }
 

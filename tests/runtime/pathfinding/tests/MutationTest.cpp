@@ -12,7 +12,7 @@ TEST_CASE("MutatePoint moves blocked point to walkable neighbor") {
     for (int32_t dy = -1; dy <= 1; dy++) {
         for (int32_t dx = -1; dx <= 1; dx++) {
             coll.primary.Set({.x = static_cast<uint32_t>(10 + dx), .y = static_cast<uint32_t>(10 + dy)},
-                             collision::BLOCK_WALK);
+                             CollisionFlag::Wall);
         }
     }
 
@@ -47,7 +47,7 @@ TEST_CASE("Walk A* automatically mutates blocked start") {
     coll.primary = LevelGrid({.size = {.width = 20, .height = 20}});
 
     // Block the start point and its immediate cross
-    coll.primary.Set({.x = 5, .y = 5}, collision::BLOCK_WALK);
+    coll.primary.Set({.x = 5, .y = 5}, CollisionFlag::Wall);
 
     auto path = FindPathOnGrid(coll, {.x = 5, .y = 5}, {.x = 15, .y = 15}, ReductionType::None, 20, {});
     CHECK_FALSE(path.empty());
@@ -60,7 +60,7 @@ TEST_CASE("Walk A* automatically mutates blocked end") {
     coll.primary = LevelGrid({.size = {.width = 20, .height = 20}});
 
     // Block the end point
-    coll.primary.Set({.x = 15, .y = 15}, collision::BLOCK_WALK);
+    coll.primary.Set({.x = 15, .y = 15}, CollisionFlag::Wall);
 
     auto path = FindPathOnGrid(coll, {.x = 5, .y = 5}, {.x = 15, .y = 15}, ReductionType::None, 20, {});
     CHECK_FALSE(path.empty());

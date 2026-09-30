@@ -33,7 +33,7 @@ inline std::optional<game::Position> Position(v8::Isolate* isolate, v8::Local<v8
         return std::nullopt;
     if (!xv->IsNumber() || !yv->IsNumber())
         return std::nullopt;
-    return game::Position{.x = convert::ToUint32(isolate, xv), .y = convert::ToUint32(isolate, yv)};
+    return game::Position{.x = convert::To<uint32_t>(isolate, xv), .y = convert::To<uint32_t>(isolate, yv)};
 }
 
 inline std::optional<game::Point> Point(v8::Isolate* isolate, v8::Local<v8::Value> val) {
@@ -49,7 +49,7 @@ inline std::optional<game::Point> Point(v8::Isolate* isolate, v8::Local<v8::Valu
         return std::nullopt;
     if (!xv->IsNumber() || !yv->IsNumber())
         return std::nullopt;
-    return game::Point{.x = convert::ToInt32(isolate, xv), .y = convert::ToInt32(isolate, yv)};
+    return game::Point{.x = convert::To<int32_t>(isolate, xv), .y = convert::To<int32_t>(isolate, yv)};
 }
 
 inline std::optional<game::Size> Size(v8::Isolate* isolate, v8::Local<v8::Value> val) {
@@ -65,7 +65,7 @@ inline std::optional<game::Size> Size(v8::Isolate* isolate, v8::Local<v8::Value>
         return std::nullopt;
     if (!wv->IsNumber() || !hv->IsNumber())
         return std::nullopt;
-    return game::Size{.width = convert::ToUint32(isolate, wv), .height = convert::ToUint32(isolate, hv)};
+    return game::Size{.width = convert::To<uint32_t>(isolate, wv), .height = convert::To<uint32_t>(isolate, hv)};
 }
 
 // ============================================================================
@@ -80,22 +80,24 @@ inline std::optional<game::Position> Position(const v8::FunctionCallbackInfo<v8:
     if (args.Length() <= idx + 1)
         return std::nullopt;
     auto* isolate = args.GetIsolate();
-    return game::Position{.x = convert::ToUint32(isolate, args[idx]), .y = convert::ToUint32(isolate, args[idx + 1])};
+    return game::Position{.x = convert::To<uint32_t>(isolate, args[idx]),
+                          .y = convert::To<uint32_t>(isolate, args[idx + 1])};
 }
 
 inline std::optional<game::Point> Point(const v8::FunctionCallbackInfo<v8::Value>& args, int idx) {
     if (args.Length() <= idx + 1)
         return std::nullopt;
     auto* isolate = args.GetIsolate();
-    return game::Point{.x = convert::ToInt32(isolate, args[idx]), .y = convert::ToInt32(isolate, args[idx + 1])};
+    return game::Point{.x = convert::To<int32_t>(isolate, args[idx]),
+                       .y = convert::To<int32_t>(isolate, args[idx + 1])};
 }
 
 inline std::optional<game::Size> Size(const v8::FunctionCallbackInfo<v8::Value>& args, int idx) {
     if (args.Length() <= idx + 1)
         return std::nullopt;
     auto* isolate = args.GetIsolate();
-    return game::Size{.width = convert::ToUint32(isolate, args[idx]),
-                      .height = convert::ToUint32(isolate, args[idx + 1])};
+    return game::Size{.width = convert::To<uint32_t>(isolate, args[idx]),
+                      .height = convert::To<uint32_t>(isolate, args[idx + 1])};
 }
 
 // ============================================================================
@@ -110,9 +112,9 @@ inline void PointInto(const v8::FunctionCallbackInfo<v8::Value>& args, int idx, 
     auto* isolate = args.GetIsolate();
     auto cur = out.load();
     if (args.Length() > idx && args[idx]->IsNumber())
-        cur.x = convert::ToInt32(isolate, args[idx]);
+        cur.x = convert::To<int32_t>(isolate, args[idx]);
     if (args.Length() > idx + 1 && args[idx + 1]->IsNumber())
-        cur.y = convert::ToInt32(isolate, args[idx + 1]);
+        cur.y = convert::To<int32_t>(isolate, args[idx + 1]);
     out.store(cur);
 }
 
@@ -120,9 +122,9 @@ inline void SizeInto(const v8::FunctionCallbackInfo<v8::Value>& args, int idx, s
     auto* isolate = args.GetIsolate();
     auto cur = out.load();
     if (args.Length() > idx && args[idx]->IsNumber())
-        cur.width = convert::ToUint32(isolate, args[idx]);
+        cur.width = convert::To<uint32_t>(isolate, args[idx]);
     if (args.Length() > idx + 1 && args[idx + 1]->IsNumber())
-        cur.height = convert::ToUint32(isolate, args[idx + 1]);
+        cur.height = convert::To<uint32_t>(isolate, args[idx + 1]);
     out.store(cur);
 }
 

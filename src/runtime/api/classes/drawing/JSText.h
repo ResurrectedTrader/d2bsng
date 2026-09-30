@@ -43,13 +43,13 @@ class JSText : public JSDrawableBase<JSText, TextDrawable> {
         extract::PointInto(args, 1, drawable->pos);
 
         if (args.Length() > 3 && args[3]->IsNumber()) {
-            drawable->color.store(convert::ToUint32(isolate, args[3]));
+            drawable->color.store(convert::To<uint32_t>(isolate, args[3]));
         }
         if (args.Length() > 4 && args[4]->IsNumber()) {
-            drawable->font.store(convert::ToInt32(isolate, args[4]));
+            drawable->font.store(convert::To<int32_t>(isolate, args[4]));
         }
         if (args.Length() > 5 && args[5]->IsNumber()) {
-            drawable->align.store(static_cast<Align>(convert::ToInt32(isolate, args[5])));
+            drawable->align.store(convert::To<Align>(isolate, args[5]));
         }
         if (args.Length() > 6 && args[6]->IsBoolean()) {
             drawable->isAutomap.store(args[6]->BooleanValue(isolate));
@@ -110,7 +110,7 @@ class JSText : public JSDrawableBase<JSText, TextDrawable> {
                     return;
                 if (!value->IsNumber())
                     return;
-                drawable->color.store(convert::ToUint32(info.GetIsolate(), value));
+                drawable->color.store(convert::To<uint32_t>(info.GetIsolate(), value));
             });
 
         /// @description The font index used to render the text.
@@ -129,7 +129,7 @@ class JSText : public JSDrawableBase<JSText, TextDrawable> {
                     return;
                 if (!value->IsNumber())
                     return;
-                drawable->font.store(convert::ToInt32(info.GetIsolate(), value));
+                drawable->font.store(convert::To<int32_t>(info.GetIsolate(), value));
             });
     }
 };

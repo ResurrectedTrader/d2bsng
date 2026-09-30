@@ -36,7 +36,7 @@ class Party {
     uint32_t LevelId() const;
     uint32_t Id() const;
     uint32_t Life() const;
-    uint32_t PartyFlag() const;
+    PartyState PartyState() const;
     uint16_t PartyId() const;
     std::string Name() const;
     uint32_t ClassId() const;

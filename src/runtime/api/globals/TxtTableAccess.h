@@ -23,7 +23,7 @@ inline std::optional<std::string> ResolveTableArg(v8::Isolate* isolate, v8::Loca
         return convert::ToString(isolate, arg);
     }
     if (arg->IsNumber()) {
-        if (auto resolved = ResolveTxtTable(convert::ToUint32(isolate, arg))) {
+        if (auto resolved = ResolveTxtTable(convert::To<uint32_t>(isolate, arg))) {
             return std::string(*resolved);
         }
     }
@@ -53,7 +53,7 @@ inline v8::Local<v8::Value> ResolveTxtCell(v8::Isolate* isolate, const std::stri
     if (columnArg->IsString()) {
         columnName = convert::ToString(isolate, columnArg);
     } else if (columnArg->IsNumber()) {
-        auto resolved = ResolveTxtColumn(tableName, convert::ToUint32(isolate, columnArg));
+        auto resolved = ResolveTxtColumn(tableName, convert::To<uint32_t>(isolate, columnArg));
         if (!resolved) {
             return v8::Undefined(isolate);
         }

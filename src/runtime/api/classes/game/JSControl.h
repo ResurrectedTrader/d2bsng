@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include <v8.h>
 #include "api/core/Class.h"
 #include "api/core/Convert.h"
@@ -20,6 +22,9 @@ class JSControl : public ClassBase<JSControl, game::Control> {
     V8_CLASS_NOT_CONSTRUCTABLE
 
    private:
+    // The JS `state` view is the raw state word counted from ControlState::Normal.
+    static constexpr int32_t STATE_BASE = std::to_underlying(game::ControlState::Normal);
+
     // Shared guard for every Control property callback: the client must be in the
     // Menu state AND the underlying Control handle must still resolve to a valid
     // game control. Returns the locked Control when both hold, else an empty one
@@ -115,7 +120,8 @@ class JSControl : public ClassBase<JSControl, game::Control> {
                     return;
                 info.GetReturnValue().Set(static_cast<int32_t>(data->Bounds().size.height));
             });
-        /// @description The control's state value (0-3).
+        /// @description The control's state, 0-3: the raw state word minus 2 (0 normal, 2 a disabled button, 3 an
+        /// active edit box or ticked checkbox).
         /// @type {number}
         /// @throws {Error} - when the assigned state is outside the 0-3 range
         Property(
@@ -124,7 +130,7 @@ class JSControl : public ClassBase<JSControl, game::Control> {
                 const auto data = MenuOnly(info);
                 if (!data)
                     return;
-                info.GetReturnValue().Set(static_cast<int32_t>(data->State()) - 2);
+                info.GetReturnValue().Set(static_cast<int32_t>(std::to_underlying(data->State())) - STATE_BASE);
             },
             +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value,
                 const v8::PropertyCallbackInfo<v8::Boolean>& info) {
@@ -135,12 +141,12 @@ class JSControl : public ClassBase<JSControl, game::Control> {
                 if (!value->IsNumber()) {
                     return;
                 }
-                int32_t state = convert::ToInt32(isolate, value);
+                int32_t state = convert::To<int32_t>(isolate, value);
                 if (state < 0 || state > 3) {
                     error::ThrowError(isolate, "Invalid state value");
                     return;
                 }
-                data->SetState(static_cast<uint32_t>(state + 2));
+                data->SetState(static_cast<game::ControlState>(state + STATE_BASE));
             });
         /// @description Whether the control is a password (cloaked) input field.
         /// @type {boolean}
@@ -182,7 +188,7 @@ class JSControl : public ClassBase<JSControl, game::Control> {
                     return;
                 }
                 auto* isolate = info.GetIsolate();
-                uint32_t pos = convert::ToUint32(isolate, value);
+                uint32_t pos = convert::To<uint32_t>(isolate, value);
                 data->SetCursorPos(pos);
             });
         /// @description The start character offset of the control's current text selection.
@@ -205,15 +211,15 @@ class JSControl : public ClassBase<JSControl, game::Control> {
                     return;
                 info.GetReturnValue().Set(static_cast<int32_t>(data->SelectEnd()));
             });
-        /// @description The control's disabled flag value.
-        /// @type {number}
+        /// @description The control's raw state word; ControlState names the known values.
+        /// @type {ControlState|number}
         Property(
             isolate, inst, "disabled",
             +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = MenuOnly(info);
                 if (!data)
                     return;
-                info.GetReturnValue().Set(static_cast<int32_t>(data->State()));
+                info.GetReturnValue().Set(std::to_underlying(data->State()));
             },
             +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value,
                 const v8::PropertyCallbackInfo<v8::Boolean>& info) {
@@ -224,8 +230,7 @@ class JSControl : public ClassBase<JSControl, game::Control> {
                     return;
                 }
                 auto* isolate = info.GetIsolate();
-                uint32_t disabled = convert::ToUint32(isolate, value);
-                data->SetState(disabled);
+                data->SetState(convert::To<game::ControlState>(isolate, value));
             });
 
         // Methods

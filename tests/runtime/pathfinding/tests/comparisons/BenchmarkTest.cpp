@@ -16,13 +16,13 @@
 #include "pathfinding/reference/TeleportPathReducer.h"
 #include "pathfinding/reference/WalkPathReducer.h"
 
+using d2bs::runtime::navigation::CollisionFlag;
 using d2bs::runtime::navigation::CollisionLookup;
 using d2bs::runtime::navigation::FindPathOnGrid;
 using d2bs::runtime::navigation::LevelGrid;
 using d2bs::runtime::navigation::Point;
 using d2bs::runtime::navigation::Position;
 using d2bs::runtime::navigation::ReductionType;
-using d2bs::runtime::navigation::collision::BLOCK_WALK;
 
 namespace {
 
@@ -92,7 +92,7 @@ TEST_CASE("Benchmark: 2000x2000 diagonal path") {
 TEST_CASE("Benchmark: 2000x2000 with wall forcing detour") {
     LevelGrid grid({.size = {.width = 2000, .height = 2000}});
     for (uint32_t y = 0; y < 1990; y++) {
-        grid.Set({.x = 1000, .y = y}, BLOCK_WALK);
+        grid.Set({.x = 1000, .y = y}, CollisionFlag::Wall);
     }
 
     auto result = RunBench(grid, {.x = 500, .y = 1000}, {.x = 1500, .y = 1000}, 3);
@@ -180,7 +180,7 @@ TEST_CASE("Benchmark: 2000x2000 teleport diagonal") {
 TEST_CASE("Benchmark: 2000x2000 teleport with wall") {
     LevelGrid grid({.size = {.width = 2000, .height = 2000}});
     for (uint32_t y = 0; y < 1990; y++) {
-        grid.Set({.x = 1000, .y = y}, BLOCK_WALK);
+        grid.Set({.x = 1000, .y = y}, CollisionFlag::Wall);
     }
 
     CollisionLookup coll;

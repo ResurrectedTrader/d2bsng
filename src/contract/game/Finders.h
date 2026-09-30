@@ -225,7 +225,7 @@ inline std::optional<Room> Level::FindRoomAt(Position pos) const {
     return std::nullopt;
 }
 
-inline std::vector<PresetUnitInfo> Level::GetPresetUnits(std::optional<uint32_t> type,
+inline std::vector<PresetUnitInfo> Level::GetPresetUnits(std::optional<UnitType> type,
                                                          std::optional<uint32_t> classId) const {
     std::vector<PresetUnitInfo> out;
     const uint32_t levelId = Id();
@@ -239,7 +239,7 @@ inline std::vector<PresetUnitInfo> Level::GetPresetUnits(std::optional<uint32_t>
     return out;
 }
 
-inline std::optional<PresetUnitInfo> Level::FindFirstPresetUnit(std::optional<uint32_t> type,
+inline std::optional<PresetUnitInfo> Level::FindFirstPresetUnit(std::optional<UnitType> type,
                                                                 std::optional<uint32_t> classId) const {
     const uint32_t levelId = Id();
     for (auto r = GetFirstRoom(); r; r = r.GetNext()) {

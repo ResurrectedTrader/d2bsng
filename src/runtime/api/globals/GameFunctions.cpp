@@ -99,7 +99,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             // cursor item, 101 = selected unit. Remaining args are ignored on these paths
             // (matches reference).
             if (args[0]->IsNumber()) {
-                uint32_t type = convert::ToUint32(isolate, args[0]);
+                uint32_t type = convert::To<uint32_t>(isolate, args[0]);
                 if (type == game::ITEM_LOCATION_MODE_OFFSET) {
                     auto unit = game::Unit::CursorItem();
                     if (!unit) {
@@ -130,7 +130,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             // nullopt. IsNumber would accept -1 and store 0xFFFFFFFF as engaged.
             game::UnitCursorState cursor;
             if (args[0]->IsUint32()) {
-                auto rawType = convert::ToUint32(isolate, args[0]);
+                auto rawType = convert::To<uint32_t>(isolate, args[0]);
                 // Valid unit types are 0-5. Values outside this range trigger "search all types."
                 if (rawType <= static_cast<uint32_t>(game::UnitType::Tile)) {
                     cursor.type = static_cast<game::UnitType>(rawType);
@@ -141,14 +141,14 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 if (args[1]->IsString()) {
                     cursor.name = convert::ToString(isolate, args[1]);
                 } else if (args[1]->IsUint32()) {
-                    cursor.classId = convert::ToUint32(isolate, args[1]);
+                    cursor.classId = convert::To<uint32_t>(isolate, args[1]);
                 }
             }
             if (args.Length() >= 3 && args[2]->IsUint32()) {
-                cursor.mode = convert::ToUint32(isolate, args[2]);
+                cursor.mode = convert::To<uint32_t>(isolate, args[2]);
             }
             if (args.Length() >= 4 && args[3]->IsUint32()) {
-                cursor.unitId = convert::ToUint32(isolate, args[3]);
+                cursor.unitId = convert::To<uint32_t>(isolate, args[3]);
             }
 
             // Reference calls GetUnit(szName, nClassId, nType, nMode, nUnitId) which searches
@@ -201,16 +201,16 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t area = convert::ToUint32(isolate, args[0]);
+            uint32_t area = convert::To<uint32_t>(isolate, args[0]);
             auto src = extract::Position(args, 1).value_or(game::Position::Zero);
             auto dst = extract::Position(args, 3).value_or(game::Position::Zero);
             uint32_t reductionType = 0;
             uint32_t radius = 20;
             if (args.Length() > 5) {
-                reductionType = convert::ToUint32(isolate, args[5]);
+                reductionType = convert::To<uint32_t>(isolate, args[5]);
             }
             if (args.Length() > 6) {
-                radius = convert::ToUint32(isolate, args[6]);
+                radius = convert::To<uint32_t>(isolate, args[6]);
             }
 
             if (area == 0) {
@@ -295,8 +295,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     auto ryMaybe = arr->Get(context, 1);
                     if (rxMaybe.IsEmpty() || ryMaybe.IsEmpty())
                         return p;
-                    auto rx = convert::ToUint32(isolate, rxMaybe.ToLocalChecked());
-                    auto ry = convert::ToUint32(isolate, ryMaybe.ToLocalChecked());
+                    auto rx = convert::To<uint32_t>(isolate, rxMaybe.ToLocalChecked());
+                    auto ry = convert::To<uint32_t>(isolate, ryMaybe.ToLocalChecked());
                     return {.x = rx, .y = ry};
                 };
             }
@@ -310,7 +310,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param levelId {number} - level id
     /// @param x {number} - world x coordinate
     /// @param y {number} - world y coordinate
-    /// @returns {number} - collision flag at the cell, or 0 if no room contains the position
+    /// @returns {CollisionFlag} - collision flags at the cell, or 0 if no room contains the position
     /// @throws {Error} - the level is not loaded
     function::Register(
         isolate, global, "getCollision", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -326,11 +326,11 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t levelId = convert::ToUint32(isolate, args[0]);
+            uint32_t levelId = convert::To<uint32_t>(isolate, args[0]);
             auto pos = extract::Position(args, 1).value();  // strict IsUint32 above guarantees this
 
             bool isLevelLoaded = false;
-            uint16_t collision = 0;
+            auto collision = game::CollisionFlag::None;
             {
                 game::GameReadLock lock;
                 if (auto level = game::Level::Get(levelId)) {
@@ -344,7 +344,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 error::ThrowError(isolate, "Level not loaded");
                 return;
             }
-            args.GetReturnValue().Set(collision);
+            args.GetReturnValue().Set(std::to_underlying(collision));
         });
 
     /// @description Get the player's mercenary HP as a percentage (0-100).
@@ -383,7 +383,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             int32_t type = 0;
             if (args.Length() > 0) {
-                type = convert::ToInt32(isolate, args[0]);
+                type = convert::To<int32_t>(isolate, args[0]);
             }
 
             // type 1 = shop mode (check for shop-specific cursor), 0 = regular cursor
@@ -424,7 +424,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            int32_t skillId = convert::ToInt32(isolate, args[0]);
+            int32_t skillId = convert::To<int32_t>(isolate, args[0]);
 
             // Chain: skills table -> skilldesc row -> locale string ID -> localized name
             static_assert(std::variant_size_v<game::TxtValue> == 3,
@@ -457,7 +457,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint16_t localeId = static_cast<uint16_t>(convert::ToUint32(isolate, args[0]));
+            uint16_t localeId = convert::To<uint16_t>(isolate, args[0]);
             std::string text = game::GetLocaleString(localeId);
             args.GetReturnValue().Set(convert::ToJS(isolate, text));
         });
@@ -484,7 +484,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
 
             std::string text = convert::ToString(isolate, args[0]);
-            uint32_t font = convert::ToUint32(isolate, args[1]);
+            uint32_t font = convert::To<uint32_t>(isolate, args[1]);
 
             bool asObject = false;
             if (args.Length() > 2 && args[2]->IsBoolean()) {
@@ -504,8 +504,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Query whether a UI flag is set.
-    /// @signature getUIFlag(flag: number)
-    /// @param flag {number} - UI flag id
+    /// @signature getUIFlag(flag: UiFlag)
+    /// @param flag {UiFlag} - UI flag id
     /// @returns {boolean|undefined} - true if the flag is set, undefined if missing arg
     function::Register(
         isolate, global, "getUIFlag", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -520,8 +520,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t flag = convert::ToUint32(isolate, args[0]);
-            args.GetReturnValue().Set(game::GetUIFlag(flag) != 0);
+            const auto flag = convert::To<game::UiFlag>(isolate, args[0]);
+            args.GetReturnValue().Set(game::GetUIFlag(flag));
         });
 
     /// @description Query trade-related info by mode.
@@ -547,7 +547,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto mode = static_cast<game::TradeInfoMode>(convert::ToInt32(isolate, args[0]));
+            auto mode = convert::To<game::TradeInfoMode>(isolate, args[0]);
             switch (mode) {
                 case game::TradeInfoMode::RecentTradeId:
                     // Reference: INT_TO_JSVAL(*p_D2CLIENT_RecentTradeId)
@@ -590,7 +590,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t waypointId = convert::ToUint32(isolate, args[0]);
+            uint32_t waypointId = convert::To<uint32_t>(isolate, args[0]);
             // Clamp waypointId > MAX_WAYPOINT_ID to 0 (matching reference behavior)
             if (waypointId > game::MAX_WAYPOINT_ID) {
                 waypointId = 0;
@@ -647,7 +647,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     room = level.GetFirstRoom();
                 } else if (args.Length() == 1 && args[0]->IsNumber()) {
                     // getRoom(levelId): get first room of the level, or player's room if 0
-                    uint32_t levelId = convert::ToUint32(isolate, args[0]);
+                    uint32_t levelId = convert::To<uint32_t>(isolate, args[0]);
                     if (levelId == 0) {
                         // Reference: levelId==0 returns player's current room
                         auto player = game::Unit::Player();
@@ -669,7 +669,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
                     if (isLevelForm) {
                         // getRoom(levelId, x, y)
-                        uint32_t levelId = convert::ToUint32(isolate, args[0]);
+                        uint32_t levelId = convert::To<uint32_t>(isolate, args[0]);
                         level = game::Level::Get(levelId);
                         if (!level) {
                             return;
@@ -752,7 +752,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 std::string name = convert::ToString(isolate, args[0]);
                 found = game::Party::FindByName(name);
             } else if (args[0]->IsNumber()) {
-                uint32_t unitId = convert::ToUint32(isolate, args[0]);
+                uint32_t unitId = convert::To<uint32_t>(isolate, args[0]);
                 found = game::Party::FindById(unitId);
             } else if (args[0]->IsObject()) {
                 // If a unit object is passed, match by its unit ID
@@ -778,9 +778,9 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Find the first preset unit in a level, optionally filtered by type and class id.
-    /// @signature getPresetUnit(areaId: number, type?: number, classId?: number)
+    /// @signature getPresetUnit(areaId: number, type?: UnitType|number, classId?: number)
     /// @param areaId {number} - level/area id
-    /// @param type {number} - unit type to match; pass -1 or omit to match any type.
+    /// @param type {UnitType|number} - unit type to match; pass -1 or omit to match any type.
     /// @param classId {number} - unit class id to match; pass -1 or omit to match any class.
     /// @returns {PresetUnit|false} - the first matching preset unit, or false if none
     /// @throws {Error} - the level cannot be accessed
@@ -799,14 +799,14 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t areaId = convert::ToUint32(isolate, args[0]);
-            std::optional<uint32_t> nType;
+            uint32_t areaId = convert::To<uint32_t>(isolate, args[0]);
+            std::optional<game::UnitType> nType;
             std::optional<uint32_t> nClassId;
             if (args.Length() > 1 && args[1]->IsUint32()) {
-                nType = convert::ToUint32(isolate, args[1]);
+                nType = convert::To<game::UnitType>(isolate, args[1]);
             }
             if (args.Length() > 2 && args[2]->IsUint32()) {
-                nClassId = convert::ToUint32(isolate, args[2]);
+                nClassId = convert::To<uint32_t>(isolate, args[2]);
             }
 
             bool isLevelLoaded = false;
@@ -837,9 +837,9 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Get all preset units in a level as an array, optionally filtered by type and class id.
-    /// @signature getPresetUnits(areaId: number, type?: number, classId?: number)
+    /// @signature getPresetUnits(areaId: number, type?: UnitType|number, classId?: number)
     /// @param areaId {number} - level/area id
-    /// @param type {number} - unit type to match; pass -1 or omit to match any type.
+    /// @param type {UnitType|number} - unit type to match; pass -1 or omit to match any type.
     /// @param classId {number} - unit class id to match; pass -1 or omit to match any class.
     /// @returns {Array<PresetUnit>|false} - array of matching preset units (possibly empty), or false if no args
     /// @throws {Error} - the level cannot be accessed
@@ -858,14 +858,14 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t areaId = convert::ToUint32(isolate, args[0]);
-            std::optional<uint32_t> nType;
+            uint32_t areaId = convert::To<uint32_t>(isolate, args[0]);
+            std::optional<game::UnitType> nType;
             std::optional<uint32_t> nClassId;
             if (args.Length() > 1 && args[1]->IsUint32()) {
-                nType = convert::ToUint32(isolate, args[1]);
+                nType = convert::To<game::UnitType>(isolate, args[1]);
             }
             if (args.Length() > 2 && args[2]->IsUint32()) {
-                nClassId = convert::ToUint32(isolate, args[2]);
+                nClassId = convert::To<uint32_t>(isolate, args[2]);
             }
 
             bool isLevelLoaded = false;
@@ -918,7 +918,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     error::ThrowError(isolate, "Invalid parameter passed to getArea!");
                     return;
                 }
-                int32_t signedId = convert::ToInt32(isolate, args[0]);
+                int32_t signedId = convert::To<int32_t>(isolate, args[0]);
                 if (signedId < 0) {
                     error::ThrowError(isolate, "Invalid parameter passed to getArea!");
                     return;
@@ -965,7 +965,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             if (!table) {
                 return;
             }
-            uint32_t row = convert::ToUint32(isolate, args[1]);
+            uint32_t row = convert::To<uint32_t>(isolate, args[1]);
             // No column arg (or explicit undefined) -> whole-row object.
             if (args.Length() < 3 || args[2]->IsUndefined()) {
                 args.GetReturnValue().Set(BuildTxtRow(isolate, isolate->GetCurrentContext(), *table, row));
@@ -1022,19 +1022,19 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             std::optional<uint32_t> ysize;
 
             if (args.Length() > 0 && args[0]->IsUint32()) {
-                type = static_cast<game::ControlType>(convert::ToUint32(isolate, args[0]));
+                type = convert::To<game::ControlType>(isolate, args[0]);
             }
             if (args.Length() > 1 && args[1]->IsUint32()) {
-                x = convert::ToUint32(isolate, args[1]);
+                x = convert::To<uint32_t>(isolate, args[1]);
             }
             if (args.Length() > 2 && args[2]->IsUint32()) {
-                y = convert::ToUint32(isolate, args[2]);
+                y = convert::To<uint32_t>(isolate, args[2]);
             }
             if (args.Length() > 3 && args[3]->IsUint32()) {
-                xsize = convert::ToUint32(isolate, args[3]);
+                xsize = convert::To<uint32_t>(isolate, args[3]);
             }
             if (args.Length() > 4 && args[4]->IsUint32()) {
-                ysize = convert::ToUint32(isolate, args[4]);
+                ysize = convert::To<uint32_t>(isolate, args[4]);
             }
 
             auto ctrl = game::Control::Find(type, x, y, xsize, ysize);
@@ -1087,10 +1087,10 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Test a PvP/relationship flag between two units.
-    /// @signature getPlayerFlag(unitId1: number, unitId2: number, flag: number)
+    /// @signature getPlayerFlag(unitId1: number, unitId2: number, flag: RosterFlag)
     /// @param unitId1 {number} - first unit id
     /// @param unitId2 {number} - second unit id
-    /// @param flag {number} - PvP flag mask to test
+    /// @param flag {RosterFlag} - relationship flag mask to test
     /// @returns {boolean|undefined} - flag test result, false if a unit is unresolved, undefined on bad args
     function::Register(
         isolate, global, "getPlayerFlag", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -1109,9 +1109,9 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t unitId1 = convert::ToUint32(isolate, args[0]);
-            uint32_t unitId2 = convert::ToUint32(isolate, args[1]);
-            uint32_t flag = convert::ToUint32(isolate, args[2]);
+            uint32_t unitId1 = convert::To<uint32_t>(isolate, args[0]);
+            uint32_t unitId2 = convert::To<uint32_t>(isolate, args[1]);
+            const auto flag = convert::To<game::RosterFlag>(isolate, args[2]);
 
             // Resolve both unit IDs to Unit handles. TestPvpFlag takes const Unit& and re-resolves
             // by id internally.
@@ -1234,10 +1234,10 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t clickType = convert::ToUint32(isolate, args[0]);
+            uint32_t clickType = convert::To<uint32_t>(isolate, args[0]);
             bool shift = false;
             if (args[1]->IsNumber() || args[1]->IsBoolean()) {
-                shift = convert::ToBool(isolate, args[1]);
+                shift = convert::To<bool>(isolate, args[1]);
             }
 
             // Unit object overload: clickMap(clickType, shift, unitObj)
@@ -1334,7 +1334,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 // Ref only acts on clickType 0 (player body) and 4 (merc body). Other
                 // values (1, 2, 3, 5+) fall through to ref's generic rval=true path --
                 // route them to Unrecognized so we don't dispatch a spurious body click.
-                uint32_t clickType = convert::ToUint32(isolate, args[0]);
+                uint32_t clickType = convert::To<uint32_t>(isolate, args[0]);
                 if (clickType == 0) {
                     shape = Shape::PlayerBodySlot;
                 } else if (clickType == 4) {
@@ -1380,12 +1380,12 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     break;
                 }
                 case Shape::PlayerBodySlot: {
-                    auto slot = static_cast<game::BodyLocation>(convert::ToUint32(isolate, args[1]));
+                    auto slot = convert::To<game::BodyLocation>(isolate, args[1]);
                     result = d2bs::game::ClickBodyLocation(slot, game::InventoryOwner::Player);
                     break;
                 }
                 case Shape::MercBodySlot: {
-                    auto slot = static_cast<game::BodyLocation>(convert::ToUint32(isolate, args[1]));
+                    auto slot = convert::To<game::BodyLocation>(isolate, args[1]);
                     result = d2bs::game::ClickBodyLocation(slot, game::InventoryOwner::Mercenary);
                     break;
                 }
@@ -1407,14 +1407,14 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                         }
                         item = *data;
                     }
-                    auto button = static_cast<game::ClickButton>(convert::ToUint32(isolate, args[0]));
+                    auto button = convert::To<game::ClickButton>(isolate, args[0]);
                     result = d2bs::game::ClickItem(button, item);
                     break;
                 }
                 case Shape::ContainerGrid: {
-                    auto button = static_cast<game::ClickButton>(convert::ToUint32(isolate, args[0]));
+                    auto button = convert::To<game::ClickButton>(isolate, args[0]);
                     auto gridPos = extract::Position(args, 1).value_or(game::Position::Zero);
-                    auto location = static_cast<game::ItemLocation>(convert::ToUint32(isolate, args[3]));
+                    auto location = convert::To<game::ItemLocation>(isolate, args[3]);
                     result = d2bs::game::ClickContainerSlot(button, gridPos, location);
                     break;
                 }
@@ -1494,7 +1494,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 args.GetReturnValue().SetFalse();
                 return;
             }
-            auto mode = static_cast<game::PartyMode>(convert::ToUint32(isolate, args[1]));
+            auto mode = convert::To<game::PartyMode>(isolate, args[1]);
 
             // ClickPartyMember and LeaveParty can wait on the game thread, so they run on a copy after the lock is
             // dropped.
@@ -1520,8 +1520,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 }
 
                 // Reference JSGame.cpp:1104 - AllowLoot is a no-op in non-hardcore games.
-                if (mode == game::PartyMode::AllowLoot &&
-                    !(game::GetCharFlags() & std::to_underlying(game::CharFlag::Hardcore))) {
+                if (mode == game::PartyMode::AllowLoot && !HasFlag(game::GetCharFlags(), game::CharFlag::Hardcore)) {
                     args.GetReturnValue().SetFalse();
                     return;
                 }
@@ -1591,7 +1590,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
             std::string text = convert::ToString(isolate, args[0]);
-            int32_t color = args.Length() > 1 ? convert::ToInt32(isolate, args[1]) : 0;
+            int32_t color = args.Length() > 1 ? convert::To<int32_t>(isolate, args[1]) : 0;
             game::PrintGameString(text, color);
             args.GetReturnValue().Set(true);
         });
@@ -1609,7 +1608,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t soundId = convert::ToUint32(isolate, args[0]);
+            uint32_t soundId = convert::To<uint32_t>(isolate, args[0]);
             game::PlayGameSound(soundId);
             args.GetReturnValue().Set(true);
         });
@@ -1668,7 +1667,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             int32_t nParameter = 0;
             if (args.Length() > 0) {
-                nParameter = convert::ToInt32(isolate, args[0]);
+                nParameter = convert::To<int32_t>(isolate, args[0]);
             }
 
             if (nParameter != 0) {
@@ -1676,7 +1675,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 args.GetReturnValue().Set(static_cast<int32_t>(game::GetWeaponSwitch()));
             } else {
                 // Reference JSGame.cpp:1243 - classic D2 has no weapon switch.
-                if (!(game::GetCharFlags() & std::to_underlying(game::CharFlag::Expansion))) {
+                if (!HasFlag(game::GetCharFlags(), game::CharFlag::Expansion)) {
                     args.GetReturnValue().SetFalse();
                     return;
                 }
@@ -1704,10 +1703,10 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t stat = convert::ToUint32(isolate, args[0]);
+            uint32_t stat = convert::To<uint32_t>(isolate, args[0]);
             int32_t count = 1;
             if (args.Length() > 1) {
-                count = convert::ToInt32(isolate, args[1]);
+                count = convert::To<int32_t>(isolate, args[1]);
             }
             game::UseStatPoint(stat, count);
         });
@@ -1731,10 +1730,10 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t skill = convert::ToUint32(isolate, args[0]);
+            uint32_t skill = convert::To<uint32_t>(isolate, args[0]);
             int32_t count = 1;
             if (args.Length() > 1) {
-                count = convert::ToInt32(isolate, args[1]);
+                count = convert::To<int32_t>(isolate, args[1]);
             }
             game::UseSkillPoint(skill, count);
         });
@@ -1833,13 +1832,13 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             std::string windowName;
             if (args[1]->IsNumber()) {
                 // Handles are pointer-sized: read as double to avoid truncation on x64.
-                hwnd = static_cast<uintptr_t>(convert::ToDouble(isolate, args[1]));
+                hwnd = convert::To<uintptr_t>(isolate, args[1]);
             } else if (args[1]->IsString()) {
                 windowName = convert::ToString(isolate, args[1]);
             }
 
             // arg2: mode ID, arg3: data
-            uint32_t modeId = convert::ToUint32(isolate, args[2]);
+            uint32_t modeId = convert::To<uint32_t>(isolate, args[2]);
             std::string data;
             if (args[3]->IsString()) {
                 data = convert::ToString(isolate, args[3]);
@@ -1861,7 +1860,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            int32_t vk = convert::ToInt32(isolate, args[0]);
+            int32_t vk = convert::To<int32_t>(isolate, args[0]);
             args.GetReturnValue().Set(!!GetAsyncKeyState(vk));
         });
 
@@ -1877,11 +1876,11 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             bool toWorld = false;
             if (args.Length() > 0) {
-                toWorld = convert::ToBool(isolate, args[0]);
+                toWorld = convert::To<bool>(isolate, args[0]);
             }
             bool asObject = false;
             if (args.Length() > 1) {
-                asObject = convert::ToBool(isolate, args[1]);
+                asObject = convert::To<bool>(isolate, args[1]);
             }
 
             auto mouse = game::GetMousePos();
@@ -2111,10 +2110,10 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             int32_t nGold = 0;
             auto nMode = game::GoldActionMode::Drop;
             if (args.Length() > 0 && args[0]->IsNumber()) {
-                nGold = convert::ToInt32(isolate, args[0]);
+                nGold = convert::To<int32_t>(isolate, args[0]);
             }
             if (args.Length() > 1 && args[1]->IsNumber()) {
-                nMode = static_cast<game::GoldActionMode>(convert::ToInt32(isolate, args[1]));
+                nMode = convert::To<game::GoldActionMode>(isolate, args[1]);
             }
             d2bs::game::GoldAction(nMode, nGold);
         });
@@ -2127,7 +2126,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         isolate, global, "beep", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             int32_t beepId = 0;
             if (args.Length() > 0 && args[0]->IsNumber()) {
-                beepId = convert::ToInt32(args.GetIsolate(), args[0]);
+                beepId = convert::To<int32_t>(args.GetIsolate(), args[0]);
             }
             MessageBeep(static_cast<UINT>(beepId));
             args.GetReturnValue().Set(true);
@@ -2192,7 +2191,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
 
             if (args.Length() > 0) {
-                auto mode = static_cast<game::AcceptTradeQueryMode>(convert::ToInt32(isolate, args[0]));
+                auto mode = convert::To<game::AcceptTradeQueryMode>(isolate, args[0]);
                 if (mode == game::AcceptTradeQueryMode::IsAccepted) {
                     // Reference: BOOLEAN_TO_JSVAL(*p_D2CLIENT_bTradeAccepted)
                     args.GetReturnValue().Set(game::IsTradeAccepted());
@@ -2232,10 +2231,10 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Check collision between two units against a mask.
-    /// @signature checkCollision(unit1: Unit, unit2: Unit, mask: number)
+    /// @signature checkCollision(unit1: Unit, unit2: Unit, mask: CollisionFlag)
     /// @param unit1 {Unit} - first unit object
     /// @param unit2 {Unit} - second unit object
-    /// @param mask {number} - collision mask
+    /// @param mask {CollisionFlag} - collision mask
     /// @returns {number|undefined} - collision result, or undefined on invalid args / unresolved units
     function::Register(
         isolate, global, "checkCollision", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -2261,7 +2260,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t mask = convert::ToUint32(isolate, args[2]);
+            const auto mask = convert::To<game::CollisionFlag>(isolate, args[2]);
             const auto unitData1 = JSUnit::Unwrap(unitObj1);
             const auto unitData2 = JSUnit::Unwrap(unitObj2);
             if (!unitData1 || !*unitData1 || !unitData2 || !*unitData2) {

@@ -107,17 +107,16 @@ Rect Control::Bounds() const {
     return ctrl ? ctrl->rect : Rect::Zero;
 }
 
-// Raw control state (dwState): 0x0D = difficulty button enabled, 0x04 = Bnet
-// diff unavailable, etc. The JS-visible "state" (this minus 2) and "disabled"
-// (raw) views are derived in the bindings.
-uint32_t Control::State() const {
+// The JS-visible "state" (this minus 2) and "disabled" (raw) views are derived in
+// the bindings.
+ControlState Control::State() const {
     const auto ctrl = Resolve<D2WinControlStrc>();
-    return ctrl ? ctrl->dwState : 0U;
+    return ctrl ? ctrl->dwState : ControlState{};
 }
 
 // Reference's setter memset's the field with a single repeated byte (buggy:
 // fills 0x0D0D0D0D etc.); write the integer directly so State() round-trips.
-void Control::SetState(uint32_t value) const {
+void Control::SetState(ControlState value) const {
     const auto ctrl = Resolve<D2WinControlStrc>();
     if (!ctrl) {
         return;

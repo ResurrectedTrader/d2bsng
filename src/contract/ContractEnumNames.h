@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <string>
 
+#include "utils/EnumFlags.h"
 #include "utils/EnumNaming.h"
 
 namespace d2bs::config {
@@ -53,7 +54,11 @@ enum class KeyState : uint8_t;
 enum class InventoryOwner : uint8_t;
 enum class ClickResult : uint8_t;
 enum class ControlType : uint32_t;
+enum class ControlState : uint32_t;
+enum class UiFlag : uint32_t;
 enum class PartyMode : uint32_t;
+enum class PartyState : uint32_t;
+enum class RosterFlag : uint32_t;
 enum class CancelMode : int32_t;
 enum class GoldActionMode : int32_t;
 enum class TradeInfoMode : uint32_t;
@@ -74,6 +79,15 @@ enum class StashTabType : uint8_t;
 enum class ItemQuality : uint32_t;
 enum class BodyLocation : uint8_t;
 enum class MonsterSpecType : uint32_t;
+enum class CollisionFlag : uint16_t;
+enum class ItemFlag : uint32_t;
+enum class Act : uint8_t;
+enum class PlayerMode : uint32_t;
+enum class MonsterMode : uint32_t;
+enum class ObjectMode : uint32_t;
+enum class ItemMode : uint32_t;
+enum class UnitFlagEx : uint32_t;
+enum class QuestFlag : uint32_t;
 enum class GameType : uint32_t;
 enum class ScreenSize : uint32_t;
 enum class WeaponSet : uint32_t;
@@ -90,7 +104,11 @@ enum class MoveMode : uint32_t;
 [[nodiscard]] std::string EnumName(InventoryOwner value);
 [[nodiscard]] std::string EnumName(ClickResult value);
 [[nodiscard]] std::string EnumName(ControlType value);
+[[nodiscard]] std::string EnumName(ControlState value);
+[[nodiscard]] std::string EnumName(UiFlag value);
 [[nodiscard]] std::string EnumName(PartyMode value);
+[[nodiscard]] std::string EnumName(PartyState value);
+[[nodiscard]] std::string EnumName(RosterFlag value);
 [[nodiscard]] std::string EnumName(CancelMode value);
 [[nodiscard]] std::string EnumName(GoldActionMode value);
 [[nodiscard]] std::string EnumName(TradeInfoMode value);
@@ -111,6 +129,15 @@ enum class MoveMode : uint32_t;
 [[nodiscard]] std::string EnumName(ItemQuality value);
 [[nodiscard]] std::string EnumName(BodyLocation value);
 [[nodiscard]] std::string EnumName(MonsterSpecType value);
+[[nodiscard]] std::string EnumName(CollisionFlag value);
+[[nodiscard]] std::string EnumName(ItemFlag value);
+[[nodiscard]] std::string EnumName(Act value);
+[[nodiscard]] std::string EnumName(PlayerMode value);
+[[nodiscard]] std::string EnumName(MonsterMode value);
+[[nodiscard]] std::string EnumName(ObjectMode value);
+[[nodiscard]] std::string EnumName(ItemMode value);
+[[nodiscard]] std::string EnumName(UnitFlagEx value);
+[[nodiscard]] std::string EnumName(QuestFlag value);
 [[nodiscard]] std::string EnumName(GameType value);
 [[nodiscard]] std::string EnumName(ScreenSize value);
 [[nodiscard]] std::string EnumName(WeaponSet value);
@@ -125,7 +152,11 @@ enum class MoveMode : uint32_t;
 [[nodiscard]] std::string format_as(InventoryOwner value);
 [[nodiscard]] std::string format_as(ClickResult value);
 [[nodiscard]] std::string format_as(ControlType value);
+[[nodiscard]] std::string format_as(ControlState value);
+[[nodiscard]] std::string format_as(UiFlag value);
 [[nodiscard]] std::string format_as(PartyMode value);
+[[nodiscard]] std::string format_as(PartyState value);
+[[nodiscard]] std::string format_as(RosterFlag value);
 [[nodiscard]] std::string format_as(CancelMode value);
 [[nodiscard]] std::string format_as(GoldActionMode value);
 [[nodiscard]] std::string format_as(TradeInfoMode value);
@@ -146,10 +177,190 @@ enum class MoveMode : uint32_t;
 [[nodiscard]] std::string format_as(ItemQuality value);
 [[nodiscard]] std::string format_as(BodyLocation value);
 [[nodiscard]] std::string format_as(MonsterSpecType value);
+[[nodiscard]] std::string format_as(CollisionFlag value);
+[[nodiscard]] std::string format_as(ItemFlag value);
+[[nodiscard]] std::string format_as(Act value);
+[[nodiscard]] std::string format_as(PlayerMode value);
+[[nodiscard]] std::string format_as(MonsterMode value);
+[[nodiscard]] std::string format_as(ObjectMode value);
+[[nodiscard]] std::string format_as(ItemMode value);
+[[nodiscard]] std::string format_as(UnitFlagEx value);
+[[nodiscard]] std::string format_as(QuestFlag value);
 [[nodiscard]] std::string format_as(GameType value);
 [[nodiscard]] std::string format_as(ScreenSize value);
 [[nodiscard]] std::string format_as(WeaponSet value);
 [[nodiscard]] std::string format_as(MoveMode value);
 // NOLINTEND(readability-identifier-naming)
+
+// Bit operations over the @flags enumerations: a value is an OR of their bits, and stays
+// its enumeration type through these. HasFlag needs every bit of `flag`, HasAnyFlag one.
+
+[[nodiscard, gnu::always_inline]] constexpr CharFlag operator|(CharFlag lhs, CharFlag rhs) {
+    return utils::FlagOr(lhs, rhs);
+}
+[[nodiscard, gnu::always_inline]] constexpr CharFlag operator&(CharFlag lhs, CharFlag rhs) {
+    return utils::FlagAnd(lhs, rhs);
+}
+[[nodiscard, gnu::always_inline]] constexpr CharFlag operator^(CharFlag lhs, CharFlag rhs) {
+    return utils::FlagXor(lhs, rhs);
+}
+[[nodiscard, gnu::always_inline]] constexpr CharFlag operator~(CharFlag value) {
+    return utils::FlagNot(value);
+}
+[[gnu::always_inline]] constexpr CharFlag& operator|=(CharFlag& lhs, CharFlag rhs) {
+    return lhs = lhs | rhs;
+}
+[[gnu::always_inline]] constexpr CharFlag& operator&=(CharFlag& lhs, CharFlag rhs) {
+    return lhs = lhs & rhs;
+}
+[[gnu::always_inline]] constexpr CharFlag& operator^=(CharFlag& lhs, CharFlag rhs) {
+    return lhs = lhs ^ rhs;
+}
+[[nodiscard, gnu::always_inline]] constexpr bool HasFlag(CharFlag value, CharFlag flag) {
+    return utils::FlagHas(value, flag);
+}
+[[nodiscard, gnu::always_inline]] constexpr bool HasAnyFlag(CharFlag value, CharFlag flag) {
+    return utils::FlagHasAny(value, flag);
+}
+
+[[nodiscard, gnu::always_inline]] constexpr RosterFlag operator|(RosterFlag lhs, RosterFlag rhs) {
+    return utils::FlagOr(lhs, rhs);
+}
+[[nodiscard, gnu::always_inline]] constexpr RosterFlag operator&(RosterFlag lhs, RosterFlag rhs) {
+    return utils::FlagAnd(lhs, rhs);
+}
+[[nodiscard, gnu::always_inline]] constexpr RosterFlag operator^(RosterFlag lhs, RosterFlag rhs) {
+    return utils::FlagXor(lhs, rhs);
+}
+[[nodiscard, gnu::always_inline]] constexpr RosterFlag operator~(RosterFlag value) {
+    return utils::FlagNot(value);
+}
+[[gnu::always_inline]] constexpr RosterFlag& operator|=(RosterFlag& lhs, RosterFlag rhs) {
+    return lhs = lhs | rhs;
+}
+[[gnu::always_inline]] constexpr RosterFlag& operator&=(RosterFlag& lhs, RosterFlag rhs) {
+    return lhs = lhs & rhs;
+}
+[[gnu::always_inline]] constexpr RosterFlag& operator^=(RosterFlag& lhs, RosterFlag rhs) {
+    return lhs = lhs ^ rhs;
+}
+[[nodiscard, gnu::always_inline]] constexpr bool HasFlag(RosterFlag value, RosterFlag flag) {
+    return utils::FlagHas(value, flag);
+}
+[[nodiscard, gnu::always_inline]] constexpr bool HasAnyFlag(RosterFlag value, RosterFlag flag) {
+    return utils::FlagHasAny(value, flag);
+}
+
+[[nodiscard, gnu::always_inline]] constexpr MonsterSpecType operator|(MonsterSpecType lhs, MonsterSpecType rhs) {
+    return utils::FlagOr(lhs, rhs);
+}
+[[nodiscard, gnu::always_inline]] constexpr MonsterSpecType operator&(MonsterSpecType lhs, MonsterSpecType rhs) {
+    return utils::FlagAnd(lhs, rhs);
+}
+[[nodiscard, gnu::always_inline]] constexpr MonsterSpecType operator^(MonsterSpecType lhs, MonsterSpecType rhs) {
+    return utils::FlagXor(lhs, rhs);
+}
+[[nodiscard, gnu::always_inline]] constexpr MonsterSpecType operator~(MonsterSpecType value) {
+    return utils::FlagNot(value);
+}
+[[gnu::always_inline]] constexpr MonsterSpecType& operator|=(MonsterSpecType& lhs, MonsterSpecType rhs) {
+    return lhs = lhs | rhs;
+}
+[[gnu::always_inline]] constexpr MonsterSpecType& operator&=(MonsterSpecType& lhs, MonsterSpecType rhs) {
+    return lhs = lhs & rhs;
+}
+[[gnu::always_inline]] constexpr MonsterSpecType& operator^=(MonsterSpecType& lhs, MonsterSpecType rhs) {
+    return lhs = lhs ^ rhs;
+}
+[[nodiscard, gnu::always_inline]] constexpr bool HasFlag(MonsterSpecType value, MonsterSpecType flag) {
+    return utils::FlagHas(value, flag);
+}
+[[nodiscard, gnu::always_inline]] constexpr bool HasAnyFlag(MonsterSpecType value, MonsterSpecType flag) {
+    return utils::FlagHasAny(value, flag);
+}
+
+[[nodiscard, gnu::always_inline]] constexpr CollisionFlag operator|(CollisionFlag lhs, CollisionFlag rhs) {
+    return utils::FlagOr(lhs, rhs);
+}
+[[nodiscard, gnu::always_inline]] constexpr CollisionFlag operator&(CollisionFlag lhs, CollisionFlag rhs) {
+    return utils::FlagAnd(lhs, rhs);
+}
+[[nodiscard, gnu::always_inline]] constexpr CollisionFlag operator^(CollisionFlag lhs, CollisionFlag rhs) {
+    return utils::FlagXor(lhs, rhs);
+}
+[[nodiscard, gnu::always_inline]] constexpr CollisionFlag operator~(CollisionFlag value) {
+    return utils::FlagNot(value);
+}
+[[gnu::always_inline]] constexpr CollisionFlag& operator|=(CollisionFlag& lhs, CollisionFlag rhs) {
+    return lhs = lhs | rhs;
+}
+[[gnu::always_inline]] constexpr CollisionFlag& operator&=(CollisionFlag& lhs, CollisionFlag rhs) {
+    return lhs = lhs & rhs;
+}
+[[gnu::always_inline]] constexpr CollisionFlag& operator^=(CollisionFlag& lhs, CollisionFlag rhs) {
+    return lhs = lhs ^ rhs;
+}
+[[nodiscard, gnu::always_inline]] constexpr bool HasFlag(CollisionFlag value, CollisionFlag flag) {
+    return utils::FlagHas(value, flag);
+}
+[[nodiscard, gnu::always_inline]] constexpr bool HasAnyFlag(CollisionFlag value, CollisionFlag flag) {
+    return utils::FlagHasAny(value, flag);
+}
+
+[[nodiscard, gnu::always_inline]] constexpr ItemFlag operator|(ItemFlag lhs, ItemFlag rhs) {
+    return utils::FlagOr(lhs, rhs);
+}
+[[nodiscard, gnu::always_inline]] constexpr ItemFlag operator&(ItemFlag lhs, ItemFlag rhs) {
+    return utils::FlagAnd(lhs, rhs);
+}
+[[nodiscard, gnu::always_inline]] constexpr ItemFlag operator^(ItemFlag lhs, ItemFlag rhs) {
+    return utils::FlagXor(lhs, rhs);
+}
+[[nodiscard, gnu::always_inline]] constexpr ItemFlag operator~(ItemFlag value) {
+    return utils::FlagNot(value);
+}
+[[gnu::always_inline]] constexpr ItemFlag& operator|=(ItemFlag& lhs, ItemFlag rhs) {
+    return lhs = lhs | rhs;
+}
+[[gnu::always_inline]] constexpr ItemFlag& operator&=(ItemFlag& lhs, ItemFlag rhs) {
+    return lhs = lhs & rhs;
+}
+[[gnu::always_inline]] constexpr ItemFlag& operator^=(ItemFlag& lhs, ItemFlag rhs) {
+    return lhs = lhs ^ rhs;
+}
+[[nodiscard, gnu::always_inline]] constexpr bool HasFlag(ItemFlag value, ItemFlag flag) {
+    return utils::FlagHas(value, flag);
+}
+[[nodiscard, gnu::always_inline]] constexpr bool HasAnyFlag(ItemFlag value, ItemFlag flag) {
+    return utils::FlagHasAny(value, flag);
+}
+
+[[nodiscard, gnu::always_inline]] constexpr UnitFlagEx operator|(UnitFlagEx lhs, UnitFlagEx rhs) {
+    return utils::FlagOr(lhs, rhs);
+}
+[[nodiscard, gnu::always_inline]] constexpr UnitFlagEx operator&(UnitFlagEx lhs, UnitFlagEx rhs) {
+    return utils::FlagAnd(lhs, rhs);
+}
+[[nodiscard, gnu::always_inline]] constexpr UnitFlagEx operator^(UnitFlagEx lhs, UnitFlagEx rhs) {
+    return utils::FlagXor(lhs, rhs);
+}
+[[nodiscard, gnu::always_inline]] constexpr UnitFlagEx operator~(UnitFlagEx value) {
+    return utils::FlagNot(value);
+}
+[[gnu::always_inline]] constexpr UnitFlagEx& operator|=(UnitFlagEx& lhs, UnitFlagEx rhs) {
+    return lhs = lhs | rhs;
+}
+[[gnu::always_inline]] constexpr UnitFlagEx& operator&=(UnitFlagEx& lhs, UnitFlagEx rhs) {
+    return lhs = lhs & rhs;
+}
+[[gnu::always_inline]] constexpr UnitFlagEx& operator^=(UnitFlagEx& lhs, UnitFlagEx rhs) {
+    return lhs = lhs ^ rhs;
+}
+[[nodiscard, gnu::always_inline]] constexpr bool HasFlag(UnitFlagEx value, UnitFlagEx flag) {
+    return utils::FlagHas(value, flag);
+}
+[[nodiscard, gnu::always_inline]] constexpr bool HasAnyFlag(UnitFlagEx value, UnitFlagEx flag) {
+    return utils::FlagHasAny(value, flag);
+}
 
 }  // namespace d2bs::game
