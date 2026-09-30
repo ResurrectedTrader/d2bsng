@@ -41,10 +41,10 @@ class JSImage : public JSDrawableBase<JSImage, ImageDrawable> {
         }
         extract::PointInto(args, 1, drawable->pos);
         if (args.Length() > 3 && args[3]->IsNumber()) {
-            drawable->color.store(convert::ToUint32(isolate, args[3]));
+            drawable->color.store(convert::To<uint32_t>(isolate, args[3]));
         }
         if (args.Length() > 4 && args[4]->IsNumber()) {
-            drawable->align.store(static_cast<Align>(convert::ToInt32(isolate, args[4])));
+            drawable->align.store(convert::To<Align>(isolate, args[4]));
         }
         if (args.Length() > 5 && args[5]->IsBoolean()) {
             drawable->isAutomap.store(args[5]->BooleanValue(isolate));

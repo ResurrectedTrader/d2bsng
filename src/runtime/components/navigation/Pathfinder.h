@@ -33,10 +33,6 @@ enum class ReductionType : int32_t {
     JSCallback = 3,
 };
 
-// The cell bits a walking player cannot stand on. Cells outside every loaded
-// level, and cells to route around, read as CollisionFlag::All.
-inline constexpr CollisionFlag BLOCKS_WALK = CollisionFlag::Wall | CollisionFlag::NoPlayer;
-
 // Row-major cell index for `pos` within rectangle `r`. Shared by LevelGrid,
 // LevelNodes (in Pathfinder.cpp), and the fast-path window helpers below.
 // Caller must have verified that `pos` lies within `r`.
@@ -143,15 +139,15 @@ struct CollisionLookup {
     // Wide cross: center OR 4 cardinal at distance 2
     CollisionFlag GetWide(Point p);
 
-    // Blocked if any BLOCKS_WALK bit is set in cross. Tries primary then
+    // Blocked if Wall or NoPlayer is set in cross. Tries primary then
     // lastHit for one direct-array cross-OR via OpenWindow, falling back to
     // the generic per-probe IsBlockedSlow at grid boundaries.
     [[gnu::always_inline]] bool IsBlocked(Point p) {
         if (auto w = OpenWindow(primary, p, 1))
-            return HasAnyFlag(w->Cross(), BLOCKS_WALK);
+            return HasAnyFlag(w->Cross(), CollisionFlag::Wall | CollisionFlag::NoPlayer);
         if (lastHit != nullptr && lastHit != &primary) {
             if (auto w = OpenWindow(*lastHit, p, 1))
-                return HasAnyFlag(w->Cross(), BLOCKS_WALK);
+                return HasAnyFlag(w->Cross(), CollisionFlag::Wall | CollisionFlag::NoPlayer);
         }
         return IsBlockedSlow(p);
     }
@@ -170,7 +166,7 @@ struct CollisionLookup {
             if (!w)
                 return std::nullopt;
             constexpr CollisionFlag ADJ = CollisionFlag::Object | CollisionFlag::Door | CollisionFlag::Wall;
-            if (HasAnyFlag(w->Wide(), BLOCKS_WALK))
+            if (HasAnyFlag(w->Wide(), CollisionFlag::Wall | CollisionFlag::NoPlayer))
                 return 50;
             const CollisionFlag cross = w->Cross();
             if (HasAnyFlag(cross, CollisionFlag::Object))

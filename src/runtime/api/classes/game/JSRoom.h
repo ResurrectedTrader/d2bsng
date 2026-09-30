@@ -200,10 +200,10 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 std::optional<game::UnitType> nType;
                 std::optional<uint32_t> nClass;
                 if (args.Length() > 0 && args[0]->IsUint32()) {
-                    nType = static_cast<game::UnitType>(convert::ToUint32(isolate, args[0]));
+                    nType = convert::To<game::UnitType>(isolate, args[0]);
                 }
                 if (args.Length() > 1 && args[1]->IsUint32()) {
-                    nClass = convert::ToUint32(isolate, args[1]);
+                    nClass = convert::To<uint32_t>(isolate, args[1]);
                 }
 
                 std::vector<game::PresetUnitInfo> presets;
@@ -343,7 +343,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 if (!*data) {
                     return;
                 }
-                int32_t nStat = convert::ToInt32(isolate, args[0]);
+                int32_t nStat = convert::To<int32_t>(isolate, args[0]);
                 args.GetReturnValue().Set(data->GetStat(nStat));
             });
 

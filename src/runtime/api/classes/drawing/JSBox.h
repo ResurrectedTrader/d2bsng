@@ -42,13 +42,13 @@ class JSBox : public JSDrawableBase<JSBox, BoxDrawable> {
         extract::SizeInto(args, 2, drawable->size);
 
         if (args.Length() > 4 && args[4]->IsNumber()) {
-            drawable->color.store(convert::ToUint32(isolate, args[4]));
+            drawable->color.store(convert::To<uint32_t>(isolate, args[4]));
         }
         if (args.Length() > 5 && args[5]->IsNumber()) {
-            drawable->opacity.store(convert::ToUint32(isolate, args[5]));
+            drawable->opacity.store(convert::To<uint32_t>(isolate, args[5]));
         }
         if (args.Length() > 6 && args[6]->IsNumber()) {
-            drawable->align.store(static_cast<Align>(convert::ToInt32(isolate, args[6])));
+            drawable->align.store(convert::To<Align>(isolate, args[6]));
         }
         if (args.Length() > 7 && args[7]->IsBoolean()) {
             drawable->isAutomap.store(args[7]->BooleanValue(isolate));
@@ -94,7 +94,7 @@ class JSBox : public JSDrawableBase<JSBox, BoxDrawable> {
                     return;
                 auto cur = drawable->size.load();
                 // Note: Size is unsigned; negative values coerce to large positive via ToUint32.
-                cur.width = convert::ToUint32(info.GetIsolate(), value);
+                cur.width = convert::To<uint32_t>(info.GetIsolate(), value);
                 drawable->size.store(cur);
             });
 
@@ -116,7 +116,7 @@ class JSBox : public JSDrawableBase<JSBox, BoxDrawable> {
                     return;
                 auto cur = drawable->size.load();
                 // Note: Size is unsigned; negative values coerce to large positive via ToUint32.
-                cur.height = convert::ToUint32(info.GetIsolate(), value);
+                cur.height = convert::To<uint32_t>(info.GetIsolate(), value);
                 drawable->size.store(cur);
             });
 
@@ -136,7 +136,7 @@ class JSBox : public JSDrawableBase<JSBox, BoxDrawable> {
                     return;
                 if (!value->IsNumber())
                     return;
-                drawable->color.store(convert::ToUint32(info.GetIsolate(), value));
+                drawable->color.store(convert::To<uint32_t>(info.GetIsolate(), value));
             });
 
         /// @description Box fill opacity.
@@ -155,7 +155,7 @@ class JSBox : public JSDrawableBase<JSBox, BoxDrawable> {
                     return;
                 if (!value->IsNumber())
                     return;
-                drawable->opacity.store(convert::ToUint32(info.GetIsolate(), value));
+                drawable->opacity.store(convert::To<uint32_t>(info.GetIsolate(), value));
             });
     }
 };

@@ -430,7 +430,7 @@ static_assert(std::to_underlying(UiFlag::MercInventory) == UI_MERCINV);
 static_assert(std::to_underlying(UiFlag::RecipeScroll) == UI_RECIPESCROLL);
 
 bool GetUIFlag(UiFlag flag) {
-    return d2client::UI_GetVar(std::to_underlying(flag)) != 0;
+    return d2client::UI_GetVar(flag) != 0;
 }
 
 // === Text Rendering ===
@@ -810,7 +810,7 @@ void Transmute() {
     GameThread::Execute([]() {
         // Reference JSGame.cpp:1258-1273 toggles the cube UI on if it isn't
         // already open, runs Transmute, then restores the prior UI state.
-        const bool wasOpen = d2client::UI_GetVar(UI_CUBE) != 0;
+        const bool wasOpen = d2client::UI_GetVar(UiFlag::Cube) != 0;
         if (!wasOpen) {
             d2client::UI_SetVar(UI_CUBE, 1, 0);
         }
@@ -822,7 +822,7 @@ void Transmute() {
 }
 
 bool TestPvpFlag(const Unit& a, const Unit& b, RosterFlag flag) {
-    return d2client::PLAYERLIST_CheckFlag(a.Id(), b.Id(), std::to_underlying(flag)) != 0;
+    return d2client::PLAYERLIST_CheckFlag(a.Id(), b.Id(), flag) != 0;
 }
 
 bool HasWaypoint(uint32_t waypointId) {
@@ -869,8 +869,8 @@ static_assert(std::to_underlying(QuestFlag::RewardGranted) == QFLAG_REWARDGRANTE
 static_assert(std::to_underlying(QuestFlag::Started) == QFLAG_STARTED);
 static_assert(std::to_underlying(QuestFlag::CompletedBefore) == QFLAG_COMPLETEDBEFORE);
 
-int32_t GetQuestFlag(uint32_t quest, QuestFlag flag) {
-    return d2common::QUESTRECORD_GetQuestFlag(d2client::QUESTRECORD_GetQuestInfo(), quest, std::to_underlying(flag));
+bool GetQuestFlag(uint32_t quest, QuestFlag flag) {
+    return d2common::QUESTRECORD_GetQuestFlag(d2client::QUESTRECORD_GetQuestInfo(), quest, flag) != 0;
 }
 
 // === Weapon / Stat / Skill Actions ===

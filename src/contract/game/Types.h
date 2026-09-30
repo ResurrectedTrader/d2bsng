@@ -709,9 +709,9 @@ struct StatListEntry {
 
 // Result row for Room::GetPresetUnits (static placements within a room).
 struct PresetUnitInfo {
-    UnitType type{};
-    Position roomPos;
-    Position posInRoom;  // game coordinates - see docs/coords.md
+    UnitType type = {};
+    Position roomPos = {};
+    Position posInRoom = {};  // game coordinates - see docs/coords.md
     uint32_t id = 0;
     uint32_t level = 0;
     // For UnitType::Tile presets, the destination level reached by

@@ -187,8 +187,8 @@ std::string GetLocaleString(uint16_t /*localeId*/) {
 int32_t GetBaseStat(const std::string& /*table*/, uint32_t /*row*/, const std::string& /*column*/) {
     return 0;
 }
-int32_t GetQuestFlag(uint32_t /*quest*/, QuestFlag /*flag*/) {
-    return 0;
+bool GetQuestFlag(uint32_t /*quest*/, QuestFlag /*flag*/) {
+    return false;
 }
 
 // === Weapon / Stat / Skill Actions ===

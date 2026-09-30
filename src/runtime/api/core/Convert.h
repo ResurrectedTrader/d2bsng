@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include <v8.h>
@@ -217,32 +218,30 @@ inline std::string ToString(v8::Isolate* isolate, v8::Local<v8::Value> val) {
     return *utf8 ? std::string(*utf8, utf8.length()) : "";
 }
 
-inline int32_t ToInt32(v8::Isolate* isolate, v8::Local<v8::Value> val) {
-    if (val.IsEmpty() || val->IsNullOrUndefined()) {
-        return 0;
+// A script value as a C++ scalar. Enumerations read through their underlying type;
+// integers up to 32 bits through V8's ToInt32 / ToUint32 (by signedness) and are then
+// narrowed, wider ones and floating point through ToNumber. A missing, null or
+// undefined value reads as zero (false for bool).
+template <typename T>
+    requires std::is_arithmetic_v<T> || std::is_enum_v<T>
+inline T To(v8::Isolate* isolate, v8::Local<v8::Value> val) {
+    if constexpr (std::is_enum_v<T>) {
+        return static_cast<T>(To<std::underlying_type_t<T>>(isolate, val));
+    } else if constexpr (std::is_same_v<T, bool>) {
+        return !val.IsEmpty() && val->BooleanValue(isolate);
+    } else {
+        if (val.IsEmpty() || val->IsNullOrUndefined()) {
+            return T{};
+        }
+        const auto context = isolate->GetCurrentContext();
+        if constexpr (std::is_floating_point_v<T> || sizeof(T) > sizeof(uint32_t)) {
+            return static_cast<T>(val->NumberValue(context).FromMaybe(0.0));
+        } else if constexpr (std::is_signed_v<T>) {
+            return static_cast<T>(val->Int32Value(context).FromMaybe(0));
+        } else {
+            return static_cast<T>(val->Uint32Value(context).FromMaybe(0));
+        }
     }
-    return val->Int32Value(isolate->GetCurrentContext()).FromMaybe(0);
-}
-
-inline uint32_t ToUint32(v8::Isolate* isolate, v8::Local<v8::Value> val) {
-    if (val.IsEmpty() || val->IsNullOrUndefined()) {
-        return 0;
-    }
-    return val->Uint32Value(isolate->GetCurrentContext()).FromMaybe(0);
-}
-
-inline double ToDouble(v8::Isolate* isolate, v8::Local<v8::Value> val) {
-    if (val.IsEmpty() || val->IsNullOrUndefined()) {
-        return 0.0;
-    }
-    return val->NumberValue(isolate->GetCurrentContext()).FromMaybe(0.0);
-}
-
-inline bool ToBool(v8::Isolate* isolate, v8::Local<v8::Value> val) {
-    if (val.IsEmpty()) {
-        return false;
-    }
-    return val->BooleanValue(isolate);
 }
 
 }  // namespace d2bs::runtime::api::convert

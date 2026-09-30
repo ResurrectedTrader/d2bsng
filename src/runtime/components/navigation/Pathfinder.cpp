@@ -106,7 +106,7 @@ std::vector<Point> CollisionLookup::FindPortals(Point start, Point end) const {
         auto pos = p.ToPosition();
         if (!g.rect.Contains(pos))
             return false;
-        return !HasAnyFlag(g.GetUnchecked(pos), BLOCKS_WALK);
+        return !HasAnyFlag(g.GetUnchecked(pos), CollisionFlag::Wall | CollisionFlag::NoPlayer);
     };
 
     std::vector<Point> portals;
@@ -229,11 +229,11 @@ CollisionFlag CollisionLookup::GetWide(Point p) {
 }
 
 bool CollisionLookup::IsBlockedSlow(Point p) {
-    return HasAnyFlag(GetCross(p), BLOCKS_WALK);
+    return HasAnyFlag(GetCross(p), CollisionFlag::Wall | CollisionFlag::NoPlayer);
 }
 
 int32_t CollisionLookup::GetPenaltySlow(Point p) {
-    if (HasAnyFlag(GetWide(p), BLOCKS_WALK))
+    if (HasAnyFlag(GetWide(p), CollisionFlag::Wall | CollisionFlag::NoPlayer))
         return 50;
     const CollisionFlag cross = GetCross(p);
     if (HasAnyFlag(cross, CollisionFlag::Object))
@@ -275,7 +275,7 @@ void CollisionLookup::MutatePoint(Point& pt) {
             const CollisionFlag combined =
                 area[ai][aj] | area[ai + 1][aj] | area[ai - 1][aj] | area[ai][aj + 1] | area[ai][aj - 1];
             // NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
-            if (!HasAnyFlag(combined, BLOCKS_WALK)) {
+            if (!HasAnyFlag(combined, CollisionFlag::Wall | CollisionFlag::NoPlayer)) {
                 pt.x += i;
                 pt.y += j;
                 return;

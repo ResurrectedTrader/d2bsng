@@ -1363,7 +1363,7 @@ bool Unit::TakeWaypoint(uint32_t waypointId) const {
     // (e.g. because the destination is the same act and the menu state stayed
     // in the waypoint dialog), explicitly close the interact UI so subsequent
     // scripts don't see a stale interaction state.
-    if (lod114d::imports::d2client::UI_GetVar(UI_GAME) == 0) {
+    if (lod114d::imports::d2client::UI_GetVar(UiFlag::Game) == 0) {
         lod114d::imports::d2client::UI_CloseInteract();
     }
     return true;
@@ -1495,7 +1495,7 @@ bool Unit::Shop(ShopMode mode) const {
     // Reference JSUnit.cpp:1491-1494: ShopAction assumes the NPC shop UI window
     // has set up its render targets / hover items. Calling it outside that
     // lifecycle can corrupt transaction-dialog state.
-    if (lod114d::imports::d2client::UI_GetVar(UI_NPCSHOP) == 0) {
+    if (lod114d::imports::d2client::UI_GetVar(UiFlag::NpcShop) == 0) {
         return false;
     }
 

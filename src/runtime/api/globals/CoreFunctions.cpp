@@ -85,8 +85,8 @@ static bool BuildPacketFromArgs(const v8::FunctionCallbackInfo<v8::Value>& args,
         out.resize(args.Length() * 2);
 
         for (int32_t i = 0; i < args.Length(); i += 2) {
-            uint32_t size = convert::ToUint32(isolate, args[i]);
-            uint32_t value = convert::ToUint32(isolate, args[i + 1]);
+            uint32_t size = convert::To<uint32_t>(isolate, args[i]);
+            uint32_t value = convert::To<uint32_t>(isolate, args[i + 1]);
             if (size != 1 && size != 2 && size != 4) {
                 error::ThrowError(isolate, "Invalid packet field size (must be 1, 2, or 4)");
                 return false;
@@ -185,7 +185,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             // Clamp to at least 1ms so events are always processed
             // ToUint32 follows ECMAScript ToUint32: NaN/undefined/arrays -> 0
-            uint32_t ms = std::max(convert::ToUint32(isolate, args[0]), 1U);
+            uint32_t ms = std::max(convert::To<uint32_t>(isolate, args[0]), 1U);
             auto* script = script::ScriptEngine::Instance().GetScript(isolate);
             if (script) {
                 // Snapshot the JS stack at this yield only when the console's
@@ -337,9 +337,9 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             bool stopCurrent = false;
             if (args.Length() > 0) {
                 if (args[0]->IsNumber()) {
-                    stopCurrent = convert::ToInt32(isolate, args[0]) == 1;
+                    stopCurrent = convert::To<int32_t>(isolate, args[0]) == 1;
                 } else if (args[0]->IsBoolean()) {
-                    stopCurrent = convert::ToBool(isolate, args[0]);
+                    stopCurrent = convert::To<bool>(isolate, args[0]);
                 }
             }
 
@@ -380,7 +380,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             if (!error::CheckArgCount(args, 1, "setSpeed")) {
                 return;
             }
-            const auto multiplier = static_cast<float>(convert::ToDouble(args.GetIsolate(), args[0]));
+            const auto multiplier = convert::To<float>(args.GetIsolate(), args[0]);
             core::speedhack::SetSpeed(multiplier);
         });
 
@@ -411,8 +411,8 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             // Thread-safe RNG, seeded once per thread
             static thread_local std::mt19937 rng{std::random_device{}()};
 
-            int32_t low = convert::ToInt32(isolate, args[0]);
-            int32_t high = convert::ToInt32(isolate, args[1]);
+            int32_t low = convert::To<int32_t>(isolate, args[0]);
+            int32_t high = convert::To<int32_t>(isolate, args[1]);
 
             if (high > low + 1) {
                 std::uniform_int_distribution dist(low, high);
@@ -568,7 +568,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t mode = convert::ToUint32(isolate, args[0]);
+            uint32_t mode = convert::To<uint32_t>(isolate, args[0]);
             std::string server = convert::ToString(isolate, args[1]);
             std::string topic = convert::ToString(isolate, args[2]);
             std::string item = convert::ToString(isolate, args[3]);
@@ -755,7 +755,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t key = convert::ToUint32(isolate, args[0]);
+            uint32_t key = convert::To<uint32_t>(isolate, args[0]);
             // Port owns the full sequence - key-down/up pair, any prompt
             // juggling, and any port-specific timing (see src/<port>/game).
             game::SendKey(key);
@@ -875,7 +875,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 }
             } else if (args[0]->IsNumber()) {
                 // Number: find by native thread ID
-                auto targetId = convert::ToUint32(isolate, args[0]);
+                auto targetId = convert::To<uint32_t>(isolate, args[0]);
                 for (auto& script : engine.GetAllScripts()) {
                     if (script->GetNativeThreadId() == targetId) {
                         targetScript = script;
@@ -941,7 +941,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
 
             auto fn = args[0].As<v8::Function>();
-            uint32_t delayMs = convert::ToUint32(isolate, args[1]);
+            uint32_t delayMs = convert::To<uint32_t>(isolate, args[1]);
 
             auto event = std::make_shared<events::DelayedEvent>(v8::Global<v8::Function>(isolate, fn));
             script->AddDelayedEvent(event);
@@ -967,7 +967,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             if (!script)
                 return;
 
-            uint32_t id = convert::ToUint32(isolate, args[0]);
+            uint32_t id = convert::To<uint32_t>(isolate, args[0]);
             script->RemoveDelayedEvent(id);
         });
 
@@ -992,7 +992,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
 
             auto fn = args[0].As<v8::Function>();
-            uint32_t repeatMs = convert::ToUint32(isolate, args[1]);
+            uint32_t repeatMs = convert::To<uint32_t>(isolate, args[1]);
 
             auto event = std::make_shared<events::DelayedEvent>(v8::Global<v8::Function>(isolate, fn), repeatMs);
             script->AddDelayedEvent(event);
@@ -1018,7 +1018,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             if (!script)
                 return;
 
-            uint32_t id = convert::ToUint32(isolate, args[0]);
+            uint32_t id = convert::To<uint32_t>(isolate, args[0]);
             script->RemoveDelayedEvent(id);
         });
 

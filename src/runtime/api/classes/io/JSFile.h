@@ -401,7 +401,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
                     error::ThrowError(isolate, "Invalid arguments");
                     return;
                 }
-                int32_t count = convert::ToInt32(isolate, args[0]);
+                int32_t count = convert::To<int32_t>(isolate, args[0]);
                 if (count <= 0) {
                     error::ThrowError(isolate, "Invalid arguments");
                     return;
@@ -639,9 +639,9 @@ class JSFile : public ClassBase<JSFile, FileData> {
                     return;
                 }
 
-                int32_t offset = convert::ToInt32(isolate, args[0]);
-                bool isLines = args.Length() > 1 ? convert::ToBool(isolate, args[1]) : false;
-                bool fromStart = args.Length() > 2 ? convert::ToBool(isolate, args[2]) : false;
+                int32_t offset = convert::To<int32_t>(isolate, args[0]);
+                bool isLines = args.Length() > 1 ? convert::To<bool>(isolate, args[1]) : false;
+                bool fromStart = args.Length() > 2 ? convert::To<bool>(isolate, args[2]) : false;
 
                 if (fromStart) {
                     fseek(data->handle, 0, SEEK_SET);
@@ -754,10 +754,10 @@ class JSFile : public ClassBase<JSFile, FileData> {
                 }
 
                 std::string path = convert::ToString(isolate, args[0]);
-                int32_t mode = convert::ToInt32(isolate, args[1]);
-                bool binary = args.Length() > 2 ? convert::ToBool(isolate, args[2]) : false;
-                bool autoflush = args.Length() > 3 ? convert::ToBool(isolate, args[3]) : false;
-                bool lockFile = args.Length() > 4 ? convert::ToBool(isolate, args[4]) : false;
+                int32_t mode = convert::To<int32_t>(isolate, args[1]);
+                bool binary = args.Length() > 2 ? convert::To<bool>(isolate, args[2]) : false;
+                bool autoflush = args.Length() > 3 ? convert::To<bool>(isolate, args[3]) : false;
+                bool lockFile = args.Length() > 4 ? convert::To<bool>(isolate, args[4]) : false;
 
                 // Validate path
                 if (path.empty()) {

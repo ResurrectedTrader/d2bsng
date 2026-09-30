@@ -23,7 +23,8 @@
 #pragma clang diagnostic pop
 
 #include <cstdint>
-#include <cstring>
+#include <ranges>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -54,13 +55,12 @@ static_assert(sizeof(CollisionFlag) == sizeof(uint16_t));
 
 namespace {
 
-// D2MOO types the grid as raw words; copied out rather than read through an enum pointer.
+// D2MOO types the grid as raw words; converted on the copy rather than read through
+// an enum pointer.
 std::vector<CollisionFlag> CopyCells(const uint16_t* cells, size_t count) {
-    std::vector<CollisionFlag> out(count);
-    if (count != 0) {
-        std::memcpy(out.data(), cells, count * sizeof(CollisionFlag));
-    }
-    return out;
+    return std::span(cells, count) |
+           std::views::transform([](uint16_t cell) { return static_cast<CollisionFlag>(cell); }) |
+           std::ranges::to<std::vector>();
 }
 
 inline D2DrlgRoomStrc* AsDrlgRoom(void* p) noexcept {

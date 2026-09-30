@@ -811,10 +811,10 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 data->Cursor().name = convert::ToString(isolate, args[0]);
             }
             if (args.Length() > 0 && args[0]->IsUint32()) {
-                data->Cursor().classId = convert::ToUint32(isolate, args[0]);
+                data->Cursor().classId = convert::To<uint32_t>(isolate, args[0]);
             }
             if (args.Length() > 1 && args[1]->IsUint32()) {
-                data->Cursor().mode = convert::ToUint32(isolate, args[1]);
+                data->Cursor().mode = convert::To<uint32_t>(isolate, args[1]);
             }
 
             if (data->Kind() == game::UnitKind::InventoryItem) {
@@ -852,7 +852,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             }
             auto mode = static_cast<game::CancelMode>(-1);  // -1 = auto-detect
             if (args.Length() > 0 && args[0]->IsNumber()) {
-                mode = static_cast<game::CancelMode>(convert::ToInt32(isolate, args[0]));
+                mode = convert::To<game::CancelMode>(isolate, args[0]);
             }
             d2bs::game::Cancel(mode);
             args.GetReturnValue().Set(true);
@@ -894,7 +894,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 unit = *data;
             }
             auto* isolate = args.GetIsolate();
-            uint32_t menuId = convert::ToUint32(isolate, args[0]);
+            uint32_t menuId = convert::To<uint32_t>(isolate, args[0]);
             args.GetReturnValue().Set(unit.UseMenu(menuId));
         });
 
@@ -933,7 +933,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             // Reference line 854: waypoint path requires UNIT_OBJECT and exactly 1 argument
             if (unit.Type() == UnitType::Object && args.Length() == 1 && args[0]->IsNumber()) {
                 auto* isolate = args.GetIsolate();
-                uint32_t waypointId = convert::ToUint32(isolate, args[0]);
+                uint32_t waypointId = convert::To<uint32_t>(isolate, args[0]);
                 args.GetReturnValue().Set(unit.TakeWaypoint(waypointId));
             } else {
                 args.GetReturnValue().Set(unit.Interact());
@@ -966,13 +966,13 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             if (args.Length() > 0 && args[0]->IsString()) {
                 cursor.name = convert::ToString(isolate, args[0]);
             } else if (args.Length() > 0 && args[0]->IsUint32()) {
-                cursor.classId = convert::ToUint32(isolate, args[0]);
+                cursor.classId = convert::To<uint32_t>(isolate, args[0]);
             }
             if (args.Length() > 1 && args[1]->IsUint32()) {
-                cursor.mode = convert::ToUint32(isolate, args[1]);
+                cursor.mode = convert::To<uint32_t>(isolate, args[1]);
             }
             if (args.Length() > 2 && args[2]->IsUint32()) {
-                cursor.unitId = convert::ToUint32(isolate, args[2]);
+                cursor.unitId = convert::To<uint32_t>(isolate, args[2]);
             }
 
             std::optional<game::Unit> invItem;
@@ -1063,7 +1063,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
 
-            uint16_t nSkillId = static_cast<uint16_t>(convert::ToUint32(isolate, args[0]));
+            uint16_t nSkillId = convert::To<uint16_t>(isolate, args[0]);
 
             if (args.Length() == 1) {
                 // Mode switch: 0=right skill name, 1=left skill name, 2=right skill id,
@@ -1099,10 +1099,10 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                         break;
                 }
             } else if (args[1]->IsNumber()) {
-                bool includeExtraLevels = convert::ToBool(isolate, args[1]);
+                bool includeExtraLevels = convert::To<bool>(isolate, args[1]);
                 std::optional charge = false;
                 if (args.Length() >= 3) {
-                    if (convert::ToBool(isolate, args[2])) {
+                    if (convert::To<bool>(isolate, args[2])) {
                         charge = true;
                     } else {
                         charge = std::nullopt;
@@ -1242,7 +1242,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             auto* isolate = args.GetIsolate();
-            uint32_t enchantId = convert::ToUint32(isolate, args[0]);
+            uint32_t enchantId = convert::To<uint32_t>(isolate, args[0]);
             // Returns INT 0 when not found, BOOLEAN true when found
             if (data->HasEnchant(enchantId)) {
                 args.GetReturnValue().Set(true);
@@ -1268,9 +1268,9 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             auto* isolate = args.GetIsolate();
-            uint32_t nQuest = convert::ToUint32(isolate, args[0]);
-            const auto nFlag = static_cast<game::QuestFlag>(convert::ToUint32(isolate, args[1]));
-            args.GetReturnValue().Set(game::GetQuestFlag(nQuest, nFlag));
+            uint32_t nQuest = convert::To<uint32_t>(isolate, args[0]);
+            const auto nFlag = convert::To<game::QuestFlag>(isolate, args[1]);
+            args.GetReturnValue().Set(game::GetQuestFlag(nQuest, nFlag) ? 1 : 0);
         });
 
     /// @description Tests whether the given status-effect state id is currently active on the unit.
@@ -1288,7 +1288,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 args.GetReturnValue().SetFalse();
                 return;
             }
-            int32_t nState = convert::ToInt32(isolate, args[0]);
+            int32_t nState = convert::To<int32_t>(isolate, args[0]);
             // No max state check, as mods might add new stats.
             if (nState < 0) {
                 args.GetReturnValue().SetFalse();
@@ -1326,11 +1326,11 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
 
-            int32_t statId = convert::ToInt32(isolate, args[0]);
+            int32_t statId = convert::To<int32_t>(isolate, args[0]);
 
             uint32_t subIndex = 0;
             if (args.Length() > 1) {
-                subIndex = convert::ToInt32(isolate, args[1]);
+                subIndex = convert::To<int32_t>(isolate, args[1]);
             }
 
             std::vector<game::StatEntry> stats;
@@ -1524,7 +1524,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             auto* isolate = args.GetIsolate();
-            const auto flag = static_cast<game::ItemFlag>(convert::ToUint32(isolate, args[0]));
+            const auto flag = convert::To<game::ItemFlag>(isolate, args[0]);
             args.GetReturnValue().Set(HasAnyFlag(data->ItemFlags(), flag));
         });
 
@@ -1557,7 +1557,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             if (data->Type() != UnitType::Item) {
                 return;
             }
-            auto mode = static_cast<game::ItemCostMode>(convert::ToInt32(isolate, args[0]));
+            auto mode = convert::To<game::ItemCostMode>(isolate, args[0]);
             // Reference line 1277-1287: only modes Buy(0), Sell(1), Repair(2) are valid
             if (mode < game::ItemCostMode::Buy || mode > game::ItemCostMode::Repair) {
                 return;
@@ -1574,11 +1574,11 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                         npcClassId = npcUnit->ClassId();
                     }
                 } else if (args[1]->IsNumber()) {
-                    npcClassId = convert::ToUint32(isolate, args[1]);
+                    npcClassId = convert::To<uint32_t>(isolate, args[1]);
                 }
             }
             if (args.Length() > 2 && args[2]->IsNumber()) {
-                difficulty = static_cast<game::Difficulty>(convert::ToInt32(isolate, args[2]));
+                difficulty = convert::To<game::Difficulty>(isolate, args[2]);
             }
             args.GetReturnValue().Set(data->ItemCost(mode, npcClassId, difficulty));
         });
@@ -1626,7 +1626,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 }
                 skillId = resolved.value();
             } else if (args[0]->IsNumber()) {
-                skillId = static_cast<uint16_t>(convert::ToInt32(isolate, args[0]));
+                skillId = convert::To<uint16_t>(isolate, args[0]);
             } else {
                 args.GetReturnValue().SetFalse();
                 return;
@@ -1637,7 +1637,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             // JS arg is numeric 0/1 (truthy->leftHand). Preserve that at the binding boundary.
-            game::Hand hand = convert::ToBool(isolate, args[1]) ? game::Hand::Left : game::Hand::Right;
+            game::Hand hand = convert::To<bool>(isolate, args[1]) ? game::Hand::Left : game::Hand::Right;
             std::optional<uint32_t> itemId;
             if (args.Length() == 3 && args[2]->IsObject()) {
                 const auto itemUnit = Unwrap(args[2].As<v8::Object>());
@@ -1771,7 +1771,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             }
             // Reference reads mode from argv[argc-1] (last argument)
             int32_t lastIdx = args.Length() - 1;
-            auto mode = static_cast<game::ShopMode>(convert::ToInt32(isolate, args[lastIdx]));
+            auto mode = convert::To<game::ShopMode>(isolate, args[lastIdx]);
             // Shop can wait on the game thread, so it runs on a copy after the lock is dropped.
             game::Unit item;
             {
@@ -1818,7 +1818,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             auto* isolate = args.GetIsolate();
-            int32_t nType = convert::ToInt32(isolate, args[0]);
+            int32_t nType = convert::To<int32_t>(isolate, args[0]);
             args.GetReturnValue().Set(data->GetMinionCount(nType));
         });
 
@@ -1847,7 +1847,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             int32_t npcClassId =
                 npc ? static_cast<int32_t>(npc->ClassId()) : static_cast<int32_t>(game::NPC_CHARSI_CLASS_ID);
             if (args.Length() > 0 && args[0]->IsNumber()) {
-                npcClassId = convert::ToInt32(isolate, args[0]);
+                npcClassId = convert::To<int32_t>(isolate, args[0]);
             }
             args.GetReturnValue().Set(player.GetRepairCost(npcClassId));
         });

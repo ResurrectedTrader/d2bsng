@@ -129,8 +129,8 @@ json BuildProgression() {
 
     json quests = json::array();
     for (uint32_t questId = 0; questId < QUEST_COUNT; ++questId) {
-        if (game::GetQuestFlag(questId, game::QuestFlag::RewardGranted) != 0 ||
-            game::GetQuestFlag(questId, game::QuestFlag::RewardPending) != 0) {
+        if (game::GetQuestFlag(questId, game::QuestFlag::RewardGranted) ||
+            game::GetQuestFlag(questId, game::QuestFlag::RewardPending)) {
             quests.push_back(questId);  // reward granted or pending == completed
         }
     }

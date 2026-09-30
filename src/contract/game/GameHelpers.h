@@ -123,7 +123,7 @@ TxtValue GetTxtValue(std::string_view table, uint32_t row, std::string_view colu
 // unknown or its game data is not currently loaded (e.g. out of game).
 std::optional<uint32_t> GetTxtTableRowCount(std::string_view table);
 
-int32_t GetQuestFlag(uint32_t quest, QuestFlag flag);
+bool GetQuestFlag(uint32_t quest, QuestFlag flag);
 // === Weapon / Stat / Skill Actions ===
 void SwapWeapon();
 void UseStatPoint(uint32_t stat, uint32_t count);

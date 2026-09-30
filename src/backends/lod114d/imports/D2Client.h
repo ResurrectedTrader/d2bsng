@@ -101,7 +101,7 @@ inline StdcallFunc<void()> TRADE_OK{0xB8A30};
 // EAX. game::GetDifficulty() converts the byte to our game::Difficulty.
 inline StdcallFunc<uint8_t()> GAME_GetDifficulty{0x4DCD0};
 inline FastcallFunc<void()> GAME_Exit{0x4DD60};
-inline FastcallFunc<uint32_t(uint32_t /*dwVarNo*/)> UI_GetVar{0x538D0};
+inline FastcallFunc<uint32_t(game::UiFlag /*dwVarNo*/)> UI_GetVar{0x538D0};
 
 // Takes the address of a contiguous int32 quad (left, top, right, bottom).
 // Reference FUNCPTR types it as `DWORD Rect` (the address as integer); reference
@@ -120,8 +120,8 @@ inline FastcallFunc<void()> UI_ClearScreen{0xB4620};
 // Storm's WndProc dispatcher passes to handlers.
 inline StdcallFunc<uint32_t(void* /*pMsg*/)> UI_CloseNPCTalk{0xA17D0};
 
-inline FastcallFunc<uint32_t(uint32_t /*dwUnitId1*/, uint32_t /*dwUnitId2*/, uint32_t /*dwFlag*/)> PLAYERLIST_CheckFlag{
-    0xDC440};
+inline FastcallFunc<uint32_t(uint32_t /*dwUnitId1*/, uint32_t /*dwUnitId2*/, game::RosterFlag /*dwFlag*/)>
+    PLAYERLIST_CheckFlag{0xDC440};
 
 inline FastcallFunc<uint32_t()> GAME_GetLanguageCode{0x125150};
 

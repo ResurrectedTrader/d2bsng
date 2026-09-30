@@ -141,7 +141,7 @@ class JSControl : public ClassBase<JSControl, game::Control> {
                 if (!value->IsNumber()) {
                     return;
                 }
-                int32_t state = convert::ToInt32(isolate, value);
+                int32_t state = convert::To<int32_t>(isolate, value);
                 if (state < 0 || state > 3) {
                     error::ThrowError(isolate, "Invalid state value");
                     return;
@@ -188,7 +188,7 @@ class JSControl : public ClassBase<JSControl, game::Control> {
                     return;
                 }
                 auto* isolate = info.GetIsolate();
-                uint32_t pos = convert::ToUint32(isolate, value);
+                uint32_t pos = convert::To<uint32_t>(isolate, value);
                 data->SetCursorPos(pos);
             });
         /// @description The start character offset of the control's current text selection.
@@ -230,7 +230,7 @@ class JSControl : public ClassBase<JSControl, game::Control> {
                     return;
                 }
                 auto* isolate = info.GetIsolate();
-                data->SetState(static_cast<game::ControlState>(convert::ToUint32(isolate, value)));
+                data->SetState(convert::To<game::ControlState>(isolate, value));
             });
 
         // Methods

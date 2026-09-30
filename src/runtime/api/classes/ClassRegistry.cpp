@@ -399,7 +399,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
             info.GetReturnValue().Set(game::GetAlwaysRun() ? 1U : 0U);
         },
         +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-            game::SetAlwaysRun(convert::ToInt32(info.GetIsolate(), value) != 0);
+            game::SetAlwaysRun(convert::To<int32_t>(info.GetIsolate(), value) != 0);
         });
 
     /// @description Bot "chicken" HP threshold (config-backed) at/below which the bot bails out of a game.
@@ -410,7 +410,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
             info.GetReturnValue().Set(core::config::GetAppConfig().chickenHp.load());
         },
         +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-            core::config::GetAppConfig().chickenHp.store(convert::ToInt32(info.GetIsolate(), value));
+            core::config::GetAppConfig().chickenHp.store(convert::To<int32_t>(info.GetIsolate(), value));
         });
 
     /// @description Bot "chicken" MP threshold (config-backed) at/below which the bot bails out of a game.
@@ -421,7 +421,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
             info.GetReturnValue().Set(core::config::GetAppConfig().chickenMp.load());
         },
         +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-            core::config::GetAppConfig().chickenMp.store(convert::ToInt32(info.GetIsolate(), value));
+            core::config::GetAppConfig().chickenMp.store(convert::To<int32_t>(info.GetIsolate(), value));
         });
 
     /// @description Config flag: whether the bot should quit the game when another player goes hostile.
@@ -472,7 +472,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
             if (game::GetGameState() != game::GameState::InGame) {
                 return;
             }
-            game::SetNoPickUp(convert::ToBool(info.GetIsolate(), value));
+            game::SetNoPickUp(convert::To<bool>(info.GetIsolate(), value));
         });
 
     /// @description Config flag: whether the bot should quit the game when a script error occurs.
@@ -495,7 +495,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
         },
         +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
             core::config::GetAppConfig().maxGameTime.store(
-                std::chrono::milliseconds{convert::ToUint32(info.GetIsolate(), value)});
+                std::chrono::milliseconds{convert::To<uint32_t>(info.GetIsolate(), value)});
         });
 
     return scope.Escape(me);

@@ -44,7 +44,7 @@ class JSFrame : public JSDrawableBase<JSFrame, FrameDrawable> {
         extract::SizeInto(args, 2, drawable->size);
 
         if (args.Length() > 4 && args[4]->IsNumber()) {
-            drawable->align.store(static_cast<Align>(convert::ToInt32(isolate, args[4])));
+            drawable->align.store(convert::To<Align>(isolate, args[4]));
         }
         if (args.Length() > 5 && args[5]->IsBoolean()) {
             drawable->isAutomap.store(args[5]->BooleanValue(isolate));
@@ -89,7 +89,7 @@ class JSFrame : public JSDrawableBase<JSFrame, FrameDrawable> {
                     return;
                 auto cur = drawable->size.load();
                 // Note: Size is unsigned; negative values coerce to large positive via ToUint32.
-                cur.width = convert::ToUint32(info.GetIsolate(), value);
+                cur.width = convert::To<uint32_t>(info.GetIsolate(), value);
                 drawable->size.store(cur);
             });
 
@@ -112,7 +112,7 @@ class JSFrame : public JSDrawableBase<JSFrame, FrameDrawable> {
                     return;
                 auto cur = drawable->size.load();
                 // Note: Size is unsigned; negative values coerce to large positive via ToUint32.
-                cur.height = convert::ToUint32(info.GetIsolate(), value);
+                cur.height = convert::To<uint32_t>(info.GetIsolate(), value);
                 drawable->size.store(cur);
             });
     }

@@ -107,8 +107,8 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
                     error::WarnAndReturnFalse(args, "Game not ready");
                     return;
                 }
-                const game::Position cell{.x = convert::ToUint32(isolate, args[0]),
-                                          .y = convert::ToUint32(isolate, args[1])};
+                const game::Position cell{.x = convert::To<uint32_t>(isolate, args[0]),
+                                          .y = convert::To<uint32_t>(isolate, args[1])};
                 // Click can block while the tab is brought in, so it runs on a copy with no lock held.
                 const game::StashTab tab = *Unwrap(args.This());
                 args.GetReturnValue().Set(tab.Click(cell) == game::ClickResult::Dispatched);
@@ -160,7 +160,7 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
             error::WarnAndReturnFalse(args, "Game not ready");
             return std::nullopt;
         }
-        return convert::ToUint32(isolate, args[0]);
+        return convert::To<uint32_t>(isolate, args[0]);
     }
 };
 

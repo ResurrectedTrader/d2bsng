@@ -90,7 +90,7 @@ class JSDrawableBase : public ClassBase<Derived, DrawableType> {
                 if (!value->IsNumber())
                     return;
                 auto cur = drawable->pos.load();
-                cur.x = convert::ToInt32(info.GetIsolate(), value);
+                cur.x = convert::To<int32_t>(info.GetIsolate(), value);
                 drawable->pos.store(cur);
             });
 
@@ -112,7 +112,7 @@ class JSDrawableBase : public ClassBase<Derived, DrawableType> {
                 if (!value->IsNumber())
                     return;
                 auto cur = drawable->pos.load();
-                cur.y = convert::ToInt32(info.GetIsolate(), value);
+                cur.y = convert::To<int32_t>(info.GetIsolate(), value);
                 drawable->pos.store(cur);
             });
 
@@ -153,7 +153,7 @@ class JSDrawableBase : public ClassBase<Derived, DrawableType> {
                     return;
                 if (!value->IsNumber())
                     return;
-                drawable->zorder.store(convert::ToInt32(info.GetIsolate(), value));
+                drawable->zorder.store(convert::To<int32_t>(info.GetIsolate(), value));
             });
 
         // align property
@@ -173,7 +173,7 @@ class JSDrawableBase : public ClassBase<Derived, DrawableType> {
                     return;
                 if (!value->IsNumber())
                     return;
-                auto raw = convert::ToInt32(info.GetIsolate(), value);
+                auto raw = convert::To<int32_t>(info.GetIsolate(), value);
                 if (raw >= 0 && raw <= 2) {
                     drawable->align.store(static_cast<Align>(raw));
                 }

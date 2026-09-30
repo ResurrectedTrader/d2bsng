@@ -125,7 +125,7 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
 
                 std::string original = convert::ToString(isolate, args[0]);
                 std::string copyName = convert::ToString(isolate, args[1]);
-                bool skipIfExists = convert::ToBool(isolate, args.Length() > 2 ? args[2] : v8::Local<v8::Value>());
+                bool skipIfExists = convert::To<bool>(isolate, args.Length() > 2 ? args[2] : v8::Local<v8::Value>());
 
                 auto dstPath = filetools_detail::ResolveScriptPath(isolate, copyName, "Invalid new file name");
                 if (dstPath.empty()) {

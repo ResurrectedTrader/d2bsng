@@ -25,9 +25,9 @@ inline bool BindValue(v8::Isolate* isolate, v8::Local<v8::Value> value, sqlite3_
         sqlite3_bind_text(handle, paramIdx, str.c_str(), static_cast<int32_t>(str.length()), SQLITE_TRANSIENT);
     } else if (value->IsNumber()) {
         if (value->IsInt32()) {
-            sqlite3_bind_int(handle, paramIdx, convert::ToInt32(isolate, value));
+            sqlite3_bind_int(handle, paramIdx, convert::To<int32_t>(isolate, value));
         } else {
-            sqlite3_bind_double(handle, paramIdx, convert::ToDouble(isolate, value));
+            sqlite3_bind_double(handle, paramIdx, convert::To<double>(isolate, value));
         }
     } else if (value->IsBoolean()) {
         const char* boolStr = value->BooleanValue(isolate) ? "true" : "false";

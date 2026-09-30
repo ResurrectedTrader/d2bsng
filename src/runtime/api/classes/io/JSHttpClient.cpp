@@ -75,7 +75,7 @@ bool ReadUint32Option(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::
         error::ThrowTypeError(isolate, std::format("HttpClient: '{}' must be a number", name));
         return false;
     }
-    double number = convert::ToDouble(isolate, value);
+    double number = convert::To<double>(isolate, value);
     if (number < 0) {
         error::ThrowRangeError(isolate, std::format("HttpClient: '{}' must not be negative", name));
         return false;
@@ -97,7 +97,7 @@ bool ReadBoolOption(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Lo
         error::ThrowTypeError(isolate, std::format("HttpClient: '{}' must be a boolean", name));
         return false;
     }
-    out = convert::ToBool(isolate, value);
+    out = convert::To<bool>(isolate, value);
     return true;
 }
 
@@ -177,7 +177,7 @@ bool ApplyOptions(v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Loca
             error::ThrowTypeError(isolate, "HttpClient: 'maxResponseBytes' must be a number");
             return false;
         }
-        double bytes = convert::ToDouble(isolate, maxBytes);
+        double bytes = convert::To<double>(isolate, maxBytes);
         if (bytes <= 0) {
             error::ThrowRangeError(isolate, "HttpClient: 'maxResponseBytes' must be positive");
             return false;
