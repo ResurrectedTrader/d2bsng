@@ -611,9 +611,12 @@ rather than repeating the literal:
 constexpr uint32_t UNIT_TYPE_NPC = UNIT_MONSTER;
 ```
 
-**Scope it to its use.** A constant used by one file stays in that file's anonymous
-namespace - no shared header, no namespace qualification at the call site. Promote it
-only when a second file needs the same value, and then delete every copy.
+**Scope it to its use.** A constant used by one function lives in that function, declared
+next to its first use. One used by several functions of a file stays in that file's
+anonymous namespace - no shared header, no namespace qualification at the call site.
+Promote it further only when a second file needs the same value, and then delete every
+copy. Large lookup tables, and constants whose address must outlive the call, keep file
+scope even when one function reads them.
 
 ### Enum names
 

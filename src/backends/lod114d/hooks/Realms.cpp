@@ -36,12 +36,7 @@ spdlog::logger& Log() {
 constexpr const char* REALM_LIST_VALUE = "Diablo II Battle.net gateways";
 constexpr const char* REALM_LIST_VALUE_OVERRIDE = "Override Battle.net gateways";
 
-// A list-version at or above this is required; below it the client discards the
-// list. We only bump a too-low version we are already handing back in memory.
-constexpr uint32_t MIN_VERSION = 1000;
 constexpr const char* DEFAULT_VERSION = "1009";
-// Custom realms carry no GMT bias; 0 is a neutral zone the picker tolerates.
-constexpr const char* DEFAULT_ZONE = "0";
 
 // One entry of D2's parsed server-list blob: a host, a GMT zone bias, and the
 // display name.
@@ -92,6 +87,9 @@ void EnsureValidVersion(RealmList& list) {
     const auto* begin = list.version.data();
     const auto* end = begin + list.version.size();
     const auto [ptr, ec] = std::from_chars(begin, end, version);
+    // A list-version at or above this is required; below it the client discards the
+    // list. We only bump a too-low version we are already handing back in memory.
+    constexpr uint32_t MIN_VERSION = 1000;
     if (ec != std::errc{} || ptr != end || version < MIN_VERSION) {
         list.version = DEFAULT_VERSION;
     }
@@ -102,6 +100,8 @@ void EnsureValidVersion(RealmList& list) {
 void MergeCustomRealms(RealmList& list) {
     for (const auto& realm : core::config::RealmRegistry::Instance().All()) {
         bool merged = false;
+        // Custom realms carry no GMT bias; 0 is a neutral zone the picker tolerates.
+        constexpr const char* DEFAULT_ZONE = "0";
         for (auto& entry : list.entries) {
             if (entry.name == realm.name) {
                 entry.host = realm.host;

@@ -20,8 +20,6 @@ namespace d2bs::runtime::console {
 
 namespace {
 
-constexpr ImGuiTableFlags TABLE_FLAGS = ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_NoBordersInBody;
-
 // Two-column row: left = label, right = control. We push the label as an ID
 // so multiple checkboxes with the same hidden `##` label don't collide.
 void BeginRow(const char* label) {
@@ -120,6 +118,7 @@ void SettingsPanel::Draw() {
         cachedProfile_ = profile::LoadActive();
     }
 
+    constexpr ImGuiTableFlags TABLE_FLAGS = ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_NoBordersInBody;
     if (ImGui::CollapsingHeader("Profile")) {
         if (ImGui::BeginTable("##profile", 2, TABLE_FLAGS)) {
             ImGui::TableSetupColumn("##label", ImGuiTableColumnFlags_WidthFixed, 200.0F);

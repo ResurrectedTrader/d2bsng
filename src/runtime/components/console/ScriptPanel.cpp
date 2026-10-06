@@ -18,9 +18,6 @@ namespace d2bs::runtime::console {
 
 namespace {
 
-constexpr ImGuiTableFlags TABLE_FLAGS = ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable |
-                                        ImGuiTableFlags_ScrollY | ImGuiTableFlags_SizingFixedFit;
-
 // Hover-test the full table cell, not just the most recently drawn item.
 // IsItemHovered only inspects the last item's rect (the text), but the user
 // expects mousing over any pixel of the cell to trigger the tooltip. We
@@ -308,6 +305,9 @@ void ScriptPanel::Draw() {
         return;
     }
 
+    constexpr ImGuiTableFlags TABLE_FLAGS = ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders |
+                                            ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollY |
+                                            ImGuiTableFlags_SizingFixedFit;
     if (!ImGui::BeginTable("##scripts", 6, TABLE_FLAGS)) {
         return;
     }

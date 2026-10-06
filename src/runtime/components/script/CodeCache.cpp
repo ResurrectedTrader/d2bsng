@@ -35,13 +35,6 @@ uint64_t Fnv1a64(std::string_view text, uint64_t seed = FNV64_OFFSET) {
 // corrupt file we refuse to allocate for.
 constexpr size_t MAX_ENTRY_BYTES = 64ULL * 1024 * 1024;
 
-// Staging files this old belong to an instance that died mid-write.
-constexpr auto TEMP_REAP_AGE = std::chrono::hours(1);
-
-// Bytes written between disk prunes. Small enough to keep a long session near
-// its budget, large enough that the directory walk is not on the hot path.
-constexpr uint64_t PRUNE_AFTER_BYTES = 32ULL * 1024 * 1024;
-
 constexpr size_t BYTES_PER_MB = 1024 * 1024;
 
 // CachedDataVersionTag covers the V8 version and the *effective* flag set -
@@ -245,6 +238,9 @@ void CodeCache::WriteDisk(uint64_t hash, const std::vector<uint8_t>& blob) const
         return;
     }
 
+    // Bytes written between disk prunes. Small enough to keep a long session near
+    // its budget, large enough that the directory walk is not on the hot path.
+    constexpr uint64_t PRUNE_AFTER_BYTES = 32ULL * 1024 * 1024;
     // Re-prune periodically rather than only at startup: a long session that
     // keeps compiling new sources (every script edit mints a new key) would
     // otherwise grow the directory past the budget until the next launch. The
@@ -295,6 +291,8 @@ void CodeCache::PruneDisk() const {
             continue;
         }
         if (entry.path().extension() == ".tmp") {
+            // Staging files this old belong to an instance that died mid-write.
+            constexpr auto TEMP_REAP_AGE = std::chrono::hours(1);
             if (now - written > TEMP_REAP_AGE) {
                 std::filesystem::remove(entry.path(), ec);
             }

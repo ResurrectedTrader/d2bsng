@@ -15,19 +15,6 @@
 
 namespace d2bs::core::config {
 
-namespace {
-// Shared cross-process lock guarding every d2bs.ini read-modify-write. D2BotNG
-// takes a System.Threading.Mutex of the SAME name, so
-// its full-file profile rewrites and our addProfile writes serialize against
-// each other instead of clobbering one another.
-constexpr const wchar_t* INI_LOCK_NAME = L"Local\\d2bs-ini-lock";
-
-// The final atomic swap can transiently fail when a reader briefly holds the
-// file open (GetPrivateProfileString); retry a few times before giving up.
-constexpr int32_t REPLACE_ATTEMPTS = 5;
-constexpr uint32_t REPLACE_RETRY_MS = 20;
-}  // namespace
-
 IniConfigStore::IniConfigStore(std::filesystem::path iniPath) : path_(std::move(iniPath)) {}
 
 // ---------------------------------------------------------------------------
@@ -234,6 +221,11 @@ std::string IniConfigStore::ReadString(const std::string& section, const std::st
 
 void IniConfigStore::WriteKeys(const std::string& section,
                                const std::vector<std::pair<std::string, std::string>>& keyValues) const {
+    // Shared cross-process lock guarding every d2bs.ini read-modify-write. D2BotNG
+    // takes a System.Threading.Mutex of the SAME name, so
+    // its full-file profile rewrites and our addProfile writes serialize against
+    // each other instead of clobbering one another.
+    constexpr const wchar_t* INI_LOCK_NAME = L"Local\\d2bs-ini-lock";
     // Serialize the whole read-modify-write across processes so concurrent
     // writers (other d2bsng instances, D2BotNG) can't lose each other's updates.
     const utils::NamedMutexLock lock(INI_LOCK_NAME);
@@ -265,6 +257,10 @@ void IniConfigStore::WriteKeys(const std::string& section,
     // Flush WritePrivateProfile's per-process cache out to the temp before swap.
     WritePrivateProfileStringW(nullptr, nullptr, nullptr, tempPath.data());
 
+    // The final atomic swap can transiently fail when a reader briefly holds the
+    // file open (GetPrivateProfileString); retry a few times before giving up.
+    constexpr int32_t REPLACE_ATTEMPTS = 5;
+    constexpr uint32_t REPLACE_RETRY_MS = 20;
     for (int32_t attempt = 0; attempt < REPLACE_ATTEMPTS; ++attempt) {
         const BOOL ok = originalExists ? ReplaceFileW(widePath.c_str(), tempPath.data(), nullptr, 0, nullptr, nullptr)
                                        : MoveFileExW(tempPath.data(), widePath.c_str(),

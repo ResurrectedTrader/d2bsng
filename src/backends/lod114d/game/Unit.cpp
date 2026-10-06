@@ -102,10 +102,6 @@ static_assert(Skill::Attack == static_cast<Skill>(SKILL_ATTACK));
 static_assert(Skill::ImpFireMissileEx == static_cast<Skill>(SKILL_IMPFIREMISSILEEX));
 static_assert(ENCHANT_SLOT_COUNT <= std::extent_v<decltype(D2MonsterDataStrc::nMonUmod)>);
 
-// Reference parity: GetItemPrice's mode argument 0/1 = buy/sell, 3 = repair
-// (mode 2 in our enum maps to 3 internally).
-constexpr int32_t ITEM_PRICE_MODE_REPAIR = 3;
-
 // Reference: dwOwnerGUID == 0xFFFFFFFF means "no owner" for monster summons.
 constexpr uint32_t NO_OWNER_GUID = std::numeric_limits<uint32_t>::max();
 
@@ -1012,6 +1008,9 @@ uint32_t Unit::ItemCost(ItemCostMode mode, uint32_t npcClassId, Difficulty diffi
     // Mode 2 (Repair) maps to internal mode 3 per reference JSUnit.cpp:1283.
     int32_t internalMode = static_cast<int32_t>(mode);
     if (mode == ItemCostMode::Repair) {
+        // Reference parity: GetItemPrice's mode argument 0/1 = buy/sell, 3 = repair
+        // (mode 2 in our enum maps to 3 internally).
+        constexpr int32_t ITEM_PRICE_MODE_REPAIR = 3;
         internalMode = ITEM_PRICE_MODE_REPAIR;
     }
 

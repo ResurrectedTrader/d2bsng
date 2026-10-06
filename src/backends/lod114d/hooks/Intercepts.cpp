@@ -189,7 +189,6 @@ constexpr uint32_t TEMP_PATH_PER_INSTANCE_RVA = 0x11E4C4;
 // both DLLs are merged into Game.exe at the same offsets over the image base.
 constexpr uint32_t SLEEPY_INGAME_RVA = 0x51C31;
 constexpr uint32_t SLEEPY_OOG_RVA = 0xFA66F;
-constexpr uint8_t SLEEPY_OOG_JMP = 0xEB;
 
 // =============================================================================
 // C-side callback dispatchers
@@ -1084,6 +1083,7 @@ void InstallAll() {
             siteSleepyInGame.installed = true;
         }
         if (!siteSleepyOoG.installed) {
+            constexpr uint8_t SLEEPY_OOG_JMP = 0xEB;
             WriteByte(moduleBase + SLEEPY_OOG_RVA, SLEEPY_OOG_JMP, siteSleepyOoG.original[0]);
             siteSleepyOoG.installed = true;
         }

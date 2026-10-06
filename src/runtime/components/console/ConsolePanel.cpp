@@ -21,10 +21,6 @@ using game::console::MessageLevel;
 using game::console::SplitByColor;
 using game::console::StripColor;
 
-constexpr ImVec4 PROMPT_COLOR{0.55F, 0.55F, 0.55F, 1.00F};
-constexpr ImVec4 INPUT_COLOR{0.55F, 0.75F, 1.00F, 1.00F};
-constexpr ImVec4 ERROR_COLOR{1.00F, 0.45F, 0.45F, 1.00F};
-
 // Split `text` on '\n' into individual lines. Empty trailing line is preserved
 // when text ends in a newline so the rendered transcript keeps the trailing
 // blank row (matches the original render behaviour).
@@ -258,6 +254,9 @@ void ConsolePanel::DrawTranscript() {
                     continue;  // off-screen: Row() reserved the layout height, skip drawing
                 }
                 const std::string& line = entry.lines[li];
+                constexpr ImVec4 PROMPT_COLOR{0.55F, 0.55F, 0.55F, 1.00F};
+                constexpr ImVec4 INPUT_COLOR{0.55F, 0.75F, 1.00F, 1.00F};
+                constexpr ImVec4 ERROR_COLOR{1.00F, 0.45F, 0.45F, 1.00F};
                 switch (entry.kind) {
                     case Kind::Input:
                         ImGui::TextColored(PROMPT_COLOR, "> ");

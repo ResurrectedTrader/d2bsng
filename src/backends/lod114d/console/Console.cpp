@@ -30,14 +30,6 @@ namespace d2bs::lod114d::console {
 
 namespace {
 
-constexpr int32_t INITIAL_WIDTH = 1000;
-constexpr int32_t INITIAL_HEIGHT = 700;
-constexpr int32_t TARGET_FRAME_MS = 16;
-constexpr uint32_t HIDDEN_WAIT_MS = 100;
-constexpr const wchar_t* WND_CLASS = L"d2bsng_console";
-constexpr const wchar_t* WND_TITLE = L"d2bsng console";
-constexpr const wchar_t* TITLE_SUFFIX = L" Console";
-
 // Posted to the console hwnd whenever the game window's title changes.
 // Source of truth is the game hwnd - the handler re-reads via GetWindowText.
 constexpr UINT WM_GAME_TITLE_CHANGED = WM_APP + 1;
@@ -201,6 +193,7 @@ void ApplyGameTitle(HWND consoleWnd) {
     }
 
     std::array<wchar_t, 256> desired{};
+    constexpr const wchar_t* TITLE_SUFFIX = L" Console";
     const size_t suffixLen = std::wcslen(TITLE_SUFFIX);
     if (static_cast<size_t>(gameLen) + suffixLen + 1 > desired.size()) {
         return;
@@ -307,6 +300,12 @@ void RenderLoop(const std::stop_token& stop) {
     wc.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
     wc.lpfnWndProc = &ConsoleWndProc;
     wc.hInstance = hInst;
+    constexpr int32_t INITIAL_WIDTH = 1000;
+    constexpr int32_t INITIAL_HEIGHT = 700;
+    constexpr int32_t TARGET_FRAME_MS = 16;
+    constexpr uint32_t HIDDEN_WAIT_MS = 100;
+    constexpr const wchar_t* WND_CLASS = L"d2bsng_console";
+    constexpr const wchar_t* WND_TITLE = L"d2bsng console";
     wc.lpszClassName = WND_CLASS;
     wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
     if (RegisterClassExW(&wc) == 0) {

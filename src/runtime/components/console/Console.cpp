@@ -26,8 +26,6 @@ namespace d2bs::runtime::console {
 
 namespace {
 
-constexpr size_t MAX_PENDING = 5000;
-
 // Cross-thread inbound queue. OnMessage appends; DrawFrame swaps it out.
 std::mutex queueMutex;
 // NOLINTNEXTLINE(cert-err58-cpp) - default-constructed deque, no real throw risk
@@ -183,6 +181,7 @@ void DrawFrame() {
 void OnMessage(const game::console::Message& msg) {
     const std::scoped_lock guard(queueMutex);
     pending.push_back(msg);
+    constexpr size_t MAX_PENDING = 5000;
     while (pending.size() > MAX_PENDING) {
         pending.pop_front();
     }

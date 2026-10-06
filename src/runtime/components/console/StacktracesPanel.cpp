@@ -15,14 +15,13 @@ namespace d2bs::runtime::console {
 
 namespace {
 
-constexpr ImGuiTableFlags STACK_TABLE_FLAGS =
-    ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit;
-
 void DrawStackTable(const std::vector<script::StackFrame>& frames) {
     if (frames.empty()) {
         ImGui::TextDisabled("(no JS frames on stack - script is between events)");
         return;
     }
+    constexpr ImGuiTableFlags STACK_TABLE_FLAGS =
+        ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit;
     if (!ImGui::BeginTable("##stack", 4, STACK_TABLE_FLAGS)) {
         return;
     }

@@ -20,11 +20,6 @@ using game::console::Message;
 using game::console::MessageLevel;
 using game::console::MessageSource;
 
-constexpr std::array ALL_LEVELS = {
-    MessageLevel::Trace, MessageLevel::Debug, MessageLevel::Info,
-    MessageLevel::Warn,  MessageLevel::Error, MessageLevel::Critical,
-};
-
 // Strip everything up to and including the last path separator. Used in
 // the rendered prefix so scripts logged as "libs\SoloPlay\SoloPlay.js" show
 // as "SoloPlay.js". The full name is still kept on the Entry for the
@@ -123,6 +118,10 @@ void LogPanel::DrawFilterBar() {
         ImGui::SetNextItemWidth(80.0F);
         const std::string levelLabel{theme::LevelTag(minLevel_)};
         if (ImGui::BeginCombo("##minlevel", levelLabel.c_str())) {
+            constexpr std::array ALL_LEVELS = {
+                MessageLevel::Trace, MessageLevel::Debug, MessageLevel::Info,
+                MessageLevel::Warn,  MessageLevel::Error, MessageLevel::Critical,
+            };
             for (auto lv : ALL_LEVELS) {
                 const std::string tag{theme::LevelTag(lv)};
                 const bool selected = (lv == minLevel_);

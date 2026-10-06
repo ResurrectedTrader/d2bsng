@@ -31,31 +31,6 @@ namespace {
 // NOLINTNEXTLINE(readability-identifier-naming) - 'json' is nlohmann's conventional alias spelling
 using json = nlohmann::json;
 
-// schemaVersion of the wire contract (owned by the manager plan).
-constexpr int32_t SCHEMA_VERSION = 2;
-
-// Debounce window: sample the state at most this often, and only send once it has
-// stopped changing across a sample, so a burst of changes coalesces into one send.
-constexpr auto CHECK_INTERVAL = std::chrono::seconds{1};
-
-// Container bucket indices. Two slot-based containers (equipped, merc) carry the
-// equip-location in each item's `x` (y = 0); the rest are grids, except stash
-// which is sent as one page per stash tab.
-constexpr size_t BUCKET_EQUIPPED = 0;
-constexpr size_t BUCKET_MERC = 1;
-constexpr size_t BUCKET_INVENTORY = 2;
-constexpr size_t BUCKET_CUBE = 3;
-constexpr size_t BUCKET_BELT = 4;
-constexpr size_t BUCKET_STASH = 5;
-constexpr size_t BUCKET_COUNT = 6;
-
-// Quest / waypoint bounds (active difficulty only; identity carries which). A quest
-// is complete when its reward is granted or pending - not the COMPLETEDNOW/BEFORE
-// bits, which the record load clears, so a quest done in a prior game reads as
-// incomplete.
-constexpr uint32_t QUEST_COUNT = std::to_underlying(game::Quest::EveOfDestruction) + 1;
-constexpr uint32_t WAYPOINT_COUNT = 39;
-
 json BuildItems(const std::vector<game::Unit>& items) {
     json itemsArr = json::array();
     for (const auto& item : items) {
@@ -129,6 +104,12 @@ json BuildProgression() {
     json progression = json::object();
 
     json quests = json::array();
+    // Quest / waypoint bounds (active difficulty only; identity carries which). A quest
+    // is complete when its reward is granted or pending - not the COMPLETEDNOW/BEFORE
+    // bits, which the record load clears, so a quest done in a prior game reads as
+    // incomplete.
+    constexpr uint32_t QUEST_COUNT = std::to_underlying(game::Quest::EveOfDestruction) + 1;
+    constexpr uint32_t WAYPOINT_COUNT = 39;
     for (uint32_t questId = 0; questId < QUEST_COUNT; ++questId) {
         const auto quest = static_cast<game::Quest>(questId);
         if (game::GetQuestFlag(quest, game::QuestFlag::RewardGranted) ||
@@ -233,6 +214,16 @@ CharacterState& CharacterState::Instance() {
 }
 
 void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
+    // Container bucket indices. Two slot-based containers (equipped, merc) carry the
+    // equip-location in each item's `x` (y = 0); the rest are grids, except stash
+    // which is sent as one page per stash tab.
+    constexpr size_t BUCKET_EQUIPPED = 0;
+    constexpr size_t BUCKET_MERC = 1;
+    constexpr size_t BUCKET_INVENTORY = 2;
+    constexpr size_t BUCKET_CUBE = 3;
+    constexpr size_t BUCKET_BELT = 4;
+    constexpr size_t BUCKET_STASH = 5;
+    constexpr size_t BUCKET_COUNT = 6;
     static_assert(BUCKET_COUNT == CONTAINER_COUNT);
 
     // Every flag-gated read below answers the game's own data. Nothing in here waits on
@@ -266,6 +257,9 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
     // system_clock (wall clock) so the same value doubles as the epoch-ms updatedAt below;
     // the sampling cadence doesn't need a monotonic clock.
     const auto now = std::chrono::system_clock::now();
+    // Debounce window: sample the state at most this often, and only send once it has
+    // stopped changing across a sample, so a burst of changes coalesces into one send.
+    constexpr auto CHECK_INTERVAL = std::chrono::seconds{1};
     if (!keyframe && lastCheck_.has_value() && (now - *lastCheck_) < CHECK_INTERVAL) {
         return;
     }
@@ -470,6 +464,8 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
         return;  // nothing moved - a header-only message tells the manager nothing
     }
 
+    // schemaVersion of the wire contract (owned by the manager plan).
+    constexpr int32_t SCHEMA_VERSION = 2;
     snapshot["schemaVersion"] = SCHEMA_VERSION;
     // gameType alone does not say which data the ids index: the same game type has different
     // stat ids and tables on different backends.

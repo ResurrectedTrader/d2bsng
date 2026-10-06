@@ -59,9 +59,6 @@ core::detour::Hook<CursorLockFn> cursorLockHook{&NoOpCursorLock};
 // the trampoline so we don't recurse into the framework.
 thread_local bool inSleepCallback = false;
 
-// cursor-lock site
-constexpr uintptr_t CURSOR_LOCK_OFFSET = 0x68770;
-
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 // ---------------------------------------------------------------------------
@@ -144,6 +141,8 @@ core::input::Hooks BuildInputHooks(const game::GameCallbacks* callbacks) {
 
 void InstallDetoursHooks() {
     const auto base = reinterpret_cast<uintptr_t>(GetModuleHandle(nullptr));
+    // cursor-lock site
+    constexpr uintptr_t CURSOR_LOCK_OFFSET = 0x68770;
     cursorLockHook.SetTarget(reinterpret_cast<CursorLockFn>(base + CURSOR_LOCK_OFFSET));
 
     if (const int32_t err = core::detour::AttachAll({&cursorLockHook, &sleepHook}); err != 0) {

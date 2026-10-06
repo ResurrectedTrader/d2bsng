@@ -27,27 +27,9 @@ namespace {
 // numbers hold still to read.
 constexpr double SAMPLE_SECONDS = 0.5;
 
-// Threads below this peak stay hidden unless "show all" is ticked.
-constexpr double INTERESTING_CPU_PERCENT = 0.05;
-
 // History horizon, in windows. A thread busy for one second in ten averages under 10% and reads as
 // idle when sampled at the wrong moment; the trace and the peaks show the shape.
 constexpr size_t HISTORY_SAMPLES = 120;
-constexpr float HISTORY_WIDTH = 120.0F;
-constexpr float HISTORY_HEIGHT = 16.0F;
-// One vertical scale for every plot, floored so an all-idle process does not magnify noise.
-constexpr float HISTORY_SCALE_FLOOR = 10.0F;
-
-// The native-call table is a "what is expensive" list, so it is capped rather than scrolled.
-constexpr size_t TOP_BINDINGS = 20;
-constexpr size_t TOP_BLOCKED_BINDINGS = 5;
-constexpr float BINDING_TABLE_HEIGHT = 180.0F;
-
-// Below this the panel scrolls rather than squeezing the thread table away.
-constexpr float THREAD_TABLE_MIN_HEIGHT = 160.0F;
-
-// Timelines with a lower TimelineInfo::order draw before the panel's own sections, the rest after.
-constexpr int32_t OWN_SECTIONS_ORDER = 100;
 
 constexpr ImGuiTableFlags SORTABLE_TABLE_FLAGS = ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg |
                                                  ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInnerV |
@@ -56,8 +38,6 @@ constexpr ImGuiTableFlags SORTABLE_TABLE_FLAGS = ImGuiTableFlags_SizingFixedFit 
 // Numeric columns sort descending on the first click: the question is always "what is biggest".
 constexpr ImGuiTableColumnFlags NUMERIC_COLUMN =
     ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_PreferSortDescending;
-
-constexpr std::array<const char*, utils::profiling::NATIVE_CALL_KINDS> KIND_LABELS = {"fn", "get", "set"};
 
 // Column indices, shared between the header setup and the sort comparator.
 enum ThreadColumn : int32_t {
@@ -178,6 +158,7 @@ void SortRows(std::vector<Row>& rows, bool ascending, Key key, Present present) 
 }
 
 [[nodiscard]] const char* KindLabel(utils::profiling::NativeCall kind) {
+    constexpr std::array<const char*, utils::profiling::NATIVE_CALL_KINDS> KIND_LABELS = {"fn", "get", "set"};
     return KIND_LABELS.at(static_cast<size_t>(kind));
 }
 
@@ -298,6 +279,8 @@ void ProfilingPanel::Draw() {
     // Each section folds under a header that carries its headline figure, so a folded section is
     // still a one-line summary and the ones under investigation get the room.
     auto view = timelines_.begin();
+    // Timelines with a lower TimelineInfo::order draw before the panel's own sections, the rest after.
+    constexpr int32_t OWN_SECTIONS_ORDER = 100;
     for (; view != timelines_.end() && view->info->order < OWN_SECTIONS_ORDER; ++view) {
         DrawTimeline(*view);
         ImGui::Spacing();
@@ -485,6 +468,8 @@ void ProfilingPanel::SampleThreads(double window, uint64_t windowCycles) {
         // Totalled before filtering, so the process figure covers every thread.
         totalCpu += row.cpuPercent;
 
+        // Threads below this peak stay hidden unless "show all" is ticked.
+        constexpr double INTERESTING_CPU_PERCENT = 0.05;
         // Filtered on the peak: a thread that spiked earlier in the window is what this is for.
         if (row.peakPercent >= INTERESTING_CPU_PERCENT || row.hasLoopCounters || showAllThreads_) {
             row.name = utils::threads::GetThreadDescription(tid);
@@ -551,6 +536,9 @@ void ProfilingPanel::SampleNativeBindings() {
     // otherwise never appear. Never ranked on the two summed - that is wall time, and delay buries
     // the rest under it.
     std::ranges::sort(samples, std::ranges::greater{}, &script::NativeBindingSample::cycles);
+    // The native-call table is a "what is expensive" list, so it is capped rather than scrolled.
+    constexpr size_t TOP_BINDINGS = 20;
+    constexpr size_t TOP_BLOCKED_BINDINGS = 5;
     const auto rest = samples.begin() + static_cast<std::ptrdiff_t>(std::min(samples.size(), TOP_BINDINGS));
     std::ranges::sort(std::ranges::subrange(rest, samples.end()), std::ranges::greater{},
                       &script::NativeBindingSample::blockedCycles);
@@ -642,6 +630,7 @@ void ProfilingPanel::DrawNativeCalls() {
     // Cumulative rather than a rate: the expensive binding is often a rare one.
     ImGui::TextDisabled("(share of all native CPU since the last reset)");
 
+    constexpr float BINDING_TABLE_HEIGHT = 180.0F;
     if (!ImGui::BeginTable("##bindings", BindingColCount, SORTABLE_TABLE_FLAGS, ImVec2(0.0F, BINDING_TABLE_HEIGHT))) {
         return;
     }
@@ -690,6 +679,8 @@ void ProfilingPanel::DrawThreads() {
         return;
     }
 
+    // Below this the panel scrolls rather than squeezing the thread table away.
+    constexpr float THREAD_TABLE_MIN_HEIGHT = 160.0F;
     const float height = std::max(ImGui::GetContentRegionAvail().y, THREAD_TABLE_MIN_HEIGHT);
     if (!ImGui::BeginTable("##threads", ThreadColCount, SORTABLE_TABLE_FLAGS, ImVec2(0.0F, height))) {
         return;
@@ -703,6 +694,10 @@ void ProfilingPanel::DrawThreads() {
     ImGui::TableSetupColumn("peak JS", NUMERIC_COLUMN, 70.0F);
     ImGui::TableSetupColumn("wakes/s", NUMERIC_COLUMN, 70.0F);
     ImGui::TableSetupColumn("awake", NUMERIC_COLUMN, 60.0F);
+    constexpr float HISTORY_WIDTH = 120.0F;
+    constexpr float HISTORY_HEIGHT = 16.0F;
+    // One vertical scale for every plot, floored so an all-idle process does not magnify noise.
+    constexpr float HISTORY_SCALE_FLOOR = 10.0F;
     ImGui::TableSetupColumn("history", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoSort, HISTORY_WIDTH);
     ImGui::TableSetupColumn("thread");
     ImGui::TableSetupScrollFreeze(0, 1);

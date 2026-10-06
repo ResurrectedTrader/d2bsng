@@ -27,8 +27,6 @@ using lod114d::imports::extras::D2WinControlStrc;
 
 namespace {
 
-constexpr std::chrono::milliseconds CLICK_STEP_DELAY{100};
-
 D2WinControlStrc* AsCtrl(void* p) noexcept {
     return static_cast<D2WinControlStrc*>(p);
 }
@@ -222,6 +220,7 @@ void Control::Click(std::optional<Position> pos) const {
     }
 
     PostMouseMessage(WM_LBUTTONDOWN, static_cast<int32_t>(cx), static_cast<int32_t>(cy));
+    constexpr std::chrono::milliseconds CLICK_STEP_DELAY{100};
     std::this_thread::sleep_for(CLICK_STEP_DELAY);
     PostMouseMessage(WM_LBUTTONUP, static_cast<int32_t>(cx), static_cast<int32_t>(cy));
 }
