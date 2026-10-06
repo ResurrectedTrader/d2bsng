@@ -39,6 +39,7 @@ framework calls `RegisterDefaults()`, then registers every entry returned by
 | `jsStrictShim` | `js_strict(true);` -> prepend `"use strict";` (CompileSource) |
 | `constRunnableRewrite` | `const X = new Runnable` -> `var X = new Runnable` (CompileSource) |
 | `profileCallWithoutNew` | calling `Profile(...)` without `new` (JSProfile) |
+| `legacySkillNames` | `getSkillByName(name)` and `unit.setSkill(name, ...)` resolving names through the shared 1.14d skill table (`game::LegacySkillByName`, `src/contract/game/Common.cpp`) rather than the game's skills.txt. Read by each backend's `game::GetSkillByName` (`src/backends/lod114d/game/GameHelpers.cpp`, which otherwise walks the skills.txt link list) |
 
 Each flag is a documented `Register("name")` call in
 `CompatibilityFlags::RegisterDefaults()`: the call registers the name (enabled by
@@ -86,6 +87,8 @@ per flag:
   script's source is compiled. Toggling affects code compiled afterwards.
 - **`profileCallWithoutNew`** is checked live in `JSProfile::New`, so it takes
   effect immediately.
+- **`legacySkillNames`** is read by the backend's `GetSkillByName` on every
+  `getSkillByName` / `setSkill(name, ...)` call, so it takes effect immediately.
 
 ## Not flagged
 

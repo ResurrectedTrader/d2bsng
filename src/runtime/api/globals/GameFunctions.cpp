@@ -392,7 +392,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             args.GetReturnValue().Set(game::GetCursorType(isShop));
         });
 
-    /// @description Look up a skill id by its localized name.
+    /// @description Look up a skill id by name, case-insensitively: the 1.14d skill names while the legacySkillNames
+    /// compatibility flag is on, else the game's skills.txt names.
     /// @signature getSkillByName(name: string)
     /// @param name {string} - skill name
     /// @returns {Skill|undefined} - skill id, or undefined if not found
