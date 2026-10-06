@@ -267,9 +267,10 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
         });
 
     /// @description Prepares a SQL query and returns a DBStatement for iterating its result set.
-    /// @signature query(sql: string, ...params: (null|undefined|string|number|boolean)[])
+    /// @signature query(sql: string, ...params: (null|undefined|string|number|boolean|ArrayBuffer|ArrayBufferView)[])
     /// @param sql {string} - the SQL query (may contain ? / named placeholders)
-    /// @param params {null|undefined|string|number|boolean} - Values to bind, by JS type.
+    /// @param params {null|undefined|string|number|boolean|ArrayBuffer|ArrayBufferView} - Values to bind, by JS type
+    /// (an ArrayBuffer or typed array / DataView binds a BLOB).
     /// @returns {DBStatement} - a statement for stepping through results; throws on error.
     /// @throws {Error} - if the database is not open
     /// @throws {Error} - if preparing the SQL fails or the statement has no effect
