@@ -843,9 +843,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     // Reference: unit_cancel does NOT check unit validity - cancel is a global action
     /// @description Closes the current interaction / clears the cursor (a global UI action; the unit it is called on is
     /// ignored).
-    /// @signature cancel(mode?: number)
-    /// @param mode {number} - Optional CancelMode (0=close interact, 1=clear cursor, 2=close NPC, 3=clear screen);
-    /// auto-detected when omitted.
+    /// @signature cancel(mode?: CancelMode)
+    /// @param mode {CancelMode} - Optional; auto-detected when omitted.
     /// @returns {boolean} - True once the cancel was issued; false if the game was not ready.
     Method(
         isolate, proto, "cancel", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -1459,8 +1458,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// (flags, stateNo) and empty arrays are dropped. A socketed gem or an equipped item keeps its own lists - read
     /// those off that unit. Values carry the same 8.8 fixed-point shift as getStat().
     /// @signature getStatLists()
-    /// @returns {Array<{flags:number,stateNo:number,stats:Array<{id:number,layer:number,value:number}>}>} - The stat
-    /// lists, empty when the unit has none; false if the game was not ready.
+    /// @returns {Array<{flags:StatListFlags,stateNo:number,stats:Array<{id:Stat,layer:number,value:number}>}>} - The
+    /// stat lists, empty when the unit has none; false if the game was not ready.
     Method(
         isolate, proto, "getStatLists", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
@@ -1533,12 +1532,12 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
         });
 
     /// @description Computes the buy/sell/repair cost of this item at an NPC; Item units only.
-    /// @signature getItemCost(mode: number, npc?: Unit, difficulty?: number)
-    /// @param mode {number} - Required ItemCostMode: 0=buy, 1=sell, 2=repair (other values return undefined).
+    /// @signature getItemCost(mode: ItemCostMode, npc?: Unit, difficulty?: Difficulty)
+    /// @param mode {ItemCostMode} - Required; other values return undefined.
     /// @param npc {Unit} - Optional NPC as a Unit object (its classId is used); defaults to the interacting NPC, else
     /// Charsi.
-    /// @param difficulty {number} - Optional difficulty value; defaults to the current game difficulty.
-    /// @signature getItemCost(mode: number, npcClassId?: number, difficulty?: number)
+    /// @param difficulty {Difficulty} - Optional; defaults to the current game difficulty.
+    /// @signature getItemCost(mode: ItemCostMode, npcClassId?: number, difficulty?: Difficulty)
     /// @param npcClassId {number} - Optional NPC class id (alternative to passing a Unit); defaults to the interacting
     /// NPC, else Charsi.
     /// @returns {number} - The item cost in gold, undefined if not an item or invalid mode, false if the game was not
@@ -1758,9 +1757,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
         });
 
     /// @description Buys or sells this item at the open NPC shop; Item units only.
-    /// @signature shop(mode: number)
-    /// @param mode {number} - ShopMode read from the last argument passed: 1=sell, 2=buy, 6=buy-fill (other values
-    /// return false).
+    /// @signature shop(mode: ShopMode)
+    /// @param mode {ShopMode} - Read from the last argument passed; other values return false.
     /// @returns {boolean} - True if the shop action succeeded; false on invalid mode, not an item, or not ready.
     Method(
         isolate, proto, "shop", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {

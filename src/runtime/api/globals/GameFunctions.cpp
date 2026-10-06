@@ -68,8 +68,9 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description Find the first game unit matching optional type/name/classId/mode/id criteria.
     /// @signature getUnit(special: number)
     /// @param special {number} - 100 = cursor item, 101 = selected unit (falls back to selected inventory item)
-    /// @signature getUnit(type: number, name?: string, mode?: number, unitId?: number)
-    /// @param type {number} - a UnitType value; out-of-range searches all types. Pass -1 (or omit) for no filter.
+    /// @signature getUnit(type: UnitType, name?: string, mode?: number, unitId?: number)
+    /// @param type {UnitType|number} - a UnitType value; out-of-range searches all types. Pass -1 (or omit) for no
+    /// filter.
     /// @param name {string} - unit name filter. Pass -1 (or omit) for no filter.
     /// @param mode {number} - unit mode filter. Pass -1 (or omit) for no filter. Two special forms: if mode >= 100 and
     ///   the unit is an item, it filters by item location matching (mode - 100) - 100=ground, 101=equipped, 102=belt,
@@ -77,7 +78,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     ///   bits are a bitmask: the unit matches when its mode equals any bit position 0..27 that is set in mode (e.g.
     ///   0x20000003 matches modes 0 or 1).
     /// @param unitId {number} - specific unit id filter. Pass -1 (or omit) for no filter.
-    /// @signature getUnit(type: number, classId?: number, mode?: number, unitId?: number)
+    /// @signature getUnit(type: UnitType, classId?: number, mode?: number, unitId?: number)
     /// @param classId {number} - class id filter (mutually exclusive with name). Pass -1 (or omit) for no filter.
     /// @returns {Unit|undefined} - matching unit, or undefined if not found
     function::Register(
@@ -412,8 +413,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Resolve a skill's localized name from its id (skills.txt -> skilldesc -> locale string).
-    /// @signature getSkillById(skillId: number)
-    /// @param skillId {number} - skill id
+    /// @signature getSkillById(skillId: Skill)
+    /// @param skillId {Skill} - skill id
     /// @returns {string} - localized skill name, or "Unknown" on lookup failure
     function::Register(
         isolate, global, "getSkillById", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -525,8 +526,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Query trade-related info by mode.
-    /// @signature getTradeInfo(mode: number)
-    /// @param mode {number} - 0 = recent trade id, 1 = recent trade name, 2 = recent trade id (alt)
+    /// @signature getTradeInfo(mode: TradeInfoMode)
+    /// @param mode {TradeInfoMode} - which trade value to read
     /// @returns {number|string|null|false} - id for modes 0/2, name-or-null for mode 1, false otherwise
     function::Register(
         isolate, global, "getTradeInfo", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -997,8 +998,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Find the first UI control matching optional position/size filters; menu state only.
-    /// @signature getControl(type?: number, x?: number, y?: number, xsize?: number, ysize?: number)
-    /// @param type {number} - control type filter
+    /// @signature getControl(type?: ControlType, x?: number, y?: number, xsize?: number, ysize?: number)
+    /// @param type {ControlType} - control type filter
     /// @param x {number} - x position filter
     /// @param y {number} - y position filter
     /// @param xsize {number} - width filter
@@ -1275,16 +1276,16 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description Equip an item, click a body slot, click an item by handle, or click a container grid slot.
     /// @signature clickItem(item: Unit)
     /// @param item {Unit} - item Unit; equipped into the player body slot its data points to
-    /// @signature clickItem(clickType: number, bodyLoc: number)
+    /// @signature clickItem(clickType: number, bodyLoc: BodyLocation)
     /// @param clickType {number} - 0 = player body slot, 4 = merc body slot; any other value is a no-op that returns
     /// true
-    /// @param bodyLoc {number} - body location id
+    /// @param bodyLoc {BodyLocation} - body location id
     /// @signature clickItem(clickType: number, item: Unit)
-    /// @signature clickItem(button: number, x: number, y: number, location: number)
-    /// @param button {number} - click button id
+    /// @signature clickItem(button: ClickButton, x: number, y: number, location: ItemLocation)
+    /// @param button {ClickButton} - click button id
     /// @param x {number} - container grid x
     /// @param y {number} - container grid y
-    /// @param location {number} - item container/location id
+    /// @param location {ItemLocation} - item container/location id
     /// @returns {boolean|null} - true/null/false per shape (false while a trade is open); throws "Object is not an
     /// item!" for item-by-handle on a non-item
     /// @throws {Error} - item-by-handle shape is used on a unit that is not an item
@@ -1465,10 +1466,9 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Perform a party action (invite/leave/loot/hostile) on a party member.
-    /// @signature clickParty(party: Party, mode: number)
+    /// @signature clickParty(party: Party, mode: PartyMode)
     /// @param party {Party} - the target party member object (cannot be yourself)
-    /// @param mode {number} - party action mode: 0 = allow loot, 1 = unhostile, 2 = invite, 3 = leave, 4 = hostile, 5 =
-    /// hostile (alt)
+    /// @param mode {PartyMode} - party action mode
     /// @returns {boolean} - true if the action dispatched, false on bad args or no-op conditions
     function::Register(
         isolate, global, "clickParty", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -2095,10 +2095,10 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
     /// @description Perform a gold action through the game's gold dialog: drop, move to the trade window, or move
     /// between carried gold and the stash (stash panel open).
-    /// @signature gold(amount?: number, mode?: number)
+    /// @signature gold(amount?: number, mode?: GoldActionMode)
     /// @param amount {number} - gold amount (default 0); a negative amount does nothing
-    /// @param mode {number} - 1 = drop, 2 = inventory to trade, 3 = deposit into the stash, 4 = withdraw from the stash
-    /// (default 1, drop, as in the reference)
+    /// @param mode {GoldActionMode} - drop, move to the trade window, or deposit into / withdraw from the stash
+    /// (default Drop, as in the reference)
     /// @returns {undefined} - no return value
     function::Register(
         isolate, global, "gold", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -2183,8 +2183,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Accept a trade, or query trade state by mode.
-    /// @signature acceptTrade(mode?: number)
-    /// @param mode {number} - query: 1 = is accepted, 2 = recent trade id, 3 = is blocked; omit/other to accept
+    /// @signature acceptTrade(mode?: AcceptTradeQueryMode)
+    /// @param mode {AcceptTradeQueryMode} - the state to query; omit (or any other value) to accept
     /// @returns {boolean|number} - query result (bool or id) for query modes, else the accept result (bool)
     function::Register(
         isolate, global, "acceptTrade", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {

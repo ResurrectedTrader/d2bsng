@@ -45,6 +45,10 @@ def ts_type(t, *, is_return=False):
     t = str(t).strip()
     if t in _NUMBER_TYPES:
         return "number"
+    # A bitfield / namespace name inside a composite type (`CollisionFlag[][]`,
+    # `{flags:StatListFlags}`) is `number` too.
+    if _NUMBER_TYPES:
+        t = re.sub(r"\b(?:" + "|".join(map(re.escape, sorted(_NUMBER_TYPES))) + r")\b", "number", t)
     if is_return and t == "null":
         return "void"  # "returns null" is the API's way of saying "no result"
     # a bare `function` param type with no callback detail -> the Function type

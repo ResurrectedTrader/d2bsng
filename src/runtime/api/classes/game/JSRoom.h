@@ -231,7 +231,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
 
         /// @description Returns the room's collision grid as a 2D array indexed grid[y][x] (outer array is rows).
         /// @signature getCollision()
-        /// @returns {number[][]} - rows of collision cell flags; undefined when game not ready or room
+        /// @returns {CollisionFlag[][]} - rows of collision cell flags; undefined when game not ready or room
         /// unresolved.
         Method(
             isolate, proto, "getCollision", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {

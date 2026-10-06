@@ -183,11 +183,10 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Creates an online game at the menu with the given name, password, and difficulty.
-    /// @signature createGame(name: string, password?: string, difficulty?: number)
+    /// @signature createGame(name: string, password?: string, difficulty?: Difficulty)
     /// @param name {string} - Game name, max 15 characters.
     /// @param password {string} - Game password, max 15 characters.
-    /// @param difficulty {number} - Difficulty: 0 = Normal, 1 = Nightmare, 2 = Hell, 3 = highest available; defaults to
-    /// 3.
+    /// @param difficulty {Difficulty} - Defaults to HighestAvailable.
     /// @returns {null} - Always null; no-op unless at the menu. Throws on validation or create failure.
     /// @throws {Error} - Game name or password exceeds 15 characters.
     /// @throws {Error} - Difficulty is outside 0-3.
@@ -308,15 +307,14 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
     /// @description Adds or overwrites a stored profile in the d2bs profile config.
     /// @signature addProfile(profileName: string, mode: string, gateway: string, username: string, password: string,
-    /// charname: string, spdifficulty?: number)
+    /// charname: string, spdifficulty?: Difficulty)
     /// @param profileName {string} - Profile name (key).
     /// @param mode {string} - Profile mode string; must map to a known profile type.
     /// @param gateway {string} - Realm/gateway.
     /// @param username {string} - Account username; used as the IP address for TCP/IP join profiles.
     /// @param password {string} - Account password.
     /// @param charname {string} - Character name.
-    /// @param spdifficulty {number} - Single-player difficulty: 0 = Normal, 1 = Nightmare, 2 = Hell, 3 = highest
-    /// available; defaults to 3.
+    /// @param spdifficulty {Difficulty} - Single-player difficulty; defaults to HighestAvailable.
     /// @returns {null} - Always null. Throws on invalid arguments.
     /// @throws {Error} - spdifficulty is outside 0-3.
     /// @throws {Error} - mode string does not map to a known profile type.
