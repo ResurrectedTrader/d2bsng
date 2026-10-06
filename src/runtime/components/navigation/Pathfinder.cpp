@@ -680,6 +680,10 @@ int32_t WeightedF(int32_t g, int32_t h, double hWeight) {
 //     portal centroid when cross-level.
 //   * `hWeight > 1` trades optimality for speed. 1.5 is balanced, 3.0 is the
 //     production default (~60x speedup vs 1.0 with <0.1% distance penalty).
+//   * Any-angle (Theta*-style): a node is linked to its parent's cast origin
+//     whenever that is within range, so the 8-way walk steps the search falls
+//     back to in a dead end cost nothing until they outgrow one cast. The
+//     emitted chain is the cast sequence; it needs no post-reduction.
 std::vector<Position> CastCountTeleportSearch(CollisionLookup& coll, Position start, Position end, int32_t radius,
                                               const std::stop_token& cancelToken, double hWeight) {
     // Ring offsets and A* neighbor math stay in signed Point; convert the
@@ -731,6 +735,16 @@ std::vector<Position> CastCountTeleportSearch(CollisionLookup& coll, Position st
     auto pushNeighbor = [&](Point np, int32_t parentG, Point parent) {
         if (closed.contains(np))
             return;
+        // Theta*: cast to np straight from the parent's own cast origin when that
+        // is still in range. Without it every walk step out of a dead end counts
+        // as a cast, and the path keeps them as single-cell teleports.
+        if (const auto parentIt = nodes.find(parent); parentIt != nodes.end() && parentIt->second.hasParent) {
+            const Point origin = parentIt->second.parent;
+            if (EuclideanDist(origin, np) < range) {
+                parent = origin;
+                parentG = nodes.at(origin).g;
+            }
+        }
         auto [npIdx, npNode] = getOrCreate(np);
         const int32_t newG = parentG + range + EuclideanDist(parent, np);
         if (newG >= npNode.g)

@@ -73,3 +73,32 @@ TEST_CASE("Teleport A* navigates around wall") {
     CHECK(path.front() == (Position{.x = 25, .y = 50}));
     CHECK(path.back() == (Position{.x = 75, .y = 50}));
 }
+
+TEST_CASE("Teleport A* does not emit single-cell steps along a wall") {
+    CollisionLookup coll;
+    coll.primary = LevelGrid({.size = {.width = 150, .height = 150}});
+
+    // A wall thicker than the teleport radius, so no ring jump clears it and the
+    // search has to creep along its face to the gap at y >= 131.
+    for (uint32_t x = 50; x < 80; x++) {
+        for (uint32_t y = 0; y < 131; y++) {
+            coll.primary.Set({.x = x, .y = y}, CollisionFlag::Wall);
+        }
+    }
+
+    auto path = FindPathOnGrid(coll, {.x = 25, .y = 50}, {.x = 120, .y = 50}, ReductionType::Teleport, 20, {});
+    REQUIRE_FALSE(path.empty());
+    CHECK(path.front() == (Position{.x = 25, .y = 50}));
+    CHECK(path.back() == (Position{.x = 120, .y = 50}));
+
+    // The last hop may be short: the search reaches a ring point near the goal first.
+    size_t shortSteps = 0;
+    for (size_t i = 1; i + 1 < path.size(); i++) {
+        const int32_t dx = static_cast<int32_t>(path[i].x) - static_cast<int32_t>(path[i - 1].x);
+        const int32_t dy = static_cast<int32_t>(path[i].y) - static_cast<int32_t>(path[i - 1].y);
+        if ((dx * dx) + (dy * dy) <= 4) {
+            ++shortSteps;
+        }
+    }
+    CHECK(shortSteps == 0);
+}
