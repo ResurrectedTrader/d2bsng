@@ -189,6 +189,12 @@ enum class AcceptTradeQueryMode : uint32_t {
     IsBlocked = 3,
 };
 
+// What activated a desecrated (terror) zone.
+enum class DesecratedZoneSource : uint8_t {
+    Rotation = 1,         // the seeded timed rotation
+    WorldstoneShard = 2,  // a player used a Worldstone Shard
+};
+
 enum class ShopMode : int32_t {
     Sell = 1,
     Buy = 2,

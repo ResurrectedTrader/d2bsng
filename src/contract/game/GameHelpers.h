@@ -254,6 +254,22 @@ AnalyticsLaunchOptions GetAnalyticsLaunchOptions();
 // behind it (no proxy address, realm host, window title, or CD key).
 std::vector<std::string> GetActiveFeatures();
 
+// === Desecrated zones ===
+// One active desecrated (terror) zone: its area, the area whose waypoint marks
+// it, the monster level it raises the area to, what activated it, and the
+// zone's configured always-unique modifier (a monumod.txt id, 0 = none).
+struct DesecratedZone {
+    uint32_t area = 0;
+    uint32_t waypointArea = 0;
+    uint32_t monsterLevel = 0;
+    DesecratedZoneSource source = DesecratedZoneSource::Rotation;
+    uint32_t uniqueMod = 0;
+};
+
+// The zones currently desecrated, in the game's order; empty when there are
+// none or the game has no such zones.
+std::vector<DesecratedZone> GetDesecratedZones();
+
 // === Realms ===
 // A Battle.net realm/gateway the client can connect to: a display name and a
 // server host (hostname or IP). D2 dials gateways on the fixed BNCS port 6112.

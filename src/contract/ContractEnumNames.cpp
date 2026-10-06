@@ -356,6 +356,14 @@ std::string EnumName(AcceptTradeQueryMode value) {
     return utils::NameEnumValue("AcceptTradeQueryMode", ENTRIES, std::to_underlying(value));
 }
 
+std::string EnumName(DesecratedZoneSource value) {
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(DesecratedZoneSource::Rotation), .name = "Rotation"},
+        {.bits = utils::EnumBits(DesecratedZoneSource::WorldstoneShard), .name = "WorldstoneShard"},
+    });
+    return utils::NameEnumValue("DesecratedZoneSource", ENTRIES, std::to_underlying(value));
+}
+
 std::string EnumName(ShopMode value) {
     static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
         {.bits = utils::EnumBits(ShopMode::Sell), .name = "Sell"},
@@ -830,6 +838,10 @@ std::string format_as(TradeInfoMode value) {
 }
 
 std::string format_as(AcceptTradeQueryMode value) {
+    return EnumName(value);
+}
+
+std::string format_as(DesecratedZoneSource value) {
     return EnumName(value);
 }
 
