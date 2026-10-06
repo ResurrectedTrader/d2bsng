@@ -311,7 +311,7 @@ uint32_t GetWeaponSwitch() {
 }
 
 GameType GetGameType() {
-    return static_cast<GameType>(*d2client::gbExpCharFlag);
+    return HasFlag(GetCharFlags(), CharFlag::Expansion) ? GameType::Expansion : GameType::Classic;
 }
 
 uint32_t GetMercReviveCost() {
@@ -348,19 +348,9 @@ std::string GetRealmShort() {
     return data != nullptr ? ToString(data->szRealmName2) : std::string{};
 }
 
-Difficulty GetMaxDiff() {
-    auto* data = *d2launch::gpBnetData;
-    return data != nullptr ? static_cast<Difficulty>(data->nMaxDiff) : Difficulty::Normal;
-}
-
 CharFlag GetCharFlags() {
     auto* data = *d2launch::gpBnetData;
-    return data != nullptr ? static_cast<CharFlag>(data->nCharFlags) : CharFlag{};
-}
-
-std::optional<uint8_t> IsLadder() {
-    auto* data = *d2launch::gpBnetData;
-    return data != nullptr ? std::optional{data->nLadderFlag} : std::nullopt;
+    return data != nullptr ? data->nCharFlags : CharFlag{};
 }
 
 // === GameStructInfo Queries ===

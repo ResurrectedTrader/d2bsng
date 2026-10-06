@@ -52,9 +52,7 @@ std::string GetAccountName();
 std::string GetPlayerName();
 std::string GetRealmName();
 std::string GetRealmShort();
-Difficulty GetMaxDiff();
 CharFlag GetCharFlags();
-std::optional<uint8_t> IsLadder();
 
 // === GameStructInfo Queries ===
 std::string GetGameName();

@@ -58,6 +58,7 @@
 
 #include <array>
 #include <atomic>
+#include <bit>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -65,6 +66,7 @@
 #include <span>
 #include <string>
 #include <system_error>
+#include <utility>
 
 #include "game/GameCallbacks.h"
 #include "game/GameHelpers.h"
@@ -700,10 +702,11 @@ extern "C" D2UnitStrc* OnGetSelectedUnit() {
 }
 
 // P9: CongratsScreen. Original CALL/5 at 0x44EBEF -> CongratsScreen_I.
-// Bumps `nMaxDiff` to 10 (any value high enough to enable the next
-// difficulty selector) after the Baal credits roll on any non-Hell
-// difficulty, so Nightmare unlocks after Normal-Baal and Hell unlocks
-// after Nightmare-Baal.
+// Bumps the character flags' progression (CharFlag::ProgressionMask, the acts
+// completed across all difficulties; the byte the reference calls nMaxDiff) to
+// 10 - any value high enough to enable the next difficulty selector - after
+// the Baal credits roll on any non-Hell difficulty, so Nightmare unlocks after
+// Normal-Baal and Hell unlocks after Nightmare-Baal.
 //
 // Reference d2bs (D2Handlers.cpp:436) fired this only on Nightmare:
 //     if (D2CLIENT_GetDifficulty() == 1) { ... nMaxDiff = 10; }
@@ -717,7 +720,10 @@ extern "C" void SetMaxDiff() {
     if (game::GetDifficulty() < game::Difficulty::Hell && *imports::d2client::gbExpCharFlag != 0) {
         auto* pData = *imports::d2launch::gpBnetData;
         if (pData != nullptr) {
-            pData->nMaxDiff = 10;
+            constexpr uint16_t UNLOCKED_PROGRESSION = 10;
+            constexpr auto PROGRESSION_SHIFT = std::countr_zero(std::to_underlying(game::CharFlag::ProgressionMask));
+            pData->nCharFlags = (pData->nCharFlags & ~game::CharFlag::ProgressionMask) |
+                                static_cast<game::CharFlag>(UNLOCKED_PROGRESSION << PROGRESSION_SHIFT);
         }
     }
 }

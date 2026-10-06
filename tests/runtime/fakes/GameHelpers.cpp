@@ -74,14 +74,8 @@ std::string GetRealmName() {
 std::string GetRealmShort() {
     return "";
 }
-Difficulty GetMaxDiff() {
-    return Difficulty::Normal;
-}
 CharFlag GetCharFlags() {
     return CharFlag{};
-}
-std::optional<uint8_t> IsLadder() {
-    return {};
 }
 
 // === GameStructInfo Queries ===
