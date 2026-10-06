@@ -229,6 +229,11 @@ inline GameVar<uint32_t> gbTradeBlock{0x3BCE28};
 // (0..7).
 inline GameVar<int32_t> gnRecentTradeId{0x3C0E7C};
 
+// Trade partner's name from server packet 0x78, widened from char[16] by
+// Unicode::toUnicode with a count of 16, so it is always NUL-terminated. Kept
+// after the trade ends.
+inline GameVar<std::array<wchar_t, 16>> gwszRecentTradeName{0x3C0E84};
+
 inline GameVar<uint32_t> gbExpCharFlag{0x3A04F4};
 inline GameVar<uint32_t> gnMapId{0x3A0638};
 
