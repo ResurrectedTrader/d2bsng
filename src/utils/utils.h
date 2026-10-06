@@ -34,12 +34,15 @@ std::shared_ptr<spdlog::logger> GetLogger(const std::string &name);
 // logger is reached only once the host points it at a GetLogger logger.
 void AddLogSink(const spdlog::sink_ptr &sink);
 
-// FILEVERSION of a loaded module's VERSIONINFO resource (14,0,3,0 -> {14, 0, 3, 0}).
+// A loaded module's file version (14.0.3.0 -> {14, 0, 3, 0}). Parsed from the
+// VERSIONINFO FileVersion string, whose parts are not capped at 16 bits like the
+// numeric FILEVERSION (a build of 91923 is stored there as 26387); the
+// numeric FILEVERSION when the string is missing or does not parse.
 struct ModuleVersion {
-    uint16_t major = 0;
-    uint16_t minor = 0;
-    uint16_t build = 0;
-    uint16_t revision = 0;
+    uint32_t major = 0;
+    uint32_t minor = 0;
+    uint32_t build = 0;
+    uint32_t revision = 0;
 
     bool operator==(const ModuleVersion &) const = default;
 };

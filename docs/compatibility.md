@@ -17,6 +17,8 @@ are documentation-only - see below).
   `Register("name")` calls (below).
 - `Register(name)` / `Register(game::CompatibilityFlag)` add one flag; idempotent by name.
 - `IsEnabled(name)` / `Has(name)` / `SetEnabled(name, on)` / `Reset()` / `All()`.
+- `BypassScope` turns every flag off for the current thread while it lives (see
+  "Raw game data").
 
 It lives under `core/config/` because it is configuration-shaped and
 `config/` is the one component the game implementation (`lod114d`) is allowed to
@@ -59,6 +61,28 @@ registry, so they are enabled/disabled through the same `Compatibility` object;
 the port queries `CompatibilityFlags::Instance().IsEnabled(...)` to act on them.
 Game-version flags are registered at runtime; the statically-generated API docs
 cover the framework catalog only.
+
+## Raw game data
+
+A flag's off state is always the game's own data: a flag only ever reshapes what
+the game reports into what 1.14d scripts expect, never the other way round. Code
+that needs the game's own data regardless of the script toggles reads under
+`CompatibilityFlags::BypassScope`: while one is alive, `IsEnabled()` answers
+false for every flag **on the thread that created it**. The stored states,
+`Has()`, `All()` and `SetEnabled()` are untouched, and every other thread - the
+script threads - keeps seeing the flags as set. Scopes nest (a thread-local
+depth count), and are neither copyable nor movable.
+
+The character-state capture (`components/characterstate`) reads past all flags
+this way: `CharacterState::OnTick` and `RecordKill` open a scope on the game
+thread, so the dump sent to the D2BotNG manager carries the game's own values;
+its `backend` field tells the manager which tables the ids index. Nothing in the
+capture waits on another thread, which would not inherit the scope.
+
+The scope covers a gating site only if it reads the flag through `IsEnabled()`
+while the scope is alive. A walk that reads a flag once and carries the value
+through its steps reads it inside the scope when the walk itself is; a value a
+backend latches across calls is not reached.
 
 ## The `Compatibility` JS object
 

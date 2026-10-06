@@ -239,10 +239,10 @@ void LoadMpq(const std::string& path);
 // registry, or IPC. Returns nullopt when no launch profile is requested.
 std::optional<std::string> GetLaunchProfile();
 
-// Version string of the game backend this build is compiled against, e.g.
-// "1.14d" for the lod114d backend. Fixed at compile time - the injected
-// DLL links exactly one backend - so it identifies "which build" for
-// diagnostics and analytics.
+// "<backend>/<game version>" of the running game, read once from the game
+// executable's version resource: e.g. "LOD/1.14d". It identifies
+// "which build" for diagnostics, analytics and the character-state snapshot's
+// `backend`, which the D2BotNG manager keys on: keep the format stable.
 std::string GetBackendVersion();
 
 // === Analytics ===

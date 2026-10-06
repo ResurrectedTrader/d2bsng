@@ -1,8 +1,24 @@
 #include "config/CompatibilityFlags.h"
 
 #include <algorithm>
+#include <cstdint>
 
 namespace d2bs::core::config {
+
+namespace {
+
+// Live BypassScopes on this thread.
+thread_local uint32_t bypassDepth = 0;
+
+}  // namespace
+
+CompatibilityFlags::BypassScope::BypassScope() {
+    ++bypassDepth;
+}
+
+CompatibilityFlags::BypassScope::~BypassScope() {
+    --bypassDepth;
+}
 
 CompatibilityFlags& CompatibilityFlags::Instance() {
     static CompatibilityFlags instance;
@@ -24,6 +40,9 @@ void CompatibilityFlags::Register(std::string_view name, bool defaultEnabled) {
 }
 
 bool CompatibilityFlags::IsEnabled(std::string_view name) const {
+    if (bypassDepth != 0) {
+        return false;
+    }
     std::scoped_lock lock(mutex_);
     for (const auto& flag : flags_) {
         if (flag.name == name) {

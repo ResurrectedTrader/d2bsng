@@ -22,6 +22,10 @@ namespace d2bs::runtime::characterstate {
 // no-ops (see game/GameLock.h). No threads of its own. Self-throttles to ~1s;
 // emits immediately on game entry. Sends through game::SendIPC to the manager
 // handle stored on AppConfig (seeded from the "Handle" WM_COPYDATA).
+//
+// The manager renders with the game's own data, so every read runs under a
+// CompatibilityFlags::BypassScope: no compatibility flag reshapes the dump the
+// way it reshapes what scripts see (docs/compatibility.md).
 class CharacterState {
    public:
     static CharacterState& Instance();

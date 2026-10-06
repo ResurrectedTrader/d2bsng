@@ -9,6 +9,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstring>
+#include <format>
 #include <limits>
 #include <optional>
 #include <span>
@@ -1933,8 +1934,18 @@ std::optional<std::string> GetLaunchProfile() {
     return GetLaunchOptions().profile;
 }
 
+// The running Game.exe's version, its patch letter from the build part
+// ("1.14.3.71" -> "LOD/1.14d").
 std::string GetBackendVersion() {
-    return "1.14d";
+    static const std::string version = [] {
+        constexpr uint32_t PATCH_LETTERS = 26;
+        const auto file = utils::GetModuleVersion(GetModuleHandleW(nullptr));
+        if (!file || file->build >= PATCH_LETTERS) {
+            return std::string{"LOD/1.14d"};
+        }
+        return std::format("LOD/{}.{}{}", file->major, file->minor, static_cast<char>('a' + file->build));
+    }();
+    return version;
 }
 
 AnalyticsLaunchOptions GetAnalyticsLaunchOptions() {
