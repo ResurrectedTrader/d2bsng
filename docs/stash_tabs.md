@@ -10,13 +10,14 @@ documents its own mechanics separately (`docs/plugy_stash.md` for PlugY).
 
 ## Contract
 
-`src/contract/game/Types.h` holds the two enums; `src/contract/game/StashTab.h`
+`src/contract/game/Types.h` holds the enums; `src/contract/game/StashTab.h`
 the handle, an identity (kind + position) whose reads the backend resolves live,
 like `Unit` or `Room`:
 
 ```cpp
 enum class StashTabKind : uint8_t { Personal = 0, Shared = 1 };
 enum class StashTabType : uint8_t { Normal = 0, AdvancedStash = 1, Chronicle = 2 };
+enum class StashWithdrawTarget : uint8_t { Cursor = 0, Inventory = 1, Cube = 2, Belt = 3 };
 
 class StashTab {
     StashTabKind Kind() const;   uint32_t Index() const;   // identity, no resolve
@@ -27,6 +28,8 @@ class StashTab {
     std::vector<Unit> GetItems() const;  // shown or not
     ClickResult Click(Position cell) const;          // left click: pick up / drop / swap
     bool MoveGold(GoldActionMode mode, uint32_t amount) const;  // Deposit/Withdraw; fire and forget
+    bool Withdraw(const Unit& item, uint32_t count, StashWithdrawTarget target) const;  // see below
+    bool Deposit(const Unit& item) const;                                               // advanced tabs
 };
 std::vector<StashTab> GetStashTabs();    // personal first, then shared; empty with no player unit
 std::optional<StashTab> Unit::StashTab() const;   // the tab holding an item
@@ -39,7 +42,23 @@ one.
 
 `StashTabType` mirrors D2R's tab kinds: `Normal` holds items, `AdvancedStash`
 holds items with stackable-item support, `Chronicle` tracks found set / unique
-/ runeword items and holds no items. Every LoD tab is `Normal`.
+/ runeword items and holds no items. Every LoD tab is `Normal`. `Chronicle`
+stays in the C++ enum only (marked `@internal`, so the API docs and the d.ts
+leave it out): no tab ever reports it.
+
+An advanced tab holds one stack per item class, and items move on and off it
+only through `Withdraw` and `Deposit`, never through grid placement:
+
+- `Withdraw(item, count, target)` takes `count` off a stack and places it at
+  `target` - the cursor, the inventory, the cube or the belt. The cursor holds
+  one item, so a count above 1 needs another target.
+- `Deposit(item)` moves one item the player holds - on the cursor or carried -
+  onto the stack of its class, creating the stack if the tab has none.
+- `Click(cell)` on an advanced tab is what a mouse click on the panel does:
+  with an item on the cursor it deposits that item and ignores `cell`,
+  otherwise it withdraws one of the stack at `cell` to the cursor.
+
+All three need the stash panel open and are fire and forget.
 
 There is deliberately no "select tab" in the contract. On a backend whose
 packets cannot address a tab that is not shown, a tab switch is a server round
@@ -72,7 +91,11 @@ through the tab API.
 
 One personal tab, index 0, whose `GetItems()` is the inventory walk filtered to
 `ItemLocation::Stash`, whose `Gold()` is the character's stash gold, and whose
-`Click` is `ClickContainerSlot(Left, cell, Stash)`. Implemented in
+`Click` is `ClickContainerSlot(Left, cell, Stash)`. A plain grid tab has one
+withdraw, a count of 1 to the cursor, which is `ClickItem(Left, item)` on an
+item of the tab with the cursor empty; any other `Withdraw` and every `Deposit`
+return false, since dropping an item needs a free cell, which only `Click(cell)`
+is told. Implemented in
 `backends/lod114d/game/Stash.cpp`. When PlugY's multi-page stash is active,
 every member delegates to `plugy::` (`backends/lod114d/game/PlugY.h`) instead;
 `docs/plugy_stash.md` covers that path, and the vanilla one is the fallback
@@ -87,11 +110,17 @@ one to one, the same shape as `Unit` or `Room`:
 - `unit.stashTab` -> `StashTab | undefined`
 - `tab.kind`, `tab.index`, `tab.type`, `tab.name`, `tab.gold` (getters)
 - `tab.items` -> `Unit[]`, built on each access, so listing tabs stays cheap
-- `tab.click(x, y)` -> `boolean` (true = handed to the game)
+- `tab.click(x, y)` / `tab.click(item)` -> `boolean` (true = handed to the game);
+  the item form clicks the cell an item on this tab sits on, and is false for
+  an item on another tab
+- `tab.withdraw(item, count = 1, target = StashWithdrawTarget.cursor)` /
+  `tab.deposit(item)` -> `boolean`; advanced tabs, plus one item to the cursor
+  for `withdraw` on 1.14d
 - `tab.depositGold(amount)` / `tab.withdrawGold(amount)` -> `boolean`
 - `clickItem(0, item)` works for items on tabs that are not shown
 - `StashTabKind.personal` / `StashTabKind.shared`, `StashTabType.normal` /
-  `advancedStash` / `chronicle` constants
+  `advancedStash`, `StashWithdrawTarget.cursor` / `inventory` / `cube` / `belt`
+  constants
 
 ## Gold
 

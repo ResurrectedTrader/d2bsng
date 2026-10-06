@@ -1143,10 +1143,11 @@ def _parse_enum_defs(tu, path):
             and cur.location.file
             and Path(cur.location.file.name) == path
         ):
+            # An enumerator documented `/// @internal` is C++-only: scripts never see the value.
             rows = [
                 {"value": _enumerator_value(c), "name": c.spelling, "description": _enumerator_desc(c)}
                 for c in cur.get_children()
-                if c.kind == CursorKind.ENUM_CONSTANT_DECL
+                if c.kind == CursorKind.ENUM_CONSTANT_DECL and "@internal" not in (c.raw_comment or "")
             ]
             if rows:
                 kind = "flags" if _enum_is_flags(path, cur.location.line) else "enum"

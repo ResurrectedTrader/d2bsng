@@ -70,6 +70,24 @@ ClickResult StashTab::Click(Position cell) const {
     return *this ? click() : ClickResult::StashTabUnavailable;
 }
 
+// A 1.14d tab is a plain grid, so the one withdraw it has is a click that picks
+// the item up.
+bool StashTab::Withdraw(const Unit& item, uint32_t count, StashWithdrawTarget target) const {
+    if (count != 1 || target != StashWithdrawTarget::Cursor || !GetUIFlag(UiFlag::Stash) || Unit::CursorItem()) {
+        return false;
+    }
+    const auto onTab = item.StashTab();
+    if (!onTab || onTab->Kind() != kind_ || onTab->Index() != index_) {
+        return false;
+    }
+    return ClickItem(ClickButton::Left, item) == ClickResult::Dispatched;
+}
+
+// Dropping an item needs a free cell, which only Click(cell) can be told.
+bool StashTab::Deposit(const Unit& /*item*/) const {
+    return false;
+}
+
 // PlugY's shared pool for the shared tab, the vanilla gold dialog for the personal
 // tab. Fire and forget, like gold().
 bool StashTab::MoveGold(GoldActionMode mode, uint32_t amount) const {
