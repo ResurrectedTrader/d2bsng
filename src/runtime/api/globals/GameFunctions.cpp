@@ -1934,7 +1934,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            p = d2bs::game::ScreenToAutomap(p);
+            p = game::ScreenToAutomap(p).ToPoint();
 
             args.GetReturnValue().Set(convert::ToJS(isolate, p));
         });

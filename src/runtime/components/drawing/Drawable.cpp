@@ -173,15 +173,15 @@ void Drawable::OnMouseMove(game::Point pos, game::GameState state) {
 
 void BoxDrawable::Draw() const {
     auto snapPos = pos.load();
-    if (snapPos.x == -1 || snapPos.y == -1) {
+    if (snapPos.x == -1.0F || snapPos.y == -1.0F) {
         return;
     }
     auto snapSize = size.load();
     Align snapAlign = align.load();
     auto w = static_cast<int32_t>(snapSize.width);
     auto h = static_cast<int32_t>(snapSize.height);
-    game::Point draw{.x = snapPos.x + AlignOffset(snapAlign, w), .y = snapPos.y};
-    game::Point draw2{.x = draw.x + w, .y = draw.y + h};
+    game::PointF draw = snapPos + game::Point{.x = AlignOffset(snapAlign, w), .y = 0};
+    game::PointF draw2 = draw + game::Point{.x = w, .y = h};
     if (isAutomap.load()) {
         draw = d2bs::game::ScreenToAutomap(draw);
         draw2 = d2bs::game::ScreenToAutomap(draw2);
@@ -189,48 +189,48 @@ void BoxDrawable::Draw() const {
     d2bs::game::DrawRectangle(draw, draw2, color.load(), opacity.load());
 }
 
-bool BoxDrawable::Contains(game::Point p) const {
+bool BoxDrawable::Contains(game::PointF p) const {
     auto snapPos = pos.load();
     auto snapSize = size.load();
     Align snapAlign = align.load();
     auto w = static_cast<int32_t>(snapSize.width);
     auto h = static_cast<int32_t>(snapSize.height);
-    int32_t hitX = snapPos.x + AlignOffset(snapAlign, w);
-    return p.x > hitX && p.x < hitX + w && p.y > snapPos.y && p.y < snapPos.y + h;
+    const game::PointF topLeft = snapPos + game::Point{.x = AlignOffset(snapAlign, w), .y = 0};
+    const game::PointF bottomRight = topLeft + game::Point{.x = w, .y = h};
+    return p.x > topLeft.x && p.x < bottomRight.x && p.y > topLeft.y && p.y < bottomRight.y;
 }
 
 void FrameDrawable::Draw() const {
     auto snapPos = pos.load();
-    if (snapPos.x == -1 || snapPos.y == -1) {
+    if (snapPos.x == -1.0F || snapPos.y == -1.0F) {
         return;
     }
     auto snapSize = size.load();
     Align snapAlign = align.load();
     auto w = static_cast<int32_t>(snapSize.width);
     auto h = static_cast<int32_t>(snapSize.height);
-    game::Point draw{.x = snapPos.x + AlignOffset(snapAlign, w), .y = snapPos.y};
-    game::Point draw2{.x = draw.x + w, .y = draw.y + h};
-    d2bs::game::DrawFrame(draw, draw2);
+    const game::PointF draw = snapPos + game::Point{.x = AlignOffset(snapAlign, w), .y = 0};
+    d2bs::game::DrawFrame(draw, draw + game::Point{.x = w, .y = h});
 }
 
-bool FrameDrawable::Contains(game::Point p) const {
+bool FrameDrawable::Contains(game::PointF p) const {
     auto snapPos = pos.load();
     auto snapSize = size.load();
     Align snapAlign = align.load();
     auto w = static_cast<int32_t>(snapSize.width);
     auto h = static_cast<int32_t>(snapSize.height);
-    int32_t hitX = snapPos.x + AlignOffset(snapAlign, w);
-    return p.x > hitX && p.x < hitX + w && p.y > snapPos.y && p.y < snapPos.y + h;
+    const game::PointF topLeft = snapPos + game::Point{.x = AlignOffset(snapAlign, w), .y = 0};
+    const game::PointF bottomRight = topLeft + game::Point{.x = w, .y = h};
+    return p.x > topLeft.x && p.x < bottomRight.x && p.y > topLeft.y && p.y < bottomRight.y;
 }
 
 void LineDrawable::Draw() const {
     auto snapPos = pos.load();
-    if (snapPos.x == -1 || snapPos.y == -1) {
+    if (snapPos.x == -1.0F || snapPos.y == -1.0F) {
         return;
     }
-    auto snapP2 = p2.load();
-    game::Point draw = snapPos;
-    game::Point draw2 = snapP2;
+    game::PointF draw = snapPos;
+    game::PointF draw2 = p2.load();
     if (isAutomap.load()) {
         draw = d2bs::game::ScreenToAutomap(draw);
         draw2 = d2bs::game::ScreenToAutomap(draw2);
@@ -238,13 +238,13 @@ void LineDrawable::Draw() const {
     d2bs::game::DrawLine(draw, draw2, color.load(), 0xFF);
 }
 
-bool LineDrawable::Contains(game::Point /*p*/) const {
+bool LineDrawable::Contains(game::PointF /*p*/) const {
     return false;  // Lines not clickable
 }
 
 void TextDrawable::Draw() const {
     auto snapPos = pos.load();
-    if (snapPos.x == -1 || snapPos.y == -1) {
+    if (snapPos.x == -1.0F || snapPos.y == -1.0F) {
         return;
     }
     std::string snapText = GetText();
@@ -252,28 +252,30 @@ void TextDrawable::Draw() const {
     Align snapAlign = align.load();
     auto textSize = game::GetTextSize(snapText, snapFont);
     auto w = static_cast<int32_t>(textSize.width);
-    game::Point draw{.x = snapPos.x + AlignOffset(snapAlign, w, /*isText=*/true), .y = snapPos.y};
+    game::PointF draw = snapPos + game::Point{.x = AlignOffset(snapAlign, w, /*isText=*/true), .y = 0};
     if (isAutomap.load()) {
         draw = d2bs::game::ScreenToAutomap(draw);
     }
     d2bs::game::DrawGameText(snapText, draw, color.load(), snapFont);
 }
 
-bool TextDrawable::Contains(game::Point p) const {
+bool TextDrawable::Contains(game::PointF p) const {
     std::string snapText = GetText();
     int32_t snapFont = font.load();
     Align snapAlign = align.load();
     auto snapPos = pos.load();
     auto textSize = game::GetTextSize(snapText, snapFont);
     auto w = static_cast<int32_t>(textSize.width);
-    int32_t drawX = snapPos.x + AlignOffset(snapAlign, w, /*isText=*/true);
-    return p.x >= drawX && p.x < drawX + w && p.y >= snapPos.y - static_cast<int32_t>(textSize.height) &&
-           p.y < snapPos.y;
+    auto h = static_cast<int32_t>(textSize.height);
+    const game::PointF baseline = snapPos + game::Point{.x = AlignOffset(snapAlign, w, /*isText=*/true), .y = 0};
+    const game::PointF topLeft = baseline - game::Point{.x = 0, .y = h};
+    const game::PointF bottomRight = baseline + game::Point{.x = w, .y = 0};
+    return p.x >= topLeft.x && p.x < bottomRight.x && p.y >= topLeft.y && p.y < bottomRight.y;
 }
 
 void ImageDrawable::Draw() const {
     auto snapPos = pos.load();
-    if (snapPos.x == -1 || snapPos.y == -1) {
+    if (snapPos.x == -1.0F || snapPos.y == -1.0F) {
         return;
     }
     game::Sprite snapSprite;
@@ -287,11 +289,11 @@ void ImageDrawable::Draw() const {
     auto sz = snapSprite.Size();
     auto w = static_cast<int32_t>(sz.width);
     Align snapAlign = align.load();
-    game::Point center{.x = snapPos.x + ApplyImageAlign(snapAlign, w), .y = snapPos.y};
+    const game::PointF center = snapPos + game::Point{.x = ApplyImageAlign(snapAlign, w), .y = 0};
     snapSprite.Draw(center, color.load(), isAutomap.load());
 }
 
-bool ImageDrawable::Contains(game::Point p) const {
+bool ImageDrawable::Contains(game::PointF p) const {
     game::Sprite snapSprite;
     {
         std::scoped_lock lock(spriteMutex_);
@@ -305,11 +307,9 @@ bool ImageDrawable::Contains(game::Point p) const {
     auto h = static_cast<int32_t>(sz.height);
     auto snapPos = pos.load();
     Align snapAlign = align.load();
-    int32_t centerX = snapPos.x + ApplyImageAlign(snapAlign, w);
-    int32_t centerY = snapPos.y;
-    int32_t left = centerX - (w / 2);
-    int32_t top = centerY - (h / 2);
-    return p.x >= left && p.x < left + w && p.y >= top && p.y < top + h;
+    const game::PointF topLeft = snapPos + game::Point{.x = ApplyImageAlign(snapAlign, w) - (w / 2), .y = -(h / 2)};
+    const game::PointF bottomRight = topLeft + game::Point{.x = w, .y = h};
+    return p.x >= topLeft.x && p.x < bottomRight.x && p.y >= topLeft.y && p.y < bottomRight.y;
 }
 
 }  // namespace d2bs::runtime::drawing

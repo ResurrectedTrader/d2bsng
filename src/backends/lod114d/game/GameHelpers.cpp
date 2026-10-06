@@ -387,9 +387,11 @@ uint32_t GetCursorType(bool isShop) {
 // Reference: D2Helpers.cpp:364-376 ScreenToAutomap. Maps a screen pixel into
 // automap-cell coords through the offset/divisor variables. The +5 / -1
 // adjustment when GetAutomapSize() is non-zero matches the large-resolution
-// path. Reference takes screen pixels in; we receive a Point and scale by 32
+// path. Reference takes screen pixels in; we receive game coordinates (rounded
+// to whole ones: the projection is integer arithmetic) and scale by 32
 // internally -- same arithmetic, more obvious shape.
-Point ScreenToAutomap(Point p) {
+PointF ScreenToAutomap(PointF position) {
+    const Point p = position.ToPoint();
     const int32_t scaledX = p.x * 32;
     const int32_t scaledY = p.y * 32;
     const int32_t divisor = std::max<int32_t>(*d2client::gnAutomapMode, 1);
@@ -443,7 +445,7 @@ Size GetScreenSize() {
     return GetViewportSize();
 }
 
-void DrawScreenText(const std::string& text, Point pos, uint32_t color, uint32_t font) {
+void DrawScreenText(const std::string& text, PointF pos, uint32_t color, uint32_t font) {
     DrawGameText(text, pos, color, font);
 }
 
@@ -457,30 +459,39 @@ Size GetTextSize(const std::string& text, uint32_t font) {
     return {.width = width, .height = height};
 }
 
-void DrawGameText(const std::string& text, Point pos, uint32_t color, uint32_t font) {
+// The game draws in whole pixels: the draw calls below floor fractional
+// positions, as the game truncates its own.
+void DrawGameText(const std::string& text, PointF pos, uint32_t color, uint32_t font) {
+    const Point at = pos.ToPoint();
     auto wide = utils::ToWStr(text, CP_UTF8);
     const auto oldSize = d2win::D2WIN_SetTextSize(font);
-    d2win::D2WIN_DrawText(wide.c_str(), pos.x, pos.y, color, 0);
+    d2win::D2WIN_DrawText(wide.c_str(), at.x, at.y, color, 0);
     d2win::D2WIN_SetTextSize(oldSize);
 }
 
 // === Drawing ===
 
-void DrawRectangle(Point p1, Point p2, uint32_t color, uint32_t opacity) {
-    d2gfx::D2GFX_DrawRectangle(p1.x, p1.y, p2.x, p2.y, color, opacity);
+void DrawRectangle(PointF p1, PointF p2, uint32_t color, uint32_t opacity) {
+    const Point a = p1.ToPoint();
+    const Point b = p2.ToPoint();
+    d2gfx::D2GFX_DrawRectangle(a.x, a.y, b.x, b.y, color, opacity);
 }
 
-void DrawLine(Point p1, Point p2, uint32_t color, uint32_t opacity) {
-    d2gfx::D2GFX_DrawLine(p1.x, p1.y, p2.x, p2.y, color, opacity);
+void DrawLine(PointF p1, PointF p2, uint32_t color, uint32_t opacity) {
+    const Point a = p1.ToPoint();
+    const Point b = p2.ToPoint();
+    d2gfx::D2GFX_DrawLine(a.x, a.y, b.x, b.y, color, opacity);
 }
 
-void DrawFrame(Point p1, Point p2) {
+void DrawFrame(PointF p1, PointF p2) {
     if (GetGameState() != GameState::InGame) {
         return;
     }
+    const Point a = p1.ToPoint();
+    const Point b = p2.ToPoint();
     // The DrawRectFrame import takes the address of a contiguous int32 quad
     // (left, top, right, bottom) -- match that layout via a stack buffer.
-    std::array rect = {p1.x, p1.y, p2.x, p2.y};
+    std::array rect = {a.x, a.y, b.x, b.y};
     d2client::UI_DrawRectFrame(rect.data());
 }
 

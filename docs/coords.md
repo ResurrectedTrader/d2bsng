@@ -33,6 +33,7 @@ of truth, no `Pos()`/`Size()` pair.
 | Wrapper method | Returns | Underlying source |
 |---|---|---|
 | `Unit::Pos()` | game-coords | `fn::GetUnitX/Y(pUnit)` - already game-coords |
+| `Unit::PrecisePos()` | game-coords (`PointF`, fractional) | a dynamic path's 16.16 `tGameCoords.dwPrecisionX/Y` / 65536 for players, monsters and missiles; `Pos()` for the rest. Single precision (about 1/500 of a coordinate at large coordinates) - for drawing; integer logic uses `Pos()` |
 | `Unit::TargetPos()` | game-coords | `pPath->xTarget/yTarget` - already game-coords |
 | `Room::Bounds()` | `Rect` (game-coords) | origin `{dwPosX * 5, dwPosY * 5}`, size `{dwSizeX * 5, dwSizeY * 5}` |
 | `Level::Bounds()` | `Rect` (game-coords) | origin `{dwPosX * 5, dwPosY * 5}` (treat -1 as 0), size `{dwSizeX * 5, dwSizeY * 5}` |

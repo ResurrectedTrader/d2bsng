@@ -731,11 +731,12 @@ Prefer `api::convert::ToJS(isolate, value)` over direct V8 factory calls (`v8::S
 
 The shared 2D types live in `src/contract/game/Types.h`:
 - `Point { int32_t x, y; }` - signed; map / pathfinder / drawing coords
+- `PointF { float x, y; }` - fractional; draw-call positions and precise unit positions (`Unit::PrecisePos()`; a `Point` converts to it implicitly, `ToPoint()` floors back)
 - `Position { uint32_t x, y; }` - unsigned; game grid / world coords
 - `Size { uint32_t width, height; }` - unsigned dimensions
 - `Rect { Position origin; Size size; }` - rectangle with `Contains(Point/Position)` overloads
 
-All four default-construct to zero (default member initializers) and provide `operator==` (defaulted).
+All of them default-construct to zero (default member initializers) and provide `operator==` (defaulted).
 
 **Rectangle-shaped game types (`Room`, `Level`, `Control`) expose a single `Bounds()` accessor** returning `Rect`, not separate `Pos()` / `Size()` methods. One resolve per call, and callers use `r.origin` / `r.size` directly (no `Rect::Pos()` wrapper). Point-shaped types (`Unit`, `Party`) keep `Pos()`.
 

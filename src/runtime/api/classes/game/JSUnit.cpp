@@ -126,6 +126,34 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             info.GetReturnValue().Set(data->Pos().y);
         });
 
+    /// @description Unit X position in game coordinates with a sub-coordinate fraction, for drawing and smooth
+    /// movement: a moving unit (Player, Monster, Missile) reports where it is between whole coordinates, other units
+    /// their whole `x`. Single precision - about 1/500 of a coordinate at large coordinates - so use `x` for
+    /// integer logic.
+    /// @type {number}
+    Property(
+        isolate, inst, "preciseX", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
+            const auto data = Unwrap(info.Holder());
+            if (!*data) {
+                return;
+            }
+            info.GetReturnValue().Set(data->PrecisePos().x);
+        });
+
+    /// @description Unit Y position in game coordinates with a sub-coordinate fraction, for drawing and smooth
+    /// movement: a moving unit (Player, Monster, Missile) reports where it is between whole coordinates, other units
+    /// their whole `y`. Single precision - about 1/500 of a coordinate at large coordinates - so use `y` for
+    /// integer logic.
+    /// @type {number}
+    Property(
+        isolate, inst, "preciseY", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
+            const auto data = Unwrap(info.Holder());
+            if (!*data) {
+                return;
+            }
+            info.GetReturnValue().Set(data->PrecisePos().y);
+        });
+
     // Reference lines 239-246: only Player/Monster/Missile have pPath->xTarget; other types return undefined.
     /// @description X position of the unit's movement/path target (Player, Monster, and Missile units only).
     /// @type {number}

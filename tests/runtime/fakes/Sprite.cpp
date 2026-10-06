@@ -21,6 +21,6 @@ Size Sprite::Size() const {
     return Size::Zero;
 }
 
-void Sprite::Draw(Point /*centerPos*/, uint32_t /*color*/, bool /*isAutomap*/) const {}
+void Sprite::Draw(PointF /*centerPos*/, uint32_t /*color*/, bool /*isAutomap*/) const {}
 
 }  // namespace d2bs::game

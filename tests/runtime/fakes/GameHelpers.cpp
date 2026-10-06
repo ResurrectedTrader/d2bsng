@@ -102,7 +102,7 @@ Position GetMousePos() {
 uint32_t GetCursorType(bool /*isShop*/) {
     return 0;
 }
-Point ScreenToAutomap(Point p) {
+PointF ScreenToAutomap(PointF p) {
     return p;
 }
 Point AutomapToScreen(Point p) {
@@ -121,16 +121,16 @@ bool GetUIFlag(UiFlag /*flag*/) {
 Size GetTextSize(const std::string& /*text*/, uint32_t /*font*/) {
     return Size::Zero;
 }
-void DrawGameText(const std::string& /*text*/, Point /*pos*/, uint32_t /*color*/, uint32_t /*font*/) {}
+void DrawGameText(const std::string& /*text*/, PointF /*pos*/, uint32_t /*color*/, uint32_t /*font*/) {}
 Size GetScreenSize() {
     return Size::Zero;
 }
-void DrawScreenText(const std::string& /*text*/, Point /*pos*/, uint32_t /*color*/, uint32_t /*font*/) {}
+void DrawScreenText(const std::string& /*text*/, PointF /*pos*/, uint32_t /*color*/, uint32_t /*font*/) {}
 
 // === Drawing ===
-void DrawRectangle(Point /*p1*/, Point /*p2*/, uint32_t /*color*/, uint32_t /*opacity*/) {}
-void DrawLine(Point /*p1*/, Point /*p2*/, uint32_t /*color*/, uint32_t /*opacity*/) {}
-void DrawFrame(Point /*p1*/, Point /*p2*/) {}
+void DrawRectangle(PointF /*p1*/, PointF /*p2*/, uint32_t /*color*/, uint32_t /*opacity*/) {}
+void DrawLine(PointF /*p1*/, PointF /*p2*/, uint32_t /*color*/, uint32_t /*opacity*/) {}
+void DrawFrame(PointF /*p1*/, PointF /*p2*/) {}
 
 // === Network ===
 void SendGamePacket(std::span<const uint8_t> /*data*/) {}

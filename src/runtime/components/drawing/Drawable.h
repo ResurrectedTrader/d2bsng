@@ -20,11 +20,11 @@ enum class Align : uint8_t { Left, Right, Center };
 struct Drawable : std::enable_shared_from_this<Drawable> {
     // 8-byte POD atomics - lock-free on x86 via CMPXCHG8B.  The asserts
     // make any platform regression a compile error.
-    static_assert(std::atomic<game::Point>::is_always_lock_free,
-                  "std::atomic<Point> must be lock-free on the target platform");
+    static_assert(std::atomic<game::PointF>::is_always_lock_free,
+                  "std::atomic<PointF> must be lock-free on the target platform");
     // Default (0,0) matches pre-refactor JS-observable defaults (`new Box().x === 0`).
     // Scripts may still explicitly assign -1; the sentinel check in Draw() honours that.
-    std::atomic<game::Point> pos{game::Point::Zero};
+    std::atomic<game::PointF> pos{game::PointF::Zero};
     std::atomic<int32_t> zorder = 1;
     std::atomic<Align> align = Align::Left;
     std::atomic<bool> isVisible = true;
@@ -47,7 +47,7 @@ struct Drawable : std::enable_shared_from_this<Drawable> {
     virtual ~Drawable();
 
     virtual void Draw() const = 0;
-    virtual bool Contains(game::Point p) const = 0;
+    virtual bool Contains(game::PointF p) const = 0;
 
     // Game-thread collection entry points. Each iterates live scripts via
     // Script::GetDrawables(), which returns a snapshot of shared_ptrs, so a
@@ -73,22 +73,22 @@ struct BoxDrawable final : Drawable {
     std::atomic<uint32_t> opacity = 0;
 
     void Draw() const override;
-    bool Contains(game::Point p) const override;
+    bool Contains(game::PointF p) const override;
 };
 
 struct FrameDrawable final : Drawable {
     std::atomic<game::Size> size{game::Size::Zero};
 
     void Draw() const override;
-    bool Contains(game::Point p) const override;
+    bool Contains(game::PointF p) const override;
 };
 
 struct LineDrawable final : Drawable {
-    std::atomic<game::Point> p2{game::Point::Zero};
+    std::atomic<game::PointF> p2{game::PointF::Zero};
     std::atomic<uint32_t> color = 0;
 
     void Draw() const override;
-    bool Contains(game::Point p) const override;
+    bool Contains(game::PointF p) const override;
 };
 
 struct TextDrawable final : Drawable {
@@ -105,7 +105,7 @@ struct TextDrawable final : Drawable {
     }
 
     void Draw() const override;
-    bool Contains(game::Point p) const override;
+    bool Contains(game::PointF p) const override;
 
    private:
     std::string text_;
@@ -136,7 +136,7 @@ struct ImageDrawable final : Drawable {
     }
 
     void Draw() const override;
-    bool Contains(game::Point p) const override;
+    bool Contains(game::PointF p) const override;
 
    private:
     // Path retained alongside the sprite handle so GetPath remains cheap

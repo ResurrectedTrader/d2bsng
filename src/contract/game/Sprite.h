@@ -68,7 +68,7 @@ class Sprite {
     // and vertically on this point) with palette index `color` (low byte;
     // upper bytes ignored). ScreenToAutomap conversion is handled
     // internally when isAutomap is true. No-op when !*this.
-    void Draw(Point centerPos, uint32_t color, bool isAutomap) const;
+    void Draw(PointF centerPos, uint32_t color, bool isAutomap) const;
 };
 
 }  // namespace d2bs::game

@@ -73,7 +73,7 @@ class JSDrawableBase : public ClassBase<Derived, DrawableType> {
     static void ConfigureCommonProperties(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> inst,
                                           v8::Local<v8::ObjectTemplate> proto) {
         // x property
-        /// @description Horizontal screen position in pixels.
+        /// @description Horizontal screen position in pixels; may be fractional.
         /// @type {number}
         Base::Property(
             isolate, inst, "x",
@@ -90,12 +90,12 @@ class JSDrawableBase : public ClassBase<Derived, DrawableType> {
                 if (!value->IsNumber())
                     return;
                 auto cur = drawable->pos.load();
-                cur.x = convert::To<int32_t>(info.GetIsolate(), value);
+                cur.x = extract::Coordinate(info.GetIsolate(), value);
                 drawable->pos.store(cur);
             });
 
         // y property
-        /// @description Vertical screen position in pixels.
+        /// @description Vertical screen position in pixels; may be fractional.
         /// @type {number}
         Base::Property(
             isolate, inst, "y",
@@ -112,7 +112,7 @@ class JSDrawableBase : public ClassBase<Derived, DrawableType> {
                 if (!value->IsNumber())
                     return;
                 auto cur = drawable->pos.load();
-                cur.y = convert::To<int32_t>(info.GetIsolate(), value);
+                cur.y = extract::Coordinate(info.GetIsolate(), value);
                 drawable->pos.store(cur);
             });
 
