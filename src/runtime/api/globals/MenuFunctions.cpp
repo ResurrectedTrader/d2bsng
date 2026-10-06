@@ -110,8 +110,9 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param hardcore {boolean} - Create as hardcore; defaults to false.
     /// @param ladder {boolean} - Create as ladder; defaults to false.
     /// @param gameType {GameType} - The character's game type; defaults to RotW for a Warlock and Expansion for every
-    /// other class. A Warlock must be RotW, and a Classic character cannot be an Assassin or a Druid. 1.14d creates
-    /// only Expansion characters and returns false for any other.
+    /// other class. A Warlock must be RotW, and a Classic character cannot be an Assassin or a Druid. The Warlock
+    /// class and the RotW game type do nothing on 1.14d: it creates only Expansion characters and returns false for
+    /// any other game type, so a Warlock is never created there.
     /// @returns {boolean} - Result of the creation attempt; undefined if not at the menu. Throws on invalid arguments.
     /// @throws {Error} - Character type is outside the valid class range (0-7), the game type is not a GameType, or
     /// the class cannot be created with that game type.

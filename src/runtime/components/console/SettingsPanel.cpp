@@ -160,7 +160,7 @@ void SettingsPanel::Draw() {
                 DisplayRow("OOG location", "%u (%s)", static_cast<uint32_t>(oog), oogName.c_str());
             }
             EnumRow("Difficulty", game::GetDifficulty());
-            EnumRow("Mode", game::GetGameType());
+            EnumRow("Game type", game::GetGameType());
             DisplayRow("Ping", "%u ms", game::GetPing());
             DisplayRow("FPS", "%u", game::GetFPS());
             const auto gameName = game::GetGameName();
