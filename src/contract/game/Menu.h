@@ -122,9 +122,11 @@ bool SelectCharacter(const std::string& charName);
 
 // Create a new character on the char-select screen. Reference:
 // reference/d2bs/Control.cpp:134-177 (OOG_CreateCharacter). Returns true on
-// success, false on any failure. Reference has no isExpansion parameter -
-// LoD-vs-classic isn't part of the JS API surface.
-bool CreateCharacter(const std::string& name, CharacterClass charClass, bool isHardcore, bool isLadder);
+// success, false on any failure, including a game type the backend cannot
+// create. The caller has already rejected combinations the game refuses
+// (Warlock outside RotW, Classic Assassin / Druid).
+bool CreateCharacter(const std::string& name, CharacterClass charClass, bool isHardcore, bool isLadder,
+                     GameType gameType);
 
 // Create a Battle.net / open game. Reference:
 // reference/d2bs/Control.cpp:434-546 (OOG_CreateGame). Returns true on

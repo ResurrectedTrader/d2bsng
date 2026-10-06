@@ -51,7 +51,7 @@ class Control {
     // Reference-parity locale match against the resolved locale string: Buttons
     // exact-match their text; TextBoxes substring-match pFirstText. False for
     // control types with no locale text source.
-    bool HasLocaleText(int32_t localeId) const;
+    bool HasLocaleText(uint16_t localeId) const;
 
     // Methods
     Control GetNext() const;
@@ -79,7 +79,7 @@ class Control {
                                        std::optional<uint32_t> y = std::nullopt,
                                        std::optional<uint32_t> xsize = std::nullopt,
                                        std::optional<uint32_t> ysize = std::nullopt,
-                                       std::optional<int32_t> localeId = std::nullopt);
+                                       std::optional<uint16_t> localeId = std::nullopt);
 };
 
 }  // namespace d2bs::game

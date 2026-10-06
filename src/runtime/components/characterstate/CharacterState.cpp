@@ -52,7 +52,7 @@ constexpr size_t BUCKET_COUNT = 6;
 // is complete when its reward is granted or pending - not the COMPLETEDNOW/BEFORE
 // bits, which the record load clears, so a quest done in a prior game reads as
 // incomplete.
-constexpr uint32_t QUEST_COUNT = 41;
+constexpr uint32_t QUEST_COUNT = std::to_underlying(game::Quest::EveOfDestruction) + 1;
 constexpr uint32_t WAYPOINT_COUNT = 39;
 
 json BuildItems(const std::vector<game::Unit>& items) {
@@ -129,8 +129,9 @@ json BuildProgression() {
 
     json quests = json::array();
     for (uint32_t questId = 0; questId < QUEST_COUNT; ++questId) {
-        if (game::GetQuestFlag(questId, game::QuestFlag::RewardGranted) ||
-            game::GetQuestFlag(questId, game::QuestFlag::RewardPending)) {
+        const auto quest = static_cast<game::Quest>(questId);
+        if (game::GetQuestFlag(quest, game::QuestFlag::RewardGranted) ||
+            game::GetQuestFlag(quest, game::QuestFlag::RewardPending)) {
             quests.push_back(questId);  // reward granted or pending == completed
         }
     }

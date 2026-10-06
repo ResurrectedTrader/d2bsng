@@ -56,7 +56,8 @@ TEST_CASE_FIXTURE(GameLoopFixture, "First tick emits melife/memana/playerassign 
     s.playerId = 42;
     s.hp = 500;
     s.mp = 200;
-    s.areaId = 1;  // Act 1 rogue camp would be isTown=true, but we leave isTown=false to not trigger chicken
+    s.areaId = d2bs::game::LevelId::RogueEncampment;  // Act 1 rogue camp would be isTown=true, but we leave
+                                                      // isTown=false to not trigger chicken
     s.isTown = true;
 
     GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
@@ -75,7 +76,7 @@ TEST_CASE_FIXTURE(GameLoopFixture, "Successive ticks with no change emit nothing
     s.playerId = 42;
     s.hp = 500;
     s.mp = 200;
-    s.areaId = 1;
+    s.areaId = d2bs::game::LevelId::RogueEncampment;
     s.isTown = true;
 
     GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
@@ -97,7 +98,7 @@ TEST_CASE_FIXTURE(GameLoopFixture, "HP change emits melife on second tick") {
     s.playerId = 42;
     s.hp = 500;
     s.mp = 200;
-    s.areaId = 1;
+    s.areaId = d2bs::game::LevelId::RogueEncampment;
     s.isTown = true;
 
     GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
@@ -119,7 +120,7 @@ TEST_CASE_FIXTURE(GameLoopFixture, "HP drop below threshold triggers chicken whe
     s.playerId = 42;
     s.hp = 500;
     s.mp = 200;
-    s.areaId = 10;  // not a town area
+    s.areaId = d2bs::game::LevelId::UndergroundPassageLevel1;  // not a town area
     s.isTown = false;
 
     GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
@@ -139,7 +140,7 @@ TEST_CASE_FIXTURE(GameLoopFixture, "Town exclusion suppresses HP chicken") {
     s.playerId = 42;
     s.hp = 50;  // below threshold on tick 1
     s.mp = 200;
-    s.areaId = 1;
+    s.areaId = d2bs::game::LevelId::RogueEncampment;
     s.isTown = true;
 
     GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
@@ -157,7 +158,7 @@ TEST_CASE_FIXTURE(GameLoopFixture, "Town exclusion does not suppress maxGameTime
     s.playerId = 42;
     s.hp = 500;
     s.mp = 200;
-    s.areaId = 1;
+    s.areaId = d2bs::game::LevelId::RogueEncampment;
     s.isTown = true;
 
     // First tick anchors gameStartedAt_.
@@ -775,7 +776,7 @@ TEST_CASE_FIXTURE(GameLoopFixture, "OnSleep is a no-op pre-Initialize") {
     s.playerId = 42;
     s.hp = 500;
     s.mp = 200;
-    s.areaId = 1;
+    s.areaId = d2bs::game::LevelId::RogueEncampment;
     s.isTown = false;
 
     GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});

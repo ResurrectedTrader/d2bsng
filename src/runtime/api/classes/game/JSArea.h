@@ -54,7 +54,7 @@ class JSArea : public ClassBase<JSArea, game::Level> {
             });
 
         /// @description Level number identifying this area, matching the Areas constant.
-        /// @type {number}
+        /// @type {LevelId}
         Property(
             isolate, inst, "id", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());

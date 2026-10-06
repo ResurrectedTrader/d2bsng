@@ -17,7 +17,7 @@ namespace d2bs::test {
 //   int32[width*height] collision  (uint16 values stored as int32)
 
 struct MapFixture {
-    uint32_t levelId = 0;
+    game::LevelId levelId = game::LevelId::None;
     d2bs::runtime::navigation::LevelGrid grid;
 
     static std::optional<MapFixture> Load(const std::filesystem::path& path);

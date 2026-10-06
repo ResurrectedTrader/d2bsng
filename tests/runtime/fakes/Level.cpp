@@ -28,7 +28,7 @@ Room Level::GetFirstRoom() const {
     return Room();
 }
 
-std::optional<Level> Level::Get(uint32_t /*levelNo*/) {
+std::optional<Level> Level::Get(LevelId /*levelNo*/) {
     return std::nullopt;
 }
 

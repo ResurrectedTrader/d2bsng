@@ -597,9 +597,10 @@ literal, in this order:
    (`D2C_UnitTypes`), `D2Monsters.h` (`D2C_MonTypeFlags`). Most are already in scope
    through `imports/D2Common.h`. Platform values likewise: `WM_LBUTTONDOWN`, not `0x201`.
 2. **`src/contract/game/`** - `Constants.h` and the enums in `Types.h` (`UnitType`,
-   `MonsterSpecType`, `ItemLocation`, ...). The frontend and the contract cannot see
-   D2MOO, so these mirror the handful of values the JS API needs; use them there
-   instead of re-typing the literal.
+   `Stat`, `State`, `Skill`, `StatListFlags`, `ItemLocation`, ...). The frontend and the
+   contract cannot see D2MOO, so these mirror the values the JS API needs; use them there
+   instead of re-typing the literal. A backend takes the contract enum in its typed
+   imports and `static_assert`s it against D2MOO's constant where the two meet.
 3. **The backend's shared headers** - e.g. `SUBTILE_SCALE` in
    `backends/lod114d/game/DrlgHelpers.h`.
 
@@ -607,7 +608,7 @@ When a value genuinely has to be restated, derive it from the canonical definiti
 rather than repeating the literal:
 
 ```cpp
-constexpr uint32_t STAT_FIXED_POINT_FIRST = STAT_HITPOINTS;
+constexpr uint32_t UNIT_TYPE_NPC = UNIT_MONSTER;
 ```
 
 **Scope it to its use.** A constant used by one file stays in that file's anonymous

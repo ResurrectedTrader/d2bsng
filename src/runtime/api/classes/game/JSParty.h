@@ -49,7 +49,7 @@ class JSParty : public ClassBase<JSParty, game::Party> {
             });
 
         /// @description The level/area ID the party member is currently in.
-        /// @type {number}
+        /// @type {LevelId}
         Property(
             isolate, inst, "area", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());
@@ -78,7 +78,7 @@ class JSParty : public ClassBase<JSParty, game::Party> {
                 if (!*data) {
                     return;
                 }
-                info.GetReturnValue().Set(static_cast<int32_t>(data->Life()));
+                info.GetReturnValue().Set(data->Life());
             });
 
         /// @description The party member's party button state (invite / in party / accept / leave / cancel).
@@ -100,7 +100,7 @@ class JSParty : public ClassBase<JSParty, game::Party> {
                 if (!*data) {
                     return;
                 }
-                info.GetReturnValue().Set(static_cast<int32_t>(data->PartyId()));
+                info.GetReturnValue().Set(data->PartyId());
             });
 
         /// @description The party member's character name.
@@ -114,16 +114,15 @@ class JSParty : public ClassBase<JSParty, game::Party> {
                 info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), data->Name()));
             });
 
-        /// @description The party member's character class ID (0-6, e.g. Amazon/Sorceress/etc.).
-        /// 0 = amazon, 1 = sorceress, 2 = necromancer, 3 = paladin, 4 = barbarian, 5 = druid, 6 = assassin.
-        /// @type {number}
+        /// @description The party member's character class ID.
+        /// @type {CharacterClass}
         Property(
             isolate, inst, "classid", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());
                 if (!*data) {
                     return;
                 }
-                info.GetReturnValue().Set(static_cast<int32_t>(data->ClassId()));
+                info.GetReturnValue().Set(std::to_underlying(data->ClassId()));
             });
 
         /// @description The party member's character (experience) level.
@@ -134,7 +133,7 @@ class JSParty : public ClassBase<JSParty, game::Party> {
                 if (!*data) {
                     return;
                 }
-                info.GetReturnValue().Set(static_cast<int32_t>(data->CharacterLevel()));
+                info.GetReturnValue().Set(data->CharacterLevel());
             });
 
         // Methods

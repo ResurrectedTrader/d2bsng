@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <utility>
 #include <variant>
 
 #include "game/Constants.h"
@@ -35,15 +36,15 @@ uint32_t PricingNpcClassId(uint32_t npcClassId) {
     return row == nullptr || *row == 0 ? NPC_CHARSI_CLASS_ID : npcClassId;
 }
 
-bool IsWaypointLevel(uint32_t levelId) {
+bool IsWaypointLevel(LevelId levelId) {
     constexpr int64_t NO_WAYPOINT = 255;
-    const auto waypoint = GetTxtValue("levels", levelId, "Waypoint");
+    const auto waypoint = GetTxtValue("levels", std::to_underlying(levelId), "Waypoint");
     const auto* index = std::get_if<int64_t>(&waypoint);
     return index == nullptr || *index != NO_WAYPOINT;
 }
 
-std::optional<uint16_t> SkillNameStringId(uint16_t skillId) {
-    const auto descRow = GetTxtValue("skills", skillId, "skilldesc");
+std::optional<uint16_t> SkillNameStringId(Skill skill) {
+    const auto descRow = GetTxtValue("skills", std::to_underlying(skill), "skilldesc");
     const auto* desc = std::get_if<int64_t>(&descRow);
     if (desc == nullptr) {
         return std::nullopt;

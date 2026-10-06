@@ -71,6 +71,10 @@ enum class Difficulty : uint32_t;
 enum class GameState : uint32_t;
 enum class IpcMode : uint32_t;
 enum class LoginStatus : uint8_t;
+enum class Stat : uint32_t;
+enum class StatListFlags : uint32_t;
+enum class State : uint32_t;
+enum class Skill : uint16_t;
 enum class UnitType : uint32_t;
 enum class UnitKind : uint32_t;
 enum class NodePage : uint8_t;
@@ -83,16 +87,19 @@ enum class MonsterSpecType : uint32_t;
 enum class CollisionFlag : uint16_t;
 enum class ItemFlag : uint32_t;
 enum class Act : uint8_t;
+enum class LevelId : uint32_t;
 enum class PlayerMode : uint32_t;
 enum class MonsterMode : uint32_t;
 enum class ObjectMode : uint32_t;
 enum class ItemMode : uint32_t;
 enum class UnitFlagEx : uint32_t;
+enum class Quest : uint32_t;
 enum class QuestFlag : uint32_t;
 enum class GameType : uint32_t;
 enum class ScreenSize : uint32_t;
 enum class WeaponSet : uint32_t;
 enum class MoveMode : uint32_t;
+enum class Language : uint32_t;
 
 // A human-readable name for an enum value: the enumerator that has it (the first declared one
 // for aliases), else the single-bit enumerators that together make it up exactly as "A|B",
@@ -122,6 +129,10 @@ enum class MoveMode : uint32_t;
 [[nodiscard]] std::string EnumName(GameState value);
 [[nodiscard]] std::string EnumName(IpcMode value);
 [[nodiscard]] std::string EnumName(LoginStatus value);
+[[nodiscard]] std::string EnumName(Stat value);
+[[nodiscard]] std::string EnumName(StatListFlags value);
+[[nodiscard]] std::string EnumName(State value);
+[[nodiscard]] std::string EnumName(Skill value);
 [[nodiscard]] std::string EnumName(UnitType value);
 [[nodiscard]] std::string EnumName(UnitKind value);
 [[nodiscard]] std::string EnumName(NodePage value);
@@ -134,16 +145,19 @@ enum class MoveMode : uint32_t;
 [[nodiscard]] std::string EnumName(CollisionFlag value);
 [[nodiscard]] std::string EnumName(ItemFlag value);
 [[nodiscard]] std::string EnumName(Act value);
+[[nodiscard]] std::string EnumName(LevelId value);
 [[nodiscard]] std::string EnumName(PlayerMode value);
 [[nodiscard]] std::string EnumName(MonsterMode value);
 [[nodiscard]] std::string EnumName(ObjectMode value);
 [[nodiscard]] std::string EnumName(ItemMode value);
 [[nodiscard]] std::string EnumName(UnitFlagEx value);
+[[nodiscard]] std::string EnumName(Quest value);
 [[nodiscard]] std::string EnumName(QuestFlag value);
 [[nodiscard]] std::string EnumName(GameType value);
 [[nodiscard]] std::string EnumName(ScreenSize value);
 [[nodiscard]] std::string EnumName(WeaponSet value);
 [[nodiscard]] std::string EnumName(MoveMode value);
+[[nodiscard]] std::string EnumName(Language value);
 
 // NOLINTBEGIN(readability-identifier-naming) - fmt's customisation point name
 [[nodiscard]] std::string format_as(CharFlag value);
@@ -171,6 +185,10 @@ enum class MoveMode : uint32_t;
 [[nodiscard]] std::string format_as(GameState value);
 [[nodiscard]] std::string format_as(IpcMode value);
 [[nodiscard]] std::string format_as(LoginStatus value);
+[[nodiscard]] std::string format_as(Stat value);
+[[nodiscard]] std::string format_as(StatListFlags value);
+[[nodiscard]] std::string format_as(State value);
+[[nodiscard]] std::string format_as(Skill value);
 [[nodiscard]] std::string format_as(UnitType value);
 [[nodiscard]] std::string format_as(UnitKind value);
 [[nodiscard]] std::string format_as(NodePage value);
@@ -183,16 +201,19 @@ enum class MoveMode : uint32_t;
 [[nodiscard]] std::string format_as(CollisionFlag value);
 [[nodiscard]] std::string format_as(ItemFlag value);
 [[nodiscard]] std::string format_as(Act value);
+[[nodiscard]] std::string format_as(LevelId value);
 [[nodiscard]] std::string format_as(PlayerMode value);
 [[nodiscard]] std::string format_as(MonsterMode value);
 [[nodiscard]] std::string format_as(ObjectMode value);
 [[nodiscard]] std::string format_as(ItemMode value);
 [[nodiscard]] std::string format_as(UnitFlagEx value);
+[[nodiscard]] std::string format_as(Quest value);
 [[nodiscard]] std::string format_as(QuestFlag value);
 [[nodiscard]] std::string format_as(GameType value);
 [[nodiscard]] std::string format_as(ScreenSize value);
 [[nodiscard]] std::string format_as(WeaponSet value);
 [[nodiscard]] std::string format_as(MoveMode value);
+[[nodiscard]] std::string format_as(Language value);
 // NOLINTEND(readability-identifier-naming)
 
 // Bit operations over the @flags enumerations: a value is an OR of their bits, and stays
@@ -251,6 +272,34 @@ enum class MoveMode : uint32_t;
     return utils::FlagHas(value, flag);
 }
 [[nodiscard, gnu::always_inline]] constexpr bool HasAnyFlag(RosterFlag value, RosterFlag flag) {
+    return utils::FlagHasAny(value, flag);
+}
+
+[[nodiscard, gnu::always_inline]] constexpr StatListFlags operator|(StatListFlags lhs, StatListFlags rhs) {
+    return utils::FlagOr(lhs, rhs);
+}
+[[nodiscard, gnu::always_inline]] constexpr StatListFlags operator&(StatListFlags lhs, StatListFlags rhs) {
+    return utils::FlagAnd(lhs, rhs);
+}
+[[nodiscard, gnu::always_inline]] constexpr StatListFlags operator^(StatListFlags lhs, StatListFlags rhs) {
+    return utils::FlagXor(lhs, rhs);
+}
+[[nodiscard, gnu::always_inline]] constexpr StatListFlags operator~(StatListFlags value) {
+    return utils::FlagNot(value);
+}
+[[gnu::always_inline]] constexpr StatListFlags& operator|=(StatListFlags& lhs, StatListFlags rhs) {
+    return lhs = lhs | rhs;
+}
+[[gnu::always_inline]] constexpr StatListFlags& operator&=(StatListFlags& lhs, StatListFlags rhs) {
+    return lhs = lhs & rhs;
+}
+[[gnu::always_inline]] constexpr StatListFlags& operator^=(StatListFlags& lhs, StatListFlags rhs) {
+    return lhs = lhs ^ rhs;
+}
+[[nodiscard, gnu::always_inline]] constexpr bool HasFlag(StatListFlags value, StatListFlags flag) {
+    return utils::FlagHas(value, flag);
+}
+[[nodiscard, gnu::always_inline]] constexpr bool HasAnyFlag(StatListFlags value, StatListFlags flag) {
     return utils::FlagHasAny(value, flag);
 }
 

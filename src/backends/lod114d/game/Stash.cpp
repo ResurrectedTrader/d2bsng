@@ -5,9 +5,6 @@
 #include "game/GameLock.h"
 #include "game/Unit.h"
 
-#include <D2StatList.h>  // STAT_GOLDBANK
-
-#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <vector>
@@ -42,7 +39,7 @@ uint32_t StashTab::Gold() const {
     if (kind_ == StashTabKind::Shared) {
         return plugy::IsActive() && plugy::HasStashTabs() ? plugy::SharedGold() : 0U;
     }
-    const auto gold = Unit::Player().GetStat(STAT_GOLDBANK);
+    const auto gold = Unit::Player().GetStat(Stat::GoldBank);
     return gold > 0 ? static_cast<uint32_t>(gold) : 0U;
 }
 
@@ -82,7 +79,7 @@ bool StashTab::MoveGold(GoldActionMode mode, uint32_t amount) const {
     if (index_ != 0 || amount == 0 || !*this) {
         return false;
     }
-    GoldAction(mode, static_cast<int32_t>(std::min<uint32_t>(amount, INT32_MAX)));
+    GoldAction(mode, amount);
     return true;
 }
 

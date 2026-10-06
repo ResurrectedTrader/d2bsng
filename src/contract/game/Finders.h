@@ -228,7 +228,7 @@ inline std::optional<Room> Level::FindRoomAt(Position pos) const {
 inline std::vector<PresetUnitInfo> Level::GetPresetUnits(std::optional<UnitType> type,
                                                          std::optional<uint32_t> classId) const {
     std::vector<PresetUnitInfo> out;
-    const uint32_t levelId = Id();
+    const LevelId levelId = Id();
     for (auto r = GetFirstRoom(); r; r = r.GetNext()) {
         auto roomPresets = r.GetPresetUnits(type, classId);
         for (auto& pu : roomPresets) {
@@ -241,7 +241,7 @@ inline std::vector<PresetUnitInfo> Level::GetPresetUnits(std::optional<UnitType>
 
 inline std::optional<PresetUnitInfo> Level::FindFirstPresetUnit(std::optional<UnitType> type,
                                                                 std::optional<uint32_t> classId) const {
-    const uint32_t levelId = Id();
+    const LevelId levelId = Id();
     for (auto r = GetFirstRoom(); r; r = r.GetNext()) {
         auto roomPresets = r.GetPresetUnits(type, classId);
         if (!roomPresets.empty()) {
@@ -289,7 +289,7 @@ inline std::optional<Party> Party::FindByName(const std::string& name) {
 // Text / Disabled constraints from reference are not exposed via our JS API.
 inline std::optional<Control> Control::Find(std::optional<ControlType> type, std::optional<uint32_t> x,
                                             std::optional<uint32_t> y, std::optional<uint32_t> xsize,
-                                            std::optional<uint32_t> ysize, std::optional<int32_t> localeId) {
+                                            std::optional<uint32_t> ysize, std::optional<uint16_t> localeId) {
     // One read lock for the whole walk: inner accessor locks collapse to
     // free recursive re-entries, and the control list can't shift mid-iteration.
     GameReadLock guard;

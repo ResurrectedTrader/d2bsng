@@ -13,7 +13,6 @@
 
 #include <D2Inventory.h>   // D2ItemExtraDataStrc
 #include <D2Items.h>       // IMODE_STORED
-#include <D2StatList.h>    // STAT_GOLD
 #include <Units/Item.h>    // D2ItemDataStrc
 #include <Units/Player.h>  // D2PlayerDataStrc
 #include <Units/Units.h>   // D2UnitStrc
@@ -598,7 +597,7 @@ bool MoveSharedGold(GoldActionMode mode) {
         if (ext == nullptr || !ext->HasSharedStash()) {
             return false;
         }
-        const auto carried = Unit::Player().GetStat(STAT_GOLD);
+        const auto carried = Unit::Player().GetStat(Stat::Gold);
         if (mode == GoldActionMode::Deposit && (carried <= 0 || ext->sharedGold == UINT32_MAX)) {
             return false;
         }

@@ -75,7 +75,7 @@ std::string ReverseLines(const std::string& text) {
 // Stat values are stored raw (pre-nValShift) so they stay stable across wearers; undo the
 // shift game::Unit::GetStatLists applies to hp/mana/stamina.
 int32_t RawValue(const game::StatEntry& stat) {
-    if (stat.statId >= game::STAT_FIXED_POINT_FIRST && stat.statId <= game::STAT_FIXED_POINT_LAST) {
+    if (game::IsFixedPointStat(stat.statId)) {
         return stat.value << game::STAT_FIXED_POINT_SHIFT;
     }
     return stat.value;
@@ -85,12 +85,12 @@ void VisitStatLists(UnitVisitor& visitor, const game::Unit& item) {
     visitor.BeginArray("statsLists");
     for (const auto& list : item.GetStatLists()) {
         visitor.BeginElement();
-        visitor.Int("stateNo", list.stateNo);
-        visitor.Int("flags", list.flags);
+        visitor.Int("stateNo", std::to_underlying(list.stateNo));
+        visitor.Int("flags", std::to_underlying(list.flags));
         visitor.BeginArray("stats");
         for (const auto& stat : list.stats) {
             visitor.BeginElement();
-            visitor.Int("id", stat.statId);
+            visitor.Int("id", std::to_underlying(stat.statId));
             visitor.Int("value", RawValue(stat));
             if (stat.subIndex != 0) {
                 visitor.Int("layer", stat.subIndex);
@@ -176,7 +176,7 @@ void VisitWearer(UnitVisitor& visitor, const game::Unit& wearer) {
     visitor.BeginArray("skills");
     for (const auto& skill : skills) {
         visitor.BeginElement();
-        visitor.Int("skill", skill.skillId);
+        visitor.Int("skill", std::to_underlying(skill.skillId));
         visitor.Int("hard", skill.baseLevel);
         visitor.Int("level", skill.totalLevel);
         visitor.EndElement();
@@ -223,8 +223,30 @@ class JsonVisitor final : public UnitVisitor {
 
 // Curated stat ids the manager's StatsPanel labels (D2BotNG stats.ts). Order is
 // irrelevant; the manager renders only ids it recognises.
-constexpr std::array<uint32_t, 22> STAT_IDS = {0,  1,  2,  3,  7,  9,  12, 13, 14, 15, 39,
-                                               40, 41, 42, 43, 44, 45, 46, 80, 96, 99, 105};
+constexpr std::array<game::Stat, 22> STAT_IDS = {
+    game::Stat::Strength,
+    game::Stat::Energy,
+    game::Stat::Dexterity,
+    game::Stat::Vitality,
+    game::Stat::MaxHitPoints,
+    game::Stat::MaxMana,
+    game::Stat::Level,
+    game::Stat::Experience,
+    game::Stat::Gold,
+    game::Stat::GoldBank,
+    game::Stat::FireResist,
+    game::Stat::MaxFireResist,
+    game::Stat::LightningResist,
+    game::Stat::MaxLightningResist,
+    game::Stat::ColdResist,
+    game::Stat::MaxColdResist,
+    game::Stat::PoisonResist,
+    game::Stat::MaxPoisonResist,
+    game::Stat::ItemMagicBonus,
+    game::Stat::ItemFasterMoveVelocity,
+    game::Stat::ItemFasterGetHitRate,
+    game::Stat::ItemFasterCastRate,
+};
 
 }  // namespace
 
@@ -243,7 +265,7 @@ void VisitUnit(UnitVisitor& visitor, const game::Unit& unit, Detail detail) {
             break;
         case game::UnitType::Player:
             VisitWearer(visitor, unit);
-            visitor.Int("area", unit.Area());
+            visitor.Int("area", std::to_underlying(unit.Area()));
             // Reads a client global, so it only answers for the local player.
             visitor.Int("hand", unit.WeaponSwitch());
             break;
@@ -268,11 +290,11 @@ json WearerStats(const game::Unit& wearer) {
     // each id once. Only latched once every lookup returned a real cell - caching a miss
     // (tables not loaded yet) would render signed stats wrong for the process lifetime.
     // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables) - game-thread only
-    static std::vector<std::pair<uint32_t, bool>> curated;
+    static std::vector<std::pair<game::Stat, bool>> curated;
     if (curated.size() != STAT_IDS.size()) {
         curated.clear();
-        for (const uint32_t id : STAT_IDS) {
-            const auto cell = game::GetTxtValue("itemstatcost", id, "signed");
+        for (const auto id : STAT_IDS) {
+            const auto cell = game::GetTxtValue("itemstatcost", std::to_underlying(id), "signed");
             const auto* flag = std::get_if<int64_t>(&cell);
             if (flag == nullptr) {
                 curated.clear();
@@ -286,7 +308,7 @@ json WearerStats(const game::Unit& wearer) {
     for (const auto& [id, isSigned] : curated) {
         const int32_t raw = wearer.GetStat(id);
         json entry = json::object();
-        entry["id"] = id;
+        entry["id"] = std::to_underlying(id);
         entry["value"] = isSigned ? static_cast<int64_t>(raw) : static_cast<int64_t>(static_cast<uint32_t>(raw));
         stats.push_back(std::move(entry));
     }

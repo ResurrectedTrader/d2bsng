@@ -33,7 +33,7 @@ namespace {
 // cross-checked against D2MOO's DataTbls/StringIds.h and the string tables;
 // trailing text is the resolved English. Index space by base offset: string.tbl
 // 0, patchstring.tbl 10000, expansionstring.tbl 20000.
-enum class StringId : int32_t {
+enum class StringId : uint16_t {
     // string.tbl
     Exit = 5101,                // "EXIT"
     Ok = 5102,                  // "OK"
@@ -634,7 +634,13 @@ bool JoinGame(const std::string& name, const std::string& password) {
     return GameThread::Execute([]() -> bool { return ClickButtonAt(594, 433, 172, 32); });
 }
 
-bool CreateCharacter(const std::string& name, CharacterClass charClass, bool /*isHardcore*/, bool /*isLadder*/) {
+bool CreateCharacter(const std::string& name, CharacterClass charClass, bool /*isHardcore*/, bool /*isLadder*/,
+                     GameType gameType) {
+    // The create flow never touches the expansion checkbox, so it creates what
+    // the screen defaults to: an expansion character.
+    if (gameType != GameType::Expansion) {
+        return false;
+    }
     // Each UI interaction runs in its own GameThread::Execute and we sleep /
     // poll on the calling thread between them. Holding the game write lock
     // across the multi-step flow would prevent the menu UI from repainting
@@ -722,7 +728,7 @@ OutOfGameLocation GetOutOfGameLocation() {
     // via Control::Find directly because they need the control, not just presence.
     auto findControl = [](ControlType type, uint32_t x, uint32_t y, uint32_t w, uint32_t h,
                           std::optional<StringId> label = std::nullopt) {
-        std::optional<int32_t> localeId;
+        std::optional<uint16_t> localeId;
         if (label) {
             localeId = std::to_underlying(*label);
         }

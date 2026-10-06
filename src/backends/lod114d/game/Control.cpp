@@ -162,15 +162,12 @@ uint32_t Control::SelectEnd() const {
     return ctrl ? ctrl->dwSelectEnd : 0U;
 }
 
-bool Control::HasLocaleText(int32_t localeId) const {
-    if (localeId < 0) {
-        return false;
-    }
+bool Control::HasLocaleText(uint16_t localeId) const {
     const auto ctrl = Resolve<D2WinControlStrc>();
     if (!ctrl) {
         return false;
     }
-    const auto* localeText = lod114d::imports::d2lang::D2LANG_GetLocaleText(static_cast<uint16_t>(localeId));
+    const auto* localeText = lod114d::imports::d2lang::D2LANG_GetLocaleText(localeId);
     if (localeText == nullptr) {
         return false;
     }

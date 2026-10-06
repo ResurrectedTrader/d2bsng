@@ -21,7 +21,7 @@ struct GameLoopState {
     std::optional<uint32_t> playerId;
     std::optional<uint32_t> hp;
     std::optional<uint32_t> mp;
-    uint32_t areaId = 0;
+    d2bs::game::LevelId areaId = d2bs::game::LevelId::None;
     bool isTown = false;
 
     // Side effects captured from GameLoop::OnSleep.

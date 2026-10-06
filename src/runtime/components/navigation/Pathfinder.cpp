@@ -173,8 +173,10 @@ LevelGrid BuildLevelGrid(game::Level level) {
     }
 
     // Barricade tower avoidance for specific levels
-    uint32_t levelId = level.Id();
-    if (levelId == 74 || levelId == 111 || levelId == 112 || levelId == 117) {
+    using game::LevelId;
+    const LevelId levelId = level.Id();
+    if (levelId == LevelId::ArcaneSanctuary || levelId == LevelId::FrigidHighlands ||
+        levelId == LevelId::ArreatPlateau || levelId == LevelId::FrozenTundra) {
         for (auto room = level.GetFirstRoom(); room; room = room.GetNext()) {
             auto roomPos = room.Bounds().origin;
             for (const auto& preset : room.GetPresetUnits()) {

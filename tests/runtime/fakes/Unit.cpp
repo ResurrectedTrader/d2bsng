@@ -35,7 +35,7 @@ uint32_t Unit::Mp() const {
     return test::State().mp.value_or(0);
 }
 
-uint32_t Unit::Area() const {
+LevelId Unit::Area() const {
     return test::State().areaId;
 }
 

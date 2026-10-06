@@ -8,6 +8,8 @@
 #include <cstdint>
 #include <optional>
 
+#include "game/Types.h"
+
 namespace d2bs::game {
 
 // Reference parity: an NPC class without a monstats inventory prices as Charsi,
@@ -17,11 +19,11 @@ uint32_t PricingNpcClassId(uint32_t npcClassId);
 // Reference parity: levels.txt carries 255 in `Waypoint` for a level no
 // waypoint reaches, and sending the game there can take it down. A row the
 // lookup cannot read as a number is not rejected.
-bool IsWaypointLevel(uint32_t levelId);
+bool IsWaypointLevel(LevelId levelId);
 
 // String-table index of a skill's display name, through the skills ->
 // skilldesc -> `str name` chain the client itself uses. nullopt when a link
 // of the chain is missing.
-std::optional<uint16_t> SkillNameStringId(uint16_t skillId);
+std::optional<uint16_t> SkillNameStringId(Skill skill);
 
 }  // namespace d2bs::game

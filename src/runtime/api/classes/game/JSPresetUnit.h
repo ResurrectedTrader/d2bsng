@@ -70,11 +70,11 @@ class JSPresetUnit : public ClassBase<JSPresetUnit, game::PresetUnitInfo> {
             });
 
         /// @description Level (area) number where the preset unit resides.
-        /// @type {number}
+        /// @type {LevelId}
         Property(
             isolate, inst, "level", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 auto* data = Unwrap(info.Holder());
-                info.GetReturnValue().Set(data->level);
+                info.GetReturnValue().Set(std::to_underlying(data->level));
             });
     }
 };

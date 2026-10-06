@@ -24,9 +24,11 @@
 #include <D2Monsters.h>            // D2C_MonTypeFlags
 #include <D2PacketDef.h>           // D2GSPacketClt3C
 #include <D2Skills.h>              // D2SkillStrc, D2SkillListStrc
-#include <D2StatList.h>            // D2StatStrc, D2StatListExStrc, STAT_*
+#include <D2StatList.h>            // D2StatStrc, D2StatListExStrc, D2C_ItemStats
+#include <D2States.h>              // D2C_States
 #include <DataTbls/ItemsTbls.h>    // D2ItemsTxt
 #include <DataTbls/ObjectsTbls.h>  // D2ObjectsTxt
+#include <DataTbls/SkillsIds.h>    // D2C_Skills
 #include <DataTbls/SkillsTbls.h>   // D2SkillsTxt
 #include <Path/Path.h>             // D2DynamicPathStrc, D2StaticPathStrc
 #include <Units/Item.h>            // D2ItemDataStrc
@@ -68,12 +70,36 @@ inline D2UnitStrc* AsUnit(void* p) noexcept {
 
 // Reference parity: D2 unit hash tables - 6 type buckets x 128 hash entries.
 // Constants and struct now live in imports/extras/D2UnitHashTables.h.
+using lod114d::imports::d2common::STATLIST_UnitGetStatValue;
 using lod114d::imports::extras::D2UnitHashTable;
 using lod114d::imports::extras::D2UnitHashTables;
 using lod114d::imports::extras::UNIT_HASH_BUCKETS;
 using lod114d::imports::extras::UNIT_HASH_TYPE_COUNT;
 
-static_assert(STAT_FIXED_POINT_FIRST == STAT_HITPOINTS && STAT_FIXED_POINT_LAST == STAT_MAXSTAMINA);
+// The contract stat / state / skill ids this backend relies on, against D2MOO's 1.14d
+// tables. PassiveMagicPierce, UberMinion and ImpFireMissileEx are the last ids 1.14d
+// defines; D2MOO's SKILL_FIXEDSIEGEBEASTSTOMP after it has no 1.14d skills.txt row (a later
+// version puts Interact at 357).
+static_assert(Stat::StatPoints == static_cast<Stat>(STAT_STATPTS));
+static_assert(Stat::NewSkills == static_cast<Stat>(STAT_SKILLPTS));
+static_assert(Stat::HitPoints == static_cast<Stat>(STAT_HITPOINTS));
+static_assert(Stat::MaxHitPoints == static_cast<Stat>(STAT_MAXHP));
+static_assert(Stat::Mana == static_cast<Stat>(STAT_MANA));
+static_assert(Stat::MaxMana == static_cast<Stat>(STAT_MAXMANA));
+static_assert(Stat::Stamina == static_cast<Stat>(STAT_STAMINA));
+static_assert(Stat::MaxStamina == static_cast<Stat>(STAT_MAXSTAMINA));
+static_assert(Stat::Level == static_cast<Stat>(STAT_LEVEL));
+static_assert(Stat::Experience == static_cast<Stat>(STAT_EXPERIENCE));
+static_assert(Stat::Gold == static_cast<Stat>(STAT_GOLD));
+static_assert(Stat::GoldBank == static_cast<Stat>(STAT_GOLDBANK));
+static_assert(Stat::LastExperience == static_cast<Stat>(STAT_LASTEXP));
+static_assert(Stat::NextExperience == static_cast<Stat>(STAT_NEXTEXP));
+static_assert(Stat::ItemLevelReq == static_cast<Stat>(STAT_ITEM_LEVELREQ));
+static_assert(Stat::PassiveMagicPierce == static_cast<Stat>(STAT_PASSIVE_MAG_PIERCE));
+static_assert(State::None == static_cast<State>(STATE_NONE));
+static_assert(State::UberMinion == static_cast<State>(STATE_UBERMINION));
+static_assert(Skill::Attack == static_cast<Skill>(SKILL_ATTACK));
+static_assert(Skill::ImpFireMissileEx == static_cast<Skill>(SKILL_IMPFIREMISSILEEX));
 static_assert(ENCHANT_SLOT_COUNT <= std::extent_v<decltype(D2MonsterDataStrc::nMonUmod)>);
 
 // Reference parity: GetItemPrice's mode argument 0/1 = buy/sell, 3 = repair
@@ -248,16 +274,16 @@ Position Unit::TargetPos() const {
     }
 }
 
-uint32_t Unit::Area() const {
+LevelId Unit::Area() const {
     const auto u = Resolve<D2UnitStrc>();
     if (!u) {
-        return 0U;
+        return LevelId::None;
     }
     auto* room = lod114d::imports::d2common::UNITS_GetRoom(u);
     if (room == nullptr || room->pDrlgRoom == nullptr || room->pDrlgRoom->pLevel == nullptr) {
-        return 0U;
+        return LevelId::None;
     }
-    return static_cast<uint32_t>(room->pDrlgRoom->pLevel->nLevelId);
+    return static_cast<LevelId>(room->pDrlgRoom->pLevel->nLevelId);
 }
 
 // === Stats ===
@@ -282,15 +308,13 @@ uint32_t Unit::Hp() const {
             }
             if (ownerUnit != nullptr) {
                 const auto percent = lod114d::imports::d2common::UNITS_GetCurrentLifePercentage(u->dwUnitId);
-                const auto maxHp =
-                    static_cast<uint32_t>(lod114d::imports::d2common::STATLIST_UnitGetStatValue(u, STAT_MAXHP, 0)) >>
-                    STAT_FIXED_POINT_SHIFT;
+                const auto maxHp = static_cast<uint32_t>(STATLIST_UnitGetStatValue(u, Stat::MaxHitPoints, 0)) >>
+                                   STAT_FIXED_POINT_SHIFT;
                 return (percent * maxHp) / 100U;
             }
         }
     }
-    return static_cast<uint32_t>(lod114d::imports::d2common::STATLIST_UnitGetStatValue(u, STAT_HITPOINTS, 0)) >>
-           STAT_FIXED_POINT_SHIFT;
+    return static_cast<uint32_t>(STATLIST_UnitGetStatValue(u, Stat::HitPoints, 0)) >> STAT_FIXED_POINT_SHIFT;
 }
 
 uint32_t Unit::HpMax() const {
@@ -298,8 +322,7 @@ uint32_t Unit::HpMax() const {
     if (!u) {
         return 0U;
     }
-    return static_cast<uint32_t>(lod114d::imports::d2common::STATLIST_UnitGetStatValue(u, STAT_MAXHP, 0)) >>
-           STAT_FIXED_POINT_SHIFT;
+    return static_cast<uint32_t>(STATLIST_UnitGetStatValue(u, Stat::MaxHitPoints, 0)) >> STAT_FIXED_POINT_SHIFT;
 }
 
 uint32_t Unit::Mp() const {
@@ -307,8 +330,7 @@ uint32_t Unit::Mp() const {
     if (!u) {
         return 0U;
     }
-    return static_cast<uint32_t>(lod114d::imports::d2common::STATLIST_UnitGetStatValue(u, STAT_MANA, 0)) >>
-           STAT_FIXED_POINT_SHIFT;
+    return static_cast<uint32_t>(STATLIST_UnitGetStatValue(u, Stat::Mana, 0)) >> STAT_FIXED_POINT_SHIFT;
 }
 
 uint32_t Unit::MpMax() const {
@@ -316,8 +338,7 @@ uint32_t Unit::MpMax() const {
     if (!u) {
         return 0U;
     }
-    return static_cast<uint32_t>(lod114d::imports::d2common::STATLIST_UnitGetStatValue(u, STAT_MAXMANA, 0)) >>
-           STAT_FIXED_POINT_SHIFT;
+    return static_cast<uint32_t>(STATLIST_UnitGetStatValue(u, Stat::MaxMana, 0)) >> STAT_FIXED_POINT_SHIFT;
 }
 
 uint32_t Unit::Stamina() const {
@@ -325,8 +346,7 @@ uint32_t Unit::Stamina() const {
     if (!u) {
         return 0U;
     }
-    return static_cast<uint32_t>(lod114d::imports::d2common::STATLIST_UnitGetStatValue(u, STAT_STAMINA, 0)) >>
-           STAT_FIXED_POINT_SHIFT;
+    return static_cast<uint32_t>(STATLIST_UnitGetStatValue(u, Stat::Stamina, 0)) >> STAT_FIXED_POINT_SHIFT;
 }
 
 uint32_t Unit::StaminaMax() const {
@@ -334,8 +354,7 @@ uint32_t Unit::StaminaMax() const {
     if (!u) {
         return 0U;
     }
-    return static_cast<uint32_t>(lod114d::imports::d2common::STATLIST_UnitGetStatValue(u, STAT_MAXSTAMINA, 0)) >>
-           STAT_FIXED_POINT_SHIFT;
+    return static_cast<uint32_t>(STATLIST_UnitGetStatValue(u, Stat::MaxStamina, 0)) >> STAT_FIXED_POINT_SHIFT;
 }
 
 uint32_t Unit::CharLevel() const {
@@ -343,30 +362,30 @@ uint32_t Unit::CharLevel() const {
     if (!u) {
         return 0U;
     }
-    return static_cast<uint32_t>(lod114d::imports::d2common::STATLIST_UnitGetStatValue(u, STAT_LEVEL, 0));
+    return static_cast<uint32_t>(STATLIST_UnitGetStatValue(u, Stat::Level, 0));
 }
 
-int32_t Unit::GetStat(uint32_t stat, uint32_t sub) const {
+int32_t Unit::GetStat(Stat stat, uint16_t sub) const {
     const auto u = Resolve<D2UnitStrc>();
     if (!u) {
         return 0;
     }
 
-    int32_t value = lod114d::imports::d2common::STATLIST_UnitGetStatValue(u, stat, sub);
+    int32_t value = STATLIST_UnitGetStatValue(u, stat, sub);
 
     // Preset stat fallback: if the regular getter returned 0, search the
     // item-level (preset) stat list. Reference parity: JSUnit.cpp:980-993
     // copies the full preset stat list and linear-scans it for the requested
     // (stat, sub) pair - no per-stat preset getter exists.
     if (value == 0) {
-        if (auto* preset =
-                lod114d::imports::d2common::STATLIST_GetStatListFromUnitStateAndFlag(u, 0U, STAT_LIST_PRESET_FLAG)) {
+        if (auto* preset = lod114d::imports::d2common::STATLIST_GetStatListFromUnitStateAndFlag(u, State::None,
+                                                                                                StatListFlags::Magic)) {
             std::array<D2StatStrc, 256> buf{};
             const auto count = lod114d::imports::d2common::STATLIST_CopyStats(preset, buf.data(), buf.size());
             // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by count<=256
             for (uint32_t i = 0; i < count; ++i) {
                 const auto& s = buf[i];
-                if (s.nStat == stat && s.nLayer == sub) {
+                if (static_cast<Stat>(s.nStat) == stat && s.nLayer == sub) {
                     value = s.nValue;
                     break;
                 }
@@ -375,18 +394,18 @@ int32_t Unit::GetStat(uint32_t stat, uint32_t sub) const {
         }
     }
 
-    if (stat >= STAT_FIXED_POINT_FIRST && stat <= STAT_FIXED_POINT_LAST) {
+    if (IsFixedPointStat(stat)) {
         return value >> STAT_FIXED_POINT_SHIFT;
     }
     return value;
 }
 
-bool Unit::HasState(uint32_t stateId) const {
+bool Unit::HasState(State state) const {
     const auto u = Resolve<D2UnitStrc>();
     if (!u) {
         return false;
     }
-    return lod114d::imports::d2common::STATES_CheckState(u, stateId) != 0;
+    return lod114d::imports::d2common::STATES_CheckState(u, state) != 0;
 }
 
 namespace {
@@ -401,7 +420,7 @@ void AppendStatsRaw(const D2StatStrc* stats, uint32_t count, std::vector<StatEnt
         // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic) - bounded by count
         const auto& s = stats[i];
         out.push_back(StatEntry{
-            .statId = s.nStat,
+            .statId = static_cast<Stat>(s.nStat),
             .subIndex = s.nLayer,
             .value = s.nValue,
         });
@@ -418,11 +437,11 @@ void AppendStatsShifted(const D2StatStrc* stats, uint32_t count, std::vector<Sta
         // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic) - bounded by count
         const auto& s = stats[i];
         int32_t value = s.nValue;
-        if (s.nStat >= STAT_FIXED_POINT_FIRST && s.nStat <= STAT_FIXED_POINT_LAST) {
+        if (IsFixedPointStat(static_cast<Stat>(s.nStat))) {
             value >>= STAT_FIXED_POINT_SHIFT;
         }
         out.push_back(StatEntry{
-            .statId = s.nStat,
+            .statId = static_cast<Stat>(s.nStat),
             .subIndex = s.nLayer,
             .value = value,
         });
@@ -449,8 +468,8 @@ std::vector<StatEntry> Unit::GetAllStats() const {
 
     // Start with the preset stat list (D2COMMON_GetStatList(unit, nullptr, 0x40)
     // followed by D2COMMON_CopyStatList).
-    if (auto* preset =
-            lod114d::imports::d2common::STATLIST_GetStatListFromUnitStateAndFlag(u, 0U, STAT_LIST_PRESET_FLAG)) {
+    if (auto* preset = lod114d::imports::d2common::STATLIST_GetStatListFromUnitStateAndFlag(u, State::None,
+                                                                                            StatListFlags::Magic)) {
         std::array<D2StatStrc, 256> buf{};
         const auto count = lod114d::imports::d2common::STATLIST_CopyStats(preset, buf.data(), buf.size());
         AppendStatsRaw(buf.data(), count, out);
@@ -464,7 +483,7 @@ std::vector<StatEntry> Unit::GetAllStats() const {
             // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic) - bounded by nStatCount
             const auto& s = vec.pStat[i];
             const StatEntry candidate{
-                .statId = s.nStat,
+                .statId = static_cast<Stat>(s.nStat),
                 .subIndex = s.nLayer,
                 .value = s.nValue,
             };
@@ -505,7 +524,8 @@ std::vector<StatEntry> Unit::GetDetailedStats() const {
     };
 
     appendList(u->pStatListEx);
-    appendList(lod114d::imports::d2common::STATLIST_GetStatListFromUnitStateAndFlag(u, 0U, STAT_LIST_PRESET_FLAG));
+    appendList(
+        lod114d::imports::d2common::STATLIST_GetStatListFromUnitStateAndFlag(u, State::None, StatListFlags::Magic));
     return out;
 }
 
@@ -524,7 +544,9 @@ std::vector<StatListEntry> Unit::GetStatLists() const {
         if (list->Stats.pStat == nullptr || list->Stats.nStatCount == 0) {
             return;
         }
-        StatListEntry entry{.flags = list->dwFlags, .stateNo = list->dwStateNo, .stats = {}};
+        StatListEntry entry{.flags = static_cast<StatListFlags>(list->dwFlags),
+                            .stateNo = static_cast<State>(list->dwStateNo),
+                            .stats = {}};
         AppendStatsShifted(list->Stats.pStat, list->Stats.nStatCount, entry.stats);
         out.push_back(std::move(entry));
     };
@@ -611,7 +633,7 @@ uint32_t Unit::Direction() const {
     return u->pDynamicPath->nDirection;
 }
 
-std::optional<uint32_t> Unit::SuperUniqueId() const {
+std::optional<uint16_t> Unit::SuperUniqueId() const {
     const auto u = Resolve<D2UnitStrc>();
     if (!u || u->dwUnitType != UNIT_MONSTER || u->pMonsterData == nullptr) {
         return std::nullopt;
@@ -1003,10 +1025,10 @@ bool Unit::IsLocked() const {
 
 // === Player-specific ===
 
-uint32_t Unit::RunWalk() const {
+MoveMode Unit::RunWalk() const {
     const auto u = Resolve<D2UnitStrc>();
     if (!u || u != lod114d::imports::d2client::UNITS_GetPlayerUnit()) {
-        return 0U;
+        return MoveMode::Walk;
     }
     return *lod114d::imports::d2client::gbAlwaysRun;
 }
@@ -1137,29 +1159,35 @@ const D2SkillStrc* PickEquippedSkill(D2UnitStrc* u, Hand hand) {
     return hand == Hand::Right ? u->pSkills->pRightSkill : u->pSkills->pLeftSkill;
 }
 
+// The id of a skill-list entry with a skills.txt row. D2MOO types the id as int16_t;
+// the game's -1 reads as Skill::Invalid.
+Skill SkillOf(const D2SkillStrc* skill) {
+    return static_cast<Skill>(skill->pSkillsTxt->nSkillId);
+}
+
 }  // namespace
 
 std::string Unit::GetSkillName(Hand hand) const {
-    uint16_t skillId = 0;
+    Skill skillId{};
     {
         const auto u = Resolve<D2UnitStrc>();
         const auto* skill = PickEquippedSkill(u, hand);
         if (skill == nullptr || skill->pSkillsTxt == nullptr) {
             return {};
         }
-        skillId = static_cast<uint16_t>(skill->pSkillsTxt->nSkillId);
+        skillId = SkillOf(skill);
     }
     const auto stringId = SkillNameStringId(skillId);
     return stringId ? GetLocaleString(*stringId) : std::string{};
 }
 
-uint16_t Unit::GetSkillId(Hand hand) const {
+Skill Unit::GetSkillId(Hand hand) const {
     const auto u = Resolve<D2UnitStrc>();
     const auto* skill = PickEquippedSkill(u, hand);
     if (skill == nullptr || skill->pSkillsTxt == nullptr) {
-        return 0U;
+        return Skill{};
     }
-    return static_cast<uint16_t>(skill->pSkillsTxt->nSkillId);
+    return SkillOf(skill);
 }
 
 std::vector<Unit::SkillInfo> Unit::GetAllSkills() const {
@@ -1174,7 +1202,7 @@ std::vector<Unit::SkillInfo> Unit::GetAllSkills() const {
         }
         // D2MOO's `nSkillLevel` is reference's `dwSkillLevel` (offset 0x28).
         out.push_back(SkillInfo{
-            .skillId = static_cast<uint16_t>(skill->pSkillsTxt->nSkillId),
+            .skillId = SkillOf(skill),
             .baseLevel = static_cast<uint32_t>(skill->nSkillLevel),
             .totalLevel = lod114d::imports::d2common::SKILLS_GetSkillLevel(u, skill, true),
         });
@@ -1182,8 +1210,7 @@ std::vector<Unit::SkillInfo> Unit::GetAllSkills() const {
     return out;
 }
 
-std::optional<uint32_t> Unit::GetSkillLevel(uint16_t skillId, bool includeExtraLevels,
-                                            std::optional<bool> charge) const {
+std::optional<uint32_t> Unit::GetSkillLevel(Skill skill, bool includeExtraLevels, std::optional<bool> charge) const {
     const auto u = Resolve<D2UnitStrc>();
     if (!u || u->pSkills == nullptr) {
         return std::nullopt;
@@ -1192,14 +1219,14 @@ std::optional<uint32_t> Unit::GetSkillLevel(uint16_t skillId, bool includeExtraL
     //   false   -> non-charge skills only.
     //   nullopt -> no filter (any skill).
     //   true    -> charge skills only.
-    for (auto* skill = u->pSkills->pFirstSkill; skill != nullptr; skill = skill->pNextSkill) {
-        if (skill->pSkillsTxt == nullptr || static_cast<uint16_t>(skill->pSkillsTxt->nSkillId) != skillId) {
+    for (auto* entry = u->pSkills->pFirstSkill; entry != nullptr; entry = entry->pNextSkill) {
+        if (entry->pSkillsTxt == nullptr || SkillOf(entry) != skill) {
             continue;
         }
-        if (charge.has_value() && IsChargeSkill(skill) != charge.value()) {
+        if (charge.has_value() && IsChargeSkill(entry) != charge.value()) {
             continue;
         }
-        return lod114d::imports::d2common::SKILLS_GetSkillLevel(u, skill, includeExtraLevels);
+        return lod114d::imports::d2common::SKILLS_GetSkillLevel(u, entry, includeExtraLevels);
     }
     return std::nullopt;
 }
@@ -1276,8 +1303,8 @@ bool Unit::Interact() const {
     return ClickMapAt(0U, false, *this);
 }
 
-bool Unit::TakeWaypoint(uint32_t waypointId) const {
-    if (!IsWaypointLevel(waypointId)) {
+bool Unit::TakeWaypoint(LevelId level) const {
+    if (!IsWaypointLevel(level)) {
         return false;
     }
 
@@ -1287,9 +1314,8 @@ bool Unit::TakeWaypoint(uint32_t waypointId) const {
     }
     // Reference JSUnit.cpp:868 calls `D2CLIENT_TakeWaypoint(pUnit->dwUnitId,
     // nWaypointID)` where the first arg is the waypoint object's id and the
-    // second is the destination area. The framework's `waypointId` param is
-    // the destination-area value (matches reference's nWaypointID).
-    lod114d::asm_thunks::TakeWaypoint(u->dwUnitId, waypointId);
+    // second is the destination area (reference's nWaypointID).
+    lod114d::asm_thunks::TakeWaypoint(u->dwUnitId, std::to_underlying(level));
 
     // Reference JSUnit.cpp:869-870: when the in-game UI didn't pop back open
     // (e.g. because the destination is the same act and the menu state stayed
@@ -1351,7 +1377,7 @@ ClickResult Unit::EquipItem() const {
     });
 }
 
-bool Unit::UseMenu(uint32_t menuId) const {
+bool Unit::UseMenu(uint16_t menuId) const {
     const auto u = Resolve<D2UnitStrc>();
     if (!u) {
         return false;
@@ -1467,7 +1493,7 @@ bool Unit::Shop(ShopMode mode) const {
     return true;
 }
 
-bool Unit::SetSkill(uint16_t skillId, Hand hand, std::optional<uint32_t> itemId) const {
+bool Unit::SetSkill(Skill skill, Hand hand, std::optional<uint32_t> itemId) const {
     // Hold the read lock across the pSkills linked-list walk below - without
     // it the chain could be mutated by the game thread between iterations.
     GameReadLock guard;
@@ -1485,11 +1511,11 @@ bool Unit::SetSkill(uint16_t skillId, Hand hand, std::optional<uint32_t> itemId)
     // while the +to-skills entry returns the real total. Stop on the first
     // entry that yields a non-zero level.
     uint32_t skillLevel = 0;
-    for (auto* skill = player->pSkills->pFirstSkill; skill != nullptr; skill = skill->pNextSkill) {
-        if (skill->pSkillsTxt == nullptr || static_cast<uint16_t>(skill->pSkillsTxt->nSkillId) != skillId) {
+    for (auto* entry = player->pSkills->pFirstSkill; entry != nullptr; entry = entry->pNextSkill) {
+        if (entry->pSkillsTxt == nullptr || SkillOf(entry) != skill) {
             continue;
         }
-        skillLevel = lod114d::imports::d2common::SKILLS_GetSkillLevel(player, skill, true);
+        skillLevel = lod114d::imports::d2common::SKILLS_GetSkillLevel(player, entry, true);
         if (skillLevel != 0) {
             break;
         }
@@ -1504,7 +1530,7 @@ bool Unit::SetSkill(uint16_t skillId, Hand hand, std::optional<uint32_t> itemId)
     // Fire-and-forget: the V8 binding polls GetSkillId() for the confirmation.
     D2GSPacketClt3C packet{};
     packet.nHeader = 0x3CU;
-    packet.nSkill = skillId;
+    packet.nSkill = std::to_underlying(skill);
     packet.nMode = (hand == Hand::Left) ? 0x8000U : 0U;
     packet.dwFlags = itemId.value_or(D2UnitInvalidGUID);
     lod114d::imports::d2net::CLIENT_Send(sizeof(packet), 1U, reinterpret_cast<uint8_t*>(&packet));

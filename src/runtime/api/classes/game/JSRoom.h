@@ -98,7 +98,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
             });
 
         /// @description Level/area ID this room belongs to. Alias of the level property.
-        /// @type {number}
+        /// @type {LevelId}
         Property(
             isolate, inst, "area", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());
@@ -106,12 +106,12 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                     info.GetReturnValue().Set(0);
                     return;
                 }
-                info.GetReturnValue().Set(data->LevelId());
+                info.GetReturnValue().Set(std::to_underlying(data->LevelId()));
             });
 
         /// @description Level/area ID number this room belongs to (not a Level object). Alias of the area
         /// property.
-        /// @type {number}
+        /// @type {LevelId}
         Property(
             isolate, inst, "level", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());
@@ -119,11 +119,11 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                     info.GetReturnValue().Set(0);
                     return;
                 }
-                info.GetReturnValue().Set(data->LevelId());
+                info.GetReturnValue().Set(std::to_underlying(data->LevelId()));
             });
 
         /// @description Correct-tomb level number for this room (Tal Rasha's Tombs detection).
-        /// @type {number}
+        /// @type {LevelId}
         Property(
             isolate, inst, "correcttomb", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());
@@ -131,7 +131,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                     info.GetReturnValue().Set(0);
                     return;
                 }
-                info.GetReturnValue().Set(data->CorrectTomb());
+                info.GetReturnValue().Set(std::to_underlying(data->CorrectTomb()));
             });
 
         // Methods

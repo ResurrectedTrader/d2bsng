@@ -33,8 +33,8 @@ Rect Room::Bounds() const {
     return Rect::Zero;
 }
 
-uint32_t Room::CorrectTomb() const {
-    return 0;
+LevelId Room::CorrectTomb() const {
+    return game::LevelId::None;
 }
 
 std::vector<std::vector<CollisionFlag>> Room::GetCollision() const {

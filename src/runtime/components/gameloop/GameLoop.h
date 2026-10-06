@@ -33,7 +33,7 @@ struct Snapshot {
     std::optional<uint32_t> playerId;
     std::optional<uint32_t> hp;
     std::optional<uint32_t> mp;
-    uint32_t areaId = 0;
+    game::LevelId areaId = game::LevelId::None;
     bool waitForProfile = false;
     std::string profileName;
 

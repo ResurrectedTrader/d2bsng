@@ -45,13 +45,13 @@ struct LevelGrid {
     Rect rect;
 
     // Identity of the grid: which level it represents, and the map seed of
-    // the game that produced it. Both default to 0; BuildLevelGrid stamps
+    // the game that produced it. Both default to None / 0; BuildLevelGrid stamps
     // them. Together they uniquely identify a generated map - same levelId
     // across two games has different room layouts because the map seed (D2
     // randomly generates each level per game) differs. Caches (e.g.
     // FindPath's thread-local) compare both to know if a cached slab is
     // still valid for a follow-up request.
-    uint32_t levelId = 0;
+    game::LevelId levelId = game::LevelId::None;
     uint32_t mapSeed = 0;
 
     LevelGrid() = default;
@@ -121,7 +121,7 @@ struct GridWindow {
 
 struct CollisionLookup {
     LevelGrid primary;
-    std::unordered_map<uint32_t, LevelGrid> secondary;
+    std::unordered_map<game::LevelId, LevelGrid> secondary;
 
     // Spatial-locality cache: once A* exits `primary` into a secondary grid,
     // subsequent probes repeatedly hit that same grid. `Get()` keeps this up
@@ -214,7 +214,7 @@ struct CollisionLookup {
 };
 
 struct PathRequest {
-    uint32_t areaId;
+    game::LevelId areaId;
     Position start;
     Position end;
     ReductionType reduction = ReductionType::Walk;
