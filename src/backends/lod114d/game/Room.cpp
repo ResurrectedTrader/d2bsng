@@ -412,15 +412,6 @@ bool Room::Reveal(bool drawPresets) const {
     });
 }
 
-std::optional<Room> Room::Find(uint32_t level, Position pos) {
-    if (level == 0)
-        return std::nullopt;
-    Room candidate(level, pos);
-    if (!candidate)
-        return std::nullopt;
-    return candidate;
-}
-
 bool Room::operator==(const Room& other) const {
     const auto lhs = Resolve<D2DrlgRoomStrc>();
     const auto rhs = other.Resolve<D2DrlgRoomStrc>();

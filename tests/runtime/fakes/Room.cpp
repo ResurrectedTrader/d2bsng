@@ -82,8 +82,4 @@ bool Room::Reveal(bool /*drawPresets*/) const {
     return false;
 }
 
-std::optional<Room> Room::Find(uint32_t /*level*/, Position /*pos*/) {
-    return std::nullopt;
-}
-
 }  // namespace d2bs::game

@@ -100,8 +100,6 @@ class Unit {
 
     // === Item-specific ===
     std::string ItemCode() const;
-    std::string Prefix() const;
-    std::string Suffix() const;
     uint16_t PrefixNum() const;
     uint16_t SuffixNum() const;
     // Automagic affix id (D2ItemData wAutoAffix) - an inherent affix some items carry;
@@ -109,14 +107,10 @@ class Unit {
     uint16_t AutoAffixNum() const;
     uint16_t RarePrefixNum() const;
     uint16_t RareSuffixNum() const;
-    // Item prefix/suffix arrays - fixed-size 3 slots matching D2's
+    // Item prefix/suffix code arrays - fixed-size 3 slots matching D2's
     // `wMagicPrefix[3]` / `wMagicSuffix[3]` (D2MOO `ITEMS_MAX_MODS == 3`).
-    // Empty/zero entries are preserved as nullopt / 0 so JS scripts can
-    // index by slot - reference parity, JSUnit.cpp:341-394 emits sparse
-    // arrays with `JS_SetElement` only on non-zero codes.
+    // Empty slots are 0.
     static constexpr size_t MAX_AFFIX_SLOTS = 3;
-    std::array<std::optional<std::string>, MAX_AFFIX_SLOTS> Prefixes() const;
-    std::array<std::optional<std::string>, MAX_AFFIX_SLOTS> Suffixes() const;
     std::array<uint16_t, MAX_AFFIX_SLOTS> PrefixNums() const;
     std::array<uint16_t, MAX_AFFIX_SLOTS> SuffixNums() const;
     ItemQuality Quality() const;
@@ -139,6 +133,19 @@ class Unit {
     uint32_t EarLevel() const;
     std::string ItemPlayerName() const;
     uint32_t ItemCost(ItemCostMode mode, uint32_t npcClassId, Difficulty difficulty) const;
+    // Display name of a magic affix code (prefixes and suffixes share one code
+    // space) in this item's affix tables; nullopt for code 0 or a code with no
+    // name.
+    std::optional<std::string> MagicAffixName(uint16_t code) const;
+
+    // --- Framework-impl (defined in Common.cpp) ---
+    std::string Prefix() const;
+    std::string Suffix() const;
+    // Empty slots are preserved as nullopt so JS scripts can index by slot -
+    // reference parity, JSUnit.cpp:341-394 emits sparse arrays with
+    // `JS_SetElement` only on non-zero codes.
+    std::array<std::optional<std::string>, MAX_AFFIX_SLOTS> Prefixes() const;
+    std::array<std::optional<std::string>, MAX_AFFIX_SLOTS> Suffixes() const;
 
     // === Object-specific ===
     uint32_t ObjType() const;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 
@@ -23,6 +24,14 @@ constexpr uint32_t STAT_LIST_PRESET_FLAG = 0x40;
 
 // Default NPC class ID for pricing (Charsi).
 constexpr uint32_t NPC_CHARSI_CLASS_ID = 0x9A;
+
+// Object `InteractType` packs the chest-locked bit at 0x80; the low 7 bits are
+// the chest type id.
+constexpr uint8_t CHEST_LOCKED_BIT = 0x80;
+
+// Reference parity: a monster's enchants live in the first 9 bytes of its
+// unique-mod array (D2MOO nMonUmod), which is 10 bytes wide for alignment.
+constexpr size_t ENCHANT_SLOT_COUNT = 9;
 
 // Highest waypoint id accepted by the waypoint table.
 constexpr uint32_t MAX_WAYPOINT_ID = 40;
