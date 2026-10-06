@@ -2173,6 +2173,13 @@ std::vector<std::string> GetActiveFeatures() {
     return features;
 }
 
+// === Desecrated zones ===
+
+// 1.14d has no desecrated (terror) zones.
+std::vector<DesecratedZone> GetDesecratedZones() {
+    return {};
+}
+
 // === Compatibility ===
 
 std::vector<CompatibilityFlag> GetCompatibilityFlags() {

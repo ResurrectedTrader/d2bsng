@@ -2330,6 +2330,36 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             d2bs::game::MoveNPC(unitId, pos);
         });
 
+    /// @description The areas currently desecrated (terror zones), any number of them in the game's order; always
+    /// empty on 1.14d, which has none.
+    /// @signature getDesecratedZones()
+    /// @returns {Array<{area:number, waypointArea:number, monsterLevel:number, source:DesecratedZoneSource,
+    /// uniqueMod:number}>} - one entry per zone: the area, the area whose waypoint marks it, the monster level it
+    /// raises the area to, what activated it, and the zone's configured always-unique modifier (a monumod.txt id, 0 =
+    /// none).
+    function::Register(
+        isolate, global, "getDesecratedZones", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+            auto* isolate = args.GetIsolate();
+            auto context = isolate->GetCurrentContext();
+            const auto zones = game::GetDesecratedZones();
+            auto arr = v8::Array::New(isolate, static_cast<int32_t>(zones.size()));
+            uint32_t i = 0;
+            for (const auto& zone : zones) {
+                auto obj = v8::Object::New(isolate);
+                obj->Set(context, convert::ToJS(isolate, "area"), convert::ToJS(isolate, zone.area)).Check();
+                obj->Set(context, convert::ToJS(isolate, "waypointArea"), convert::ToJS(isolate, zone.waypointArea))
+                    .Check();
+                obj->Set(context, convert::ToJS(isolate, "monsterLevel"), convert::ToJS(isolate, zone.monsterLevel))
+                    .Check();
+                obj->Set(context, convert::ToJS(isolate, "source"),
+                         convert::ToJS(isolate, std::to_underlying(zone.source)))
+                    .Check();
+                obj->Set(context, convert::ToJS(isolate, "uniqueMod"), convert::ToJS(isolate, zone.uniqueMod)).Check();
+                arr->Set(context, i++, obj).Check();
+            }
+            args.GetReturnValue().Set(arr);
+        });
+
     /// @description Reveal the player's current level on the automap.
     /// @signature revealLevel(drawPresets?: boolean)
     /// @param drawPresets {boolean} - true also reveals preset units (default false)
