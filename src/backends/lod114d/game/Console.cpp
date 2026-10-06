@@ -36,6 +36,10 @@ bool IsVisible() {
     return d2bs::lod114d::console::IsVisible();
 }
 
+bool IsInGameOverlay() {
+    return false;
+}
+
 std::vector<std::unique_ptr<BackendPanel>> GetBackendPanels() {
     return {};
 }

@@ -435,6 +435,14 @@ bool GetUIFlag(UiFlag flag) {
 
 // === Text Rendering ===
 
+Size GetScreenSize() {
+    return GetViewportSize();
+}
+
+void DrawScreenText(const std::string& text, Point pos, uint32_t color, uint32_t font) {
+    DrawGameText(text, pos, color, font);
+}
+
 Size GetTextSize(const std::string& text, uint32_t font) {
     auto wide = utils::ToWStr(text, CP_UTF8);
     const auto oldSize = d2win::D2WIN_SetTextSize(font);

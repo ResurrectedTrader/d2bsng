@@ -2,6 +2,8 @@
 
 #include <imgui.h>
 
+#include <algorithm>
+#include <cfloat>
 #include <deque>
 #include <memory>
 #include <mutex>
@@ -88,6 +90,49 @@ void DrainQueue(State& state) {
     }
 }
 
+// The console is the whole of its own host window.
+void BeginHostWindow() {
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(vp->WorkPos);
+    ImGui::SetNextWindowSize(vp->WorkSize);
+    constexpr ImGuiWindowFlags WND_FLAGS = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                                           ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
+                                           ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoSavedSettings;
+    ImGui::Begin("##console_root", nullptr, WND_FLAGS);
+}
+
+// The console floats over the game, which stays visible and clickable around it.
+void BeginOverlayWindow() {
+    constexpr float DEFAULT_SIZE_FRACTION = 0.6F;
+    constexpr ImVec2 MIN_SIZE{480.0F, 240.0F};
+
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    const ImVec2 center{vp->WorkPos.x + (vp->WorkSize.x * 0.5F), vp->WorkPos.y + (vp->WorkSize.y * 0.5F)};
+    ImGui::SetNextWindowPos(center, ImGuiCond_FirstUseEver, ImVec2{0.5F, 0.5F});
+    ImGui::SetNextWindowSize(ImVec2{vp->WorkSize.x * DEFAULT_SIZE_FRACTION, vp->WorkSize.y * DEFAULT_SIZE_FRACTION},
+                             ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSizeConstraints(MIN_SIZE, ImVec2{FLT_MAX, FLT_MAX});
+    bool isOpen = true;
+    ImGui::Begin("d2bsng###console_root", &isOpen, ImGuiWindowFlags_NoSavedSettings);
+    if (!isOpen) {
+        game::console::Hide();
+    }
+
+    // The window may hang past any edge, but enough of its title bar stays inside
+    // the viewport to grab it again, also when the game window shrinks.
+    constexpr float GRAB_MARGIN = 64.0F;
+    const ImVec2 pos = ImGui::GetWindowPos();
+    const ImVec2 size = ImGui::GetWindowSize();
+    const float titleBarHeight = ImGui::GetFrameHeight();
+    const ImVec2 clamped{
+        std::max(vp->WorkPos.x + GRAB_MARGIN - size.x, std::min(pos.x, vp->WorkPos.x + vp->WorkSize.x - GRAB_MARGIN)),
+        std::max(vp->WorkPos.y, std::min(pos.y, vp->WorkPos.y + vp->WorkSize.y - titleBarHeight)),
+    };
+    if (clamped.x != pos.x || clamped.y != pos.y) {
+        ImGui::SetWindowPos(clamped);
+    }
+}
+
 }  // namespace
 
 void DrawFrame() {
@@ -109,13 +154,11 @@ void DrawFrame() {
         return;  // queue drained above; nothing to render while hidden
     }
 
-    const ImGuiViewport* vp = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(vp->WorkPos);
-    ImGui::SetNextWindowSize(vp->WorkSize);
-    constexpr ImGuiWindowFlags WND_FLAGS = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-                                           ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
-                                           ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoSavedSettings;
-    ImGui::Begin("##console_root", nullptr, WND_FLAGS);
+    if (game::console::IsInGameOverlay()) {
+        BeginOverlayWindow();
+    } else {
+        BeginHostWindow();
+    }
 
     if (ImGui::BeginTabBar("##tabs")) {
         for (const auto& panel : state.panels) {

@@ -74,6 +74,12 @@ bool GetUIFlag(UiFlag flag);
 // === Text Rendering ===
 Size GetTextSize(const std::string& text, uint32_t font);
 void DrawGameText(const std::string& text, Point pos, uint32_t color, uint32_t font);
+// The screen in its own pixels, for the framework's overlay (the version
+// banner) rather than script drawables, which a backend may scale from the
+// legacy viewport. Text drawn here is not scaled either, so GetTextSize measures
+// it. Where the game renders at the legacy size these match the functions above.
+Size GetScreenSize();
+void DrawScreenText(const std::string& text, Point pos, uint32_t color, uint32_t font);
 
 // === Drawing ===
 void DrawRectangle(Point p1, Point p2, uint32_t color, uint32_t opacity);
