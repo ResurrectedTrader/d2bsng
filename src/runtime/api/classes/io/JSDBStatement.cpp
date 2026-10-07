@@ -2,7 +2,25 @@
 #include "JSSQLite.h"
 #include "SQLiteBind.h"
 
+#include <cstring>
+
 namespace d2bs::runtime::api::classes {
+
+namespace {
+
+v8::Local<v8::ArrayBuffer> ColumnBlob(v8::Isolate* isolate, sqlite3_stmt* handle, int32_t index) {
+    // SQLite documents this order: the byte count describes the value the
+    // blob call returned.
+    const void* bytes = sqlite3_column_blob(handle, index);
+    const auto size = static_cast<size_t>(sqlite3_column_bytes(handle, index));
+    auto buffer = v8::ArrayBuffer::New(isolate, size);
+    if (bytes != nullptr && size != 0) {
+        std::memcpy(buffer->Data(), bytes, size);
+    }
+    return buffer;
+}
+
+}  // namespace
 
 void DBStatementData::Finalize() {
     if (handle && isOpen) {
@@ -67,8 +85,8 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
     // Methods
     /// @description The current row as an object keyed by column name.
     /// @signature getObject()
-    /// @returns {object|boolean|null} - Row object keyed by column name, true for a zero-column row, null if no row.
-    /// @throws {Error} - if a column holds a BLOB value (not supported yet)
+    /// @returns {object|boolean|null} - Row object keyed by column name (BLOB columns as an ArrayBuffer), true for a
+    /// zero-column row, null if no row.
     Method(
         isolate, proto, "getObject", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
@@ -118,8 +136,8 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
                         break;
                     }
                     case SQLITE_BLOB:
-                        error::ThrowError(isolate, "Blob type not supported (yet)");
-                        return;
+                        val = ColumnBlob(isolate, data->handle, i);
+                        break;
                     case SQLITE_NULL:
                     default:
                         val = v8::Null(isolate);
@@ -190,10 +208,10 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
     /// @description The value of the column at the given index in the current row.
     /// @signature getColumnValue(index: number)
     /// @param index {number} - Zero-based column index; must be in [0, columnCount).
-    /// @returns {number|string|null} - The column value by type, null for SQL NULL.
+    /// @returns {number|string|ArrayBuffer|null} - The column value by type (a BLOB as an ArrayBuffer), null for SQL
+    /// NULL.
     /// @throws {Error} - if the statement is not ready (no current row)
     /// @throws {RangeError} - if index is outside [0, columnCount)
-    /// @throws {Error} - if the column holds a BLOB value (not supported yet)
     Method(
         isolate, proto, "getColumnValue", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
@@ -234,8 +252,8 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
                     break;
                 }
                 case SQLITE_BLOB:
-                    error::ThrowError(isolate, "Blob type not supported (yet)");
-                    return;
+                    args.GetReturnValue().Set(ColumnBlob(isolate, data->handle, index));
+                    break;
                 case SQLITE_NULL:
                 default:
                     args.GetReturnValue().SetNull();
@@ -408,17 +426,20 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
         });
 
     /// @description Binds a value to a statement parameter by 1-based index or by name.
-    /// @signature bind(param: number, value: number|string|boolean|null)
+    /// @signature bind(param: number, value: number|string|boolean|ArrayBuffer|ArrayBufferView|null)
     /// @param param {number} - 1-based parameter index.
-    /// @param value {number|string|boolean|null} - Value to bind; null/undefined bind SQL NULL, integers bind INTEGER,
-    /// other numbers bind REAL, strings bind TEXT, booleans bind TEXT "true"/"false".
-    /// @signature bind(param: string, value: number|string|boolean|null)
+    /// @param value {number|string|boolean|ArrayBuffer|ArrayBufferView|null} - Value to bind; null/undefined bind SQL
+    /// NULL, integers bind INTEGER, other numbers bind REAL, strings bind TEXT, booleans bind TEXT "true"/"false",
+    /// an ArrayBuffer or typed array / DataView binds a BLOB of its bytes.
+    /// @signature bind(param: string, value: number|string|boolean|ArrayBuffer|ArrayBufferView|null)
     /// @param param {string} - Parameter name to resolve to an index (e.g. ":id").
-    /// @param value {number|string|boolean|null} - Value to bind; null/undefined bind SQL NULL, integers bind INTEGER,
-    /// other numbers bind REAL, strings bind TEXT, booleans bind TEXT "true"/"false".
+    /// @param value {number|string|boolean|ArrayBuffer|ArrayBufferView|null} - Value to bind; null/undefined bind SQL
+    /// NULL, integers bind INTEGER, other numbers bind REAL, strings bind TEXT, booleans bind TEXT "true"/"false",
+    /// an ArrayBuffer or typed array / DataView binds a BLOB of its bytes.
     /// @returns {boolean} - Always true on success.
     /// @throws {Error} - if the parameter index/name does not resolve to a parameter (indexes start at 1)
-    /// @throws {TypeError} - if value is not a bindable type (number, string, boolean, null/undefined)
+    /// @throws {TypeError} - if value is not a bindable type (number, string, boolean, ArrayBuffer, ArrayBufferView,
+    /// null/undefined)
     Method(
         isolate, proto, "bind", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();

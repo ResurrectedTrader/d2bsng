@@ -349,7 +349,6 @@ Mostly carried over from the original d2bs:
   switch).
 - **`createCharacter()` returns `false`** - the menu name-entry step is unimplemented, and the
   original never exposed a working one either.
-- **SQLite BLOB columns are unsupported** - reading one throws, the same as the original.
 
 ## Contributing
 
