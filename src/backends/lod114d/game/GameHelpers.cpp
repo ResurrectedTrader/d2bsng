@@ -431,6 +431,10 @@ static_assert(std::to_underlying(UiFlag::MercInventory) == UI_MERCINV);
 static_assert(std::to_underlying(UiFlag::RecipeScroll) == UI_RECIPESCROLL);
 
 bool GetUIFlag(UiFlag flag) {
+    // The game's UI state table ends at RecipeScroll; UI_GetVar indexes it directly.
+    if (flag > UiFlag::RecipeScroll) {
+        return false;
+    }
     return d2client::UI_GetVar(flag) != 0;
 }
 
