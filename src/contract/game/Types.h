@@ -20,12 +20,13 @@ namespace d2bs::game {
 // Click / UI
 // ============================================================================
 
+/// The mouse action clickItem performs on an item.
 enum class ClickButton : uint8_t {
     Left = 0,
     Right = 1,
     ShiftLeft = 2,
     ShiftRight = 3,
-    Mercenary = 4,
+    Mercenary = 4,  // an item the mercenary has equipped
 };
 
 // Which weapon slot a skill is bound to.
@@ -55,6 +56,7 @@ enum class ClickResult : uint8_t {
 };
 
 // Control type values from reference/d2bs/Constants.h.
+/// The kind of an out-of-game screen control, as getControl filters on it.
 enum class ControlType : uint32_t {
     Unknown = 0,
     EditBox = 1,
@@ -69,8 +71,9 @@ enum class ControlType : uint32_t {
 // Password field marker for D2WinControlStrc::dwIsCloaked.
 constexpr uint32_t CONTROL_CLOAKED_PASSWORD = 33;
 
-// A control's raw state word (1.14d's D2WinControlStrc::dwState; Control.disabled).
-// The JS `state` property is this minus Normal, so scripts see 0-3 there.
+// 1.14d's D2WinControlStrc::dwState.
+/// The raw state word of an out-of-game control, as `Control.disabled` reports it. `Control.state` reports the same
+/// value less 2.
 enum class ControlState : uint32_t {
     Hidden = 0,  // e.g. character-create OK before a class is picked
     Normal = 2,
@@ -81,6 +84,8 @@ enum class ControlState : uint32_t {
 
 // 1.14d's UI panel-state ids (getUIFlag). Values follow D2MOO's D2C_UIvars; D2R
 // renumbered its own panel table.
+/// A UI panel id for getUIFlag, which says whether that panel or screen element is currently open. The ids keep the
+/// classic 1.14d numbering on every supported game version.
 enum class UiFlag : uint32_t {
     Game = 0x00,
     Inventory = 0x01,
@@ -90,7 +95,7 @@ enum class UiFlag : uint32_t {
     ChatBox = 0x05,
     NewStats = 0x06,   // red new-stats button
     NewSkills = 0x07,  // red new-skills button
-    NpcMenu = 0x08,
+    NpcMenu = 0x08,    // an NPC's dialog options
     EscMenu = 0x09,
     Automap = 0x0A,
     Config = 0x0B,  // key configuration
@@ -100,34 +105,35 @@ enum class UiFlag : uint32_t {
     QuestScreen = 0x0F,
     IniScroll = 0x10,  // Inifuss tree scroll
     QuestLog = 0x11,   // red quest-log button
-    Unknown18 = 0x12,
+    Unknown18 = 0x12,  // meaning unknown
     HirIcons = 0x13,
     Waypoint = 0x14,
-    MiniPanel = 0x15,
+    MiniPanel = 0x15,  // the control panel's mini menu
     PartyScreen = 0x16,
-    MpTrade = 0x17,
-    MsgLog = 0x18,
+    MpTrade = 0x17,  // the trade window with another player
+    MsgLog = 0x18,   // message log
     Stash = 0x19,
     Cube = 0x1A,
     SteegStone = 0x1B,
     GuildVault = 0x1C,
-    Unknown29 = 0x1D,
-    Unknown30 = 0x1E,
-    BeltRows = 0x1F,
-    Unknown32 = 0x20,
+    Unknown29 = 0x1D,  // meaning unknown
+    Unknown30 = 0x1E,  // meaning unknown
+    BeltRows = 0x1F,   // the belt's expanded rows
+    Unknown32 = 0x20,  // meaning unknown
     HelpScreen = 0x21,
     HelpButton = 0x22,
-    HireIcons = 0x23,
+    HireIcons = 0x23,  // party icons
     MercInventory = 0x24,
-    RecipeScroll = 0x25,
+    RecipeScroll = 0x25,  // unused by the game
 };
 
 // ============================================================================
 // Party / NPC interaction
 // ============================================================================
 
+/// The action clickParty performs on another player.
 enum class PartyMode : uint32_t {
-    AllowLoot = 0,
+    AllowLoot = 0,  // hardcore only
     Unhostile = 1,
     Invite = 2,
     Leave = 3,
@@ -135,8 +141,9 @@ enum class PartyMode : uint32_t {
     HostileAlt = 5,
 };
 
-// A roster member's party button state (Party.partyflag); a single value, not a
-// bit set. Values follow D2MOO's D2C_RosterControlFlags, which D2R keeps.
+// Values follow D2MOO's D2C_RosterControlFlags, which later versions keep.
+/// Which party button the party screen shows for a player, as `Party.partyflag` reports it. A single value, not a bit
+/// set.
 enum class PartyState : uint32_t {
     Invite = 0,
     InParty = 1,
@@ -145,8 +152,8 @@ enum class PartyState : uint32_t {
     Cancel = 4,
 };
 
-// Per-pair relationship bits between two players (getPlayerFlag). Values follow
-// D2MOO's D2C_RosterInfoFlags, which D2R keeps.
+// Values follow D2MOO's D2C_RosterInfoFlags, which later versions keep.
+/// Relationship bits between you and another player, as getPlayerFlag tests them.
 /// @flags
 enum class RosterFlag : uint32_t {
     Loot = 0x01,
@@ -155,11 +162,12 @@ enum class RosterFlag : uint32_t {
     Hostile = 0x08,
 };
 
+/// What `Unit.cancel` closes. Omit the mode to let it pick from what is on screen.
 enum class CancelMode : int32_t {
-    CloseInteract = 0,
-    ClearCursor = 1,
-    CloseNPC = 2,
-    ClearScreen = 3,
+    CloseInteract = 0,  // the open interaction panel
+    ClearCursor = 1,    // drops the item held on the cursor
+    CloseNPC = 2,       // the NPC interaction
+    ClearScreen = 3,    // open panels and scrolling dialog text
 };
 
 // ============================================================================
@@ -168,40 +176,43 @@ enum class CancelMode : int32_t {
 
 // Gold dialog action codes, as the game's gold dialog and the reference `gold()`
 // define them (reference commandRef: 1 drop, 2 inventory to trade, 3 inventory to
-// stash, 4 stash to inventory). Deposit / Withdraw need the stash panel open.
+// stash, 4 stash to inventory).
+/// What gold() does with the amount it is given. Deposit and Withdraw need the stash open.
 enum class GoldActionMode : int32_t {
     Drop = 1,
-    Trade = 2,
-    Deposit = 3,
-    Withdraw = 4,
+    Trade = 2,     // inventory to the trade window
+    Deposit = 3,   // inventory to stash
+    Withdraw = 4,  // stash to inventory
 };
 
+/// Which value getTradeInfo reads about the most recent trade.
 enum class TradeInfoMode : uint32_t {
     RecentTradeId = 0,
-    RecentTradeName = 1,
-    RecentTradeId2 = 2,
+    RecentTradeName = 1,  // the other player's name, or null
+    RecentTradeId2 = 2,   // same as RecentTradeId
 };
 
-// Query modes for the acceptTrade() JS function's optional mode parameter.
-// When mode is provided, the function returns trade state info instead of accepting.
+/// The trade state acceptTrade(mode) returns instead of accepting the trade.
 enum class AcceptTradeQueryMode : uint32_t {
-    IsAccepted = 1,
-    RecentTradeId = 2,
-    IsBlocked = 3,
+    IsAccepted = 1,     // whether the trade is accepted
+    RecentTradeId = 2,  // the getTradeInfo(RecentTradeId) value
+    IsBlocked = 3,      // whether accepting is currently blocked
 };
 
-// What activated a desecrated (terror) zone.
+/// What activated a desecrated (terror) zone, as getDesecratedZones reports it in `source`.
 enum class DesecratedZoneSource : uint8_t {
     Rotation = 1,         // the seeded timed rotation
     WorldstoneShard = 2,  // a player used a Worldstone Shard
 };
 
+/// What `Unit.shop` does with an item at an open NPC shop.
 enum class ShopMode : int32_t {
     Sell = 1,
     Buy = 2,
-    BuyFill = 6,
+    BuyFill = 6,  // shift-buy: as many as fit (fills a stack, or the belt with potions)
 };
 
+/// Which price `Unit.getItemCost` returns for an item.
 enum class ItemCostMode : int32_t {
     Buy = 0,
     Sell = 1,
@@ -212,6 +223,7 @@ enum class ItemCostMode : int32_t {
 // Character / game state
 // ============================================================================
 
+/// A character class, as `Party.classid` reports it and createCharacter takes it.
 enum class CharacterClass : uint32_t {
     Amazon = 0,
     Sorceress = 1,
@@ -220,14 +232,15 @@ enum class CharacterClass : uint32_t {
     Barbarian = 4,
     Druid = 5,
     Assassin = 6,
-    Warlock = 7,  // D2R 3.0 (Reign of the Warlock) only
+    Warlock = 7,  // Reign of the Warlock only; not on 1.14d
 };
 
+/// A game difficulty, as `me.diff` reports it and createGame, getItemCost and profiles take it.
 enum class Difficulty : uint32_t {
     Normal = 0,
     Nightmare = 1,
     Hell = 2,
-    HighestAvailable = 3,
+    HighestAvailable = 3,  // the highest the character can play; only when picking a difficulty
 };
 
 enum class GameState : uint32_t {
@@ -278,6 +291,8 @@ struct LoginResult {
 
 // Stat ids: the rows of itemstatcost.txt. Later versions keep every 1.14d id and only append
 // or fill slots 1.14d left unused; names follow the latest rows.
+/// A stat id: a row of itemstatcost.txt, as getStat, getStatLists and useStatPoint use it. Ids from 359 up are not in
+/// 1.14d.
 enum class Stat : uint32_t {
     Strength = 0,
     Energy = 1,
@@ -658,9 +673,11 @@ constexpr bool IsFixedPointStat(Stat stat) {
 
 // A stat list's kind bits (D2StatListStrc::dwFlags): what the list holds and how it
 // lives - base stats, an item's magic mods, a set tier, a timed buff, the extended layout.
+/// The kind bits of a stat list, as `Unit.getStatLists` reports them in `flags`: what the list holds (base stats, an
+/// item's magic mods, a set bonus, a timed buff or curse) and how long it lives.
 /// @flags
 enum class StatListFlags : uint32_t {
-    Base = 0x0,
+    Base = 0x0,  // no kind bit set: compare with ==, not as a bit
     Basic = 0x1,
     NewLength = 0x2,
     TempOnly = 0x4,
@@ -668,7 +685,7 @@ enum class StatListFlags : uint32_t {
     Curse = 0x20,
     Magic = 0x40,
     Overlay = 0x80,
-    Unk0x100 = 0x100,
+    Unk0x100 = 0x100,  // meaning unknown
     Toggle = 0x200,
     Convert = 0x800,
     Set = 0x2000,
@@ -679,6 +696,7 @@ enum class StatListFlags : uint32_t {
 };
 
 // State ids: the rows of states.txt, with the same id stability as Stat.
+/// A state id: a row of states.txt, as `Unit.getState` takes it. Ids from 185 up are not in 1.14d.
 enum class State : uint32_t {
     None = 0,
     Freeze = 1,
@@ -915,6 +933,8 @@ enum class State : uint32_t {
 
 // Skill ids: the rows of skills.txt, with the same id stability as Stat. 16 bits
 // wide, the width the game stores and sends a skill id in.
+/// A skill id: a row of skills.txt, as getSkill, setSkill, getSkillById, getSkillByName and useSkillPoint use it. Ids
+/// from 357 up are not in 1.14d.
 enum class Skill : uint16_t {
     Attack = 0,
     Kick = 1,
@@ -1354,13 +1374,14 @@ enum class Skill : uint16_t {
 // Unit / item
 // ============================================================================
 
+/// A unit's type, as `Unit.type` reports it and getUnit, getPresetUnit and getPresetUnits filter on it.
 enum class UnitType : uint32_t {
     Player = 0,
     Monster = 1,
     Object = 2,
     Missile = 3,
     Item = 4,
-    Tile = 5,
+    Tile = 5,  // a level warp: stairs, a cave entrance or another level transition
 };
 
 // Unit kind values match the reference bitmask relationship:
@@ -1372,53 +1393,56 @@ enum class UnitKind : uint32_t {
     InventoryItem = 3,  // Inventory item from getItem() - has owner info
 };
 
+/// Which part of its owner's inventory an item sits in, as `Unit.node` reports it.
 enum class NodePage : uint8_t {
-    Storage = 1,
+    Storage = 1,  // inventory, cube or stash
     Belt = 2,
     Equipped = 3,
 };
 
+/// Where an item is, as `Unit.location` reports it and clickItem takes it. A unit search's mode filter matches it as
+/// 100 + the location.
 enum class ItemLocation : uint8_t {
     Ground = 0,
-    Equip = 1,
+    Equip = 1,  // worn
     Belt = 2,
     Inventory = 3,
-    Store = 4,
-    Trade = 5,
+    Store = 4,  // an NPC's shop
+    Trade = 5,  // the trade window
     Cube = 6,
     Stash = 7,
-    Null = 255,
+    Null = 255,  // no location (not an item)
 };
 
 // Offset for encoding ItemLocation in unit mode filter parameter.
 // Scripts use mode = 100 + ItemLocation to filter items by location.
 constexpr uint32_t ITEM_LOCATION_MODE_OFFSET = 100;
 
-// Which stash a tab belongs to. Vanilla LoD has a single personal tab; paged
-// stashes (mods, D2R) add more, including account-wide shared tabs.
+/// Which stash a tab belongs to, as `StashTab.kind` reports it. Plain 1.14d has a single personal tab; paged stashes
+/// (such as PlugY's) add more, including shared tabs.
 enum class StashTabKind : uint8_t {
     Personal = 0,
-    Shared = 1,
+    Shared = 1,  // shared by all characters
 };
 
-// What a stash tab holds. LoD tabs are all Normal; D2R adds tabs with stackable
-// item support.
+/// What a stash tab holds, as `StashTab.type` reports it. Every 1.14d tab is Normal.
 enum class StashTabType : uint8_t {
     Normal = 0,
-    AdvancedStash = 1,
+    AdvancedStash = 1,  // holds stackable items; not on 1.14d
     /// @internal A Chronicle panel, which tracks found set / unique / runeword
     /// items as a list on the player and holds no items; no tab ever reports it.
     Chronicle = 2,
 };
 
-// Where StashTab::Withdraw puts what it takes off an advanced stash tab.
+/// Where `StashTab.withdraw` puts what it takes off an advanced stash tab.
 enum class StashWithdrawTarget : uint8_t {
-    Cursor = 0,
+    Cursor = 0,  // takes a single item
     Inventory = 1,
     Cube = 2,
     Belt = 3,
 };
 
+/// An item's quality, as `Unit.quality` reports it.
 enum class ItemQuality : uint32_t {
     Inferior = 1,
     Normal = 2,
@@ -1428,36 +1452,38 @@ enum class ItemQuality : uint32_t {
     Rare = 6,
     Unique = 7,
     Crafted = 8,
-    Tempered = 9,
+    Tempered = 9,  // not on 1.14d
 };
 
+/// An equipment slot, as `Unit.bodylocation` reports it and clickItem takes it.
 enum class BodyLocation : uint8_t {
     None = 0,
     Head = 1,
     Amulet = 2,
     Body = 3,
-    RightPrimary = 4,
-    LeftPrimary = 5,
+    RightPrimary = 4,  // right hand, weapon set I
+    LeftPrimary = 5,   // left hand, weapon set I
     RightRing = 6,
     LeftRing = 7,
     Belt = 8,
     Feet = 9,
     Gloves = 10,
-    RightSecondary = 11,
-    LeftSecondary = 12,
+    RightSecondary = 11,  // right hand, weapon set II
+    LeftSecondary = 12,   // left hand, weapon set II
 };
 
-// Monster special-type bitflags (Unit.spectype).
+/// A monster's special-type bits, as `Unit.spectype` reports them.
 /// @flags
 enum class MonsterSpecType : uint32_t {
     SuperUnique = 0x01,
     Champion = 0x02,
     Unique = 0x04,  // unique / boss
-    Minion = 0x08,
+    Minion = 0x08,  // a minion of a unique or super unique monster
 };
 
-// Collision-grid cell bits (Room collision, getCollision, checkCollision masks).
 // Values and names follow D2MOO's D2C_CollisionMaskFlags; D2R keeps the same bits.
+/// The collision bits of a map cell, as getCollision and `Room.getCollision` report them and checkCollision takes them
+/// as a mask. The Mask* values are the game's own combinations for common movement and placement tests.
 /// @flags
 enum class CollisionFlag : uint16_t {
     None = 0x0000,
@@ -1494,8 +1520,8 @@ enum class CollisionFlag : uint16_t {
     MaskPlacement = MaskSpawn | Preset | Monster,
 };
 
-// Item unit flag bits (Unit.getFlags / getFlag). Values follow D2MOO's D2C_ItemFlags;
-// D2R keeps them and adds the Chronicle bits.
+// Values follow D2MOO's D2C_ItemFlags; later versions keep them and add the Chronicle bits.
+/// An item's flag bits, as `Unit.getFlags` reports them and `Unit.getFlag` tests them.
 /// @flags
 enum class ItemFlag : uint32_t {
     NewItem = 0x00000001,
@@ -1527,8 +1553,8 @@ enum class ItemFlag : uint32_t {
     Item = 0x08000000,
     // D2R only: the item carries a Chronicle drop record after its stat lists,
     // the full form (drop time and up to 8 account ids) or the short one (one id).
-    ChronicleRecord = 0x10000000,
-    ChronicleRecordShort = 0x20000000,
+    ChronicleRecord = 0x10000000,       // not on 1.14d
+    ChronicleRecordShort = 0x20000000,  // not on 1.14d
 };
 
 // The game's 0-based act index (the JS `act` property is 1-based).
@@ -1540,8 +1566,8 @@ enum class Act : uint8_t {
     V = 4,
 };
 
-// Area (level) number: the row of levels.txt, as the game and scripts number it.
-// 137-141 are not in 1.14d's levels.txt.
+/// An area (level) id: a row of levels.txt, as `Area.id`, `Unit.area`, `Room.level`, `Exit.target` and getArea /
+/// getPath / getRoom use it. 137-141 are not in 1.14d.
 enum class LevelId : uint32_t {
     None = 0,
     RogueEncampment = 1,
@@ -1690,8 +1716,9 @@ enum class LevelId : uint32_t {
 // Unit.mode, by unit type: player (PlayerMode), monster (MonsterMode), object
 // (ObjectMode) and item (ItemMode) animation modes. Values follow D2MOO's
 // D2C_PlayerModes / D2C_MonModes / D2C_ObjModes / D2C_ItemModes; D2R keeps them.
+/// A player's animation mode, as `Unit.mode` reports it for a player.
 enum class PlayerMode : uint32_t {
-    Death = 0,
+    Death = 0,  // dying
     Neutral = 1,
     Walk = 2,
     Run = 3,
@@ -1708,13 +1735,14 @@ enum class PlayerMode : uint32_t {
     Skill2 = 14,
     Skill3 = 15,
     Skill4 = 16,
-    Dead = 17,
-    Sequence = 18,
+    Dead = 17,      // dead: the death animation has finished
+    Sequence = 18,  // a scripted animation sequence some skills play
     Knockback = 19,
 };
 
+/// A monster's animation mode, as `Unit.mode` reports it for a monster.
 enum class MonsterMode : uint32_t {
-    Death = 0,
+    Death = 0,  // dying
     Neutral = 1,
     Walk = 2,
     GetHit = 3,
@@ -1726,35 +1754,37 @@ enum class MonsterMode : uint32_t {
     Skill2 = 9,
     Skill3 = 10,
     Skill4 = 11,
-    Dead = 12,
+    Dead = 12,  // dead: the death animation has finished
     Knockback = 13,
-    Sequence = 14,
+    Sequence = 14,  // a scripted animation sequence some skills play
     Run = 15,
 };
 
+/// An object's mode, as `Unit.mode` reports it for an object (a chest, door, shrine, waypoint ...).
 enum class ObjectMode : uint32_t {
     Neutral = 0,
-    Operating = 1,
-    Opened = 2,
-    Special1 = 3,
+    Operating = 1,  // being operated (e.g. a chest opening)
+    Opened = 2,     // operated: an opened chest or door, a used shrine
+    Special1 = 3,   // Special1 - Special5 are object-specific
     Special2 = 4,
     Special3 = 5,
     Special4 = 6,
     Special5 = 7,
 };
 
+/// An item's mode, as `Unit.mode` reports it for an item: where the item is and what it is doing.
 enum class ItemMode : uint32_t {
     Stored = 0,  // inventory, cube or stash
     Equip = 1,
     InBelt = 2,
     OnGround = 3,
     OnCursor = 4,
-    Dropping = 5,
-    Socketed = 6,
+    Dropping = 5,  // falling to the ground
+    Socketed = 6,  // inserted in another item's socket
 };
 
-// Extended unit flag bits (Unit.flagsex). Values follow D2MOO's D2C_UnitFlagsEx;
-// later versions keep them and add AnimEndOfCycle.
+// Values follow D2MOO's D2C_UnitFlagsEx; later versions keep them and add AnimEndOfCycle.
+/// A unit's extended flag bits, as `Unit.flagsex` reports them.
 /// @flags
 enum class UnitFlagEx : uint32_t {
     HasInventory = 0x00000001,
@@ -1775,7 +1805,7 @@ enum class UnitFlagEx : uint32_t {
     // Not in 1.14d: the current animation reached the end of its frame cycle, cached
     // by the frame advance (1.14d computes UNITS_IsAtEndOfFrameCycle on demand)
     // and cleared on every mode change.
-    AnimEndOfCycle = 0x08000000,
+    AnimEndOfCycle = 0x08000000,  // the animation reached the end of its cycle; not on 1.14d
 };
 
 // A quest's index in the quest record (getQuest's quest). Values follow D2MOO's
@@ -1783,6 +1813,7 @@ enum class UnitFlagEx : uint32_t {
 // qstsa<act>q<n> strings), and the game's flag names where the log has none.
 // 32 bits wide because the games read the whole register: the record lookup
 // computes quest * 16 + flag.
+/// A quest's index in the quest record, as `Unit.getQuest` takes it. Names follow the quest log.
 enum class Quest : uint32_t {
     Act1Prologue = 0,
     DenOfEvil = 1,
@@ -1813,27 +1844,28 @@ enum class Quest : uint32_t {
     TerrorsEnd = 26,
     HellsForge = 27,
     Act4Completed = 28,
-    Act1Navi = 29,          // QUESTSTATEFLAG_A1Q7, no quest-log entry
-    Act2GuardGossip1 = 30,  // QUESTSTATEFLAG_A2Q7, unused by the game
-    Act2GuardGossip2 = 31,  // QUESTSTATEFLAG_A2Q8, unused by the game
-    DarkWanderer = 32,      // QUESTSTATEFLAG_A3Q7, no quest-log entry
-    Malachai = 33,          // QUESTSTATEFLAG_A4Q4, no quest-log entry
+    Act1Navi = 29,          // no quest-log entry
+    Act2GuardGossip1 = 30,  // unused by the game
+    Act2GuardGossip2 = 31,  // unused by the game
+    DarkWanderer = 32,      // no quest-log entry
+    Malachai = 33,          // no quest-log entry
     SiegeOnHarrogath = 35,
     RescueOnMountArreat = 36,
     PrisonOfIce = 37,
     BetrayalOfHarrogath = 38,
     RiteOfPassage = 39,
     EveOfDestruction = 40,
-    // The game's shared act-intro slot (QUESTSTATEFLAG_A*INTRO); scripts read
-    // Akara's free skill / stat reset from it.
-    Respec = 41,
+    // The game's shared act-intro slot (QUESTSTATEFLAG_A*INTRO).
+    Respec = 41,  // Akara's free skill and stat reset
 };
 
 // A quest record's per-quest bit index (getQuest's flag). Values follow D2MOO's
 // D2C_OriginalQuestFlags; D2R keeps them.
+/// A bit of one quest's record, as `Unit.getQuest` takes it in `flag`. Custom1 - Custom7 mean something different for
+/// each quest.
 enum class QuestFlag : uint32_t {
-    RewardGranted = 0,
-    RewardPending = 1,
+    RewardGranted = 0,  // done, and the reward collected
+    RewardPending = 1,  // done, the reward not collected yet
     Started = 2,
     LeaveTown = 3,
     EnterArea = 4,
@@ -1846,35 +1878,39 @@ enum class QuestFlag : uint32_t {
     Custom7 = 11,
     UpdateQuestLog = 12,
     PrimaryGoalDone = 13,
-    CompletedNow = 14,
-    CompletedBefore = 15,
+    CompletedNow = 14,     // completed in this game
+    CompletedBefore = 15,  // completed in an earlier game
 };
 
 // Value-space enums for JS API number properties. The game getters return the
 // raw underlying integer; these document the meaning of each value and back the
 // option-set tables in the API docs.
+/// The game type of the current game, as `me.gametype` reports it and createCharacter takes it.
 enum class GameType : uint32_t {
     Classic = 0,
-    Expansion = 1,
-    RotW = 2,  // Reign of the Warlock
+    Expansion = 1,  // Lord of Destruction
+    RotW = 2,       // Reign of the Warlock; not on 1.14d
 };
 
+/// The game's screen resolution mode, as `me.screensize` reports it.
 enum class ScreenSize : uint32_t {
     Res640x480 = 0,
     Res800x600 = 1,
 };
 
+/// A weapon set, as `me.weaponswitch` reports the active one.
 enum class WeaponSet : uint32_t {
     Primary = 0,    // slot I
     Secondary = 1,  // slot II / swap
 };
 
+/// Whether the player walks or runs, as `me.runwalk` reports it; assign it to switch.
 enum class MoveMode : uint32_t {
     Walk = 0,
     Run = 1,
 };
 
-// The game client's text language (D2MOO's D2C_Language).
+/// The game client's text language, as `me.locale` reports it.
 enum class Language : uint32_t {
     English = 0,
     Spanish = 1,
