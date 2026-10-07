@@ -1563,6 +1563,16 @@ std::string EnumName(StashTabType value) {
     return utils::NameEnumValue("StashTabType", ENTRIES, std::to_underlying(value));
 }
 
+std::string EnumName(StashWithdrawTarget value) {
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(StashWithdrawTarget::Cursor), .name = "Cursor"},
+        {.bits = utils::EnumBits(StashWithdrawTarget::Inventory), .name = "Inventory"},
+        {.bits = utils::EnumBits(StashWithdrawTarget::Cube), .name = "Cube"},
+        {.bits = utils::EnumBits(StashWithdrawTarget::Belt), .name = "Belt"},
+    });
+    return utils::NameEnumValue("StashWithdrawTarget", ENTRIES, std::to_underlying(value));
+}
+
 std::string EnumName(ItemQuality value) {
     static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
         {.bits = utils::EnumBits(ItemQuality::Inferior), .name = "Inferior"},
@@ -2192,6 +2202,10 @@ std::string format_as(StashTabKind value) {
 }
 
 std::string format_as(StashTabType value) {
+    return EnumName(value);
+}
+
+std::string format_as(StashWithdrawTarget value) {
     return EnumName(value);
 }
 

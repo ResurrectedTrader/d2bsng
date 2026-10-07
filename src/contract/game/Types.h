@@ -1401,12 +1401,21 @@ enum class StashTabKind : uint8_t {
 };
 
 // What a stash tab holds. LoD tabs are all Normal; D2R adds tabs with stackable
-// item support and the Chronicle tab that tracks found set / unique / runeword
-// items instead of holding items.
+// item support.
 enum class StashTabType : uint8_t {
     Normal = 0,
     AdvancedStash = 1,
+    /// @internal A Chronicle panel, which tracks found set / unique / runeword
+    /// items as a list on the player and holds no items; no tab ever reports it.
     Chronicle = 2,
+};
+
+// Where StashTab::Withdraw puts what it takes off an advanced stash tab.
+enum class StashWithdrawTarget : uint8_t {
+    Cursor = 0,
+    Inventory = 1,
+    Cube = 2,
+    Belt = 3,
 };
 
 enum class ItemQuality : uint32_t {

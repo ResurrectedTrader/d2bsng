@@ -246,7 +246,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             info.GetReturnValue().Set(data->CharLevel());
         });
 
-    /// @description Number of items the unit owns/carries in its inventory list.
+    /// @description Number of items the unit owns/carries in its inventory list. An item on an advanced stash tab
+    /// reports its stack size instead.
     /// @type {number}
     Property(
         isolate, inst, "itemcount", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {

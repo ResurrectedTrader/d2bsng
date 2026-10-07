@@ -59,7 +59,7 @@ void RegisterConstants(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> globa
     /// @type {object}
     global->Set(isolate, "StashTabKind", stashTabKind, readOnly);
 
-    // StashTabType object (StashTabType.normal, StashTabType.advancedStash, StashTabType.chronicle)
+    // StashTabType object (StashTabType.normal, StashTabType.advancedStash)
     auto stashTabType = v8::ObjectTemplate::New(isolate);
     /// @description A plain item tab; every LoD tab. Value 0.
     /// @type {number}
@@ -69,14 +69,32 @@ void RegisterConstants(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> globa
     /// @type {number}
     stashTabType->Set(isolate, "advancedStash",
                       convert::ToJS(isolate, static_cast<int32_t>(game::StashTabType::AdvancedStash)), readOnly);
-    /// @description The Chronicle tab (D2R), which tracks found set / unique / runeword items and holds no items.
-    /// Value 2.
-    /// @type {number}
-    stashTabType->Set(isolate, "chronicle", convert::ToJS(isolate, static_cast<int32_t>(game::StashTabType::Chronicle)),
-                      readOnly);
     /// @description Namespace of stash-tab type constants; the `type` of a StashTab.
     /// @type {object}
     global->Set(isolate, "StashTabType", stashTabType, readOnly);
+
+    // StashWithdrawTarget object (StashWithdrawTarget.cursor, .inventory, .cube, .belt)
+    auto stashWithdrawTarget = v8::ObjectTemplate::New(isolate);
+    /// @description Onto the cursor, as a click on the stack does. Value 0.
+    /// @type {number}
+    stashWithdrawTarget->Set(isolate, "cursor",
+                             convert::ToJS(isolate, static_cast<int32_t>(game::StashWithdrawTarget::Cursor)), readOnly);
+    /// @description Into the inventory. Value 1.
+    /// @type {number}
+    stashWithdrawTarget->Set(isolate, "inventory",
+                             convert::ToJS(isolate, static_cast<int32_t>(game::StashWithdrawTarget::Inventory)),
+                             readOnly);
+    /// @description Into the Horadric Cube. Value 2.
+    /// @type {number}
+    stashWithdrawTarget->Set(isolate, "cube",
+                             convert::ToJS(isolate, static_cast<int32_t>(game::StashWithdrawTarget::Cube)), readOnly);
+    /// @description Into the belt, for items that go there. Value 3.
+    /// @type {number}
+    stashWithdrawTarget->Set(isolate, "belt",
+                             convert::ToJS(isolate, static_cast<int32_t>(game::StashWithdrawTarget::Belt)), readOnly);
+    /// @description Namespace of withdraw-target constants for StashTab.withdraw.
+    /// @type {object}
+    global->Set(isolate, "StashWithdrawTarget", stashWithdrawTarget, readOnly);
 }
 
 }  // namespace d2bs::runtime::api::globals
