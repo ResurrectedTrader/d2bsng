@@ -8,8 +8,8 @@ LoginResult Login(const config::ProfileData& /*profile*/) {
 bool SelectCharacter(const std::string& /*charName*/) {
     return false;
 }
-bool CreateCharacter(const std::string& /*name*/, CharacterClass /*charClass*/, bool /*isHardcore*/,
-                     bool /*isLadder*/) {
+bool CreateCharacter(const std::string& /*name*/, CharacterClass /*charClass*/, bool /*isHardcore*/, bool /*isLadder*/,
+                     GameType /*gameType*/) {
     return false;
 }
 bool CreateGame(const std::string& /*name*/, const std::string& /*password*/, Difficulty /*difficulty*/) {

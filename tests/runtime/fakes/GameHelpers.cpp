@@ -51,14 +51,14 @@ void SetNoPickUp(bool /*value*/) {}
 uint32_t GetWeaponSwitch() {
     return 0;
 }
-uint32_t GetGameType() {
-    return 0;
+GameType GetGameType() {
+    return GameType::Classic;
 }
 uint32_t GetMercReviveCost() {
     return 0;
 }
-uint32_t GetLocale() {
-    return 0;
+Language GetLocale() {
+    return Language::English;
 }
 
 // === BnetData Queries ===
@@ -181,7 +181,7 @@ bool TestPvpFlag(const Unit& /*a*/, const Unit& /*b*/, RosterFlag /*flag*/) {
 bool HasWaypoint(uint32_t /*waypointId*/) {
     return false;
 }
-bool IsTownByLevelNo(uint32_t levelNo) {
+bool IsTownByLevelNo(LevelId levelNo) {
     auto& s = test::State();
     return s.isTown && levelNo == s.areaId;
 }
@@ -197,8 +197,8 @@ bool GetQuestFlag(uint32_t /*quest*/, QuestFlag /*flag*/) {
 
 // === Weapon / Stat / Skill Actions ===
 void SwapWeapon() {}
-void UseStatPoint(uint32_t /*stat*/, uint32_t /*count*/) {}
-void UseSkillPoint(uint32_t /*skill*/, uint32_t /*count*/) {}
+void UseStatPoint(Stat /*stat*/, uint32_t /*count*/) {}
+void UseSkillPoint(Skill /*skill*/, uint32_t /*count*/) {}
 void TakeScreenshot() {}
 
 // === Item Actions ===
@@ -227,7 +227,7 @@ void* GetHwnd() {
 }
 void GoldAction(GoldActionMode /*mode*/, int32_t /*amount*/) {}
 void MoveNPC(uint32_t /*npcId*/, Position /*pos*/) {}
-bool RevealLevel(uint32_t /*levelNo*/, bool /*drawPresets*/) {
+bool RevealLevel(LevelId /*levelNo*/, bool /*drawPresets*/) {
     return false;
 }
 

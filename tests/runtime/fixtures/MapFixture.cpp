@@ -29,7 +29,7 @@ namespace {
 // but every valid value is non-negative, so the bit pattern is identical to
 // uint32 and reads correctly into the unsigned aggregates.
 struct D2ColHeader {
-    uint32_t levelId;
+    game::LevelId levelId;
     game::Rect rect;
 };
 

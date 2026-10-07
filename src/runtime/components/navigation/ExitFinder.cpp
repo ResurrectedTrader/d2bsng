@@ -45,6 +45,7 @@
 namespace d2bs::runtime::navigation {
 
 using game::GameReadLock;
+using game::LevelId;
 using game::Point;
 using game::Position;
 using game::Rect;
@@ -115,7 +116,7 @@ namespace {
     return std::ranges::any_of(exits, [&pos](const ExitInfo& e) { return e.pos == pos; });
 }
 
-[[nodiscard]] bool HasExitToLevel(const std::vector<ExitInfo>& exits, uint32_t target) {
+[[nodiscard]] bool HasExitToLevel(const std::vector<ExitInfo>& exits, LevelId target) {
     return std::ranges::any_of(exits, [target](const ExitInfo& e) { return e.target == target; });
 }
 
@@ -126,7 +127,7 @@ std::vector<ExitInfo> GetExits(game::Level level) {
         return {};
     }
     GameReadLock guard;
-    const uint32_t levelId = level.Id();
+    const LevelId levelId = level.Id();
     std::vector<ExitInfo> exits;
 
     // -----------------------------------------------------------------
@@ -135,7 +136,7 @@ std::vector<ExitInfo> GetExits(game::Level level) {
     // -----------------------------------------------------------------
     for (auto room = level.GetFirstRoom(); room; room = room.GetNext()) {
         for (const auto& preset : room.GetPresetUnits(UnitType::Tile)) {
-            if (preset.tileTargetLevelId == 0) {
+            if (preset.tileTargetLevelId == LevelId::None) {
                 continue;
             }
             const auto roomOrigin = room.Bounds().origin;
@@ -172,7 +173,7 @@ std::vector<ExitInfo> GetExits(game::Level level) {
         Position pos;
         int64_t centreDistSq;
     };
-    std::multimap<uint32_t, RunCandidate> candidates;
+    std::multimap<LevelId, RunCandidate> candidates;
 
     for (auto room = level.GetFirstRoom(); room; room = room.GetNext()) {
         const Rect a = room.Bounds();
@@ -182,7 +183,7 @@ std::vector<ExitInfo> GetExits(game::Level level) {
         const int32_t aMaxY = aMinY + static_cast<int32_t>(a.size.height);
 
         for (auto neighbour : room.GetNearby()) {
-            const uint32_t neighbourLevel = neighbour.LevelId();
+            const LevelId neighbourLevel = neighbour.LevelId();
             if (neighbourLevel == levelId) {
                 continue;
             }
@@ -300,7 +301,7 @@ std::vector<ExitInfo> GetExits(game::Level level) {
     // Pick the best (smallest centre-distance) run for each destination
     // level and emit as the linkage exit.
     for (auto it = candidates.begin(); it != candidates.end();) {
-        const uint32_t target = it->first;
+        const LevelId target = it->first;
         auto upper = candidates.upper_bound(target);
         const RunCandidate* best = &it->second;
         for (auto cur = std::next(it); cur != upper; ++cur) {

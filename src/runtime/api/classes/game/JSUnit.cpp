@@ -159,14 +159,14 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
         });
 
     /// @description Area/level ID the unit is currently in.
-    /// @type {number}
+    /// @type {LevelId}
     Property(
         isolate, inst, "area", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
             if (!*data) {
                 return;
             }
-            info.GetReturnValue().Set(data->Area());
+            info.GetReturnValue().Set(std::to_underlying(data->Area()));
         });
 
     /// @description Current hit points of the unit (whole-number HP, fixed-point shift already applied).
@@ -317,7 +317,11 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             if (!*data) {
                 return;
             }
-            info.GetReturnValue().Set(static_cast<int32_t>(data->SuperUniqueId().value_or(-1)));
+            if (const auto id = data->SuperUniqueId()) {
+                info.GetReturnValue().Set(*id);
+            } else {
+                info.GetReturnValue().Set(-1);
+            }
         });
 
     /// @description Three/four-character item code (e.g. "rvl", "gcv"); Item units only, "Unknown" if unresolvable.
@@ -368,7 +372,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
-            info.GetReturnValue().Set(static_cast<uint32_t>(data->PrefixNum()));
+            info.GetReturnValue().Set(data->PrefixNum());
         });
 
     /// @description Numeric ID of the item's primary magic suffix (Item units only; 0 if none).
@@ -379,7 +383,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             if (!*data || data->Type() != UnitType::Item) {
                 return;
             }
-            info.GetReturnValue().Set(static_cast<uint32_t>(data->SuffixNum()));
+            info.GetReturnValue().Set(data->SuffixNum());
         });
 
     /// @description Numeric ID of the item's rare prefix, 1-based into the concatenated
@@ -731,7 +735,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             // Only return a value for the player unit (matches reference: pUnit == GetPlayerUnit)
             auto player = game::Unit::Player();
             if (player && *data == player) {
-                info.GetReturnValue().Set(data->RunWalk());
+                info.GetReturnValue().Set(std::to_underlying(data->RunWalk()));
             }
         });
 
@@ -839,9 +843,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     // Reference: unit_cancel does NOT check unit validity - cancel is a global action
     /// @description Closes the current interaction / clears the cursor (a global UI action; the unit it is called on is
     /// ignored).
-    /// @signature cancel(mode?: number)
-    /// @param mode {number} - Optional CancelMode (0=close interact, 1=clear cursor, 2=close NPC, 3=clear screen);
-    /// auto-detected when omitted.
+    /// @signature cancel(mode?: CancelMode)
+    /// @param mode {CancelMode} - Optional; auto-detected when omitted.
     /// @returns {boolean} - True once the cancel was issued; false if the game was not ready.
     Method(
         isolate, proto, "cancel", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -894,7 +897,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 unit = *data;
             }
             auto* isolate = args.GetIsolate();
-            uint32_t menuId = convert::To<uint32_t>(isolate, args[0]);
+            const auto menuId = convert::To<uint16_t>(isolate, args[0]);
             args.GetReturnValue().Set(unit.UseMenu(menuId));
         });
 
@@ -904,9 +907,9 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @description Interacts with the unit (talk to NPC, open object, pick up/move item, move toward monster, etc.)
     /// using the packet appropriate for the unit type and item location.
     /// @signature interact()
-    /// @signature interact(waypointId: number)
-    /// @param waypointId {number} - Optional uint32 waypoint id; honored only when the unit is an Object and exactly
-    /// one numeric arg is passed (takes that waypoint instead of a plain interact).
+    /// @signature interact(waypointId: LevelId)
+    /// @param waypointId {LevelId} - Optional destination area of the waypoint; honored only when the unit is an Object
+    /// and exactly one numeric arg is passed (takes that waypoint instead of a plain interact).
     /// @returns {boolean} - True if the interact/waypoint action succeeded; false if the game was not ready, the unit
     /// is the player, or the action failed.
     Method(
@@ -933,8 +936,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             // Reference line 854: waypoint path requires UNIT_OBJECT and exactly 1 argument
             if (unit.Type() == UnitType::Object && args.Length() == 1 && args[0]->IsNumber()) {
                 auto* isolate = args.GetIsolate();
-                uint32_t waypointId = convert::To<uint32_t>(isolate, args[0]);
-                args.GetReturnValue().Set(unit.TakeWaypoint(waypointId));
+                args.GetReturnValue().Set(unit.TakeWaypoint(convert::To<game::LevelId>(isolate, args[0])));
             } else {
                 args.GetReturnValue().Set(unit.Interact());
             }
@@ -1032,8 +1034,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @signature getSkill(mode: number)
     /// @param mode {number} - Selector: 0/1 = right/left hand skill name, 2/3 = right/left hand skill id, 4 = array of
     /// [skillId, baseLevel, totalLevel] for all skills.
-    /// @signature getSkill(skillId: number, includeBonus: number, chargeOnly?: boolean)
-    /// @param skillId {number} - The skill id to look up the level for.
+    /// @signature getSkill(skillId: Skill|number, includeBonus: number, chargeOnly?: boolean)
+    /// @param skillId {Skill|number} - The skill id to look up the level for.
     /// @param includeBonus {number} - Include extra/bonus skill levels when truthy (must be number-typed to select this
     /// form).
     /// @param chargeOnly {boolean} - Optional: true restricts to charge skills, false counts non-charge, omitted counts
@@ -1076,7 +1078,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                         break;
                     case 2:
                     case 3:
-                        args.GetReturnValue().Set(static_cast<uint32_t>(
+                        args.GetReturnValue().Set(std::to_underlying(
                             data->GetSkillId((nSkillId - 2) > 0 ? game::Hand::Left : game::Hand::Right)));
                         break;
                     case 4: {
@@ -1086,7 +1088,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                         for (uint32_t i = 0; i < skills.size(); ++i) {
                             auto& skill = skills[i];
                             auto skillArr = v8::Array::New(isolate, 3);
-                            skillArr->Set(context, 0, convert::ToJS(isolate, skill.skillId)).Check();
+                            skillArr->Set(context, 0, convert::ToJS(isolate, std::to_underlying(skill.skillId)))
+                                .Check();
                             skillArr->Set(context, 1, convert::ToJS(isolate, skill.baseLevel)).Check();
                             skillArr->Set(context, 2, convert::ToJS(isolate, skill.totalLevel)).Check();
                             arr->Set(context, i, skillArr).Check();
@@ -1108,7 +1111,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                         charge = std::nullopt;
                     }
                 }
-                if (auto level = data->GetSkillLevel(nSkillId, includeExtraLevels, charge)) {
+                if (auto level = data->GetSkillLevel(static_cast<game::Skill>(nSkillId), includeExtraLevels, charge)) {
                     args.GetReturnValue().Set(level.value());
                 } else {
                     args.GetReturnValue().SetFalse();
@@ -1254,8 +1257,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     // Reference line 1929-1941: no unit involved, uses global quest info directly.
     /// @description Returns the quest progress flag/state for the given quest and flag from the local player's quest
     /// data (the unit is ignored).
-    /// @signature getQuest(quest: number, flag: QuestFlag)
-    /// @param quest {number} - Required uint32 quest number.
+    /// @signature getQuest(quest: Quest, flag: QuestFlag)
+    /// @param quest {Quest} - Required quest.
     /// @param flag {QuestFlag} - Required quest flag.
     /// @returns {number} - Quest flag/state value; false if the game was not ready.
     Method(
@@ -1268,14 +1271,14 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             auto* isolate = args.GetIsolate();
-            uint32_t nQuest = convert::To<uint32_t>(isolate, args[0]);
+            const auto nQuest = convert::To<game::Quest>(isolate, args[0]);
             const auto nFlag = convert::To<game::QuestFlag>(isolate, args[1]);
             args.GetReturnValue().Set(game::GetQuestFlag(nQuest, nFlag) ? 1 : 0);
         });
 
     /// @description Tests whether the given status-effect state id is currently active on the unit.
-    /// @signature getState(stateId: number)
-    /// @param stateId {number} - Required non-negative state id (no upper bound, since mods may add states).
+    /// @signature getState(stateId: State|number)
+    /// @param stateId {State|number} - Required non-negative state id (no upper bound, since mods may add states).
     /// @returns {boolean} - True if the state is active, false otherwise.
     Method(
         isolate, proto, "getState", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -1299,13 +1302,13 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 args.GetReturnValue().SetFalse();
                 return;
             }
-            args.GetReturnValue().Set(data->HasState(static_cast<uint32_t>(nState)));
+            args.GetReturnValue().Set(data->HasState(static_cast<game::State>(nState)));
         });
 
     /// @description Reads unit stats: a single stat value, or one of two whole-table modes selected by a negative stat
     /// id.
-    /// @signature getStat(statId: number, subIndex?: number)
-    /// @param statId {number} - Stat id; -1 = flat array of [statId, subIndex, value] triples, -2 = sparse array
+    /// @signature getStat(statId: Stat|number, subIndex?: number)
+    /// @param statId {Stat|number} - Stat id; -1 = flat array of [statId, subIndex, value] triples, -2 = sparse array
     /// indexed by statId with detailed charge/skill info, otherwise a specific stat id. Special case: statId 92 (item
     /// level requirement) returns the computed required level (after item/quality modifiers) rather than the raw stat.
     /// The experience stats are returned as an unsigned double to avoid int32 overflow.
@@ -1328,9 +1331,9 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
 
             int32_t statId = convert::To<int32_t>(isolate, args[0]);
 
-            uint32_t subIndex = 0;
+            uint16_t subIndex = 0;
             if (args.Length() > 1) {
-                subIndex = convert::To<int32_t>(isolate, args[1]);
+                subIndex = static_cast<uint16_t>(convert::To<int32_t>(isolate, args[1]));
             }
 
             std::vector<game::StatEntry> stats;
@@ -1344,20 +1347,19 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                     stats = data->GetAllStats();
                 } else if (statId == -2) {
                     stats = data->GetDetailedStats();
-                } else if (statId == static_cast<int32_t>(game::STAT_ITEMLEVELREQ)) {
+                } else if (const auto stat = static_cast<game::Stat>(statId); stat == game::Stat::ItemLevelReq) {
                     // Reference lines 916-940: special cases for the normal (statId >= 0) path
-                    // STAT_ITEMLEVELREQ: reference calls D2COMMON_GetItemLevelRequirement
+                    // ItemLevelReq: reference calls D2COMMON_GetItemLevelRequirement
                     args.GetReturnValue().Set(data->LevelRequirement());
                     return;
                 } else {
                     // GetStat handles the >>8 shift for stats 6-11 internally.
-                    int32_t value = data->GetStat(static_cast<uint32_t>(statId), subIndex);
-                    // Stats EXP, LASTEXP, NEXTEXP: return as unsigned double
+                    int32_t value = data->GetStat(stat, subIndex);
+                    // Experience, LastExperience, NextExperience: return as unsigned double
                     // to handle large XP values that overflow int32_t.
                     // Reference line 918-921: JS_NumberValue((unsigned int)value)
-                    if (statId == static_cast<int32_t>(game::STAT_EXP) ||
-                        statId == static_cast<int32_t>(game::STAT_LASTEXP) ||
-                        statId == static_cast<int32_t>(game::STAT_NEXTEXP)) {
+                    if (stat == game::Stat::Experience || stat == game::Stat::LastExperience ||
+                        stat == game::Stat::NextExperience) {
                         args.GetReturnValue().Set(
                             convert::ToJS(isolate, static_cast<double>(static_cast<uint32_t>(value))));
                         return;
@@ -1375,7 +1377,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 for (uint32_t i = 0; i < stats.size(); ++i) {
                     auto& entry = stats[i];
                     auto statArr = v8::Array::New(isolate, 3);
-                    statArr->Set(context, 0, convert::ToJS(isolate, entry.statId)).Check();
+                    statArr->Set(context, 0, convert::ToJS(isolate, std::to_underlying(entry.statId))).Check();
                     statArr->Set(context, 1, convert::ToJS(isolate, entry.subIndex)).Check();
                     statArr->Set(context, 2, convert::ToJS(isolate, entry.value)).Check();
                     arr->Set(context, i, statArr).Check();
@@ -1393,6 +1395,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 auto arr = v8::Array::New(isolate, 0);
                 for (const auto& entry : stats) {
                     v8::HandleScope innerScope(isolate);
+                    const uint32_t statIndex = std::to_underlying(entry.statId);
                     if (entry.subIndex > 0x200) {
                         // Charge/skill stat: build object with {skill, level, charges, maxcharges}
                         int32_t skill = static_cast<int32_t>(entry.subIndex >> 6);
@@ -1414,7 +1417,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                         }
                         // Place at arr[statId]; if already exists, wrap in array
                         v8::Local<v8::Value> existing;
-                        if (arr->Get(context, entry.statId).ToLocal(&existing) && !existing->IsUndefined()) {
+                        if (arr->Get(context, statIndex).ToLocal(&existing) && !existing->IsUndefined()) {
                             if (existing->IsArray()) {
                                 auto existingArr = existing.As<v8::Array>();
                                 existingArr->Set(context, existingArr->Length(), obj).Check();
@@ -1422,10 +1425,10 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                                 auto newArr = v8::Array::New(isolate, 2);
                                 newArr->Set(context, 0, existing).Check();
                                 newArr->Set(context, 1, obj).Check();
-                                arr->Set(context, entry.statId, newArr).Check();
+                                arr->Set(context, statIndex, newArr).Check();
                             }
                         } else {
-                            arr->Set(context, entry.statId, obj).Check();
+                            arr->Set(context, statIndex, obj).Check();
                         }
                     } else {
                         // Normal stat: value placed in sub-array at arr[statId][subIndex].
@@ -1434,9 +1437,9 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                         // shift here. (getStat(-1) keeps raw values; see GetAllStats.)
                         int32_t value = entry.value;
                         v8::Local<v8::Value> existing;
-                        if (!arr->Get(context, entry.statId).ToLocal(&existing) || existing->IsUndefined()) {
+                        if (!arr->Get(context, statIndex).ToLocal(&existing) || existing->IsUndefined()) {
                             existing = v8::Array::New(isolate, 0);
-                            arr->Set(context, entry.statId, existing).Check();
+                            arr->Set(context, statIndex, existing).Check();
                         }
                         if (existing->IsArray()) {
                             existing.As<v8::Array>()
@@ -1455,8 +1458,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// (flags, stateNo) and empty arrays are dropped. A socketed gem or an equipped item keeps its own lists - read
     /// those off that unit. Values carry the same 8.8 fixed-point shift as getStat().
     /// @signature getStatLists()
-    /// @returns {Array<{flags:number,stateNo:number,stats:Array<{id:number,layer:number,value:number}>}>} - The stat
-    /// lists, empty when the unit has none; false if the game was not ready.
+    /// @returns {Array<{flags:StatListFlags,stateNo:number,stats:Array<{id:Stat,layer:number,value:number}>}>} - The
+    /// stat lists, empty when the unit has none; false if the game was not ready.
     Method(
         isolate, proto, "getStatLists", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
@@ -1529,12 +1532,12 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
         });
 
     /// @description Computes the buy/sell/repair cost of this item at an NPC; Item units only.
-    /// @signature getItemCost(mode: number, npc?: Unit, difficulty?: number)
-    /// @param mode {number} - Required ItemCostMode: 0=buy, 1=sell, 2=repair (other values return undefined).
+    /// @signature getItemCost(mode: ItemCostMode, npc?: Unit, difficulty?: Difficulty)
+    /// @param mode {ItemCostMode} - Required; other values return undefined.
     /// @param npc {Unit} - Optional NPC as a Unit object (its classId is used); defaults to the interacting NPC, else
     /// Charsi.
-    /// @param difficulty {number} - Optional difficulty value; defaults to the current game difficulty.
-    /// @signature getItemCost(mode: number, npcClassId?: number, difficulty?: number)
+    /// @param difficulty {Difficulty} - Optional; defaults to the current game difficulty.
+    /// @signature getItemCost(mode: ItemCostMode, npcClassId?: number, difficulty?: Difficulty)
     /// @param npcClassId {number} - Optional NPC class id (alternative to passing a Unit); defaults to the interacting
     /// NPC, else Charsi.
     /// @returns {number} - The item cost in gold, undefined if not an item or invalid mode, false if the game was not
@@ -1590,8 +1593,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @param hand {number} - Required numeric: truthy = left hand, falsy = right hand.
     /// @param item {Unit} - Optional Item Unit to bind the skill from (e.g. an item-granted/charge skill); ignored if
     /// not an item.
-    /// @signature setSkill(skillId: number, hand: number, item?: Unit)
-    /// @param skillId {number} - Skill id (alternative to the name string).
+    /// @signature setSkill(skillId: Skill|number, hand: number, item?: Unit)
+    /// @param skillId {Skill|number} - Skill id (alternative to the name string).
     /// @returns {boolean} - True once the skill is confirmed bound; false on unresolved skill, non-numeric hand, or
     /// timeout.
     Method(
@@ -1616,7 +1619,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 unit = *data;
             }
 
-            uint16_t skillId = 0;
+            game::Skill skillId{};
             if (args[0]->IsString()) {
                 std::string skillName = convert::ToString(isolate, args[0]);
                 auto resolved = game::GetSkillByName(skillName);
@@ -1626,7 +1629,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 }
                 skillId = resolved.value();
             } else if (args[0]->IsNumber()) {
-                skillId = convert::To<uint16_t>(isolate, args[0]);
+                skillId = convert::To<game::Skill>(isolate, args[0]);
             } else {
                 args.GetReturnValue().SetFalse();
                 return;
@@ -1754,9 +1757,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
         });
 
     /// @description Buys or sells this item at the open NPC shop; Item units only.
-    /// @signature shop(mode: number)
-    /// @param mode {number} - ShopMode read from the last argument passed: 1=sell, 2=buy, 6=buy-fill (other values
-    /// return false).
+    /// @signature shop(mode: ShopMode)
+    /// @param mode {ShopMode} - Read from the last argument passed; other values return false.
     /// @returns {boolean} - True if the shop action succeeded; false on invalid mode, not an item, or not ready.
     Method(
         isolate, proto, "shop", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -1844,10 +1846,9 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             }
             // Default NPC: use currently interacting NPC, fall back to Charsi
             auto npc = game::Unit::InteractingNPC();
-            int32_t npcClassId =
-                npc ? static_cast<int32_t>(npc->ClassId()) : static_cast<int32_t>(game::NPC_CHARSI_CLASS_ID);
+            uint32_t npcClassId = npc ? npc->ClassId() : game::NPC_CHARSI_CLASS_ID;
             if (args.Length() > 0 && args[0]->IsNumber()) {
-                npcClassId = convert::To<int32_t>(isolate, args[0]);
+                npcClassId = convert::To<uint32_t>(isolate, args[0]);
             }
             args.GetReturnValue().Set(player.GetRepairCost(npcClassId));
         });

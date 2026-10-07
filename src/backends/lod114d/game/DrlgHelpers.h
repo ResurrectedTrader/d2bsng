@@ -38,7 +38,7 @@ constexpr int32_t SUBTILE_SCALE = 5;
 // `D2UnitStrc::pDrlgAct` is typed as D2MOO's `::D2DrlgActStrc*`, but the bytes
 // at that address follow the 1.14d allocation modeled by
 // `extras::D2DrlgActStrc`. Reinterpret at the unit boundary.
-inline D2DrlgLevelStrc* FindLevelInChain(uint32_t levelId) {
+inline D2DrlgLevelStrc* FindLevelInChain(LevelId levelId) {
     auto* player = lod114d::imports::d2client::UNITS_GetPlayerUnit();
     if (player == nullptr) {
         return nullptr;
@@ -48,7 +48,7 @@ inline D2DrlgLevelStrc* FindLevelInChain(uint32_t levelId) {
         return nullptr;
     }
     for (auto* level = act->pDrlg->pLevel; level != nullptr; level = level->pNextLevel) {
-        if (static_cast<uint32_t>(level->nLevelId) != levelId) {
+        if (static_cast<LevelId>(level->nLevelId) != levelId) {
             continue;
         }
         if (level->pFirstRoomEx == nullptr) {

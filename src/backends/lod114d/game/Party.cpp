@@ -71,9 +71,9 @@ Position Party::Pos() const {
     return {.x = p->dwPosX, .y = p->dwPosY};
 }
 
-uint32_t Party::LevelId() const {
+LevelId Party::LevelId() const {
     const auto p = Resolve<D2RosterUnitStrc>();
-    return p ? p->dwLevelId : 0;
+    return p ? static_cast<game::LevelId>(p->dwLevelId) : game::LevelId::None;
 }
 
 uint32_t Party::Id() const {
@@ -104,12 +104,12 @@ std::string Party::Name() const {
     return std::string{static_cast<const char*>(p->szName)};
 }
 
-uint32_t Party::ClassId() const {
+CharacterClass Party::ClassId() const {
     const auto p = Resolve<D2RosterUnitStrc>();
-    return p ? p->dwClassId : 0;
+    return p ? static_cast<CharacterClass>(p->dwClassId) : CharacterClass::Amazon;
 }
 
-uint32_t Party::CharacterLevel() const {
+uint16_t Party::CharacterLevel() const {
     const auto p = Resolve<D2RosterUnitStrc>();
     return p ? p->wLevel : 0;
 }

@@ -71,7 +71,7 @@ inline D2DrlgRoomStrc* AsDrlgRoom(void* p) noexcept {
 
 void* Room::ResolvePtr() const {
     assert(IsGameLockHeld() && "resolve under the game lock - use Resolve<T>()");
-    if (level_ == 0)
+    if (level_ == game::LevelId::None)
         return nullptr;
     if (auto* cached = cache_.Get())
         return cached;
@@ -92,7 +92,7 @@ Room Room::FromPtr(void* p) {
     auto* drlgRoom = AsDrlgRoom(p);
     if (drlgRoom->pLevel == nullptr)
         return Room();
-    Room handle(static_cast<uint32_t>(drlgRoom->pLevel->nLevelId),
+    Room handle(static_cast<game::LevelId>(drlgRoom->pLevel->nLevelId),
                 {.x = static_cast<uint32_t>(drlgRoom->nTileXPos), .y = static_cast<uint32_t>(drlgRoom->nTileYPos)});
     handle.cache_.Set(p);
     return handle;
@@ -133,11 +133,11 @@ Rect Room::Bounds() const {
     };
 }
 
-uint32_t Room::CorrectTomb() const {
+LevelId Room::CorrectTomb() const {
     const auto drlgRoom = Resolve<D2DrlgRoomStrc>();
     if (!drlgRoom || drlgRoom->pLevel == nullptr || drlgRoom->pLevel->pDrlg == nullptr)
-        return 0;
-    return static_cast<uint32_t>(drlgRoom->pLevel->pDrlg->nStaffTombLevel);
+        return game::LevelId::None;
+    return static_cast<game::LevelId>(drlgRoom->pLevel->pDrlg->nStaffTombLevel);
 }
 
 std::vector<std::vector<CollisionFlag>> Room::GetCollision() const {
@@ -246,7 +246,7 @@ Level Room::GetLevel() const {
     const auto drlgRoom = Resolve<D2DrlgRoomStrc>();
     if (!drlgRoom || drlgRoom->pLevel == nullptr)
         return Level();
-    return Level(static_cast<uint32_t>(drlgRoom->pLevel->nLevelId));
+    return Level(static_cast<game::LevelId>(drlgRoom->pLevel->nLevelId));
 }
 
 std::optional<Unit> Room::GetFirstUnit() const {
@@ -270,16 +270,16 @@ std::vector<PresetUnitInfo> Room::GetPresetUnits(std::optional<UnitType> type, s
     // level). Walked here so framework callers see the destination as a
     // populated field on PresetUnitInfo without needing a second boundary
     // call. Reference: D2Helpers.cpp::GetTileLevelNo.
-    auto resolveTileTarget = [&drlgRoom](uint32_t presetTileId) -> uint32_t {
+    auto resolveTileTarget = [&drlgRoom](uint32_t presetTileId) -> game::LevelId {
         for (auto* warp = drlgRoom->pRoomTiles; warp != nullptr; warp = warp->pNext) {
             if (warp->pPresetTileId == nullptr || warp->pDrlgRoom == nullptr || warp->pDrlgRoom->pLevel == nullptr) {
                 continue;
             }
             if (*warp->pPresetTileId == presetTileId) {
-                return static_cast<uint32_t>(warp->pDrlgRoom->pLevel->nLevelId);
+                return static_cast<game::LevelId>(warp->pDrlgRoom->pLevel->nLevelId);
             }
         }
-        return 0;
+        return game::LevelId::None;
     };
 
     std::vector<PresetUnitInfo> out;
@@ -295,8 +295,8 @@ std::vector<PresetUnitInfo> Room::GetPresetUnits(std::optional<UnitType> type, s
             .roomPos = roomPos,
             .posInRoom = {.x = static_cast<uint32_t>(preset->nXpos), .y = static_cast<uint32_t>(preset->nYpos)},
             .id = presetIndex,
-            .level = 0,
-            .tileTargetLevelId = presetType == UnitType::Tile ? resolveTileTarget(presetIndex) : 0,
+            .level = game::LevelId::None,
+            .tileTargetLevelId = presetType == UnitType::Tile ? resolveTileTarget(presetIndex) : game::LevelId::None,
         });
     }
     return out;

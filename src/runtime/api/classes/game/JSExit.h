@@ -1,6 +1,9 @@
 #pragma once
 
+#include <utility>
+
 #include <v8.h>
+
 #include "api/core/Class.h"
 #include "api/core/Error.h"
 #include "components/navigation/ExitFinder.h"
@@ -34,11 +37,11 @@ class JSExit : public ClassBase<JSExit, navigation::ExitInfo> {
             });
 
         /// @description The destination this exit leads to, interpreted according to `type`.
-        /// @type {number}
+        /// @type {LevelId}
         Property(
             isolate, inst, "target", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 auto* data = Unwrap(info.Holder());
-                info.GetReturnValue().Set(data->target);
+                info.GetReturnValue().Set(std::to_underlying(data->target));
             });
 
         /// @description The kind of exit: 1 (linkage) or 2 (tile).
@@ -58,11 +61,11 @@ class JSExit : public ClassBase<JSExit, navigation::ExitInfo> {
             });
 
         /// @description The level number this exit belongs to.
-        /// @type {number}
+        /// @type {LevelId}
         Property(
             isolate, inst, "level", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 auto* data = Unwrap(info.Holder());
-                info.GetReturnValue().Set(data->level);
+                info.GetReturnValue().Set(std::to_underlying(data->level));
             });
     }
 };

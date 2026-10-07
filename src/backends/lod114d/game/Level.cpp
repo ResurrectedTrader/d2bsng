@@ -8,19 +8,28 @@
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-braces"
+#include <DataTbls/LevelsIds.h>   // D2C_Levels
 #include <DataTbls/LevelsTbls.h>  // D2LevelsTxt
 #pragma clang diagnostic pop
 
 #include <algorithm>
 #include <cstdint>
+#include <utility>
 
 namespace d2bs::game {
 
 using lod114d::imports::extras::D2DrlgLevelStrc;
 
+static_assert(std::to_underlying(LevelId::RogueEncampment) == LEVEL_ROGUEENCAMPMENT);
+static_assert(std::to_underlying(LevelId::LutGholein) == LEVEL_LUTGHOLEIN);
+static_assert(std::to_underlying(LevelId::ThePandemoniumFortress) == LEVEL_THEPANDEMONIUMFORTRESS);
+static_assert(std::to_underlying(LevelId::Harrogath) == LEVEL_HARROGATH);
+static_assert(std::to_underlying(LevelId::TheWorldstoneChamber) == LEVEL_THEWORLDSTONECHAMBER);
+static_assert(std::to_underlying(LevelId::UberTristram) == LEVEL_PANDEMONIUMFINALE);
+
 void* Level::ResolvePtr() const {
     assert(IsGameLockHeld() && "resolve under the game lock - use Resolve<T>()");
-    if (id_ == 0) {
+    if (id_ == LevelId::None) {
         return nullptr;
     }
     if (auto* cached = cache_.Get()) {
@@ -40,7 +49,7 @@ std::string Level::Name() const {
     if (!*this) {
         return {};
     }
-    auto* txt = lod114d::imports::d2common::DATATBLS_GetLevelsTxtRecord(id_);
+    auto* txt = lod114d::imports::d2common::DATATBLS_GetLevelsTxtRecord(std::to_underlying(id_));
     if (txt == nullptr) {
         return {};
     }
@@ -70,8 +79,8 @@ Room Level::GetFirstRoom() const {
     return Room::FromPtr(level->pFirstRoomEx);
 }
 
-std::optional<Level> Level::Get(uint32_t levelNo) {
-    if (levelNo == 0) {
+std::optional<Level> Level::Get(LevelId levelNo) {
+    if (levelNo == LevelId::None) {
         return std::nullopt;
     }
     GameReadLock guard;

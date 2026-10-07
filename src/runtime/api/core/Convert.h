@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include <v8.h>
@@ -181,7 +182,7 @@ inline v8::Local<v8::Object> ToJS(v8::Isolate* isolate, const game::StatEntry& s
     auto& keys = detail::Keys(isolate);
     auto context = isolate->GetCurrentContext();
     auto obj = v8::Object::New(isolate);
-    obj->CreateDataProperty(context, keys.id.Get(isolate), ToJS(isolate, stat.statId)).Check();
+    obj->CreateDataProperty(context, keys.id.Get(isolate), ToJS(isolate, std::to_underlying(stat.statId))).Check();
     obj->CreateDataProperty(context, keys.layer.Get(isolate), ToJS(isolate, stat.subIndex)).Check();
     obj->CreateDataProperty(context, keys.value.Get(isolate), ToJS(isolate, stat.value)).Check();
     return obj;
@@ -200,8 +201,9 @@ inline v8::Local<v8::Object> ToJS(v8::Isolate* isolate, const game::StatListEntr
     }
     auto stats = v8::Array::New(isolate, elements.data(), elements.size());
     auto obj = v8::Object::New(isolate);
-    obj->CreateDataProperty(context, keys.flags.Get(isolate), ToJS(isolate, list.flags)).Check();
-    obj->CreateDataProperty(context, keys.stateNo.Get(isolate), ToJS(isolate, list.stateNo)).Check();
+    obj->CreateDataProperty(context, keys.flags.Get(isolate), ToJS(isolate, std::to_underlying(list.flags))).Check();
+    obj->CreateDataProperty(context, keys.stateNo.Get(isolate), ToJS(isolate, std::to_underlying(list.stateNo)))
+        .Check();
     obj->CreateDataProperty(context, keys.stats.Get(isolate), stats).Check();
     return obj;
 }

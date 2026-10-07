@@ -9,18 +9,8 @@
 
 namespace d2bs::game {
 
-// Stat IDs referenced in the API layer.
-// Values from reference/d2bs/Constants.h and JSUnit.cpp.
-constexpr uint32_t STAT_EXP = 13;
-constexpr uint32_t STAT_LASTEXP = 29;
-constexpr uint32_t STAT_NEXTEXP = 30;
-constexpr uint32_t STAT_ITEMLEVELREQ = 92;
+// Fractional bits of the fixed-point stats (IsFixedPointStat).
 constexpr uint32_t STAT_FIXED_POINT_SHIFT = 8;
-// hp/mana/stamina (STAT_HITPOINTS..STAT_MAXSTAMINA) are the contiguous run D2 stores
-// in 8.8 fixed point.
-constexpr uint32_t STAT_FIXED_POINT_FIRST = 6;
-constexpr uint32_t STAT_FIXED_POINT_LAST = 11;
-constexpr uint32_t STAT_LIST_PRESET_FLAG = 0x40;
 
 // Default NPC class ID for pricing (Charsi).
 constexpr uint32_t NPC_CHARSI_CLASS_ID = 0x9A;

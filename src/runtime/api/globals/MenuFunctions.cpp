@@ -103,14 +103,19 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Creates a new character at the menu with the given name and class.
-    /// @signature createCharacter(name: string, type: number, hardcore?: boolean, ladder?: boolean)
+    /// @signature createCharacter(name: string, type: CharacterClass, hardcore?: boolean, ladder?: boolean, gameType?:
+    /// GameType)
     /// @param name {string} - Desired character name.
-    /// @param type {number} - Character class index: 0 = Amazon, 1 = Sorceress, 2 = Necromancer, 3 = Paladin, 4 =
-    /// Barbarian, 5 = Druid, 6 = Assassin.
+    /// @param type {CharacterClass} - Character class.
     /// @param hardcore {boolean} - Create as hardcore; defaults to false.
     /// @param ladder {boolean} - Create as ladder; defaults to false.
+    /// @param gameType {GameType} - The character's game type; defaults to RotW for a Warlock and Expansion for every
+    /// other class. A Warlock must be RotW, and a Classic character cannot be an Assassin or a Druid. The Warlock
+    /// class and the RotW game type do nothing on 1.14d: it creates only Expansion characters and returns false for
+    /// any other game type, so a Warlock is never created there.
     /// @returns {boolean} - Result of the creation attempt; undefined if not at the menu. Throws on invalid arguments.
-    /// @throws {Error} - Character type is outside the valid class range (0-6).
+    /// @throws {Error} - Character type is outside the valid class range (0-7), the game type is not a GameType, or
+    /// the class cannot be created with that game type.
     function::Register(
         isolate, global, "createCharacter", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
@@ -134,7 +139,7 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
 
             std::string name = convert::ToString(isolate, args[0]);
-            int32_t type = convert::To<int32_t>(isolate, args[1]);
+            const auto charClass = convert::To<game::CharacterClass>(isolate, args[1]);
 
             bool hardcore = false;
             if (args.Length() > 2 && args[2]->IsBoolean()) {
@@ -146,22 +151,43 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 ladder = args[3]->BooleanValue(isolate);
             }
 
-            // Validate character class (0-6)
-            if (type < 0 || type > static_cast<int32_t>(game::CharacterClass::Assassin)) {
+            // Unsigned, so a negative class wraps past Warlock too.
+            if (charClass > game::CharacterClass::Warlock) {
                 error::ThrowError(isolate, "Invalid character type");
                 return;
             }
 
-            args.GetReturnValue().Set(
-                game::CreateCharacter(name, static_cast<game::CharacterClass>(type), hardcore, ladder));
+            auto gameType =
+                charClass == game::CharacterClass::Warlock ? game::GameType::RotW : game::GameType::Expansion;
+            if (args.Length() > 4 && !args[4]->IsUndefined()) {
+                if (!error::CheckIsNumber(args, 4, "gameType")) {
+                    return;
+                }
+                gameType = convert::To<game::GameType>(isolate, args[4]);
+                if (gameType > game::GameType::RotW) {
+                    error::ThrowError(isolate, "Invalid game type");
+                    return;
+                }
+            }
+            // The game refuses both combinations.
+            if (charClass == game::CharacterClass::Warlock && gameType != game::GameType::RotW) {
+                error::ThrowError(isolate, "A Warlock can only be created as a Reign of the Warlock character");
+                return;
+            }
+            if (gameType == game::GameType::Classic &&
+                (charClass == game::CharacterClass::Assassin || charClass == game::CharacterClass::Druid)) {
+                error::ThrowError(isolate, "Assassins and Druids cannot be Classic characters");
+                return;
+            }
+
+            args.GetReturnValue().Set(game::CreateCharacter(name, charClass, hardcore, ladder, gameType));
         });
 
     /// @description Creates an online game at the menu with the given name, password, and difficulty.
-    /// @signature createGame(name: string, password?: string, difficulty?: number)
+    /// @signature createGame(name: string, password?: string, difficulty?: Difficulty)
     /// @param name {string} - Game name, max 15 characters.
     /// @param password {string} - Game password, max 15 characters.
-    /// @param difficulty {number} - Difficulty: 0 = Normal, 1 = Nightmare, 2 = Hell, 3 = highest available; defaults to
-    /// 3.
+    /// @param difficulty {Difficulty} - Defaults to HighestAvailable.
     /// @returns {null} - Always null; no-op unless at the menu. Throws on validation or create failure.
     /// @throws {Error} - Game name or password exceeds 15 characters.
     /// @throws {Error} - Difficulty is outside 0-3.
@@ -207,7 +233,7 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
 
             // Get optional difficulty (0-2, default 3 for highest available)
-            int32_t diff = 3;
+            int32_t diff = static_cast<int32_t>(game::Difficulty::HighestAvailable);
             if (args.Length() > 2) {
                 if (!args[2]->IsNumber()) {
                     error::ThrowTypeError(isolate, "Invalid arguments specified to createGame");
@@ -282,15 +308,14 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
     /// @description Adds or overwrites a stored profile in the d2bs profile config.
     /// @signature addProfile(profileName: string, mode: string, gateway: string, username: string, password: string,
-    /// charname: string, spdifficulty?: number)
+    /// charname: string, spdifficulty?: Difficulty)
     /// @param profileName {string} - Profile name (key).
     /// @param mode {string} - Profile mode string; must map to a known profile type.
     /// @param gateway {string} - Realm/gateway.
     /// @param username {string} - Account username; used as the IP address for TCP/IP join profiles.
     /// @param password {string} - Account password.
     /// @param charname {string} - Character name.
-    /// @param spdifficulty {number} - Single-player difficulty: 0 = Normal, 1 = Nightmare, 2 = Hell, 3 = highest
-    /// available; defaults to 3.
+    /// @param spdifficulty {Difficulty} - Single-player difficulty; defaults to HighestAvailable.
     /// @returns {null} - Always null. Throws on invalid arguments.
     /// @throws {Error} - spdifficulty is outside 0-3.
     /// @throws {Error} - mode string does not map to a known profile type.

@@ -21,10 +21,10 @@ enum class ExitType : uint32_t {
 
 struct ExitInfo {
     game::Position pos;  // game coordinates - see docs/coords.md
-    uint32_t target;
+    game::LevelId target;
     ExitType type;
     uint32_t tileId;
-    uint32_t level;
+    game::LevelId level;
 };
 
 // Level transitions leading out of `level`: tile warps and room-to-room

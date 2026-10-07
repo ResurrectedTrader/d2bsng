@@ -61,16 +61,16 @@ inline FastcallFunc<void*(uint32_t /*nLevelId*/)> DRLG_GetLayer{0x21E470};
 inline FastcallFunc<D2DrlgLevelStrc*(D2DrlgStrc* /*pDrlg*/, int32_t /*nLevelId*/)> DRLG_GetLevel{0x242AE0};
 
 // MOO: STATLIST_GetStatListFromUnitStateAndFlag(D2UnitStrc* pUnit, int nState, int nFlag).
-inline StdcallFunc<D2StatListExStrc*(D2UnitStrc* /*pUnit*/, int32_t /*nState*/, int32_t /*nFlag*/)>
+inline StdcallFunc<D2StatListExStrc*(D2UnitStrc* /*pUnit*/, game::State /*nState*/, game::StatListFlags /*nFlag*/)>
     STATLIST_GetStatListFromUnitStateAndFlag{0x2257D0};
 inline StdcallFunc<int32_t(D2StatListExStrc* /*pStatList*/, D2StatStrc* /*pStatArray*/, size_t /*nMaxEntries*/)>
     STATLIST_CopyStats{0x225C90};
 // MOO: STATLIST_UnitGetStatValue(const D2UnitStrc* pUnit, int nStatId, uint16_t dwLayer).
 // On 1.14d the body reads `dwLayer` but doesn't act on it; the stdcall slot is
 // still required to match the ABI.
-inline StdcallFunc<int32_t(D2UnitStrc* /*pUnit*/, uint32_t /*dwStat*/, uint32_t /*dwLayer*/)> STATLIST_UnitGetStatValue{
-    0x225480};
-inline StdcallFunc<int32_t(D2UnitStrc* /*pUnit*/, uint32_t /*dwStateNo*/)> STATES_CheckState{0x239DF0};
+inline StdcallFunc<int32_t(D2UnitStrc* /*pUnit*/, game::Stat /*dwStat*/, uint32_t /*dwLayer*/)>
+    STATLIST_UnitGetStatValue{0x225480};
+inline StdcallFunc<int32_t(D2UnitStrc* /*pUnit*/, game::State /*dwStateNo*/)> STATES_CheckState{0x239DF0};
 
 inline StdcallFunc<int32_t(D2UnitStrc* /*pUnit1*/, D2UnitStrc* /*pUnit2*/, uint32_t /*nCollisionMask*/)>
     UNITS_TestCollisionWithUnit{0x222AA0};
@@ -138,7 +138,7 @@ inline StdcallFunc<void(D2DrlgActStrc* /*pAct*/, int32_t /*nLevelId*/, int32_t /
 // QUESTRECORD_ family uses elsewhere, but the offset is distinct from
 // QUESTRECORD_GetQuestState in 1.10f-MOO, so this entry takes its own
 // QUESTRECORD_ name rather than aliasing the MOO ordinal.
-inline StdcallFunc<int32_t(D2BitBufferStrc* /*pQuestRecord*/, uint32_t /*dwQuest*/, game::QuestFlag /*dwFlag*/)>
+inline StdcallFunc<int32_t(D2BitBufferStrc* /*pQuestRecord*/, game::Quest /*nQuest*/, game::QuestFlag /*dwFlag*/)>
     QUESTRECORD_GetQuestFlag{0x25C310};
 
 // Coordinate transforms: the in/out args are two contiguous int32_t cells (X

@@ -171,11 +171,10 @@ inline GameVar<uint32_t> gnMercReviveCost{0x3C0DD0};
 inline GameVar<extras::D2UnitHashTables> gServerSideUnitHashTables{0x3A5E70};
 inline GameVar<extras::D2UnitHashTables> gClientSideUnitHashTables{0x3A5270};
 
-// Signed: framework `GoldAction(GoldActionMode, int32_t amount)` takes int32
-// amount. The IDA decompile types this as signed; the game only ever writes
-// non-negative values so the bit pattern matches reference's DWORD VARPTR.
-inline GameVar<int32_t> gnGoldDialogAction{0x3A279C};
-inline GameVar<int32_t> gnGoldDialogAmount{0x3A2A68};
+// DWORDs, as reference D2Ptrs.h declares them; the action holds the dialog's
+// GoldActionMode code.
+inline GameVar<game::GoldActionMode> gnGoldDialogAction{0x3A279C};
+inline GameVar<uint32_t> gnGoldDialogAmount{0x3A2A68};
 
 inline GameVar<extras::NPCMenu> gNPCMenu{0x326C48};
 inline GameVar<uint32_t> gnNPCMenuAmount{0x325A74};
@@ -192,7 +191,7 @@ inline GameVar<uint32_t> gnShopCursorType{0x3BCBF0};
 
 inline GameVar<uint32_t> gnPing{0x3A04A4};
 inline GameVar<uint32_t> gnFPS{0x3BB390};
-inline GameVar<uint32_t> gnLang{0x3BB5DC};
+inline GameVar<game::Language> gnLang{0x3BB5DC};
 
 inline GameVar<uint32_t> gnOverheadTrigger{0x3BF20E};
 
@@ -237,7 +236,7 @@ inline GameVar<std::array<wchar_t, 16>> gwszRecentTradeName{0x3C0E84};
 inline GameVar<uint32_t> gbExpCharFlag{0x3A04F4};
 inline GameVar<uint32_t> gnMapId{0x3A0638};
 
-inline GameVar<uint32_t> gbAlwaysRun{0x3A0660};
+inline GameVar<game::MoveMode> gbAlwaysRun{0x3A0660};
 inline GameVar<uint32_t> gbNoPickUp{0x3A6A90};
 
 inline GameVar<std::array<wchar_t, 257>> gwszChatMsg{0x3BB638};

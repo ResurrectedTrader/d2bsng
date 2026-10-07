@@ -230,11 +230,11 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
             info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), ms));
         });
 
-    /// @description Whether the current character is an Expansion (LoD) character.
+    /// @description The current game's type: Classic, Expansion (LoD) or Reign of the Warlock.
     /// @type {GameType}
     JSUnit::InstanceProperty(
         isolate, context, me, "gametype", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            info.GetReturnValue().Set(game::GetGameType());
+            info.GetReturnValue().Set(std::to_underlying(game::GetGameType()));
         });
 
     /// @description Whether an item is currently held on the cursor (picked up, awaiting placement).
@@ -268,10 +268,10 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
         });
 
     /// @description Game client locale/language identifier code.
-    /// @type {number}
+    /// @type {Language}
     JSUnit::InstanceProperty(
         isolate, context, me, "locale", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            info.GetReturnValue().Set(game::GetLocale());
+            info.GetReturnValue().Set(std::to_underlying(game::GetLocale()));
         });
 
     /// @description Whether the current character is Hardcore (derived from the hardcore character flag).

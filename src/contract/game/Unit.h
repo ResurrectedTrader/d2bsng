@@ -61,7 +61,7 @@ class Unit {
     // getters - see docs/coords.md).
     Position Pos() const;
     Position TargetPos() const;
-    uint32_t Area() const;
+    LevelId Area() const;
 
     // === Stats ===
     uint32_t Hp() const;
@@ -71,8 +71,8 @@ class Unit {
     uint32_t Stamina() const;
     uint32_t StaminaMax() const;
     uint32_t CharLevel() const;
-    int32_t GetStat(uint32_t stat, uint32_t sub = 0) const;
-    bool HasState(uint32_t stateId) const;
+    int32_t GetStat(Stat stat, uint16_t sub = 0) const;
+    bool HasState(State state) const;
 
     std::vector<StatEntry> GetAllStats() const;
     // Returns detailed stat list for getStat(-2): includes both base stats and stat-list stats.
@@ -86,7 +86,7 @@ class Unit {
 
     // === Unit info ===
     uint32_t Direction() const;
-    std::optional<uint32_t> SuperUniqueId() const;
+    std::optional<uint16_t> SuperUniqueId() const;
     MonsterSpecType SpecType() const;
     uint32_t ItemCount() const;
 
@@ -152,7 +152,7 @@ class Unit {
     bool IsLocked() const;
 
     // === Player-specific ===
-    uint32_t RunWalk() const;
+    MoveMode RunWalk() const;
     uint32_t WeaponSwitch() const;
 
     // === Traversal ===
@@ -198,34 +198,34 @@ class Unit {
 
     // === Skill methods ===
     struct SkillInfo {
-        uint16_t skillId;
+        Skill skillId;
         uint32_t baseLevel;
         uint32_t totalLevel;
     };
     std::string GetSkillName(Hand hand) const;
-    uint16_t GetSkillId(Hand hand) const;
+    Skill GetSkillId(Hand hand) const;
     std::vector<SkillInfo> GetAllSkills() const;
     // Charge filter:
     //   nullopt -> non-charge skills only (IsCharge == 0).
     //   false   -> no filter (match any skill).
     //   true    -> charge-only skills (IsCharge == 1).
-    std::optional<uint32_t> GetSkillLevel(uint16_t skillId, bool includeExtraLevels,
+    std::optional<uint32_t> GetSkillLevel(Skill skill, bool includeExtraLevels,
                                           std::optional<bool> charge = std::nullopt) const;
 
     // === Actions ===
     void Move(Position target) const;
     bool Interact() const;
-    // Returns true on dispatch, false when waypointId is not a valid waypoint
-    // (levels.txt[wpId].Waypoint == 255) or the unit can't be resolved.
-    bool TakeWaypoint(uint32_t waypointId) const;
+    // Returns true on dispatch, false when `level` is not a valid waypoint
+    // (levels.txt[level].Waypoint == 255) or the unit can't be resolved.
+    bool TakeWaypoint(LevelId level) const;
 
     void Repair() const;
-    bool UseMenu(uint32_t menuId) const;
+    bool UseMenu(uint16_t menuId) const;
     ClickResult EquipItem() const;
     void Overhead(const std::string& text) const;
     void Revive() const;
     bool Shop(ShopMode mode) const;
-    bool SetSkill(uint16_t skillId, Hand hand, std::optional<uint32_t> itemId) const;
+    bool SetSkill(Skill skill, Hand hand, std::optional<uint32_t> itemId) const;
     uint32_t GetMinionCount(uint32_t type) const;
     uint32_t GetRepairCost(uint32_t npcClassId) const;
     bool HasEnchant(uint32_t enchantId) const;

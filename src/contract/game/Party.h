@@ -33,14 +33,14 @@ class Party {
 
     // Properties
     Position Pos() const;
-    uint32_t LevelId() const;
+    LevelId LevelId() const;
     uint32_t Id() const;
     uint32_t Life() const;
     PartyState PartyState() const;
     uint16_t PartyId() const;
     std::string Name() const;
-    uint32_t ClassId() const;
-    uint32_t CharacterLevel() const;
+    CharacterClass ClassId() const;
+    uint16_t CharacterLevel() const;
 
     // Traversal
     Party GetNext() const;

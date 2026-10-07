@@ -6,6 +6,7 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <utility>
 
 #include <doctest/doctest.h>
 
@@ -48,8 +49,8 @@ TEST_CASE("Real world benchmarks") {
 
         SUBCASE(file.stem().string().c_str()) {
             auto& grid = fixture->grid;
-            MESSAGE("Level " << fixture->levelId << " (" << grid.rect.size.width << "x" << grid.rect.size.height
-                             << ")");
+            MESSAGE("Level " << std::to_underlying(fixture->levelId) << " (" << grid.rect.size.width << "x"
+                             << grid.rect.size.height << ")");
 
             // Find walkable start and end points.
             // Start: first walkable tile from top-left.

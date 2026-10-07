@@ -18,7 +18,7 @@ namespace {
 
 MapFixture MakeSyntheticFixture() {
     MapFixture fixture;
-    fixture.levelId = 42;
+    fixture.levelId = d2bs::game::LevelId::DryHills;
     fixture.grid = LevelGrid({.origin = {.x = 500, .y = 500}, .size = {.width = 200, .height = 200}});
 
     // Vertical wall at x=600, gap at y=599..601 for cross-check clearance

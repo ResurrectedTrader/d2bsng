@@ -43,9 +43,9 @@ void SetAlwaysRun(bool value);
 bool GetNoPickUp();
 void SetNoPickUp(bool value);
 uint32_t GetWeaponSwitch();
-uint32_t GetGameType();
+GameType GetGameType();
 uint32_t GetMercReviveCost();
-uint32_t GetLocale();
+Language GetLocale();
 
 // === BnetData Queries ===
 std::string GetAccountName();
@@ -113,7 +113,7 @@ bool SubmitItem(const Unit& item);
 void Transmute();
 bool TestPvpFlag(const Unit& a, const Unit& b, RosterFlag flag);
 bool HasWaypoint(uint32_t waypointId);
-bool IsTownByLevelNo(uint32_t levelNo);
+bool IsTownByLevelNo(LevelId levelNo);
 std::string GetLocaleString(uint16_t localeId);
 
 // Result of a cell lookup in a game data .txt table (skills / monstats / itemstatcost / etc.).
@@ -129,11 +129,11 @@ TxtValue GetTxtValue(std::string_view table, uint32_t row, std::string_view colu
 // unknown or its game data is not currently loaded (e.g. out of game).
 std::optional<uint32_t> GetTxtTableRowCount(std::string_view table);
 
-bool GetQuestFlag(uint32_t quest, QuestFlag flag);
+bool GetQuestFlag(Quest quest, QuestFlag flag);
 // === Weapon / Stat / Skill Actions ===
 void SwapWeapon();
-void UseStatPoint(uint32_t stat, uint32_t count);
-void UseSkillPoint(uint32_t skill, uint32_t count);
+void UseStatPoint(Stat stat, uint16_t count);
+void UseSkillPoint(Skill skill, uint16_t count);
 void TakeScreenshot();
 
 // === Item Actions ===
@@ -175,7 +175,7 @@ void ClickPartyMember(const Party& party, PartyMode mode);
 void LeaveParty();
 uint32_t CheckUnitCollision(const Unit& unit1, const Unit& unit2, CollisionFlag mask);
 // === Skill Name Tables ===
-std::optional<uint16_t> GetSkillByName(std::string_view name);
+std::optional<Skill> GetSkillByName(std::string_view name);
 
 // === IPC ===
 // Send an IPC message. If targetHwnd != 0, send to that target directly.
@@ -187,9 +187,9 @@ int32_t SendIPC(uint32_t mode, std::string_view data, uintptr_t targetHwnd = 0, 
 void PlayGameSound(uint32_t soundId);
 void* GetHwnd();
 
-void GoldAction(GoldActionMode mode, int32_t amount);
+void GoldAction(GoldActionMode mode, uint32_t amount);
 void MoveNPC(uint32_t npcId, Position pos);
-bool RevealLevel(uint32_t levelNo, bool drawPresets = false);
+bool RevealLevel(LevelId levelNo, bool drawPresets = false);
 
 // === NPC Interaction ===
 bool IsScrollingText();
@@ -265,8 +265,8 @@ std::vector<std::string> GetActiveFeatures();
 // it, the monster level it raises the area to, what activated it, and the
 // zone's configured always-unique modifier (a monumod.txt id, 0 = none).
 struct DesecratedZone {
-    uint32_t area = 0;
-    uint32_t waypointArea = 0;
+    LevelId area = LevelId::None;
+    LevelId waypointArea = LevelId::None;
     uint32_t monsterLevel = 0;
     DesecratedZoneSource source = DesecratedZoneSource::Rotation;
     uint32_t uniqueMod = 0;

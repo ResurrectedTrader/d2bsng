@@ -20,7 +20,7 @@ class Room;
 // The game stores levels as subtiles (1 subtile = 5 game-coords); the conversion
 // happens in the game-layer implementation. See docs/coords.md.
 class Level {
-    uint32_t id_ = 0;
+    LevelId id_ = LevelId::None;
     HandleCache cache_;
 
     void* ResolvePtr() const;
@@ -32,11 +32,11 @@ class Level {
     }
 
    public:
-    explicit Level(uint32_t id = 0) : id_(id) {}
+    explicit Level(LevelId id = LevelId::None) : id_(id) {}
     explicit operator bool() const;
 
     // Properties
-    uint32_t Id() const { return id_; }
+    LevelId Id() const { return id_; }
     std::string Name() const;
     Rect Bounds() const;
 
@@ -45,7 +45,7 @@ class Level {
 
     // Factory - resolves a Level from the current act's misc data.
     // Returns std::nullopt if the level does not exist.
-    static std::optional<Level> Get(uint32_t levelNo);
+    static std::optional<Level> Get(LevelId levelNo);
 
     // === Framework-impl (defined inline in Finders.h) ===
     // Find the room at `pos` (game coordinates) within this level.

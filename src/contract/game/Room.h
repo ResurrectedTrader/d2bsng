@@ -20,7 +20,7 @@ class Unit;
 // The game stores rooms as subtiles (1 subtile = 5 game-coords); the conversion
 // happens in the game-layer implementation. See docs/coords.md.
 class Room {
-    uint32_t level_ = 0;
+    LevelId level_ = game::LevelId::None;
     Position pos_;
     HandleCache cache_;
 
@@ -33,7 +33,7 @@ class Room {
     }
 
    public:
-    explicit Room(uint32_t level = 0, Position pos = {}) : level_(level), pos_(pos) {}
+    explicit Room(LevelId level = game::LevelId::None, Position pos = {}) : level_(level), pos_(pos) {}
     explicit operator bool() const;
     bool operator==(const Room& other) const;
 
@@ -45,8 +45,8 @@ class Room {
     int32_t Number() const;
     int32_t SubNumber() const;
     Rect Bounds() const;
-    uint32_t LevelId() const { return level_; }
-    uint32_t CorrectTomb() const;
+    LevelId LevelId() const { return level_; }
+    game::LevelId CorrectTomb() const;
 
     // Collision (via the room's ActiveRoom side, with AddRoomData /
     // RemoveRoomData if needed).

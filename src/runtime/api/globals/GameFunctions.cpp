@@ -68,8 +68,9 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description Find the first game unit matching optional type/name/classId/mode/id criteria.
     /// @signature getUnit(special: number)
     /// @param special {number} - 100 = cursor item, 101 = selected unit (falls back to selected inventory item)
-    /// @signature getUnit(type: number, name?: string, mode?: number, unitId?: number)
-    /// @param type {number} - a UnitType value; out-of-range searches all types. Pass -1 (or omit) for no filter.
+    /// @signature getUnit(type: UnitType, name?: string, mode?: number, unitId?: number)
+    /// @param type {UnitType|number} - a UnitType value; out-of-range searches all types. Pass -1 (or omit) for no
+    /// filter.
     /// @param name {string} - unit name filter. Pass -1 (or omit) for no filter.
     /// @param mode {number} - unit mode filter. Pass -1 (or omit) for no filter. Two special forms: if mode >= 100 and
     ///   the unit is an item, it filters by item location matching (mode - 100) - 100=ground, 101=equipped, 102=belt,
@@ -77,7 +78,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     ///   bits are a bitmask: the unit matches when its mode equals any bit position 0..27 that is set in mode (e.g.
     ///   0x20000003 matches modes 0 or 1).
     /// @param unitId {number} - specific unit id filter. Pass -1 (or omit) for no filter.
-    /// @signature getUnit(type: number, classId?: number, mode?: number, unitId?: number)
+    /// @signature getUnit(type: UnitType, classId?: number, mode?: number, unitId?: number)
     /// @param classId {number} - class id filter (mutually exclusive with name). Pass -1 (or omit) for no filter.
     /// @returns {Unit|undefined} - matching unit, or undefined if not found
     function::Register(
@@ -164,9 +165,9 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Compute an A* path between two world coordinates on a level.
-    /// @signature getPath(area: number, srcX: number, srcY: number, dstX: number, dstY: number, reductionType?: number,
-    /// radius?: number, reject?: function, reduce?: function, mutate?: function)
-    /// @param area {number} - level/area id (must be non-zero)
+    /// @signature getPath(area: LevelId, srcX: number, srcY: number, dstX: number, dstY: number, reductionType?:
+    /// number, radius?: number, reject?: function, reduce?: function, mutate?: function)
+    /// @param area {LevelId} - level/area id (must be non-zero)
     /// @param srcX {number} - source x world coordinate
     /// @param srcY {number} - source y world coordinate
     /// @param dstX {number} - destination x world coordinate
@@ -201,7 +202,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t area = convert::To<uint32_t>(isolate, args[0]);
+            const auto area = convert::To<game::LevelId>(isolate, args[0]);
             auto src = extract::Position(args, 1).value_or(game::Position::Zero);
             auto dst = extract::Position(args, 3).value_or(game::Position::Zero);
             uint32_t reductionType = 0;
@@ -213,7 +214,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 radius = convert::To<uint32_t>(isolate, args[6]);
             }
 
-            if (area == 0) {
+            if (area == game::LevelId::None) {
                 error::ThrowError(isolate, "Invalid level passed to getPath");
                 return;
             }
@@ -306,8 +307,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Read the collision flag at a world coordinate on a level.
-    /// @signature getCollision(levelId: number, x: number, y: number)
-    /// @param levelId {number} - level id
+    /// @signature getCollision(levelId: LevelId, x: number, y: number)
+    /// @param levelId {LevelId} - level id
     /// @param x {number} - world x coordinate
     /// @param y {number} - world y coordinate
     /// @returns {CollisionFlag} - collision flags at the cell, or 0 if no room contains the position
@@ -326,7 +327,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t levelId = convert::To<uint32_t>(isolate, args[0]);
+            const auto levelId = convert::To<game::LevelId>(isolate, args[0]);
             auto pos = extract::Position(args, 1).value();  // strict IsUint32 above guarantees this
 
             bool isLevelLoaded = false;
@@ -388,13 +389,13 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             // type 1 = shop mode (check for shop-specific cursor), 0 = regular cursor
             bool isShop = (type == 1);
-            args.GetReturnValue().Set(static_cast<int32_t>(game::GetCursorType(isShop)));
+            args.GetReturnValue().Set(game::GetCursorType(isShop));
         });
 
     /// @description Look up a skill id by its localized name.
     /// @signature getSkillByName(name: string)
     /// @param name {string} - skill name
-    /// @returns {number|undefined} - skill id, or undefined if not found
+    /// @returns {Skill|undefined} - skill id, or undefined if not found
     function::Register(
         isolate, global, "getSkillByName", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
@@ -408,12 +409,12 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             if (!skillId) {
                 return;
             }
-            args.GetReturnValue().Set(*skillId);
+            args.GetReturnValue().Set(std::to_underlying(*skillId));
         });
 
     /// @description Resolve a skill's localized name from its id (skills.txt -> skilldesc -> locale string).
-    /// @signature getSkillById(skillId: number)
-    /// @param skillId {number} - skill id
+    /// @signature getSkillById(skillId: Skill)
+    /// @param skillId {Skill} - skill id
     /// @returns {string} - localized skill name, or "Unknown" on lookup failure
     function::Register(
         isolate, global, "getSkillById", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -525,8 +526,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Query trade-related info by mode.
-    /// @signature getTradeInfo(mode: number)
-    /// @param mode {number} - 0 = recent trade id, 1 = recent trade name, 2 = recent trade id (alt)
+    /// @signature getTradeInfo(mode: TradeInfoMode)
+    /// @param mode {TradeInfoMode} - which trade value to read
     /// @returns {number|string|null|false} - id for modes 0/2, name-or-null for mode 1, false otherwise
     function::Register(
         isolate, global, "getTradeInfo", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -600,12 +601,12 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
     /// @description Get a Room object by level, by coordinates, or for the player's current level.
     /// @signature getRoom()
-    /// @signature getRoom(levelId: number)
-    /// @param levelId {number} - level id; 0 returns the player's current room, else the level's first room
+    /// @signature getRoom(levelId: LevelId)
+    /// @param levelId {LevelId} - level id; 0 returns the player's current room, else the level's first room
     /// @signature getRoom(x: number, y: number)
     /// @param x {number} - world x coordinate (must be non-zero); searches the player's level
     /// @param y {number} - world y coordinate (must be non-zero)
-    /// @signature getRoom(levelId: number, x: number, y: number)
+    /// @signature getRoom(levelId: LevelId, x: number, y: number)
     /// @returns {Room|undefined} - the matching Room; falls back to the level's first room if no coordinate match
     /// @throws {Error} - the game is not ready
     function::Register(
@@ -647,8 +648,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     room = level.GetFirstRoom();
                 } else if (args.Length() == 1 && args[0]->IsNumber()) {
                     // getRoom(levelId): get first room of the level, or player's room if 0
-                    uint32_t levelId = convert::To<uint32_t>(isolate, args[0]);
-                    if (levelId == 0) {
+                    const auto levelId = convert::To<game::LevelId>(isolate, args[0]);
+                    if (levelId == game::LevelId::None) {
                         // Reference: levelId==0 returns player's current room
                         auto player = game::Unit::Player();
                         if (!player) {
@@ -669,8 +670,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
                     if (isLevelForm) {
                         // getRoom(levelId, x, y)
-                        uint32_t levelId = convert::To<uint32_t>(isolate, args[0]);
-                        level = game::Level::Get(levelId);
+                        level = game::Level::Get(convert::To<game::LevelId>(isolate, args[0]));
                         if (!level) {
                             return;
                         }
@@ -778,8 +778,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Find the first preset unit in a level, optionally filtered by type and class id.
-    /// @signature getPresetUnit(areaId: number, type?: UnitType|number, classId?: number)
-    /// @param areaId {number} - level/area id
+    /// @signature getPresetUnit(areaId: LevelId, type?: UnitType|number, classId?: number)
+    /// @param areaId {LevelId} - level/area id
     /// @param type {UnitType|number} - unit type to match; pass -1 or omit to match any type.
     /// @param classId {number} - unit class id to match; pass -1 or omit to match any class.
     /// @returns {PresetUnit|false} - the first matching preset unit, or false if none
@@ -799,7 +799,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t areaId = convert::To<uint32_t>(isolate, args[0]);
+            const auto areaId = convert::To<game::LevelId>(isolate, args[0]);
             std::optional<game::UnitType> nType;
             std::optional<uint32_t> nClassId;
             if (args.Length() > 1 && args[1]->IsUint32()) {
@@ -837,8 +837,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Get all preset units in a level as an array, optionally filtered by type and class id.
-    /// @signature getPresetUnits(areaId: number, type?: UnitType|number, classId?: number)
-    /// @param areaId {number} - level/area id
+    /// @signature getPresetUnits(areaId: LevelId, type?: UnitType|number, classId?: number)
+    /// @param areaId {LevelId} - level/area id
     /// @param type {UnitType|number} - unit type to match; pass -1 or omit to match any type.
     /// @param classId {number} - unit class id to match; pass -1 or omit to match any class.
     /// @returns {Array<PresetUnit>|false} - array of matching preset units (possibly empty), or false if no args
@@ -858,7 +858,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t areaId = convert::To<uint32_t>(isolate, args[0]);
+            const auto areaId = convert::To<game::LevelId>(isolate, args[0]);
             std::optional<game::UnitType> nType;
             std::optional<uint32_t> nClassId;
             if (args.Length() > 1 && args[1]->IsUint32()) {
@@ -897,8 +897,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Get an Area object for a level, defaulting to the player's current area.
-    /// @signature getArea(areaId?: number)
-    /// @param areaId {number} - area/level id (non-negative); omitted uses the player's current area
+    /// @signature getArea(areaId?: LevelId)
+    /// @param areaId {LevelId} - area/level id (non-negative); omitted uses the player's current area
     /// @returns {Area|false|undefined} - the Area object, false if the level is not loaded, undefined if no player
     /// @throws {Error} - the game is not ready
     /// @throws {Error} - areaId is negative
@@ -912,7 +912,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t areaId = 0;
+            auto areaId = game::LevelId::None;
             if (args.Length() >= 1) {
                 if (!args[0]->IsNumber()) {
                     error::ThrowError(isolate, "Invalid parameter passed to getArea!");
@@ -923,7 +923,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     error::ThrowError(isolate, "Invalid parameter passed to getArea!");
                     return;
                 }
-                areaId = static_cast<uint32_t>(signedId);
+                areaId = static_cast<game::LevelId>(signedId);
             } else {
                 // Default: use player's current area
                 game::GameReadLock lock;
@@ -998,8 +998,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Find the first UI control matching optional position/size filters; menu state only.
-    /// @signature getControl(type?: number, x?: number, y?: number, xsize?: number, ysize?: number)
-    /// @param type {number} - control type filter
+    /// @signature getControl(type?: ControlType, x?: number, y?: number, xsize?: number, ysize?: number)
+    /// @param type {ControlType} - control type filter
     /// @param x {number} - x position filter
     /// @param y {number} - y position filter
     /// @param xsize {number} - width filter
@@ -1276,16 +1276,16 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description Equip an item, click a body slot, click an item by handle, or click a container grid slot.
     /// @signature clickItem(item: Unit)
     /// @param item {Unit} - item Unit; equipped into the player body slot its data points to
-    /// @signature clickItem(clickType: number, bodyLoc: number)
+    /// @signature clickItem(clickType: number, bodyLoc: BodyLocation)
     /// @param clickType {number} - 0 = player body slot, 4 = merc body slot; any other value is a no-op that returns
     /// true
-    /// @param bodyLoc {number} - body location id
+    /// @param bodyLoc {BodyLocation} - body location id
     /// @signature clickItem(clickType: number, item: Unit)
-    /// @signature clickItem(button: number, x: number, y: number, location: number)
-    /// @param button {number} - click button id
+    /// @signature clickItem(button: ClickButton, x: number, y: number, location: ItemLocation)
+    /// @param button {ClickButton} - click button id
     /// @param x {number} - container grid x
     /// @param y {number} - container grid y
-    /// @param location {number} - item container/location id
+    /// @param location {ItemLocation} - item container/location id
     /// @returns {boolean|null} - true/null/false per shape (false while a trade is open); throws "Object is not an
     /// item!" for item-by-handle on a non-item
     /// @throws {Error} - item-by-handle shape is used on a unit that is not an item
@@ -1466,10 +1466,9 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Perform a party action (invite/leave/loot/hostile) on a party member.
-    /// @signature clickParty(party: Party, mode: number)
+    /// @signature clickParty(party: Party, mode: PartyMode)
     /// @param party {Party} - the target party member object (cannot be yourself)
-    /// @param mode {number} - party action mode: 0 = allow loot, 1 = unhostile, 2 = invite, 3 = leave, 4 = hostile, 5 =
-    /// hostile (alt)
+    /// @param mode {PartyMode} - party action mode
     /// @returns {boolean} - true if the action dispatched, false on bad args or no-op conditions
     function::Register(
         isolate, global, "clickParty", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -1673,7 +1672,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             if (nParameter != 0) {
                 // Return current weapon switch state
-                args.GetReturnValue().Set(static_cast<int32_t>(game::GetWeaponSwitch()));
+                args.GetReturnValue().Set(game::GetWeaponSwitch());
             } else {
                 // Reference JSGame.cpp:1243 - classic D2 has no weapon switch.
                 if (!HasFlag(game::GetCharFlags(), game::CharFlag::Expansion)) {
@@ -1686,8 +1685,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Spend unallocated stat points on an attribute.
-    /// @signature useStatPoint(stat: number, count?: number)
-    /// @param stat {number} - stat/attribute id
+    /// @signature useStatPoint(stat: Stat, count?: number)
+    /// @param stat {Stat} - stat/attribute id
     /// @param count {number} - number of points to spend (default 1)
     /// @returns {undefined} - no return value
     function::Register(
@@ -1704,17 +1703,17 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t stat = convert::To<uint32_t>(isolate, args[0]);
-            int32_t count = 1;
+            const auto stat = convert::To<game::Stat>(isolate, args[0]);
+            uint16_t count = 1;
             if (args.Length() > 1) {
-                count = convert::To<int32_t>(isolate, args[1]);
+                count = convert::To<uint16_t>(isolate, args[1]);
             }
             game::UseStatPoint(stat, count);
         });
 
     /// @description Spend unallocated skill points on a skill.
-    /// @signature useSkillPoint(skill: number, count?: number)
-    /// @param skill {number} - skill id
+    /// @signature useSkillPoint(skill: Skill|number, count?: number)
+    /// @param skill {Skill|number} - skill id
     /// @param count {number} - number of points to spend (default 1)
     /// @returns {undefined} - no return value
     function::Register(
@@ -1731,10 +1730,10 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            uint32_t skill = convert::To<uint32_t>(isolate, args[0]);
-            int32_t count = 1;
+            const auto skill = convert::To<game::Skill>(isolate, args[0]);
+            uint16_t count = 1;
             if (args.Length() > 1) {
-                count = convert::To<int32_t>(isolate, args[1]);
+                count = convert::To<uint16_t>(isolate, args[1]);
             }
             game::UseSkillPoint(skill, count);
         });
@@ -2096,10 +2095,10 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
     /// @description Perform a gold action through the game's gold dialog: drop, move to the trade window, or move
     /// between carried gold and the stash (stash panel open).
-    /// @signature gold(amount?: number, mode?: number)
-    /// @param amount {number} - gold amount (default 0)
-    /// @param mode {number} - 1 = drop, 2 = inventory to trade, 3 = deposit into the stash, 4 = withdraw from the stash
-    /// (default 1, drop, as in the reference)
+    /// @signature gold(amount?: number, mode?: GoldActionMode)
+    /// @param amount {number} - gold amount (default 0); a negative amount does nothing
+    /// @param mode {GoldActionMode} - drop, move to the trade window, or deposit into / withdraw from the stash
+    /// (default Drop, as in the reference)
     /// @returns {undefined} - no return value
     function::Register(
         isolate, global, "gold", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -2110,10 +2109,13 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            int32_t nGold = 0;
+            uint32_t nGold = 0;
             auto nMode = game::GoldActionMode::Drop;
             if (args.Length() > 0 && args[0]->IsNumber()) {
-                nGold = convert::To<int32_t>(isolate, args[0]);
+                if (args[0].As<v8::Number>()->Value() < 0) {
+                    return;
+                }
+                nGold = convert::To<uint32_t>(isolate, args[0]);
             }
             if (args.Length() > 1 && args[1]->IsNumber()) {
                 nMode = convert::To<game::GoldActionMode>(isolate, args[1]);
@@ -2181,8 +2183,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Accept a trade, or query trade state by mode.
-    /// @signature acceptTrade(mode?: number)
-    /// @param mode {number} - query: 1 = is accepted, 2 = recent trade id, 3 = is blocked; omit/other to accept
+    /// @signature acceptTrade(mode?: AcceptTradeQueryMode)
+    /// @param mode {AcceptTradeQueryMode} - the state to query; omit (or any other value) to accept
     /// @returns {boolean|number} - query result (bool or id) for query modes, else the accept result (bool)
     function::Register(
         isolate, global, "acceptTrade", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -2336,7 +2338,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description The areas currently desecrated (terror zones), any number of them in the game's order; always
     /// empty on 1.14d, which has none.
     /// @signature getDesecratedZones()
-    /// @returns {Array<{area:number, waypointArea:number, monsterLevel:number, source:DesecratedZoneSource,
+    /// @returns {Array<{area:LevelId, waypointArea:LevelId, monsterLevel:number, source:DesecratedZoneSource,
     /// uniqueMod:number}>} - one entry per zone: the area, the area whose waypoint marks it, the monster level it
     /// raises the area to, what activated it, and the zone's configured always-unique modifier (a monumod.txt id, 0 =
     /// none).
@@ -2349,8 +2351,10 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             uint32_t i = 0;
             for (const auto& zone : zones) {
                 auto obj = v8::Object::New(isolate);
-                obj->Set(context, convert::ToJS(isolate, "area"), convert::ToJS(isolate, zone.area)).Check();
-                obj->Set(context, convert::ToJS(isolate, "waypointArea"), convert::ToJS(isolate, zone.waypointArea))
+                obj->Set(context, convert::ToJS(isolate, "area"), convert::ToJS(isolate, std::to_underlying(zone.area)))
+                    .Check();
+                obj->Set(context, convert::ToJS(isolate, "waypointArea"),
+                         convert::ToJS(isolate, std::to_underlying(zone.waypointArea)))
                     .Check();
                 obj->Set(context, convert::ToJS(isolate, "monsterLevel"), convert::ToJS(isolate, zone.monsterLevel))
                     .Check();
@@ -2380,7 +2384,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 drawPresets = args[0]->BooleanValue(isolate);
             }
 
-            uint32_t levelNo = 0;
+            auto levelNo = game::LevelId::None;
             {
                 game::GameReadLock lock;
                 auto player = game::Unit::Player();
