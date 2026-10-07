@@ -105,15 +105,20 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description Creates a new character at the menu with the given name and class.
     /// @signature createCharacter(name: string, type: CharacterClass, hardcore?: boolean, ladder?: boolean, gameType?:
     /// GameType)
-    /// @param name {string} - Desired character name.
+    /// @param name {string} - Desired character name. On 1.14d it must be 2-15 ASCII letters with at most one '-' or
+    /// '_', which may be neither the first nor the last character; any other name returns false.
     /// @param type {CharacterClass} - Character class.
-    /// @param hardcore {boolean} - Create as hardcore; defaults to false.
-    /// @param ladder {boolean} - Create as ladder; defaults to false.
+    /// @param hardcore {boolean} - Create as hardcore; defaults to false. On 1.14d this returns false unless the
+    /// hardcore option is unlocked.
+    /// @param ladder {boolean} - Create as ladder; defaults to false. On 1.14d only a Battle.net realm offers ladder,
+    /// so ladder anywhere else returns false.
     /// @param gameType {GameType} - The character's game type; defaults to RotW for a Warlock and Expansion for every
     /// other class. A Warlock must be RotW, and a Classic character cannot be an Assassin or a Druid. The Warlock
-    /// class and the RotW game type do nothing on 1.14d: it creates only Expansion characters and returns false for
-    /// any other game type, so a Warlock is never created there.
-    /// @returns {boolean} - Result of the creation attempt; undefined if not at the menu. Throws on invalid arguments.
+    /// class and the RotW game type do nothing on 1.14d: it creates Expansion (on an expansion install) and Classic
+    /// characters and returns false for RotW, so a Warlock is never created there.
+    /// @returns {boolean} - Result of the creation attempt: true once the game has taken the character and left the
+    /// creation screen, false if it could not be created (including when the game reports the name as taken);
+    /// undefined if not at the menu. Throws on invalid arguments.
     /// @throws {Error} - Character type is outside the valid class range (0-7), the game type is not a GameType, or
     /// the class cannot be created with that game type.
     function::Register(

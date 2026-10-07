@@ -5,6 +5,7 @@
 #include "game/GameHelpers.h"
 #include "game/GameLock.h"
 #include "game/GameThread.h"
+#include "imports/D2Launch.h"
 #include "imports/D2Win.h"
 #include "imports/extras/D2WinControlStrc.h"
 #include "utils/utils.h"
@@ -18,6 +19,7 @@
 #include <chrono>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 
@@ -164,6 +166,81 @@ bool IsLoginWaitState(OutOfGameLocation loc) {
         default:
             return false;
     }
+}
+
+// The name rules the character-create screen enforces: its key filter
+// (0x30590) admits only ASCII letters plus '-' / '_' while none is present yet,
+// and the OK button stays greyed (0x30620) unless the name is 2-15 characters
+// with at most one separator, neither first nor last.
+bool IsValidCharacterName(std::string_view name) {
+    constexpr size_t MIN_LENGTH = 2;
+    constexpr size_t MAX_LENGTH = 15;
+    if (name.size() < MIN_LENGTH || name.size() > MAX_LENGTH) {
+        return false;
+    }
+    const auto isSeparator = [](char c) {
+        return c == '-' || c == '_';
+    };
+    const auto isLetter = [](char c) {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+    };
+    return !isSeparator(name.front()) && !isSeparator(name.back()) &&
+           std::count_if(name.begin(), name.end(), isSeparator) <= 1 &&
+           std::all_of(name.begin(), name.end(), [&](char c) { return isLetter(c) || isSeparator(c); });
+}
+
+// D2Win control state bits: a control is drawn with 0x04 and takes input with
+// 0x01 (set and cleared by 0xF9740 and 0xF96F0).
+bool IsClickable(const lod114d::imports::extras::D2WinControlStrc* ctrl) {
+    constexpr uint32_t SHOWN = 0x04;
+    constexpr uint32_t ENABLED = 0x01;
+    return ctrl != nullptr && (std::to_underlying(ctrl->dwState) & (SHOWN | ENABLED)) == (SHOWN | ENABLED);
+}
+
+// The character-create globals keep pointing at freed controls once the screen
+// is torn down, so a pointer is used only while it is still in the control list.
+// Caller holds the game lock.
+lod114d::imports::extras::D2WinControlStrc* LiveCharCreateControl(
+    const lod114d::imports::GameVar<lod114d::imports::extras::D2WinControlStrc*>& slot) {
+    auto* wanted = *slot;
+    for (auto* p = *lod114d::imports::d2win::gpFirstControl; p != nullptr && wanted != nullptr; p = p->pNext) {
+        if (p == wanted) {
+            return p;
+        }
+    }
+    return nullptr;
+}
+
+bool HasCharCreateFlag(CharFlag flag) {
+    GameReadLock guard;
+    const auto* data = *lod114d::imports::d2launch::gpBnetData;
+    return data != nullptr && HasFlag(data->nCharFlags, flag);
+}
+
+// The character-create checkboxes toggle the new character's flag bits in
+// BnetData, which the OK handler reads; click `checkbox` if `flag` is not
+// already `isWanted`. Fails when the checkbox is not offered (hardcore not
+// unlocked, ladder off Battle.net, expansion on a classic install or for an
+// expansion-only class).
+bool SetCharCreateFlag(const lod114d::imports::GameVar<lod114d::imports::extras::D2WinControlStrc*>& checkbox,
+                       CharFlag flag, bool isWanted) {
+    if (HasCharCreateFlag(flag) == isWanted) {
+        return true;
+    }
+    const auto box = GameThread::Execute([&checkbox]() -> std::optional<Control> {
+        GameReadLock guard;
+        auto* ctrl = LiveCharCreateControl(checkbox);
+        if (!IsClickable(ctrl)) {
+            return std::nullopt;
+        }
+        return Control::FromPtr(ctrl);
+    });
+    if (!box) {
+        return false;
+    }
+    box->Click();
+    return PollUntil(std::chrono::seconds(1), std::chrono::milliseconds(50),
+                     [flag, isWanted] { return HasCharCreateFlag(flag) == isWanted; });
 }
 
 }  // namespace
@@ -634,21 +711,25 @@ bool JoinGame(const std::string& name, const std::string& password) {
     return GameThread::Execute([]() -> bool { return ClickButtonAt(594, 433, 172, 32); });
 }
 
-bool CreateCharacter(const std::string& name, CharacterClass charClass, bool /*isHardcore*/, bool /*isLadder*/,
+bool CreateCharacter(const std::string& name, CharacterClass charClass, bool isHardcore, bool isLadder,
                      GameType gameType) {
-    // The create flow never touches the expansion checkbox, so it creates what
-    // the screen defaults to: an expansion character.
-    if (gameType != GameType::Expansion) {
+    if (gameType == GameType::RotW || !IsValidCharacterName(name)) {
         return false;
+    }
+    // Only a realm builds the ladder checkbox; anywhere else its global still
+    // points at the one from an earlier realm visit, long since freed.
+    if (isLadder) {
+        constexpr uint32_t CHAR_SELECT_MODE_REALM = 1;
+        GameReadLock guard;
+        if (*lod114d::imports::d2launch::gnCharSelectMode != CHAR_SELECT_MODE_REALM) {
+            return false;
+        }
     }
     // Each UI interaction runs in its own GameThread::Execute and we sleep /
     // poll on the calling thread between them. Holding the game write lock
     // across the multi-step flow would prevent the menu UI from repainting
     // between clicks - the polling loop below would see stale state forever.
     if (GetOutOfGameLocation() != OutOfGameLocation::CharacterSelect) {
-        return false;
-    }
-    if (name.size() > 15) {
         return false;
     }
     // Click the "Create New Character" button.
@@ -706,11 +787,80 @@ bool CreateCharacter(const std::string& name, CharacterClass charClass, bool /*i
         }
     });
 
-    // TODO(implement): type the character name into the
-    // name editbox and click OK. Reference itself bails here ("still need to
-    // find the name editbox..."). Without a confirmed control rect for the
-    // name field on 1.14d we cannot wire it without a runtime probe.
-    return false;
+    // Picking a class shows the name box, the checkboxes and a greyed OK button.
+    if (!PollUntil(std::chrono::seconds(3), std::chrono::milliseconds(100),
+                   [] { return GetOutOfGameLocation() == OutOfGameLocation::CharacterCreateClassSelected; })) {
+        return false;
+    }
+
+    // CONTROL_SetText runs the box's change callback, which enables OK when
+    // the game accepts the name; the name was checked against the same rules
+    // above, so a greyed OK here means the screen is not in the state we expect.
+    const bool isNameAccepted = GameThread::Execute([&]() -> bool {
+        GameReadLock guard;
+        auto* edit = LiveCharCreateControl(lod114d::imports::d2launch::gpCharCreateNameEdit);
+        if (edit == nullptr || edit->dwType != ControlType::EditBox) {
+            return false;
+        }
+        lod114d::imports::d2win::CONTROL_SetText(edit, utils::ToWStr(name).c_str());
+        return IsClickable(LiveCharCreateControl(lod114d::imports::d2launch::gpCharCreateOkButton));
+    });
+    if (!isNameAccepted) {
+        return false;
+    }
+
+    // The class pick sets the expansion flag on an expansion install, and the
+    // ladder flag on Battle.net, so every flag is compared, not just the ones
+    // asked for.
+    if (!SetCharCreateFlag(lod114d::imports::d2launch::gpCharCreateExpansionCheckbox, CharFlag::Expansion,
+                           gameType == GameType::Expansion) ||
+        !SetCharCreateFlag(lod114d::imports::d2launch::gpCharCreateLadderCheckbox, CharFlag::Ladder, isLadder) ||
+        !SetCharCreateFlag(lod114d::imports::d2launch::gpCharCreateHardcoreCheckbox, CharFlag::Hardcore, isHardcore)) {
+        return false;
+    }
+
+    const auto okButton = GameThread::Execute([]() -> std::optional<Control> {
+        GameReadLock guard;
+        auto* ok = LiveCharCreateControl(lod114d::imports::d2launch::gpCharCreateOkButton);
+        if (!IsClickable(ok)) {
+            return std::nullopt;
+        }
+        return Control::FromPtr(ok);
+    });
+    if (!okButton) {
+        return false;
+    }
+    okButton->Click();
+
+    // A hardcore character needs its warning popup confirmed.
+    if (isHardcore) {
+        std::optional<Control> warningOk;
+        const auto findWarningOk = [&warningOk] {
+            warningOk = GameThread::Execute(
+                [] { return Control::Find(ControlType::Button, 421, 337, 96, 32, std::to_underlying(StringId::Ok)); });
+            return warningOk.has_value();
+        };
+        if (!PollUntil(std::chrono::seconds(3), std::chrono::milliseconds(100), findWarningOk)) {
+            return false;
+        }
+        warningOk->Click();
+    }
+
+    // Single player leaves the screen at once, into the game or to the
+    // duplicate-name popup. Battle.net shows "please wait" while the realm
+    // answers (0x35E10), then reports any refusal - a taken name included -
+    // in a centered OK popup.
+    const auto isSettled = [] {
+        const auto loc = GetOutOfGameLocation();
+        return loc != OutOfGameLocation::CharacterCreateClassSelected &&
+               loc != OutOfGameLocation::CharacterSelectPleaseWait && loc != OutOfGameLocation::LobbyPleaseWait;
+    };
+    if (!PollUntil(std::chrono::seconds(15), std::chrono::milliseconds(100), isSettled)) {
+        return false;
+    }
+    const auto loc = GetOutOfGameLocation();
+    return loc != OutOfGameLocation::CharacterCreateAlreadyExists && loc != OutOfGameLocation::LostConnection &&
+           loc != OutOfGameLocation::Disconnected;
 }
 
 OutOfGameLocation GetOutOfGameLocation() {

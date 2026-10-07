@@ -491,7 +491,7 @@ Within each handle header (`Unit.h`, `Room.h`, etc.), a comment separator marks 
 
 | Tag | Location | Meaning |
 |-----|----------|---------|
-| `TODO(implement)` | (any) | Functionality not yet implemented (currently the character-create name entry in Menu.cpp) |
+| `TODO(implement)` | (any) | Functionality not yet implemented (none at present) |
 
 ## Reference Implementation
 
