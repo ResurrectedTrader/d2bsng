@@ -22,9 +22,6 @@ namespace d2bs::core::http {
 
 namespace {
 
-constexpr DWORD HOST_BUFFER_CHARS = 256;
-constexpr DWORD URL_BUFFER_CHARS = 8192;
-
 // Format the current GetLastError() value via the system message table, suffixed
 // with the numeric code. WinHTTP-range codes (12xxx) have no system message and
 // surface as just the code, which is documented and greppable.
@@ -152,6 +149,8 @@ std::string Perform(const Request& request, Response& out) {
 
     URL_COMPONENTS components = {};
     components.dwStructSize = sizeof(components);
+    constexpr DWORD HOST_BUFFER_CHARS = 256;
+    constexpr DWORD URL_BUFFER_CHARS = 8192;
     std::array<wchar_t, HOST_BUFFER_CHARS> hostBuffer{};
     std::array<wchar_t, URL_BUFFER_CHARS> pathBuffer{};
     std::array<wchar_t, URL_BUFFER_CHARS> extraBuffer{};

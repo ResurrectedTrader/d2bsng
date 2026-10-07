@@ -111,57 +111,8 @@ using lod114d::imports::extras::plugy::PageRef;
 using lod114d::imports::extras::plugy::PYPlayerData;
 using lod114d::imports::extras::plugy::Stash;
 
-// D2Common's InitPlayerData in 1.14d Game.exe. Its allocation call is the one
-// PlugY redirects to grow the block by sizeof(PYPlayerData):
-//   +0x47  BA 6C 01 00 00   mov edx, sizeof(D2PlayerDataStrc)
-//   +0x4C  E8 xx xx xx xx   call Fog alloc  (rel32 rewritten to point into PlugY.dll)
-// PlugY reads the same immediate to place its extension, so reading it here
-// guarantees we land where PlugY did.
-constexpr uint32_t INIT_PLAYER_DATA_RVA = 0x221F90;
-constexpr uint32_t ALLOC_SIZE_MOV_RVA = INIT_PLAYER_DATA_RVA + 0x47;
-constexpr uint32_t ALLOC_CALL_RVA = INIT_PLAYER_DATA_RVA + 0x4C;
-constexpr uint8_t OPCODE_MOV_EDX_IMM32 = 0xBA;
-constexpr uint8_t OPCODE_CALL_REL32 = 0xE8;
-constexpr size_t REL32_INSN_LEN = 5;
-
-// Game.exe's startup loads advapi32 through this `call [IAT LoadLibraryA]`. It is
-// where PlugY.exe's stub runs PlugY's Init: Fog's memory pool already exists (Init
-// allocates through it), and nothing PlugY's startup-time features hook has run
-// yet. Verified against 1.14d: FF 15 44 C1 6C 00.
-constexpr uint32_t STARTUP_LOADLIBRARY_CALL_RVA = 0x621C;
-constexpr std::array<uint8_t, 2> OPCODE_CALL_INDIRECT = {0xFF, 0x15};
-constexpr size_t IAT_CALL_LEN = 6;
-
-// Server -> client item action packets (0x9C: item on the ground / the player,
-// 0x9D: item on an owned unit), item id at offset 4. PlugY reuses id 0x9D for its
-// own page updates with a function byte from 0x18 up, above the vanilla action
-// range, so the action byte tells the two apart.
-constexpr uint8_t PACKET_ITEM_ACTION = 0x9C;
-constexpr uint8_t PACKET_ITEM_ACTION_OWNED = 0x9D;
-constexpr size_t ITEM_ACTION_ID_OFFSET = 4;
-constexpr size_t ITEM_ACTION_MIN_SIZE = ITEM_ACTION_ID_OFFSET + sizeof(uint32_t);
-constexpr uint8_t FIRST_PLUGY_FUNC = 0x18;
-
 constexpr std::chrono::milliseconds PAGE_SWITCH_TIMEOUT{3000};
-constexpr std::chrono::milliseconds ITEM_ACK_TIMEOUT{2000};
 constexpr std::chrono::milliseconds POLL_INTERVAL{5};
-
-// The official releases that carry the 1.14d port. For each, PlugY's git
-// history was checked and everything read or sent here is identical: the
-// PYPlayerData / Stash layouts, the allocation patch site and its original
-// bytes, the size-immediate derivation, the 0x3A command values, the 0x9D
-// packet layout, the handler patch sites, and the page-list semantics
-// (docs/plugy_stash.md lists the checklist). An unknown build keeps the feature
-// off rather than risk misreading memory.
-constexpr std::array SUPPORTED_VERSIONS = {
-    utils::ModuleVersion{.major = 12, .minor = 0, .build = 0},
-    utils::ModuleVersion{.major = 14, .minor = 0, .build = 0},
-    utils::ModuleVersion{.major = 14, .minor = 0, .build = 1},
-    utils::ModuleVersion{.major = 14, .minor = 0, .build = 2},
-    utils::ModuleVersion{.major = 14, .minor = 0, .build = 3},
-};
-
-constexpr std::array KINDS = {StashTabKind::Personal, StashTabKind::Shared};
 
 enum class Detection : uint8_t {
     Active,
@@ -193,6 +144,20 @@ Detection Detect(HMODULE module) {
         Logger()->warn("PlugY.dll is loaded but has no readable version resource; stash tabs disabled");
         return Detection::Inactive;
     }
+    // The official releases that carry the 1.14d port. For each, PlugY's git
+    // history was checked and everything read or sent here is identical: the
+    // PYPlayerData / Stash layouts, the allocation patch site and its original
+    // bytes, the size-immediate derivation, the 0x3A command values, the 0x9D
+    // packet layout, the handler patch sites, and the page-list semantics
+    // (docs/plugy_stash.md lists the checklist). An unknown build keeps the feature
+    // off rather than risk misreading memory.
+    constexpr std::array SUPPORTED_VERSIONS = {
+        utils::ModuleVersion{.major = 12, .minor = 0, .build = 0},
+        utils::ModuleVersion{.major = 14, .minor = 0, .build = 0},
+        utils::ModuleVersion{.major = 14, .minor = 0, .build = 1},
+        utils::ModuleVersion{.major = 14, .minor = 0, .build = 2},
+        utils::ModuleVersion{.major = 14, .minor = 0, .build = 3},
+    };
     if (std::ranges::find(SUPPORTED_VERSIONS, *version) == SUPPORTED_VERSIONS.end()) {
         Logger()->warn("version {} is not a known release (supported: 12.00, 14.00 - 14.03); stash tabs disabled",
                        Label(*version));
@@ -200,6 +165,18 @@ Detection Detect(HMODULE module) {
     }
 
     const auto base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
+    // D2Common's InitPlayerData in 1.14d Game.exe. Its allocation call is the one
+    // PlugY redirects to grow the block by sizeof(PYPlayerData):
+    //   +0x47  BA 6C 01 00 00   mov edx, sizeof(D2PlayerDataStrc)
+    //   +0x4C  E8 xx xx xx xx   call Fog alloc  (rel32 rewritten to point into PlugY.dll)
+    // PlugY reads the same immediate to place its extension, so reading it here
+    // guarantees we land where PlugY did.
+    constexpr uint32_t INIT_PLAYER_DATA_RVA = 0x221F90;
+    constexpr uint32_t ALLOC_SIZE_MOV_RVA = INIT_PLAYER_DATA_RVA + 0x47;
+    constexpr uint32_t ALLOC_CALL_RVA = INIT_PLAYER_DATA_RVA + 0x4C;
+    constexpr uint8_t OPCODE_MOV_EDX_IMM32 = 0xBA;
+    constexpr uint8_t OPCODE_CALL_REL32 = 0xE8;
+    constexpr size_t REL32_INSN_LEN = 5;
     const uintptr_t callSite = base + ALLOC_CALL_RVA;
     if (utils::ReadValue<uint8_t>(callSite) != OPCODE_CALL_REL32) {
         Logger()->warn("{}: unexpected code at InitPlayerData+{:#x}; stash tabs disabled", Label(*version),
@@ -346,6 +323,15 @@ std::atomic<bool> ackSeen{false};
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 void OnIncomingPacket(std::span<const uint8_t> packet) {
+    // Server -> client item action packets (0x9C: item on the ground / the player,
+    // 0x9D: item on an owned unit), item id at offset 4. PlugY reuses id 0x9D for its
+    // own page updates with a function byte from 0x18 up, above the vanilla action
+    // range, so the action byte tells the two apart.
+    constexpr uint8_t PACKET_ITEM_ACTION = 0x9C;
+    constexpr uint8_t PACKET_ITEM_ACTION_OWNED = 0x9D;
+    constexpr size_t ITEM_ACTION_ID_OFFSET = 4;
+    constexpr size_t ITEM_ACTION_MIN_SIZE = ITEM_ACTION_ID_OFFSET + sizeof(uint32_t);
+    constexpr uint8_t FIRST_PLUGY_FUNC = 0x18;
     if (packet.size() < ITEM_ACTION_MIN_SIZE) {
         return;
     }
@@ -386,6 +372,7 @@ ClickResult ClickAndAwaitAck(const std::function<ClickResult()>& action) {
         ackTargetA.store(cursorBefore, std::memory_order_relaxed);
         ackTargetB.store(cursorAfter, std::memory_order_relaxed);
         lod114d::hooks::intercepts::SetIncomingPacketObserver(&OnIncomingPacket);
+        constexpr std::chrono::milliseconds ITEM_ACK_TIMEOUT{2000};
         if (!PollUntil(ITEM_ACK_TIMEOUT, POLL_INTERVAL, [] { return ackSeen.load(std::memory_order_acquire); })) {
             Logger()->warn("no server acknowledgement for the stash click within {} ms", ITEM_ACK_TIMEOUT.count());
         }
@@ -404,6 +391,13 @@ void InstallInitHook() {
         return;
     }
     const auto base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
+    // Game.exe's startup loads advapi32 through this `call [IAT LoadLibraryA]`. It is
+    // where PlugY.exe's stub runs PlugY's Init: Fog's memory pool already exists (Init
+    // allocates through it), and nothing PlugY's startup-time features hook has run
+    // yet. Verified against 1.14d: FF 15 44 C1 6C 00.
+    constexpr uint32_t STARTUP_LOADLIBRARY_CALL_RVA = 0x621C;
+    constexpr std::array<uint8_t, 2> OPCODE_CALL_INDIRECT = {0xFF, 0x15};
+    constexpr size_t IAT_CALL_LEN = 6;
     const uintptr_t site = base + STARTUP_LOADLIBRARY_CALL_RVA;
     // `FF 15 <slot>`: call through the IAT slot that must hold LoadLibraryA. Anything
     // else means PlugY.exe already redirected this call (its stub handles Init) or
@@ -516,6 +510,7 @@ std::optional<StashTab> FindPage(const Unit& item) {
         return std::nullopt;
     }
     const uint32_t itemId = item.Id();
+    constexpr std::array KINDS = {StashTabKind::Personal, StashTabKind::Shared};
     for (const auto kind : KINDS) {
         uint32_t index = 0;
         const Stash* page = ext->ForEachPage(kind, [&](const Stash& candidate, uint32_t i) {

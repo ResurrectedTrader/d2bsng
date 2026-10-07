@@ -86,10 +86,6 @@ spdlog::logger& Log() {
     return *LOGGER;
 }
 
-constexpr std::chrono::milliseconds WAIT_GAME_READY_DEFAULT{15000};
-// Polling cadence -- matches reference (Sleep(10)) closely enough for parity.
-constexpr std::chrono::milliseconds WAIT_GAME_READY_POLL{10};
-
 // Convert a fixed-size NUL-padded char buffer to std::string. The buffer is
 // not guaranteed to be NUL-terminated when full, hence the explicit upper bound
 // passed to strnlen.
@@ -221,6 +217,9 @@ bool WaitForGameReady(std::chrono::milliseconds timeout) {
         return true;
     }
 
+    constexpr std::chrono::milliseconds WAIT_GAME_READY_DEFAULT{15000};
+    // Polling cadence -- matches reference (Sleep(10)) closely enough for parity.
+    constexpr std::chrono::milliseconds WAIT_GAME_READY_POLL{10};
     const auto effective = (timeout.count() > 0) ? timeout : WAIT_GAME_READY_DEFAULT;
     const auto deadline = std::chrono::steady_clock::now() + effective;
     while (true) {

@@ -38,24 +38,7 @@ namespace {
 
 using json = nlohmann::json;  // NOLINT(readability-identifier-naming) - nlohmann's conventional alias spelling
 
-// Short settle delay before the first send so it doesn't pile onto the heavy
-// DLL-load / framework-init work.
-constexpr auto INITIAL_DELAY = std::chrono::seconds{5};
-// Retry a failed POST a few times (the network may not be up at inject time),
-// backing off between attempts.
-constexpr auto RETRY_INTERVAL = std::chrono::seconds{30};
 constexpr int32_t MAX_ATTEMPTS = 3;
-
-constexpr uint32_t NETWORK_TIMEOUT_MS = 10000;
-constexpr uint32_t TOTAL_TIMEOUT_MS = 15000;
-
-// How often the reporter re-reads the active profile name. A profile lives for a
-// whole bot run, so this only bounds how quickly a switch is noticed; the poll
-// itself is a string copy against a shared_mutex.
-constexpr auto PROFILE_POLL_INTERVAL = std::chrono::seconds{5};
-
-// Aptabase's single-event ingest path.
-constexpr std::string_view EVENT_PATH = "/api/v0/event";
 
 // Salt mixed into the derived install id. Fixed, and scoped to the publisher
 // rather than to d2bsng: it makes the digest useless for correlating this
@@ -64,19 +47,11 @@ constexpr std::string_view EVENT_PATH = "/api/v0/event";
 // re-buckets every install as new.
 constexpr std::string_view ID_SALT = "ResurrectedTrader-analytics-v1";
 
-// Length of the profile digest we report. 64 bits is far more than enough to
-// tell one install's handful of profiles apart, and a short value keeps the
-// dashboard readable.
-constexpr size_t PROFILE_HASH_CHARS = 16;
-
 #ifdef _WIN64
 constexpr std::string_view ARCH = "x64";
 #else
 constexpr std::string_view ARCH = "x86";
 #endif
-
-// Speeds within this of 1.0 count as "no speedhack" (the default is exactly 1.0).
-constexpr float SPEED_EPSILON = 0.0001F;
 
 // Aptabase app key, baked in at build time exactly like D2BS_VERSION: the
 // #ifndef fallback defaults it to an empty string, and CI overrides it via
@@ -219,6 +194,10 @@ std::string HashProfileName(std::string_view installId, std::string_view profile
     material += utils::ToLower(std::string(profileName));
 
     const std::string digest = utils::HashString(BCRYPT_SHA256_ALGORITHM, material);
+    // Length of the profile digest we report. 64 bits is far more than enough to
+    // tell one install's handful of profiles apart, and a short value keeps the
+    // dashboard readable.
+    constexpr size_t PROFILE_HASH_CHARS = 16;
     return digest.size() > PROFILE_HASH_CHARS ? digest.substr(0, PROFILE_HASH_CHARS) : digest;
 }
 
@@ -375,6 +354,8 @@ bool PostEvent(const EventContext& ctx, const std::shared_ptr<spdlog::logger>& l
 
     core::http::Request request;
     request.method = "POST";
+    // Aptabase's single-event ingest path.
+    constexpr std::string_view EVENT_PATH = "/api/v0/event";
     request.url = std::string(ctx.host) + std::string(EVENT_PATH);
     request.headers = {
         {"Content-Type", "application/json"},
@@ -383,6 +364,8 @@ bool PostEvent(const EventContext& ctx, const std::shared_ptr<spdlog::logger>& l
     };
     const std::string body = event.dump();
     request.body.assign(body.begin(), body.end());
+    constexpr uint32_t NETWORK_TIMEOUT_MS = 10000;
+    constexpr uint32_t TOTAL_TIMEOUT_MS = 15000;
     request.timeoutMs = NETWORK_TIMEOUT_MS;
     request.totalTimeoutMs = TOTAL_TIMEOUT_MS;
 
@@ -469,6 +452,12 @@ void Analytics::Run(const std::stop_token& stopToken) {
     // on invalid UTF-8; losing the telemetry is the correct outcome for both.
     try {
         std::unique_lock lock(mutex_);
+        // Short settle delay before the first send so it doesn't pile onto the heavy
+        // DLL-load / framework-init work.
+        constexpr auto INITIAL_DELAY = std::chrono::seconds{5};
+        // Retry a failed POST a few times (the network may not be up at inject time),
+        // backing off between attempts.
+        constexpr auto RETRY_INTERVAL = std::chrono::seconds{30};
         if (WaitFor(lock, stopToken, INITIAL_DELAY)) {
             return;
         }
@@ -514,6 +503,10 @@ void Analytics::WatchProfiles(std::unique_lock<std::mutex>& lock, const std::sto
     int32_t attempts = 0;
 
     while (!stopToken.stop_requested()) {
+        // How often the reporter re-reads the active profile name. A profile lives for a
+        // whole bot run, so this only bounds how quickly a switch is noticed; the poll
+        // itself is a string copy against a shared_mutex.
+        constexpr auto PROFILE_POLL_INTERVAL = std::chrono::seconds{5};
         if (WaitFor(lock, stopToken, PROFILE_POLL_INTERVAL)) {
             return;
         }
@@ -574,6 +567,8 @@ bool Analytics::SendStartupEvent() {
     if (appConfig.inspectorPort.load() > 0) {
         features.emplace_back("inspector");
     }
+    // Speeds within this of 1.0 count as "no speedhack" (the default is exactly 1.0).
+    constexpr float SPEED_EPSILON = 0.0001F;
     if (std::fabs(appConfig.speed.load() - 1.0F) > SPEED_EPSILON) {
         features.emplace_back("speedhack");
     }

@@ -35,9 +35,8 @@ HWND subclassedHwnd = nullptr;
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 // Sent to the subclassed window by Remove() so the unhook runs on the window's
-// thread, and how long Remove() waits for that thread to answer.
+// thread.
 constexpr UINT WM_REMOVE_INPUT_HOOKS = WM_APP + 0x2B5;
-constexpr UINT REMOVE_TIMEOUT_MS = 2000;
 
 // Retires the hook and the subclass. The window's thread is the only one that
 // runs GetMsgProc (a thread-specific hook) and the subclassed WndProc, so on
@@ -289,6 +288,8 @@ void Remove() {
         return;
     }
     DWORD_PTR result = 0;
+    // How long to wait for the window's thread to answer.
+    constexpr UINT REMOVE_TIMEOUT_MS = 2000;
     SendMessageTimeoutW(subclassedHwnd, WM_REMOVE_INPUT_HOOKS, 0, 0, SMTO_NORMAL | SMTO_ABORTIFHUNG, REMOVE_TIMEOUT_MS,
                         &result);
     if (subclassedHwnd == nullptr) {

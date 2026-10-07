@@ -10,12 +10,6 @@ namespace d2bs::runtime::dde {
 
 namespace {
 
-// Matches reference/d2bs/dde.cpp DdeCallback flags exactly.
-constexpr UINT SERVER_FLAGS = APPCLASS_STANDARD | APPCMD_FILTERINITS | CBF_FAIL_ADVISES | CBF_FAIL_REQUESTS |
-                              CBF_SKIP_CONNECT_CONFIRMS | CBF_SKIP_REGISTRATIONS | CBF_SKIP_UNREGISTRATIONS;
-
-constexpr DWORD CLIENT_TIMEOUT_MS = 5000;
-
 // Read a DDE string handle into a narrow std::string.
 std::string QueryString(DWORD idInst, HSZ hsz) {
     if (hsz == nullptr) {
@@ -82,6 +76,9 @@ bool DdeService::Start(Handler handler) {
     pumpThread_ = std::jthread([this, promise = std::move(startupPromise)]() mutable {
         utils::threads::SetThreadDescription("d2bs DDE pump");
 
+        // Matches reference/d2bs/dde.cpp DdeCallback flags exactly.
+        constexpr UINT SERVER_FLAGS = APPCLASS_STANDARD | APPCMD_FILTERINITS | CBF_FAIL_ADVISES | CBF_FAIL_REQUESTS |
+                                      CBF_SKIP_CONNECT_CONFIRMS | CBF_SKIP_REGISTRATIONS | CBF_SKIP_UNREGISTRATIONS;
         UINT err = DdeInitializeA(&idInst_, &DdeService::StaticCallback, SERVER_FLAGS, 0);
         if (err != DMLERR_NO_ERROR) {
             logger_->error("DdeInitialize failed: 0x{:X}", err);
@@ -235,6 +232,7 @@ std::optional<std::string> DdeService::Send(Transaction txn, std::string_view se
     }
 
     std::optional<std::string> result;
+    constexpr DWORD CLIENT_TIMEOUT_MS = 5000;
     switch (txn) {
         case Transaction::Request: {
             HDDEDATA hdata =

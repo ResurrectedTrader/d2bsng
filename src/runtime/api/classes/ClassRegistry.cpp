@@ -41,21 +41,20 @@ namespace d2bs::runtime::api::classes {
 
 namespace {
 
-// Unwrap tells one class's wrappers from another's by the address of a per-class tag whose
-// value is seeded from ClassName, so two classes sharing a name (or colliding under the hash)
-// could share a tag and let Unwrap hand back a wrongly-typed pointer. This is the one place
-// every class is listed, so the invariant is checked here rather than left to review.
-constexpr std::array CLASS_NAMES = {
-    JSUnit::ClassName,       JSRoom::ClassName,       JSArea::ClassName,      JSExit::ClassName,
-    JSStashTab::ClassName,   JSPresetUnit::ClassName, JSParty::ClassName,     JSControl::ClassName,
-    JSFile::ClassName,       JSFileTools::ClassName,  JSDirectory::ClassName, JSFrame::ClassName,
-    JSBox::ClassName,        JSLine::ClassName,       JSText::ClassName,      JSImage::ClassName,
-    JSScript::ClassName,     JSSandbox::ClassName,    JSProfile::ClassName,   JSCompatibility::ClassName,
-    JSHttpClient::ClassName, JSSocket::ClassName,     JSSQLite::ClassName,    JSDBStatement::ClassName,
-    JSTxtTables::ClassName,
-};
-
 consteval bool ClassTagsAreDistinct() {
+    // Unwrap tells one class's wrappers from another's by the address of a per-class tag whose
+    // value is seeded from ClassName, so two classes sharing a name (or colliding under the hash)
+    // could share a tag and let Unwrap hand back a wrongly-typed pointer. This is the one place
+    // every class is listed, so the invariant is checked here rather than left to review.
+    constexpr std::array CLASS_NAMES = {
+        JSUnit::ClassName,       JSRoom::ClassName,       JSArea::ClassName,      JSExit::ClassName,
+        JSStashTab::ClassName,   JSPresetUnit::ClassName, JSParty::ClassName,     JSControl::ClassName,
+        JSFile::ClassName,       JSFileTools::ClassName,  JSDirectory::ClassName, JSFrame::ClassName,
+        JSBox::ClassName,        JSLine::ClassName,       JSText::ClassName,      JSImage::ClassName,
+        JSScript::ClassName,     JSSandbox::ClassName,    JSProfile::ClassName,   JSCompatibility::ClassName,
+        JSHttpClient::ClassName, JSSocket::ClassName,     JSSQLite::ClassName,    JSDBStatement::ClassName,
+        JSTxtTables::ClassName,
+    };
     for (size_t i = 0; i < CLASS_NAMES.size(); ++i) {
         for (size_t j = i + 1; j < CLASS_NAMES.size(); ++j) {
             // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index) - consteval loop

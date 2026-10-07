@@ -17,11 +17,6 @@ spdlog::logger& Log() {
     return *LOGGER;
 }
 
-// Detours reports its own failures as Win32 error codes, so the resolve
-// failures this layer adds use the matching ones.
-constexpr int32_t MODULE_NOT_LOADED_ERROR = ERROR_MOD_NOT_FOUND;
-constexpr int32_t TARGET_MISSING_ERROR = ERROR_PROC_NOT_FOUND;
-
 // GetModuleHandleW only: a slot may be attached under the loader lock, where
 // loading a module is not allowed. Reporting the miss and letting a later
 // attach pick the module up is the contract.
@@ -40,6 +35,10 @@ void* ResolveExport(std::wstring_view module, std::string_view name, AttachResul
 }
 
 int32_t ErrorFor(AttachResult result, int32_t batchError) {
+    // Detours reports its own failures as Win32 error codes, so the resolve
+    // failures this layer adds use the matching ones.
+    constexpr int32_t MODULE_NOT_LOADED_ERROR = ERROR_MOD_NOT_FOUND;
+    constexpr int32_t TARGET_MISSING_ERROR = ERROR_PROC_NOT_FOUND;
     switch (result) {
         case AttachResult::ModuleNotLoaded:
             return MODULE_NOT_LOADED_ERROR;

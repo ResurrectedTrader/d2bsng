@@ -23,15 +23,6 @@ namespace {
 
 using json = nlohmann::json;  // NOLINT(readability-identifier-naming) - nlohmann's conventional alias spelling
 
-constexpr auto CHECK_INTERVAL = std::chrono::hours{6};
-// Short settle delay before the first check so it doesn't pile onto the heavy
-// DLL-load / framework-init work.
-constexpr auto INITIAL_DELAY = std::chrono::seconds{5};
-
-// Hardcoded: the canonical d2bsng releases endpoint. `releases/latest` returns
-// the newest non-draft, non-prerelease release (404 when none exist yet).
-constexpr std::string_view RELEASES_API_URL = "https://api.github.com/repos/ResurrectedTrader/d2bsng/releases/latest";
-
 // Drop a single leading 'v' / 'V' version-tag prefix (GitHub tags read "v2.1.0";
 // the value we compare and display is "2.1.0"). Returns a view into `tag`.
 std::string_view StripTagPrefix(std::string_view tag) {
@@ -147,6 +138,10 @@ void UpdateChecker::Run(const std::stop_token& stopToken) {
     utils::threads::SetThreadDescription("d2bs update checker");
 
     std::unique_lock lock(mutex_);
+    constexpr auto CHECK_INTERVAL = std::chrono::hours{6};
+    // Short settle delay before the first check so it doesn't pile onto the heavy
+    // DLL-load / framework-init work.
+    constexpr auto INITIAL_DELAY = std::chrono::seconds{5};
     // Interruptible settle delay before the first check. wait_for returns the
     // predicate result, so a true return means Stop() fired during the delay.
     if (cv_.wait_for(lock, stopToken, INITIAL_DELAY, [&stopToken] { return stopToken.stop_requested(); })) {
@@ -165,6 +160,10 @@ void UpdateChecker::Run(const std::stop_token& stopToken) {
 bool UpdateChecker::CheckOnce() {
     core::http::Request request;
     request.method = "GET";
+    // Hardcoded: the canonical d2bsng releases endpoint. `releases/latest` returns
+    // the newest non-draft, non-prerelease release (404 when none exist yet).
+    constexpr std::string_view RELEASES_API_URL =
+        "https://api.github.com/repos/ResurrectedTrader/d2bsng/releases/latest";
     request.url = std::string(RELEASES_API_URL);
     request.headers = {
         // GitHub rejects API requests without a User-Agent.

@@ -43,20 +43,6 @@ using CloseSocketFn = int(WSAAPI*)(SOCKET);
 // 3s SO_RCVTIMEO, so this is only the outer ceiling for the proxy itself.
 constexpr int HANDSHAKE_TIMEOUT_MS = 10000;
 
-// SOCKS5 (RFC 1928) + username/password auth (RFC 1929) wire constants.
-constexpr uint8_t SOCKS5_VERSION = 0x05;
-constexpr uint8_t SOCKS5_CMD_CONNECT = 0x01;
-constexpr uint8_t SOCKS5_RSV = 0x00;
-constexpr uint8_t SOCKS5_ATYP_IPV4 = 0x01;
-constexpr uint8_t SOCKS5_ATYP_DOMAIN = 0x03;
-constexpr uint8_t SOCKS5_ATYP_IPV6 = 0x04;
-constexpr uint8_t SOCKS5_AUTH_NONE = 0x00;
-constexpr uint8_t SOCKS5_AUTH_USERPASS = 0x02;
-constexpr uint8_t SOCKS5_AUTH_VERSION = 0x01;
-constexpr uint8_t SOCKS5_AUTH_OK = 0x00;
-constexpr uint8_t SOCKS5_REP_SUCCESS = 0x00;
-constexpr size_t SOCKS5_MAX_FIELD = 255;  // RFC 1929 ULEN/PLEN ceiling; also caps the BND.ADDR drain
-
 struct ProxyConfig {
     std::string host;
     std::string port;
@@ -286,6 +272,19 @@ bool ProxyConnect(SOCKET s, const sockaddr_in& proxy) {
 bool Handshake(SOCKET s, const ProxyConfig& cfg, const sockaddr_in& dest, std::string_view host) {
     const bool useAuth = !cfg.username.empty();
 
+    // SOCKS5 (RFC 1928) + username/password auth (RFC 1929) wire constants.
+    constexpr uint8_t SOCKS5_VERSION = 0x05;
+    constexpr uint8_t SOCKS5_CMD_CONNECT = 0x01;
+    constexpr uint8_t SOCKS5_RSV = 0x00;
+    constexpr uint8_t SOCKS5_ATYP_IPV4 = 0x01;
+    constexpr uint8_t SOCKS5_ATYP_DOMAIN = 0x03;
+    constexpr uint8_t SOCKS5_ATYP_IPV6 = 0x04;
+    constexpr uint8_t SOCKS5_AUTH_NONE = 0x00;
+    constexpr uint8_t SOCKS5_AUTH_USERPASS = 0x02;
+    constexpr uint8_t SOCKS5_AUTH_VERSION = 0x01;
+    constexpr uint8_t SOCKS5_AUTH_OK = 0x00;
+    constexpr uint8_t SOCKS5_REP_SUCCESS = 0x00;
+    constexpr size_t SOCKS5_MAX_FIELD = 255;  // RFC 1929 ULEN/PLEN ceiling; also caps the BND.ADDR drain
     // Greeting: VER, NMETHODS, METHODS... (offer no-auth, plus user/pass when we have credentials).
     std::vector<uint8_t> greeting{SOCKS5_VERSION, 1, SOCKS5_AUTH_NONE};
     if (useAuth) {

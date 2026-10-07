@@ -213,13 +213,6 @@ void Host::SetupPaths(HMODULE hModule) {
 
 namespace {
 
-constexpr std::string_view INI_FILE_NAME = "d2bs.ini";
-
-// A farm leaves the log to grow unattended, so the file is capped and rolled
-// rather than trusted to stay small.
-constexpr size_t MAX_LOG_SIZE = 10 * 1024 * 1024;
-constexpr size_t MAX_LOG_FILES = 3;
-
 // A profile name is user text that reaches a path here.
 std::string SanitizeForFileName(std::string_view name) {
     std::string out;
@@ -255,6 +248,10 @@ void Host::SetupLogging() {
         const auto logPath = ConfigPath().parent_path() / "logs" / LogFileName();
         std::filesystem::create_directories(logPath.parent_path());
         logFile = logPath.string();
+        // A farm leaves the log to grow unattended, so the file is capped and rolled
+        // rather than trusted to stay small.
+        constexpr size_t MAX_LOG_SIZE = 10 * 1024 * 1024;
+        constexpr size_t MAX_LOG_FILES = 3;
         utils::AddLogSink(std::make_shared<spdlog::sinks::rotating_file_sink_mt>(logFile, MAX_LOG_SIZE, MAX_LOG_FILES));
     } catch (const std::exception& ex) {
         openError = ex.what();
@@ -277,6 +274,7 @@ void Host::SetupLogging() {
 }
 
 std::filesystem::path Host::ConfigPath() {
+    constexpr std::string_view INI_FILE_NAME = "d2bs.ini";
     return dllDir_ / INI_FILE_NAME;
 }
 

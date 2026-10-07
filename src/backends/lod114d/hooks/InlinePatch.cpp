@@ -8,10 +8,6 @@ namespace d2bs::lod114d::hooks {
 
 namespace {
 
-constexpr uint8_t OPCODE_JMP_REL32 = 0xE9;
-constexpr uint8_t OPCODE_CALL_REL32 = 0xE8;
-constexpr uint8_t OPCODE_NOP = 0x90;
-
 void WriteRel(uintptr_t site, uint8_t opcode, uintptr_t target, size_t len, uint8_t* originalOut) {
     auto* p = reinterpret_cast<uint8_t*>(site);
     DWORD oldProtect = 0;
@@ -21,6 +17,7 @@ void WriteRel(uintptr_t site, uint8_t opcode, uintptr_t target, size_t len, uint
     const int32_t rel = static_cast<int32_t>(target - (site + 5));
     std::memcpy(p + 1, &rel, sizeof(int32_t));
     if (len > 5) {
+        constexpr uint8_t OPCODE_NOP = 0x90;
         std::memset(p + 5, OPCODE_NOP, len - 5);
     }
     VirtualProtect(p, len, oldProtect, &oldProtect);
@@ -30,10 +27,12 @@ void WriteRel(uintptr_t site, uint8_t opcode, uintptr_t target, size_t len, uint
 }  // namespace
 
 void WriteCallN(uintptr_t site, uintptr_t target, size_t len, uint8_t* originalOut) {
+    constexpr uint8_t OPCODE_CALL_REL32 = 0xE8;
     WriteRel(site, OPCODE_CALL_REL32, target, len, originalOut);
 }
 
 void WriteJmpN(uintptr_t site, uintptr_t target, size_t len, uint8_t* originalOut) {
+    constexpr uint8_t OPCODE_JMP_REL32 = 0xE9;
     WriteRel(site, OPCODE_JMP_REL32, target, len, originalOut);
 }
 
