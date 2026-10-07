@@ -559,6 +559,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param item {string} - DDE item
     /// @param data {string} - DDE data payload
     /// @returns {string|undefined} - the response payload for a successful Request; undefined otherwise
+    /// @throws When fewer than 5 arguments are given, or DDE cannot be initialised.
     function::Register(
         isolate, global, "sendDDE", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
@@ -580,12 +581,15 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
             auto txn = static_cast<dde::Transaction>(mode);
 
-            // Matches reference/d2bs JSCore.cpp my_sendDDE: never throws on DDE failure; any failure
-            // is logged and the JS return value stays undefined (caller sees no response). Only
-            // Request sets a return value, and only on successful payload retrieval.
-            auto result = dde::DdeService::Instance().Send(txn, server, topic, item, data);
-            if (txn == dde::Transaction::Request && result) {
-                args.GetReturnValue().Set(convert::ToJS(isolate, *result));
+            // As reference/d2bs JSCore.cpp my_sendDDE: only a failure to set DDE up throws; a failed
+            // connect or transaction is logged and leaves the result undefined.
+            const auto result = dde::DdeService::Instance().Send(txn, server, topic, item, data);
+            if (!result) {
+                error::ThrowError(isolate, "DDE Failed! Check the log for the error message.");
+                return;
+            }
+            if (txn == dde::Transaction::Request && *result) {
+                args.GetReturnValue().Set(convert::ToJS(isolate, **result));
             }
         });
 
