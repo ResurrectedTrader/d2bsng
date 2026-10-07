@@ -134,9 +134,14 @@ class JSControl : public ClassBase<JSControl, game::Control> {
             },
             +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value,
                 const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                const auto data = MenuOnly(info);
-                if (!data)
-                    return;
+                // SetState can wait on the game thread, so it runs on a copy after the lock is dropped.
+                game::Control control;
+                {
+                    const auto data = MenuOnly(info);
+                    if (!data)
+                        return;
+                    control = *data;
+                }
                 auto* isolate = info.GetIsolate();
                 if (!value->IsNumber()) {
                     return;
@@ -146,7 +151,7 @@ class JSControl : public ClassBase<JSControl, game::Control> {
                     error::ThrowError(isolate, "Invalid state value");
                     return;
                 }
-                data->SetState(static_cast<game::ControlState>(state + STATE_BASE));
+                control.SetState(static_cast<game::ControlState>(state + STATE_BASE));
             });
         /// @description Whether the control is a password (cloaked) input field.
         /// @type {boolean}
@@ -180,16 +185,19 @@ class JSControl : public ClassBase<JSControl, game::Control> {
             },
             +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value,
                 const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                const auto data = MenuOnly(info);
-                if (!data)
-                    return;
+                // SetCursorPos can wait on the game thread, so it runs on a copy after the lock is dropped.
+                game::Control control;
+                {
+                    const auto data = MenuOnly(info);
+                    if (!data)
+                        return;
+                    control = *data;
+                }
                 if (!value->IsNumber()) {
                     error::ThrowError(info.GetIsolate(), "Invalid cursor position value");
                     return;
                 }
-                auto* isolate = info.GetIsolate();
-                uint32_t pos = convert::To<uint32_t>(isolate, value);
-                data->SetCursorPos(pos);
+                control.SetCursorPos(convert::To<uint32_t>(info.GetIsolate(), value));
             });
         /// @description The start character offset of the control's current text selection.
         /// @type {number}
@@ -223,14 +231,18 @@ class JSControl : public ClassBase<JSControl, game::Control> {
             },
             +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value,
                 const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                const auto data = MenuOnly(info);
-                if (!data)
-                    return;
+                // SetState can wait on the game thread, so it runs on a copy after the lock is dropped.
+                game::Control control;
+                {
+                    const auto data = MenuOnly(info);
+                    if (!data)
+                        return;
+                    control = *data;
+                }
                 if (!value->IsNumber()) {
                     return;
                 }
-                auto* isolate = info.GetIsolate();
-                data->SetState(convert::To<game::ControlState>(isolate, value));
+                control.SetState(convert::To<game::ControlState>(info.GetIsolate(), value));
             });
 
         // Methods
