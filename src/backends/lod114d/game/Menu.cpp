@@ -184,9 +184,8 @@ bool IsValidCharacterName(std::string_view name) {
     const auto isLetter = [](char c) {
         return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
     };
-    return !isSeparator(name.front()) && !isSeparator(name.back()) &&
-           std::count_if(name.begin(), name.end(), isSeparator) <= 1 &&
-           std::all_of(name.begin(), name.end(), [&](char c) { return isLetter(c) || isSeparator(c); });
+    return !isSeparator(name.front()) && !isSeparator(name.back()) && std::ranges::count_if(name, isSeparator) <= 1 &&
+           std::ranges::all_of(name, [&](char c) { return isLetter(c) || isSeparator(c); });
 }
 
 // D2Win control state bits: a control is drawn with 0x04 and takes input with

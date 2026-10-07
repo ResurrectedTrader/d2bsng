@@ -7,6 +7,7 @@ struct D2InventoryGridInfoStrc;
 struct D2InventoryStrc;
 struct D2RosterUnitStrc;
 struct D2UnitStrc;
+// NOLINTNEXTLINE(readability-identifier-naming) - D2MOO's (Storm's) name for the type
 struct SMSGHANDLER_PARAMS;
 
 // Naked-asm thunks for game-side function entries whose register
