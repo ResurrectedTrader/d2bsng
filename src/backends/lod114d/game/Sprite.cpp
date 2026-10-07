@@ -238,12 +238,12 @@ Size Sprite::Size() const {
     return {.width = cf->pGfxCells->dwWidth, .height = cf->pGfxCells->dwHeight};
 }
 
-void Sprite::Draw(Point centerPos, uint32_t color, bool isAutomap) const {
+void Sprite::Draw(PointF centerPos, uint32_t color, bool isAutomap) const {
     auto* cf = static_cast<D2CellFileStrc*>(cached_);
     if (cf == nullptr || !d2gfx::D2GFX_DrawAutomapCell.IsResolved()) {
         return;
     }
-    Point pos = isAutomap ? ScreenToAutomap(centerPos) : centerPos;
+    Point pos = (isAutomap ? ScreenToAutomap(centerPos) : centerPos).ToPoint();
 
     CellContext ctx{};
     ctx.pCellFile = cf;

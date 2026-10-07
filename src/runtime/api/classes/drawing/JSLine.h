@@ -67,7 +67,7 @@ class JSLine : public JSDrawableBase<JSLine, LineDrawable> {
 
         ConfigureCommonProperties(isolate, inst, proto);
 
-        /// @description X coordinate of the line's second endpoint
+        /// @description X coordinate of the line's second endpoint; may be fractional.
         /// @type {number}
         Property(
             isolate, inst, "x2",
@@ -84,11 +84,11 @@ class JSLine : public JSDrawableBase<JSLine, LineDrawable> {
                 if (!value->IsNumber())
                     return;
                 auto cur = drawable->p2.load();
-                cur.x = convert::To<int32_t>(info.GetIsolate(), value);
+                cur.x = extract::Coordinate(info.GetIsolate(), value);
                 drawable->p2.store(cur);
             });
 
-        /// @description Y coordinate of the line's second endpoint
+        /// @description Y coordinate of the line's second endpoint; may be fractional.
         /// @type {number}
         Property(
             isolate, inst, "y2",
@@ -105,7 +105,7 @@ class JSLine : public JSDrawableBase<JSLine, LineDrawable> {
                 if (!value->IsNumber())
                     return;
                 auto cur = drawable->p2.load();
-                cur.y = convert::To<int32_t>(info.GetIsolate(), value);
+                cur.y = extract::Coordinate(info.GetIsolate(), value);
                 drawable->p2.store(cur);
             });
 

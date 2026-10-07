@@ -254,6 +254,32 @@ Position Unit::Pos() const {
             .y = lod114d::imports::d2common::UNITS_GetClientCoordY(u)};
 }
 
+// D2MOO UNITS_GetPrecisionX / Y: a dynamic path's D2FP32_16 game position, a
+// static path's whole one.
+PointF Unit::PrecisePos() const {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u) {
+        return PointF::Zero;
+    }
+    switch (u->dwUnitType) {
+        case UNIT_PLAYER:
+        case UNIT_MONSTER:
+        case UNIT_MISSILE: {
+            if (u->pDynamicPath == nullptr) {
+                return PointF::Zero;
+            }
+            constexpr float FIXED_POINT_ONE = 1U << 16U;
+            const auto& coords = u->pDynamicPath->tGameCoords;
+            return {.x = static_cast<float>(coords.dwPrecisionX) / FIXED_POINT_ONE,
+                    .y = static_cast<float>(coords.dwPrecisionY) / FIXED_POINT_ONE};
+        }
+        default:
+            return Position{.x = lod114d::imports::d2common::UNITS_GetClientCoordX(u),
+                            .y = lod114d::imports::d2common::UNITS_GetClientCoordY(u)}
+                .ToPoint();
+    }
+}
+
 Position Unit::TargetPos() const {
     const auto u = Resolve<D2UnitStrc>();
     if (!u) {

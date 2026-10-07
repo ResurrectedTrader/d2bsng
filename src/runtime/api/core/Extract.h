@@ -1,6 +1,8 @@
 #pragma once
 
+#include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <optional>
 
 #include <v8.h>
@@ -108,13 +110,25 @@ inline std::optional<game::Size> Size(const v8::FunctionCallbackInfo<v8::Value>&
 // applied if the corresponding args[idx]/args[idx+1] IsNumber().
 // ============================================================================
 
-inline void PointInto(const v8::FunctionCallbackInfo<v8::Value>& args, int idx, std::atomic<game::Point>& out) {
+// A drawable coordinate, fraction kept, clamped to +-2^24: a float holds every
+// whole number up to there, and the clamp keeps the backends' rounding and
+// fixed-point maths (x * 32) within int32.
+inline float Coordinate(v8::Isolate* isolate, v8::Local<v8::Value> val) {
+    constexpr double LIMIT = 1 << 24;
+    const auto value = convert::To<double>(isolate, val);
+    if (!std::isfinite(value)) {
+        return 0.0F;  // as ToInt32, which the integer coordinates use, reads them
+    }
+    return static_cast<float>(std::clamp(value, -LIMIT, LIMIT));
+}
+
+inline void PointInto(const v8::FunctionCallbackInfo<v8::Value>& args, int idx, std::atomic<game::PointF>& out) {
     auto* isolate = args.GetIsolate();
     auto cur = out.load();
     if (args.Length() > idx && args[idx]->IsNumber())
-        cur.x = convert::To<int32_t>(isolate, args[idx]);
+        cur.x = Coordinate(isolate, args[idx]);
     if (args.Length() > idx + 1 && args[idx + 1]->IsNumber())
-        cur.y = convert::To<int32_t>(isolate, args[idx + 1]);
+        cur.y = Coordinate(isolate, args[idx + 1]);
     out.store(cur);
 }
 

@@ -3,6 +3,7 @@
 // Shared POD/value types crossing the framework/game boundary. Stdlib-only (plus the generated enum names) so
 // components, pathfinding, tests, and game implementations can all share them without heavier includes.
 
+#include <cmath>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -1893,7 +1894,26 @@ enum class Language : uint32_t {
 // Geometric primitives
 // ============================================================================
 
+struct Point;
 struct Position;
+
+// Fractional 2D point: a position between whole pixels or game coordinates (a
+// drawable's position, where the automap projects it). The draw calls take
+// it so a fractional position reaches the renderer unrounded; a Point converts
+// to it implicitly.
+struct PointF {
+    float x = 0.0F;
+    float y = 0.0F;
+    bool operator==(const PointF&) const = default;
+    PointF operator+(PointF b) const { return {.x = x + b.x, .y = y + b.y}; }
+    PointF operator-(PointF b) const { return {.x = x - b.x, .y = y - b.y}; }
+    static const PointF Zero;
+
+    // Floors to the whole point at or below it: the game truncates when it puts
+    // a position on a whole pixel.
+    [[nodiscard]] Point ToPoint() const;
+};
+inline constexpr PointF PointF::Zero{};
 
 // Signed 2D point. Used for map coordinates, pathfinding, and anywhere values
 // may legitimately be negative. Also aliased by the pathfinding namespace.
@@ -1903,6 +1923,7 @@ struct Point {
     bool operator==(const Point&) const = default;
     Point operator+(Point b) const { return {.x = x + b.x, .y = y + b.y}; }
     Point operator-(Point b) const { return {.x = x - b.x, .y = y - b.y}; }
+    constexpr operator PointF() const { return {.x = static_cast<float>(x), .y = static_cast<float>(y)}; }
     static const Point Zero;
 
     // Converts to an unsigned Position. Caller must ensure x/y are non-negative
@@ -1929,6 +1950,10 @@ inline constexpr Position Position::Zero{};
 
 inline Position Point::ToPosition() const {
     return {.x = static_cast<uint32_t>(x), .y = static_cast<uint32_t>(y)};
+}
+
+inline Point PointF::ToPoint() const {
+    return {.x = static_cast<int32_t>(std::floor(x)), .y = static_cast<int32_t>(std::floor(y))};
 }
 
 // Unsigned 2D size. Used for widths/heights of grids, text, regions.

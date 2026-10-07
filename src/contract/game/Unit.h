@@ -60,6 +60,11 @@ class Unit {
     // Pos()/TargetPos() are in game coordinates (same convention as Room/Level
     // getters - see docs/coords.md).
     Position Pos() const;
+    // Pos() with the fraction a moving unit (player, monster, missile) keeps in
+    // its path's 16.16 fixed-point position, for drawing and smooth movement;
+    // other units sit on whole coordinates. A float, so precise to about 1/500
+    // of a coordinate at large coordinates - integer logic uses Pos().
+    PointF PrecisePos() const;
     Position TargetPos() const;
     LevelId Area() const;
 
