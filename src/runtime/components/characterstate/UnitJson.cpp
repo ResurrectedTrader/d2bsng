@@ -130,6 +130,12 @@ void VisitItem(UnitVisitor& visitor, const game::Unit& item, Detail detail) {
     // varinvgfx (rings, amulets, jewels, charms). Nothing else in the document implies
     // it, so a consumer resolving the graphic itself needs it.
     visitor.Int("gfxIndex", item.GfxIndex());
+    // Every item on an advanced stash tab is a slot holding one class's stack, and only there
+    // does ItemCount() read as the stack size (elsewhere it counts socket fillers). The stack
+    // moves only on a deposit or withdrawal, so it is structural.
+    if (const auto tab = item.StashTab(); tab && tab->Type() == game::StashTabType::AdvancedStash) {
+        visitor.Int("stackCount", item.ItemCount());
+    }
 
     if (detail == Detail::Full) {
         visitor.Str("title", item.Name());
@@ -182,6 +188,11 @@ void VisitWearer(UnitVisitor& visitor, const game::Unit& wearer) {
         visitor.EndElement();
     }
     visitor.EndArray();
+
+    // The tooltip's throwing-mastery term keys off it. Left out when there is none; 0 is Attack.
+    if (const auto lastUsed = wearer.LastUsedSkill()) {
+        visitor.Int("lastUsedSkill", std::to_underlying(*lastUsed));
+    }
 }
 
 // Builds the nlohmann json document from the visit events, tracking the current insertion

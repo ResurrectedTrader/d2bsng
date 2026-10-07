@@ -210,6 +210,9 @@ class Unit {
     std::string GetSkillName(Hand hand) const;
     Skill GetSkillId(Hand hand) const;
     std::vector<SkillInfo> GetAllSkills() const;
+    // The skill the unit last used (its skill list's used-skill entry); nullopt
+    // when there is none. Skill::Attack is a real answer.
+    std::optional<Skill> LastUsedSkill() const;
     // Charge filter:
     //   nullopt -> non-charge skills only (IsCharge == 0).
     //   false   -> no filter (match any skill).

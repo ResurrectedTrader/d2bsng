@@ -21,6 +21,22 @@ namespace d2bs::core::config {
 // from script threads.
 class CompatibilityFlags {
    public:
+    // While one is alive, IsEnabled() answers false for every flag on the thread
+    // that created it, so the code it wraps reads what each flag's off state
+    // reads: the game's own data. Nothing else changes - the stored states,
+    // Has(), All() and SetEnabled() are untouched, and every other thread (the
+    // script threads) keeps seeing the toggles as set. Scopes nest; keep one on
+    // the stack so it ends on the thread that began it.
+    class BypassScope {
+       public:
+        BypassScope();
+        ~BypassScope();
+        BypassScope(const BypassScope&) = delete;
+        BypassScope& operator=(const BypassScope&) = delete;
+        BypassScope(BypassScope&&) = delete;
+        BypassScope& operator=(BypassScope&&) = delete;
+    };
+
     struct Flag {
         std::string name;
         bool defaultEnabled;
@@ -38,7 +54,8 @@ class CompatibilityFlags {
     void Register(const game::CompatibilityFlag& flag);
     void Register(std::string_view name, bool defaultEnabled = true);
 
-    // Whether the named flag is enabled. Unknown names return false.
+    // Whether the named flag is enabled. Unknown names return false, and so does
+    // every name while a BypassScope is alive on the calling thread.
     [[nodiscard]] bool IsEnabled(std::string_view name) const;
 
     // Whether the named flag exists in the registry.

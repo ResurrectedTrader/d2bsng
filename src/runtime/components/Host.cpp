@@ -72,7 +72,7 @@ void Host::DoInitialize(HMODULE hModule) {
 
         LoadConfig();
 
-        logger_->info("d2bsng v{} initializing", D2BS_VERSION);
+        logger_->info("d2bsng v{} initializing ({})", D2BS_VERSION, game::GetBackendVersion());
 
         // Bridge::Init is idempotent - the DLL entry path already invoked it
         // synchronously, so this call just returns the cached success value.

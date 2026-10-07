@@ -148,9 +148,13 @@ The character-state producer (`components/characterstate`) sends the stash as
 the tab's `kind`, `index`, `type`, `name` and `gold` plus the shared grid
 `width` / `height` and its `items` (from `StashTab::GetItems()`, so tabs that
 are not shown are included). 1.14d produces a single personal page; `name` is
-the tab's name, empty when unnamed. The stash hash folds every page's identity
-and contents, so a rename, a gold move or a page appearing re-sends the
-container.
+the tab's name, empty when unnamed. Every item on an advanced page (`type` 1)
+is a slot, so its document carries its stack size as `stackCount` (its
+`ItemCount()`, which for any other item counts its socket fillers); no other
+item has the key, so it never appears on 1.14d. The stash hash folds every
+page's identity and contents, so a rename, a gold move, a page appearing or a
+stack growing or shrinking re-sends the container. The capture reads past the
+compatibility flags (`docs/compatibility.md`, "Raw game data").
 
 ## Generated docs
 

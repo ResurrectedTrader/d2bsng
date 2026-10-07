@@ -17,6 +17,7 @@
 #include "components/characterstate/Fingerprint.h"
 #include "components/characterstate/UnitJson.h"
 #include "config/AppConfig.h"
+#include "config/CompatibilityFlags.h"
 #include "game/Finders.h"
 #include "game/GameHelpers.h"
 #include "game/StashTab.h"
@@ -117,6 +118,8 @@ json BuildIdentity() {
     identity["realm"] = game::GetRealmShort();
     identity["difficulty"] = game::GetDifficulty();
     identity["charFlags"] = std::to_underlying(game::GetCharFlags());
+    // The game's own type, read past the compatibility flags like the rest of the capture.
+    identity["gameType"] = std::to_underlying(game::GetGameType());
     // hardcore/expansion are derivable from charFlags; ladder is a separate BnetData
     // flag, so it stays here.
     identity["ladder"] = game::IsLadder().value_or(0) != 0;
@@ -233,6 +236,10 @@ CharacterState& CharacterState::Instance() {
 
 void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
     static_assert(BUCKET_COUNT == CONTAINER_COUNT);
+
+    // Every flag-gated read below answers the game's own data. Nothing in here waits on
+    // another thread, which would not inherit the per-thread scope.
+    const core::config::CompatibilityFlags::BypassScope rawGameData;
 
     if (state != game::GameState::InGame) {
         wasInGame_ = false;
@@ -466,6 +473,9 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
     }
 
     snapshot["schemaVersion"] = SCHEMA_VERSION;
+    // gameType alone does not say which data the ids index: the same game type has different
+    // stat ids and tables on different backends.
+    snapshot["backend"] = game::GetBackendVersion();
     snapshot["gameId"] = gameId_;
     snapshot["keyframe"] = keyframe;
     // Wall-clock time the snapshot was assembled (Unix epoch ms) so the manager
@@ -484,6 +494,7 @@ void CharacterState::RecordKill(uint32_t unitId) {
     // Game thread (death packet hook): the per-resolve GameReadLock no-ops because
     // the frame write lock is held (see the class doc + game/GameLock.h), so this
     // resolve is lock-free and consistent.
+    const core::config::CompatibilityFlags::BypassScope rawGameData;
     const auto monster = game::Unit::Find(unitId, game::UnitType::Monster);
     if (!monster) {
         return;  // already despawned, or not a resolvable monster

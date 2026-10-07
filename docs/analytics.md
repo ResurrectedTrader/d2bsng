@@ -45,7 +45,7 @@ per install; all events from one launch share a `sessionId`.
 | Field | Example | Why |
 |-------|---------|-----|
 | `installId` | salted hash (see below) | count unique installs across launches |
-| `backendVersion` | `1.14d` | which game backend / DLL variant is loaded |
+| `backendVersion` | `LOD/1.14d` | which game backend and game build is running (read from the game executable's version resource) |
 | `arch` | `x86` | future-proofing (x64 D2R backends) |
 | `managerVersion` | `1.4.2` | *only when the manager sets `D2BOTNG_VERSION`* - which manager versions are in the field, and whether a d2bsng change can rely on a newer one |
 

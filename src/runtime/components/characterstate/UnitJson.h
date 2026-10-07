@@ -56,7 +56,8 @@ void VisitUnit(UnitVisitor& visitor, const game::Unit& unit, Detail detail);
 // Every unit carries unitType and classId; the rest is chosen by type. An item adds its
 // capture fields (code, quality, itemFlags, affixes, statsLists, ...) plus the fields the
 // manager renders with, and recurses into its socket fillers under `sockets`, positional by
-// socket index. A player or merc adds identity, skills and - for the player - area and the
+// socket index. A player or merc adds identity, skills, the last used skill (lastUsedSkill,
+// when there is one) and - for the player - area and the
 // active weapon set; its numbers come from WearerStats instead, which carries the merged
 // values the requirement checks actually compare against.
 nlohmann::json UnitToJson(const game::Unit& unit, Detail detail = Detail::Full);

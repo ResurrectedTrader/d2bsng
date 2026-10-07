@@ -1236,6 +1236,15 @@ std::vector<Unit::SkillInfo> Unit::GetAllSkills() const {
     return out;
 }
 
+std::optional<Skill> Unit::LastUsedSkill() const {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->pSkills == nullptr || u->pSkills->pUsedSkill == nullptr ||
+        u->pSkills->pUsedSkill->pSkillsTxt == nullptr) {
+        return std::nullopt;
+    }
+    return SkillOf(u->pSkills->pUsedSkill);
+}
+
 std::optional<uint32_t> Unit::GetSkillLevel(Skill skill, bool includeExtraLevels, std::optional<bool> charge) const {
     const auto u = Resolve<D2UnitStrc>();
     if (!u || u->pSkills == nullptr) {
