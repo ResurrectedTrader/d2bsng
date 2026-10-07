@@ -1926,7 +1926,7 @@ std::optional<std::string> GetLaunchProfile() {
 // The running Game.exe's version, its patch letter from the build part
 // ("1.14.3.71" -> "LOD/1.14d").
 std::string GetBackendVersion() {
-    static const std::string version = [] {
+    static const std::string VERSION = [] {
         constexpr uint32_t PATCH_LETTERS = 26;
         const auto file = utils::GetModuleVersion(GetModuleHandleW(nullptr));
         if (!file || file->build >= PATCH_LETTERS) {
@@ -1934,7 +1934,7 @@ std::string GetBackendVersion() {
         }
         return std::format("LOD/{}.{}{}", file->major, file->minor, static_cast<char>('a' + file->build));
     }();
-    return version;
+    return VERSION;
 }
 
 AnalyticsLaunchOptions GetAnalyticsLaunchOptions() {
