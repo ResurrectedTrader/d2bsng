@@ -51,7 +51,7 @@ using extras::D2DrlgStrc;
 inline StdcallFunc<void(D2DrlgLevelStrc* /*pLevel*/)> DRLG_InitLevel{0x2424A0};
 inline StdcallFunc<D2ObjectsTxt*(uint32_t /*nObjectId*/)> DATATBLS_GetObjectsTxtRecord{0x240E90};
 
-inline StdcallFunc<D2LevelsTxt*(uint32_t /*nLevelId*/)> DATATBLS_GetLevelsTxtRecord{0x21DB70};
+inline StdcallFunc<D2LevelsTxt*(game::LevelId /*nLevelId*/)> DATATBLS_GetLevelsTxtRecord{0x21DB70};
 inline StdcallFunc<D2ItemsTxt*(uint32_t /*nItemId*/)> DATATBLS_GetItemsTxtRecord{0x2335F0};
 
 // 1.14d-only entry: returns the per-level "misc/layer" structure indexed by

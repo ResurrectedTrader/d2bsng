@@ -49,7 +49,7 @@ std::string Level::Name() const {
     if (!*this) {
         return {};
     }
-    auto* txt = lod114d::imports::d2common::DATATBLS_GetLevelsTxtRecord(std::to_underlying(id_));
+    auto* txt = lod114d::imports::d2common::DATATBLS_GetLevelsTxtRecord(id_);
     if (txt == nullptr) {
         return {};
     }
