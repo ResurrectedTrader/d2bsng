@@ -272,6 +272,7 @@ void DrawTotalsRow(const std::vector<std::shared_ptr<script::Script>>& scripts, 
         if (ImGui::SmallButton("Pause all")) {
             for (const auto& script : scripts) {
                 if (script->GetMode() != script::ScriptMode::Console &&
+                    !utils::ContainsCaseInsensitive(script->GetNormalizedPath().string(), "heartbeat") &&
                     script->GetState() == script::ScriptState::Running) {
                     script->Pause();
                 }
