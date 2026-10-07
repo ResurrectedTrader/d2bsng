@@ -19,7 +19,7 @@ void DrawVersionBanner() {
     constexpr uint32_t NOTICE_COLOR = 8;  // orange
 
     const std::string bannerText = "d2bsng " D2BS_VERSION;
-    const auto screen = game::GetViewportSize();
+    const auto screen = game::GetScreenSize();
     const auto bannerWidth = static_cast<int32_t>(game::GetTextSize(bannerText, BANNER_FONT).width);
 
     // D2 draws text up from the baseline, so the last row keeps glyphs on-screen.
@@ -35,13 +35,13 @@ void DrawVersionBanner() {
 
         const game::Point noticePos{.x = rightEdge - noticeWidth, .y = baselineY};
         const game::Point bannerPos{.x = noticePos.x - spaceWidth - bannerWidth, .y = baselineY};
-        game::DrawGameText(bannerText, bannerPos, BANNER_COLOR, BANNER_FONT);
-        game::DrawGameText(noticeText, noticePos, NOTICE_COLOR, BANNER_FONT);
+        game::DrawScreenText(bannerText, bannerPos, BANNER_COLOR, BANNER_FONT);
+        game::DrawScreenText(noticeText, noticePos, NOTICE_COLOR, BANNER_FONT);
         return;
     }
 
     const game::Point bannerPos{.x = rightEdge - bannerWidth, .y = baselineY};
-    game::DrawGameText(bannerText, bannerPos, BANNER_COLOR, BANNER_FONT);
+    game::DrawScreenText(bannerText, bannerPos, BANNER_COLOR, BANNER_FONT);
 }
 
 }  // namespace d2bs::runtime::drawing

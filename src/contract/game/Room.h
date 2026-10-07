@@ -78,9 +78,6 @@ class Room {
 
     // ActiveRoom-based queries
     bool Reveal(bool drawPresets = false) const;
-
-    // Factory - find a room by level and position
-    static std::optional<Room> Find(uint32_t level, Position pos);
 };
 
 }  // namespace d2bs::game

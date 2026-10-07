@@ -2,14 +2,15 @@
 
 #include "PlugY.h"
 #include "asm_thunks/asm_thunks.h"
+#include "game/Common.h"
 #include "game/Constants.h"
+#include "game/Finders.h"
 #include "game/GameHelpers.h"
 #include "game/GameLock.h"
 #include "game/GameThread.h"
 #include "game/Room.h"
 #include "imports/D2Client.h"
 #include "imports/D2Common.h"
-#include "imports/D2Lang.h"
 #include "imports/D2Net.h"
 #include "imports/extras/D2ActiveRoomStrc.h"
 #include "imports/extras/D2DrlgLevelStrc.h"
@@ -45,6 +46,7 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -72,6 +74,7 @@ using lod114d::imports::extras::UNIT_HASH_BUCKETS;
 using lod114d::imports::extras::UNIT_HASH_TYPE_COUNT;
 
 static_assert(STAT_FIXED_POINT_FIRST == STAT_HITPOINTS && STAT_FIXED_POINT_LAST == STAT_MAXSTAMINA);
+static_assert(ENCHANT_SLOT_COUNT <= std::extent_v<decltype(D2MonsterDataStrc::nMonUmod)>);
 
 // Reference parity: GetItemPrice's mode argument 0/1 = buy/sell, 3 = repair
 // (mode 2 in our enum maps to 3 internally).
@@ -701,22 +704,15 @@ std::string Unit::ItemCode() const {
     return {&txt->szCode[0], 3};
 }
 
-std::string Unit::Prefix() const {
-    const auto code = PrefixNum();
+std::optional<std::string> Unit::MagicAffixName(uint16_t code) const {
     if (code == 0) {
-        return {};
+        return std::nullopt;
     }
     const auto* str = lod114d::imports::d2common::ITEMS_GetMagicalMods(code);
-    return str ? std::string(str) : std::string{};
-}
-
-std::string Unit::Suffix() const {
-    const auto code = SuffixNum();
-    if (code == 0) {
-        return {};
+    if (str == nullptr) {
+        return std::nullopt;
     }
-    const auto* str = lod114d::imports::d2common::ITEMS_GetMagicalMods(code);
-    return str ? std::string(str) : std::string{};
+    return std::string(str);
 }
 
 uint16_t Unit::PrefixNum() const {
@@ -759,43 +755,9 @@ uint16_t Unit::AutoAffixNum() const {
     return u->pItemData->wAutoAffix;
 }
 
-std::array<std::optional<std::string>, Unit::MAX_AFFIX_SLOTS> Unit::Prefixes() const {
+std::array<uint16_t, Unit::MAX_AFFIX_SLOTS> Unit::PrefixNums() const {
     static_assert(MAX_AFFIX_SLOTS == ITEMS_MAX_MODS,
                   "Unit::MAX_AFFIX_SLOTS must mirror D2MOO ITEMS_MAX_MODS for binary parity");
-    std::array<std::optional<std::string>, MAX_AFFIX_SLOTS> out;
-    const auto codes = PrefixNums();
-    for (size_t i = 0; i < MAX_AFFIX_SLOTS; ++i) {
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by loop
-        if (codes[i] == 0) {
-            continue;
-        }
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by loop
-        if (const auto* str = lod114d::imports::d2common::ITEMS_GetMagicalMods(codes[i])) {
-            // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by loop
-            out[i] = std::string(str);
-        }
-    }
-    return out;
-}
-
-std::array<std::optional<std::string>, Unit::MAX_AFFIX_SLOTS> Unit::Suffixes() const {
-    std::array<std::optional<std::string>, MAX_AFFIX_SLOTS> out;
-    const auto codes = SuffixNums();
-    for (size_t i = 0; i < MAX_AFFIX_SLOTS; ++i) {
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by loop
-        if (codes[i] == 0) {
-            continue;
-        }
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by loop
-        if (const auto* str = lod114d::imports::d2common::ITEMS_GetMagicalMods(codes[i])) {
-            // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by loop
-            out[i] = std::string(str);
-        }
-    }
-    return out;
-}
-
-std::array<uint16_t, Unit::MAX_AFFIX_SLOTS> Unit::PrefixNums() const {
     std::array<uint16_t, MAX_AFFIX_SLOTS> out{};
     const auto u = Resolve<D2UnitStrc>();
     if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
@@ -997,15 +959,7 @@ std::string Unit::ItemPlayerName() const {
 }
 
 uint32_t Unit::ItemCost(ItemCostMode mode, uint32_t npcClassId, Difficulty difficulty) const {
-    // Reference parity: validate npcClassId has a monstats inventory; fall back
-    // to Charsi when the lookup fails. The validation lives here (not at the JS
-    // boundary) so every call site through ItemCost gets it for free.
-    int64_t inventoryRow = 0;
-    auto invVal = GetTxtValue("monstats", npcClassId, "inventory");
-    if (auto* num = std::get_if<int64_t>(&invVal)) {
-        inventoryRow = *num;
-    }
-    const uint32_t resolvedNpc = inventoryRow == 0 ? NPC_CHARSI_CLASS_ID : npcClassId;
+    const uint32_t resolvedNpc = PricingNpcClassId(npcClassId);
 
     // Mode 2 (Repair) maps to internal mode 3 per reference JSUnit.cpp:1283.
     int32_t internalMode = static_cast<int32_t>(mode);
@@ -1044,9 +998,6 @@ bool Unit::IsLocked() const {
     if (!u || u->dwUnitType != UNIT_OBJECT || u->pObjectData == nullptr) {
         return false;
     }
-    // Object `InteractType` packs the chest-locked bit at 0x80; the remaining 7 bits
-    // are the chest type id.
-    constexpr uint8_t CHEST_LOCKED_BIT = 0x80;
     return (u->pObjectData->InteractType & CHEST_LOCKED_BIT) != 0;
 }
 
@@ -1198,19 +1149,8 @@ std::string Unit::GetSkillName(Hand hand) const {
         }
         skillId = static_cast<uint16_t>(skill->pSkillsTxt->nSkillId);
     }
-    // Resolve display name through the standard skills->skilldesc->str-name->GetLocaleText chain.
-    auto skillDescVal = GetTxtValue("skills", skillId, "skilldesc");
-    auto* descRow = std::get_if<int64_t>(&skillDescVal);
-    if (descRow == nullptr) {
-        return {};
-    }
-    auto strNameVal = GetTxtValue("skilldesc", static_cast<uint32_t>(*descRow), "str name");
-    auto* strRow = std::get_if<int64_t>(&strNameVal);
-    if (strRow == nullptr) {
-        return {};
-    }
-    const auto* localized = lod114d::imports::d2lang::D2LANG_GetLocaleText(static_cast<uint16_t>(*strRow));
-    return localized ? utils::ToStr(std::wstring{localized}) : std::string{};
+    const auto stringId = SkillNameStringId(skillId);
+    return stringId ? GetLocaleString(*stringId) : std::string{};
 }
 
 uint16_t Unit::GetSkillId(Hand hand) const {
@@ -1337,16 +1277,8 @@ bool Unit::Interact() const {
 }
 
 bool Unit::TakeWaypoint(uint32_t waypointId) const {
-    // Reference JSUnit.cpp:864-866: validate against levels.txt - `Waypoint`
-    // column carries 255 for any level row that no waypoint reaches. Sending
-    // the asm thunk for such an id can crash the game (see the historical
-    // "check the range on argv[0]" TODO at reference:855).
-    constexpr int64_t WAYPOINT_INVALID_SENTINEL = 255;
-    auto wpVal = GetTxtValue("levels", waypointId, "Waypoint");
-    if (auto* num = std::get_if<int64_t>(&wpVal)) {
-        if (*num == WAYPOINT_INVALID_SENTINEL) {
-            return false;
-        }
+    if (!IsWaypointLevel(waypointId)) {
+        return false;
     }
 
     const auto u = Resolve<D2UnitStrc>();
@@ -1603,9 +1535,6 @@ bool Unit::HasEnchant(uint32_t enchantId) const {
     if (!u || u->dwUnitType != UNIT_MONSTER || u->pMonsterData == nullptr) {
         return false;
     }
-    // Reference: 9 enchant slots in nMonUmod[0..8]. D2MOO declares the field 10
-    // bytes wide for alignment; only the first 9 hold real data.
-    constexpr size_t ENCHANT_SLOT_COUNT = 9;
     for (size_t i = 0; i < ENCHANT_SLOT_COUNT; ++i) {
         // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by loop
         if (u->pMonsterData->nMonUmod[i] == enchantId) {

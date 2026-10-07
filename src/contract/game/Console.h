@@ -109,6 +109,11 @@ void Toggle();
 // Whether the console overlay is currently shown. The framework gates per-frame
 // work on this (e.g. it stops stack capture while the console is hidden).
 bool IsVisible();
+// Whether the console is drawn inside the game's own frame rather than in a
+// window of its own. The framework draws an in-game console as a movable,
+// resizable window that leaves the rest of the game visible and clickable, and
+// a console with its own window as the whole of that window.
+bool IsInGameOverlay();
 
 // A console tab supplied by the backend (a packet inspector, a UI-tree dump,
 // ...). Instances are owned by the framework's console module, which asks for

@@ -122,6 +122,10 @@ Size GetTextSize(const std::string& /*text*/, uint32_t /*font*/) {
     return Size::Zero;
 }
 void DrawGameText(const std::string& /*text*/, Point /*pos*/, uint32_t /*color*/, uint32_t /*font*/) {}
+Size GetScreenSize() {
+    return Size::Zero;
+}
+void DrawScreenText(const std::string& /*text*/, Point /*pos*/, uint32_t /*color*/, uint32_t /*font*/) {}
 
 // === Drawing ===
 void DrawRectangle(Point /*p1*/, Point /*p2*/, uint32_t /*color*/, uint32_t /*opacity*/) {}

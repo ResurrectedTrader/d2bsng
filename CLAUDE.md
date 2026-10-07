@@ -214,7 +214,7 @@ d2bsng/
 ├── src/
 │   ├── utils/              utils.lib - standalone utilities (crypto, threading, stackwalker, profiling counters)
 │   ├── contract/           contract.lib - the boundary both frontends and backends compile against
-│   │   ├── game/               Game interface headers + framework-owned utilities (only GameLock.cpp is compiled)
+│   │   ├── game/               Game interface headers + framework-owned utilities (GameLock.cpp and Common.cpp are compiled)
 │   │   └── config/             Shared DTOs: ProfileData, ScriptPaths
 │   ├── core/               core.lib - shared infrastructure (depends on contract)
 │   │   ├── config/             AppConfig, IniConfigStore, CompatibilityFlags, Version, OptionParser (launch-option parsing, and removing those switches from the command line afterwards)
@@ -295,7 +295,7 @@ contract + core              contract + core
 
 The game abstraction is split across two directories:
 
-- **`src/contract/game/`** - Interface headers (18 `.h` files) plus `GameLock.cpp`, which only holds the two thread-local lock definitions that cannot be inline under LTO. Defines the wrapper classes (`Unit`, `Room`, `Level`, etc.) with method declarations using opaque `void*` pointers. Part of `contract.lib`. No game-version-specific code. Both the frontend and the backend compile against it.
+- **`src/contract/game/`** - Interface headers plus two sources: `GameLock.cpp`, which only holds the two thread-local lock definitions that cannot be inline under LTO, and `Common.cpp`, the out-of-line shared helpers declared in `Common.h`. Defines the wrapper classes (`Unit`, `Room`, `Level`, etc.) with method declarations using opaque `void*` pointers. Part of `contract.lib`. No game-version-specific code. Both the frontend and the backend compile against it.
 
 - **`src/backends/lod114d/game/`** - 1.14d implementation (12 `.cpp` files + internal headers like `RoomData.h` / `DrlgHelpers.h`). Part of `lod114d.lib`. The version-specific game-function/variable bindings, structs, and hooks live alongside it under `src/backends/lod114d/imports/` (typed import registry + per-DLL declarations), `src/backends/lod114d/imports/extras/` (structs not in D2MOO), `src/backends/lod114d/asm_thunks/`, and `src/backends/lod114d/hooks/`.
 
@@ -439,9 +439,9 @@ The game layer decouples the JS API from direct game memory access, enabling mul
 
 1. **Abstraction interfaces** - declarations implemented per-game under `src/backends/lod114d/game/` (or future ports like 1.13c, D2R). Port authors must provide `.cpp` files for these: `Unit.h`, `Room.h`, `Level.h`, `Party.h`, `Control.h`, `Sprite.h`, `Menu.h`, `Console.h`, `Bridge.h`, `GameCallbacks.h`, and the game-specific declarations in `GameHelpers.h`.
 
-2. **Shared utilities** - fully implemented in `contract` (header-only / inline), operate on the interfaces above, have no game-specific counterpart. Port authors implement nothing here; they get these for free: `Finders.h`, `Types.h`, `HandleCache.h`, `GameLock.h`, `GameThread.h`, `Constants.h`.
+2. **Shared utilities** - fully implemented in `contract` (header-only / inline, or out of line in `Common.cpp`), operate on the interfaces above, have no game-specific counterpart. Port authors implement nothing here; they get these for free: `Finders.h`, `Common.h`, `Types.h`, `HandleCache.h`, `GameLock.h`, `GameThread.h`, `Constants.h`.
 
-Within each handle header (`Unit.h`, `Room.h`, etc.), a comment separator marks the bucket-1 (game-impl required) and bucket-2 (framework-impl, inline in `Finders.h`) sections of the class.
+Within each handle header (`Unit.h`, `Room.h`, etc.), a comment separator marks the bucket-1 (game-impl required) and bucket-2 (framework-impl, inline in `Finders.h` or out of line in `Common.cpp`) sections of the class.
 
 **Interface** (`src/contract/game/`):
 
@@ -459,6 +459,7 @@ Within each handle header (`Unit.h`, `Room.h`, etc.), a comment separator marks 
 | `GameHelpers.h` | Free functions: game state queries, drawing, network, trade, OOG actions |
 | `GameCallbacks.h` | Function pointer struct for game -> framework event callbacks |
 | `Finders.h` | Framework-owned filtered searches / composed walks (inline method defs on handle classes) |
+| `Common.h` | Shared game-version-agnostic helpers that are not finders - data-table compositions (`PricingNpcClassId`, `IsWaypointLevel`, `SkillNameStringId`) and composed handle methods (`Unit::Prefix` / `Prefixes` ...); defined out of line in `Common.cpp` |
 | `Types.h` | Shared 2D geometric primitives (`Point`, `Position`, `Size`) |
 | `HandleCache.h` | Per-frame pointer cache for identity-based handles |
 | `GameLock.h` | `GameReadLock` / `GameWriteLock` primitives |
