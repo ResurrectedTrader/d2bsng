@@ -158,7 +158,10 @@ Detection Detect(HMODULE module) {
         utils::ModuleVersion{.major = 14, .minor = 0, .build = 2},
         utils::ModuleVersion{.major = 14, .minor = 0, .build = 3},
     };
-    if (std::ranges::find(SUPPORTED_VERSIONS, *version) == SUPPORTED_VERSIONS.end()) {
+    // Not std::ranges::find: MSVC 14.51's STL vectorizes find for this trivially comparable 16-byte
+    // struct and then static_asserts on its size.
+    if (!std::ranges::any_of(SUPPORTED_VERSIONS,
+                             [&](const utils::ModuleVersion& known) { return known == *version; })) {
         Logger()->warn("version {} is not a known release (supported: 12.00, 14.00 - 14.03); stash tabs disabled",
                        Label(*version));
         return Detection::Inactive;
