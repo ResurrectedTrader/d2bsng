@@ -306,6 +306,19 @@ def readonly_from(doc, call):
 # `@type {Difficulty}`, `@param flag {CompatibilityFlag}`) auto-links to that
 # option-set's table in the docs - see extract_enums().
 #
+# Enum option sets are documented on the C++ `enum class` itself:
+#
+#   /// <what a value means to a script and where it appears>   (the set's description)
+#   /// @flags                                     (a bitfield: typed `number` in the d.ts)
+#   enum class X : uint32_t {
+#       A = 0,  // <per-value note>                (or a /// line above the enumerator)
+#       /// @internal ...                          (a value scripts never see: left out)
+#   };
+#
+# Only `///` lines count as the set's description; a plain `//` comment above
+# the enum stays C++-only. A trailing `//` comment on an enumerator IS published,
+# so it must read as script-facing documentation.
+#
 # @throws convention: a function/method throws a TypeError when a required
 # argument is missing or has the wrong type (via the shared CheckArgCount /
 # CheckIs* helpers).  That is implied and is NOT documented per entry; @throws
@@ -1070,20 +1083,42 @@ LAUNCH_OPTIONS_SOURCE = REPO_ROOT / "src" / "backends" / "lod114d" / "game" / "L
 _INT_LITERAL_RE = re.compile(r"0[xX][0-9a-fA-F]+|\d+")
 
 
-def _enum_is_flags(filepath, line):
-    """A bitfield enum is marked with a `/// @flags` comment line directly above
-    it (so it is typed `number` in the d.ts - a value is an OR-combination).
-    Explicit, not guessed from the enumerator values."""
+def _doc_block_above(filepath, line):
+    """The `///` lines directly above source line *line* (1-based), top to bottom,
+    with the markers stripped. A plain `//` line ends the block, so an ordinary
+    comment above an enum stays C++-only."""
     lines = _get_lines(Path(filepath))
-    idx = line - 2  # 1-based; the line above the `enum class`
+    block = []
+    idx = line - 2
     while idx >= 0:
         text = lines[idx].strip()
         if not text.startswith("///"):
             break
-        if "@flags" in text:
-            return True
+        block.append(text[3:].strip())
         idx -= 1
-    return False
+    block.reverse()
+    return block
+
+
+def _enum_is_flags(filepath, line):
+    """A bitfield enum is marked with a `/// @flags` comment line directly above
+    it (so it is typed `number` in the d.ts - a value is an OR-combination).
+    Explicit, not guessed from the enumerator values."""
+    return any(t.split()[:1] == ["@flags"] for t in _doc_block_above(filepath, line))
+
+
+def _doc_block_description(filepath, line):
+    """The script-facing description in the `///` block above *line*: its untagged
+    lines (an `@description` tag is accepted too), joined. Marker tags such as
+    `@flags` are left out."""
+    words = []
+    for text in _doc_block_above(filepath, line):
+        if text.startswith("@description"):
+            text = text[len("@description") :]
+        elif text.startswith("@"):
+            continue
+        words.extend(text.split())
+    return " ".join(words)
 
 
 def _strip_comment_markers(raw):
@@ -1150,14 +1185,22 @@ def _parse_enum_defs(tu, path):
                 if c.kind == CursorKind.ENUM_CONSTANT_DECL and "@internal" not in (c.raw_comment or "")
             ]
             if rows:
-                kind = "flags" if _enum_is_flags(path, cur.location.line) else "enum"
-                out[cur.spelling] = {"name": cur.spelling, "kind": kind, "rows": rows}
+                line = cur.location.line
+                out[cur.spelling] = {
+                    "name": cur.spelling,
+                    "kind": "flags" if _enum_is_flags(path, line) else "enum",
+                    "description": _doc_block_description(path, line),
+                    "rows": rows,
+                }
     return out
 
 
-def _parse_compat_flag_rows(tu):
-    """Collect the CompatibilityFlag rows from RegisterDefaults()'s documented
-    `Register("name")` calls (read the same way as RegisterConstants)."""
+def _parse_compat_flags(tu):
+    """Collect the CompatibilityFlag set from RegisterDefaults(): the set's
+    description from the `///` block above the definition, and a row per
+    documented `Register("name")` call (read the same way as RegisterConstants).
+    Returns `(description, rows)`."""
+    description = ""
     rows = []
     for cur in tu.cursor.walk_preorder():
         if (
@@ -1165,6 +1208,8 @@ def _parse_compat_flag_rows(tu):
             and cur.is_definition()
             and cur.kind in (CursorKind.CXX_METHOD, CursorKind.FUNCTION_DECL)
         ):
+            if cur.location.file:
+                description = _doc_block_description(cur.location.file.name, cur.location.line)
             for call in cur.walk_preorder():
                 if call.kind == CursorKind.CALL_EXPR and callee_spelling(call) == "Register":
                     name = nth_arg_string(call, 0)
@@ -1173,13 +1218,13 @@ def _parse_compat_flag_rows(tu):
                     src = call.location.file
                     doc = extract_doc_comment(Path(src.name), call.location.line) if src else {}
                     rows.append({"name": name, "description": (doc or {}).get("description", "")})
-    return rows
+    return description, rows
 
 
 def extract_enums(result, flags):
     """Build the `{name -> option set}` map (enums + the CompatibilityFlag set),
     parsed with libclang, filtered to those referenced by a doc `{type}` in
-    *result*. Each set: `{name, kind, rows:[{value?, name, description?}]}`."""
+    *result*. Each set: `{name, kind, description, rows:[{value?, name, description?}]}`."""
     index = Index.create()
     opts = TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD | TranslationUnit.PARSE_INCOMPLETE
 
@@ -1193,9 +1238,14 @@ def extract_enums(result, flags):
     if COMPAT_FLAGS_SOURCE.exists():
         tu = index.parse(str(COMPAT_FLAGS_SOURCE), args=flags, options=opts)
         _AUX_FATALS.extend(fatal_diagnostics(tu, COMPAT_FLAGS_SOURCE))
-        rows = _parse_compat_flag_rows(tu)
+        description, rows = _parse_compat_flags(tu)
         if rows:
-            defs["CompatibilityFlag"] = {"name": "CompatibilityFlag", "kind": "flags", "rows": rows}
+            defs["CompatibilityFlag"] = {
+                "name": "CompatibilityFlag",
+                "kind": "flags",
+                "description": description,
+                "rows": rows,
+            }
 
     referenced = set()
     _collect_type_idents(result, referenced)

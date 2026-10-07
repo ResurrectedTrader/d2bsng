@@ -80,6 +80,8 @@ std::vector<CompatibilityFlags::Flag> CompatibilityFlags::All() const {
     return flags_;
 }
 
+/// A scripting compatibility flag: a named toggle for a SpiderMonkey / kolbot-era behavior, as `Compatibility.set`
+/// takes it. Every flag starts enabled.
 void CompatibilityFlags::RegisterDefaults() {
     // The framework's built-in flags. Each /// @description is the catalog text
     // shown in the API docs - scripts/extract_api.py reads these Register() calls

@@ -104,7 +104,7 @@ def jsdoc(description="", params=None, returns=None, throws=None, indent=""):
         return ""
     if len(lines) == 1:
         return f"{indent}/** {lines[0]} */\n"
-    body = "\n".join(f"{indent} * {ln}" for ln in lines)
+    body = "\n".join(f"{indent} * {ln}".rstrip() for ln in lines)
     return f"{indent}/**\n{body}\n{indent} */\n"
 
 
@@ -205,22 +205,24 @@ def emit_const(name, val):
 
 def emit_enum(name, d):
     """Emit a `type X = ...` alias for an option set: a value-enum becomes a
-    literal union (`0 | 1 | 2`), a string flag-set becomes a string union.
-    Numeric bitfields are not emitted here (they map to `number`)."""
+    literal union (`0 | 1 | 2`), a string flag-set becomes a string union. The
+    JSDoc carries the set's description, then a line per value. Numeric
+    bitfields are not emitted here: they map to `number`, which leaves no
+    declaration to hang their JSDoc on."""
     rows = d.get("rows", [])
     has_values = any(r.get("value", "") != "" for r in rows)
     if not has_values:
         union = " | ".join(json.dumps(r["name"]) for r in rows) or "string"
-        doc_lines = [
-            f'`{r["name"]}`' + (f' - {r["description"]}' if r.get("description") else "") for r in rows
-        ]
+        doc_lines = [f'`{r["name"]}`' for r in rows]
         label = "Flags:"
     else:
         vals = [r.get("value", "") for r in rows]
         union = " | ".join(vals) if all(v != "" for v in vals) else "number"
         doc_lines = [f'{r.get("value", "")} = {r["name"]}' for r in rows]
         label = "Values:"
-    block = jsdoc("\n".join([label] + doc_lines)) if doc_lines else ""
+    doc_lines = [line + (f' - {r["description"]}' if r.get("description") else "") for line, r in zip(doc_lines, rows)]
+    intro = [d["description"], ""] if d.get("description") else []
+    block = jsdoc("\n".join(intro + [label] + doc_lines)) if doc_lines else ""
     return f"{block}type {name} = {union};\n"
 
 

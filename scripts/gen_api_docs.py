@@ -557,8 +557,8 @@ function buildApi(data){
     enumNames.sort().forEach(function(en){
       var d=enums[en], a=slug('enum',en);
       var h=head(3,a,'<span class="sym-name">'+esc(en)+'</span>',badge(d.kind==='flags'?'flags':'enum','type'));
-      var hayStr=hay(en,(d.rows||[]).map(function(r){return r.name;}).join(' '));
-      body.push('<div class="member" data-hay="'+hayStr+'">'+h+'<div class="member-body">'+renderOptRows(d.rows)+'</div></div>');
+      var hayStr=hay(en,(d.rows||[]).map(function(r){return r.name;}).join(' '),d.description);
+      body.push('<div class="member" data-hay="'+hayStr+'">'+h+'<div class="member-body">'+descHtml(d)+renderOptRows(d.rows)+'</div></div>');
       enLeaves.push([a,en,hayStr]);
     });
     body.push('</section>');
