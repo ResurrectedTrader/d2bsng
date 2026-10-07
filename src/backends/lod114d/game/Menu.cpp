@@ -729,7 +729,8 @@ bool CreateCharacter(const std::string& name, CharacterClass charClass, bool isH
     // poll on the calling thread between them. Holding the game write lock
     // across the multi-step flow would prevent the menu UI from repainting
     // between clicks - the polling loop below would see stale state forever.
-    if (GetOutOfGameLocation() != OutOfGameLocation::CharacterSelect) {
+    if (const auto location = GetOutOfGameLocation();
+        location != OutOfGameLocation::CharacterSelect && location != OutOfGameLocation::CharacterSelectNoChars) {
         return false;
     }
     // Click the "Create New Character" button.
