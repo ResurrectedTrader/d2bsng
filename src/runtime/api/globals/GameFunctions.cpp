@@ -1211,7 +1211,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
     /// @description Simulate a map click at a unit's location or at world coordinates.
     /// @signature clickMap(clickType: number, shift: number|boolean, unit: Unit)
-    /// @param clickType {number} - click type id
+    /// @param clickType {number} - click type: 0 / 1 / 2 = left button down / held / up, 3 / 4 / 5 = right button
+    /// down / held / up
     /// @param shift {number|boolean} - whether shift is held (coerced to bool)
     /// @param unit {Unit} - target Unit
     /// @signature clickMap(clickType: number, shift: number|boolean, x: number, y: number)
@@ -1864,9 +1865,10 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             args.GetReturnValue().Set(!!GetAsyncKeyState(vk));
         });
 
-    /// @description Get the current mouse cursor coordinates, optionally converted to world coords.
+    /// @description Get the current mouse cursor coordinates, in the same screen space drawables use (getScreenSize()),
+    /// optionally converted to game (world) coordinates.
     /// @signature getMouseCoords(toWorld?: boolean, asObject?: boolean)
-    /// @param toWorld {boolean} - true converts screen coords to world coords (default false)
+    /// @param toWorld {boolean} - true converts the screen position to game coordinates (default false)
     /// @param asObject {boolean} - true returns {x, y}, false/omitted returns [x, y] (default false)
     /// @returns {Array<number>|{x:number,y:number}} - mouse coords as array or object
     function::Register(
@@ -1900,13 +1902,14 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
         });
 
-    /// @description Convert screen coordinates to automap coordinates.
+    /// @description Convert game (world) coordinates - a unit's or a room's position - to the screen point the
+    /// automap draws them at. Despite the name, the input is not a screen position.
     /// @signature screenToAutomap(point: {x:number,y:number})
-    /// @param point {object} - a {x, y} object
+    /// @param point {object} - a {x, y} object in game coordinates
     /// @signature screenToAutomap(x: number, y: number)
-    /// @param x {number} - screen x coordinate
-    /// @param y {number} - screen y coordinate
-    /// @returns {{x:number,y:number}} - converted automap coordinates
+    /// @param x {number} - game x coordinate
+    /// @param y {number} - game y coordinate
+    /// @returns {{x:number,y:number}} - the automap's screen point, in the space drawables use
     function::Register(
         isolate, global, "screenToAutomap", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();

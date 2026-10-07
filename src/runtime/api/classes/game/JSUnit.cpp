@@ -1737,7 +1737,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             args.GetReturnValue().Set(true);
         });
 
-    /// @description Sends the revive request for this unit (used to revive a dead hireling at an NPC).
+    /// @description Sends the resurrect request that revives the dead player character.
     /// @signature revive()
     /// @returns {undefined} - No return value; false only if the game was not ready.
     Method(
