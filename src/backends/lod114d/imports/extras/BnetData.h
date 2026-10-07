@@ -1,7 +1,10 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
+
+#include "game/Constants.h"
 
 // Battle.net account state - d2bs-internal struct. D2MOO does not model BNCS.
 // Field layout reverse-engineered against 1.14d; size verified by static_assert.
@@ -27,8 +30,7 @@ struct BnetData {
     std::array<char, 0x08> szRealmName;    // 0xD5
     std::array<uint8_t, 0x111> _8;         // 0xDD
     uint8_t nCharClass;                    // 0x1EE
-    uint8_t nCharFlags;                    // 0x1EF
-    uint8_t nMaxDiff;                      // 0x1F0
+    game::CharFlag nCharFlags;             // 0x1EF word, SelectedCharBnetSingleTcpIp 0x434A5A
     std::array<uint8_t, 0x1F> _9;          // 0x1F1
     uint8_t nCreatedGameDifficulty;        // 0x210
     void* _10;                             // 0x211
@@ -47,6 +49,7 @@ struct BnetData {
 };
 
 static_assert(sizeof(BnetData) == 0x3C6, "BnetData must be 0x3C6 bytes");
+static_assert(offsetof(BnetData, nCharFlags) == 0x1EF);
 
 #pragma pack(pop)
 

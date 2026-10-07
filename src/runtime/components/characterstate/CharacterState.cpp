@@ -120,9 +120,7 @@ json BuildIdentity() {
     identity["charFlags"] = std::to_underlying(game::GetCharFlags());
     // The game's own type, read past the compatibility flags like the rest of the capture.
     identity["gameType"] = std::to_underlying(game::GetGameType());
-    // hardcore/expansion are derivable from charFlags; ladder is a separate BnetData
-    // flag, so it stays here.
-    identity["ladder"] = game::IsLadder().value_or(0) != 0;
+    identity["ladder"] = HasFlag(game::GetCharFlags(), game::CharFlag::Ladder);
     return identity;
 }
 

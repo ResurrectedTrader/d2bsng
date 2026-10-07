@@ -29,11 +29,11 @@ constexpr uint32_t MAX_WAYPOINT_ID = 40;
 // RosterUnit::wPartyId sentinel for "not in a party".
 constexpr uint16_t NO_PARTY_ID = std::numeric_limits<uint16_t>::max();
 
-// Character flags (me.charflags; 1.14d's BnetData::nCharFlags). Values follow
-// D2MOO's CLIENTSAVEFLAG_*, which D2R keeps; the names of the bits D2MOO leaves
-// unnamed are D2R's.
+// Character flags (me.charflags; 1.14d's BnetData::nCharFlags, a 16-bit word).
+// Values follow D2MOO's CLIENTSAVEFLAG_*; the bits D2MOO leaves unnamed are
+// named after later game versions.
 /// @flags
-enum class CharFlag : uint32_t {
+enum class CharFlag : uint16_t {
     Newbie = 0x0001,
     Error = 0x0002,  // D2MOO: set at character creation for realm characters
     Hardcore = 0x0004,

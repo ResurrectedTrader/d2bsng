@@ -1,6 +1,7 @@
 #include "ClassRegistry.h"
 
 #include <array>
+#include <bit>
 #include <utility>
 
 #include "api/core/Convert.h"
@@ -182,11 +183,17 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
             info.GetReturnValue().Set(static_cast<uint32_t>(game::GetDifficulty()));
         });
 
-    /// @description Highest difficulty unlocked for this character.
-    /// @type {Difficulty}
+    /// @description The character's progression: the number of acts completed across all difficulties, the
+    /// ProgressionMask bits of charflags (bits 8-12) shifted down - not a difficulty. A difficulty takes 5 acts in
+    /// an expansion game and 4 in classic, so the highest difficulty unlocked is min(maxdiff / acts, 2)
+    /// (0 Normal, 1 Nightmare, 2 Hell): an expansion character that has finished Nightmare reads 10.
+    /// @type {number}
     JSUnit::InstanceProperty(
         isolate, context, me, "maxdiff", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            info.GetReturnValue().Set(static_cast<uint32_t>(game::GetMaxDiff()));
+            constexpr auto PROGRESSION_MASK = std::to_underlying(game::CharFlag::ProgressionMask);
+            const auto progression =
+                (std::to_underlying(game::GetCharFlags()) & PROGRESSION_MASK) >> std::countr_zero(PROGRESSION_MASK);
+            info.GetReturnValue().Set(static_cast<uint32_t>(progression));
         });
 
     /// @description Name of the joined/created game. Empty string when not in a game.
@@ -245,12 +252,11 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
             info.GetReturnValue().Set(game::Unit::CursorItem().has_value());
         });
 
-    /// @description Ladder status flag of the current realm/game; undefined when the status is unknown (out of game).
-    /// @type {number}
+    /// @description Whether the character is a ladder character: the Ladder bit of charflags.
+    /// @type {boolean}
     JSUnit::InstanceProperty(
         isolate, context, me, "ladder", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            if (const auto ladder = game::IsLadder())
-                info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), static_cast<double>(ladder.value())));
+            info.GetReturnValue().Set(HasFlag(game::GetCharFlags(), game::CharFlag::Ladder));
         });
 
     /// @description Current network latency to the game server, in milliseconds.

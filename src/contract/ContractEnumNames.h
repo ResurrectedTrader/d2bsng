@@ -46,7 +46,7 @@ enum class MessageLevel : uint8_t;
 
 namespace d2bs::game {
 
-enum class CharFlag : uint32_t;
+enum class CharFlag : uint16_t;
 enum class OutOfGameLocation : uint32_t;
 enum class ClickButton : uint8_t;
 enum class Hand : uint8_t;
