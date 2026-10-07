@@ -556,24 +556,20 @@ void Say(const std::string& text) {
 // === Trade ===
 
 std::optional<std::string> GetTradeInfo(TradeInfoMode mode) {
-    // Reference JSGame.cpp:115-122 returns the trade id as a number for both
-    // RecentTradeId modes and the player name for RecentTradeName. The
-    // framework receives a string for all three -- render the id as decimal so
-    // the JS API can parseInt() it back when needed.
+    // The framework receives a string for every mode; the trade id is rendered
+    // as decimal so the JS API can parseInt() it back.
+    GameReadLock guard;
     switch (mode) {
         case TradeInfoMode::RecentTradeId:
         case TradeInfoMode::RecentTradeId2:
             return std::to_string(*d2client::gnRecentTradeId);
         case TradeInfoMode::RecentTradeName: {
-            auto* data = *d2launch::gpBnetData;
-            if (data == nullptr) {
-                return std::nullopt;
-            }
-            auto name = ToString(data->szPlayerName);
+            const auto& buf = *d2client::gwszRecentTradeName;
+            const std::wstring name(buf.data(), wcsnlen(buf.data(), buf.size()));
             if (name.empty()) {
                 return std::nullopt;
             }
-            return name;
+            return utils::ToStr(name);
         }
     }
     return std::nullopt;
