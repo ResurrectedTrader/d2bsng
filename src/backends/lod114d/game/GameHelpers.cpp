@@ -1653,10 +1653,6 @@ bool RevealLevel(LevelId levelNo, bool drawPresets) {
         }
 
         for (auto* room = target->pFirstRoomEx; room != nullptr; room = room->pDrlgRoomNext) {
-            // RAII: AddRoomData when pRoom is null, RemoveRoomData on dtor if
-            // we were the ones to allocate. The guard re-checks pRoom on the
-            // game thread to avoid a TOCTOU race with concurrent script
-            // threads observing the same null pRoom.
             RoomDataGuard guard(room);
             if (room->pRoom == nullptr) {
                 continue;  // AddRoomData failed -- skip this room.
