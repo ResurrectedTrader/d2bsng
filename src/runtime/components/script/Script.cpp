@@ -630,7 +630,7 @@ void Script::ReportException(v8::TryCatch& tryCatch) {
     // and we're in a game, leave the current game so the outer bot loop can
     // recover. Console scripts are exempted: a typo in the live REPL shouldn't
     // kick the user out of their game.
-    if (mode_ != ScriptMode::InGame && core::config::GetAppConfig().quitOnError.load() &&
+    if (mode_ != ScriptMode::Console && core::config::GetAppConfig().quitOnError.load() &&
         game::GetGameState() == game::GameState::InGame) {
         game::ExitGame();
     }
