@@ -94,6 +94,10 @@ void CompatibilityFlags::RegisterDefaults() {
 
     /// @description Allow calling Profile(...) without 'new' (SpiderMonkey permitted it; kolbot relies on it).
     Register("profileCallWithoutNew");
+
+    /// @description getSkillByName and unit.setSkill(name) look names up in the 1.14d skill table (the localized
+    /// names kolbot uses, e.g. "Phoenix Strike") rather than the game's skills.txt names (e.g. "Royal strike").
+    Register("legacySkillNames");
 }
 
 }  // namespace d2bs::core::config

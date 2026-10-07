@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string_view>
 
 #include "game/Types.h"
 
@@ -25,5 +26,10 @@ bool IsWaypointLevel(LevelId levelId);
 // skilldesc -> `str name` chain the client itself uses. nullopt when a link
 // of the chain is missing.
 std::optional<uint16_t> SkillNameStringId(Skill skill);
+
+// A skill id by name, case-insensitively, from the 1.14d skill names scripts were
+// written against (reference D2Skills.h). The backends' GetSkillByName answers
+// from it while the legacySkillNames compatibility flag is on.
+std::optional<Skill> LegacySkillByName(std::string_view name);
 
 }  // namespace d2bs::game

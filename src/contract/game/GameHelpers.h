@@ -175,6 +175,9 @@ void ClickPartyMember(const Party& party, PartyMode mode);
 void LeaveParty();
 uint32_t CheckUnitCollision(const Unit& unit1, const Unit& unit2, CollisionFlag mask);
 // === Skill Name Tables ===
+// A skill id by name, case-insensitively: LegacySkillByName while the
+// legacySkillNames compatibility flag is on, else the first skills.txt row whose
+// skill name matches.
 std::optional<Skill> GetSkillByName(std::string_view name);
 
 // === IPC ===

@@ -1618,7 +1618,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @description Sets the player's active skill on the given hand and blocks until the game confirms the bind (up to
     /// ~1 second, pumping the script event queue).
     /// @signature setSkill(skill: string, hand: number, item?: Unit)
-    /// @param skill {string} - Skill name, resolved via the skill name table.
+    /// @param skill {string} - Skill name, resolved as getSkillByName resolves it.
     /// @param hand {number} - Required numeric: truthy = left hand, falsy = right hand.
     /// @param item {Unit} - Optional Item Unit to bind the skill from (e.g. an item-granted/charge skill); ignored if
     /// not an item.
