@@ -181,10 +181,10 @@ __declspec(naked) void __fastcall HostilePartyUnit(D2RosterUnitStrc* /*pRosterUn
 // (0x110-byte stack frame) so the mid-function entry at Say_I lands in
 // a frame shape it expects. Caller must have populated *ChatMsg with
 // the message text before calling.
-__declspec(naked) void __fastcall Say(const void* /*msgPtr*/) {
+__declspec(naked) void __fastcall Say(SMSGHANDLER_PARAMS* /*params*/) {
     __asm {
         pop eax  // return address
-        push ecx  // msg ptr -> first stack arg
+        push ecx  // params -> first stack arg
         push eax  // return address back on top
         push ebp
         mov ebp, esp
@@ -192,7 +192,7 @@ __declspec(naked) void __fastcall Say(const void* /*msgPtr*/) {
         push ebx
         push esi
         push edi
-        mov ebx, dword ptr [ebp + 8]  // ebx = msg ptr (pushed earlier)
+        mov ebx, dword ptr [ebp + 8]  // ebx = params (pushed earlier)
         jmp dword ptr [sayAddr]
     }
 }

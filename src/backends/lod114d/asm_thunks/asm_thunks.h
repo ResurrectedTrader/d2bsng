@@ -7,6 +7,7 @@ struct D2InventoryGridInfoStrc;
 struct D2InventoryStrc;
 struct D2RosterUnitStrc;
 struct D2UnitStrc;
+struct SMSGHANDLER_PARAMS;
 
 // Naked-asm thunks for game-side function entries whose register
 // conventions cannot be expressed in C. Each thunk loads its arguments
@@ -50,10 +51,12 @@ void __fastcall ClickItemRight(int32_t x, int32_t y, uint32_t location, D2UnitSt
 // Reference: D2Helpers.cpp:947 (`D2CLIENT_HostilePartyUnit`).
 void __fastcall HostilePartyUnit(D2RosterUnitStrc* pRosterUnit, uint32_t button);
 
-// Say_I @ 0x7CBDA, mid-function in sub_47CA70 (OOG event handler).
-// Reference: Core.cpp:67 (`Say_ASM`). Caller is responsible for first
-// copying the wide message to *imports::d2client::gwszChatMsg.
-void __fastcall Say(const void* msgPtr);
+// Say_I @ 0x7CBDA: the VK_RETURN case of the chat-input message handler
+// (sub_47CA70, `void __stdcall (SMSGHANDLER_PARAMS*)`). Reference: Core.cpp:67
+// (`Say_ASM`). The caller copies the wide message to
+// *imports::d2client::gwszChatMsg first; the handler writes the params'
+// bUseResult / lResult on its way out.
+void __fastcall Say(SMSGHANDLER_PARAMS* params);
 
 // SetSelectedUnit_I @ 0x66DE0 - `__usercall sub@<eax>(arg@<eax>)`. Function
 // reads its argument from EAX. Reference: D2Helpers.cpp:728
