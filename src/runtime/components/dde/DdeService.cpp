@@ -186,13 +186,14 @@ HDDEDATA DdeService::HandleCallback(UINT uType, UINT /*uFmt*/, HCONV /*hconv*/, 
     }
 }
 
-std::optional<std::string> DdeService::Send(Transaction txn, std::string_view server, std::string_view topic,
-                                            std::string_view item, std::string_view data) {
+std::expected<std::optional<std::string>, UINT> DdeService::Send(Transaction txn, std::string_view server,
+                                                                 std::string_view topic, std::string_view item,
+                                                                 std::string_view data) {
     DWORD idInst = 0;
     UINT err = DdeInitializeA(&idInst, &DdeService::StaticCallback, APPCMD_CLIENTONLY, 0);
     if (err != DMLERR_NO_ERROR) {
         logger_->error("Send: DdeInitialize failed: 0x{:X}", err);
-        return std::nullopt;
+        return std::unexpected(err);
     }
 
     // Empty strings are not valid DDE names; reference substitutes literal `""` quotes.
@@ -218,9 +219,10 @@ std::optional<std::string> DdeService::Send(Transaction txn, std::string_view se
     };
 
     if (hszServer == nullptr || hszTopic == nullptr || hszItem == nullptr) {
-        logger_->error("Send: DdeCreateStringHandle failed: 0x{:X}", DdeGetLastError(idInst));
+        const UINT handleErr = DdeGetLastError(idInst);
+        logger_->error("Send: DdeCreateStringHandle failed: 0x{:X}", handleErr);
         cleanup();
-        return std::nullopt;
+        return std::unexpected(handleErr);
     }
 
     HCONV hConv = DdeConnect(idInst, hszServer, hszTopic, nullptr);

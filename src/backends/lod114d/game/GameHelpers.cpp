@@ -431,6 +431,10 @@ static_assert(std::to_underlying(UiFlag::MercInventory) == UI_MERCINV);
 static_assert(std::to_underlying(UiFlag::RecipeScroll) == UI_RECIPESCROLL);
 
 bool GetUIFlag(UiFlag flag) {
+    // The game's UI state table ends at RecipeScroll; UI_GetVar indexes it directly.
+    if (flag > UiFlag::RecipeScroll) {
+        return false;
+    }
     return d2client::UI_GetVar(flag) != 0;
 }
 
@@ -520,12 +524,16 @@ void Say(const std::string& text) {
     if (text.empty()) {
         return;
     }
-    // Reference Core.cpp:85-132. Copy message into ChatMsg (wchar_t* in-game,
-    // char* OOG), build a WM_CHAR+VK_RETURN MSG, then enter the case-13 body
-    // of the chat-input handler via the Say_ASM naked thunk.
-    // Reference passes &aMsg (MSG**) -- likely a vestigial bug; we pass MSG*
-    // directly so *(a1+8) lands on MSG::wParam as IDA's decompile expects.
-    if (d2client::UNITS_GetPlayerUnit() == nullptr) {
+    // Reference Core.cpp:85-132. Copy the message into the chat buffer
+    // (wchar_t in game, char out of game) and have the game send it as if the
+    // player pressed Enter. Both run on the game thread, which owns the buffers.
+    std::wstring wide = utils::ToWStr(text);
+    bool hasPlayer = false;
+    {
+        GameReadLock guard;
+        hasPlayer = d2client::UNITS_GetPlayerUnit() != nullptr;
+    }
+    if (!hasPlayer) {
         // Reference Core.cpp:124-128 OOG path: BNet channel chat dispatched
         // through D2MULTI_DoChat. Gated on the help button being present
         // (signals we're on the channel screen) and the disconnect-OK button
@@ -536,31 +544,54 @@ void Say(const std::string& text) {
         if (!helpBtn || disconnect) {
             return;
         }
-        auto wide = utils::ToWStr(text);
-        auto ansi = utils::ToStr(wide, CP_ACP);
-        auto* dst = d2multi::gszChatBoxMsg.Ptr()->data();
-        if (dst == nullptr) {
+        // As much as the channel's edit box lets a player type, cut on a
+        // character boundary so a double-byte code page keeps its lead bytes.
+        constexpr size_t CHANNEL_CHAT_MAX_BYTES = 199;
+        std::string ansi = utils::ToStr(wide, CP_ACP);
+        while (ansi.size() > CHANNEL_CHAT_MAX_BYTES) {
+            wide.pop_back();
+            ansi = utils::ToStr(wide, CP_ACP);
+        }
+        GameThread::Execute([&ansi] {
+            auto* dst = d2multi::gszChatBoxMsg.Ptr()->data();
+            if (dst == nullptr) {
+                return;
+            }
+            std::memcpy(dst, ansi.c_str(), ansi.size() + 1);
+            d2multi::D2MULTI_DoChat();
+        });
+        return;
+    }
+
+    // The in-game chat input takes 255 characters, and the game converts them
+    // into a 256-byte code-page buffer when sending.
+    constexpr size_t GAME_CHAT_MAX_CHARS = 255;
+    if (wide.size() > GAME_CHAT_MAX_CHARS) {
+        wide.resize(GAME_CHAT_MAX_CHARS);
+    }
+    while (utils::ToStr(wide, CP_ACP).size() > GAME_CHAT_MAX_CHARS) {
+        wide.pop_back();
+    }
+    GameThread::Execute([&wide] {
+        auto* chatBuf = d2client::gwszChatMsg.Ptr()->data();
+        if (chatBuf == nullptr) {
             return;
         }
-        std::memcpy(dst, ansi.c_str(), ansi.size() + 1);
-        GameThread::Execute([] { d2multi::D2MULTI_DoChat(); });
-        return;
-    }
-    auto wide = utils::ToWStr(text);
-    auto* chatBuf = d2client::gwszChatMsg.Ptr()->data();
-    if (chatBuf == nullptr) {
-        return;
-    }
-    std::memcpy(chatBuf, wide.c_str(), (wide.size() + 1) * sizeof(wchar_t));
+        std::memcpy(chatBuf, wide.c_str(), (wide.size() + 1) * sizeof(wchar_t));
 
-    MSG msg{};
-    msg.hwnd = d2gfx::WINDOW_GetWindow();
-    msg.message = WM_CHAR;
-    msg.wParam = VK_RETURN;
-    msg.lParam = 0x11C0001;
-    msg.pt.x = 0x79;
-    msg.pt.y = 0x1;
-    lod114d::asm_thunks::Say(&msg);
+        // The handler is a Storm message handler: it takes SMSGHANDLER_PARAMS
+        // and writes its result fields, so the whole struct must exist. Storm
+        // also keeps the params' address as a key in its break-handler list,
+        // so it lives outside the stack, where no real dispatch's params can
+        // share it.
+        static_assert(sizeof(SMSGHANDLER_PARAMS) == 0x20);
+        static SMSGHANDLER_PARAMS params;
+        params = {};
+        params.hWnd = d2gfx::WINDOW_GetWindow();
+        params.uMessage = WM_CHAR;
+        params.wParam = VK_RETURN;
+        lod114d::asm_thunks::Say(&params);
+    });
 }
 
 // === Trade ===

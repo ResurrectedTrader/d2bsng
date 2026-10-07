@@ -5,6 +5,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <expected>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -60,10 +61,12 @@ class DdeService {
 
     // Synchronous client-side DDE send. Uses its own ephemeral APPCMD_CLIENTONLY
     // instance per call (matches reference), independent of the inbound server.
-    // Returns nullopt on transport failure. For Request, the response is the
-    // returned string. For Poke/Execute on success, returns an empty string.
-    std::optional<std::string> Send(Transaction txn, std::string_view server, std::string_view topic,
-                                    std::string_view item, std::string_view data);
+    // The error is the DDE error code when the client instance or its string
+    // handles cannot be set up. Otherwise nullopt when the connect or the
+    // transaction fails; for Request the response, for Poke/Execute an empty string.
+    std::expected<std::optional<std::string>, UINT> Send(Transaction txn, std::string_view server,
+                                                         std::string_view topic, std::string_view item,
+                                                         std::string_view data);
 
     DdeService(const DdeService&) = delete;
     DdeService& operator=(const DdeService&) = delete;
