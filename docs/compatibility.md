@@ -42,6 +42,7 @@ framework calls `RegisterDefaults()`, then registers every entry returned by
 | `constRunnableRewrite` | `const X = new Runnable` -> `var X = new Runnable` (CompileSource) |
 | `profileCallWithoutNew` | calling `Profile(...)` without `new` (JSProfile) |
 | `legacySkillNames` | `getSkillByName(name)` and `unit.setSkill(name, ...)` resolving names through the shared 1.14d skill table (`game::LegacySkillByName`, `src/contract/game/Common.cpp`) rather than the game's skills.txt. Read by each backend's `game::GetSkillByName` (`src/backends/lod114d/game/GameHelpers.cpp`, which otherwise walks the skills.txt link list) |
+| `includeReturnsFalse` | `include()` of a file that fails to compile or throws: the error is reported and `include()` returns false, as d2bs did. Off, the error is reported and also rethrown into the caller (`Script::Include`) |
 
 Each flag is a documented `Register("name")` call in
 `CompatibilityFlags::RegisterDefaults()`: the call registers the name (enabled by
@@ -113,6 +114,8 @@ per flag:
   effect immediately.
 - **`legacySkillNames`** is read by the backend's `GetSkillByName` on every
   `getSkillByName` / `setSkill(name, ...)` call, so it takes effect immediately.
+- **`includeReturnsFalse`** is read by `Script::Include` whenever an include
+  fails, so it takes effect immediately.
 
 ## Not flagged
 

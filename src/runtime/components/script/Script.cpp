@@ -29,6 +29,7 @@
 #include "components/script/NativeCallHook.h"
 #include "components/script/ScriptEngine.h"
 #include "config/AppConfig.h"
+#include "config/CompatibilityFlags.h"
 #include "game/GameHelpers.h"
 #include "game/GameLock.h"
 #include "speedhack/Speedhack.h"
@@ -1017,6 +1018,17 @@ bool Script::Include(const std::filesystem::path& absolutePath) {
 
     auto context = GetContext();
     v8::TryCatch tryCatch(iso);
+    const auto reportError = [&] {
+        if (!tryCatch.HasCaught() || tryCatch.HasTerminated()) {
+            return;
+        }
+        ReportException(tryCatch);
+        // d2bs reports the error and lets include() return false (reference/d2bs/Script.cpp Script::Include,
+        // JS_ReportPendingException); with the flag off the error propagates to the caller.
+        if (!core::config::CompatibilityFlags::Instance().IsEnabled("includeReturnsFalse")) {
+            tryCatch.ReThrow();
+        }
+    };
 
     // Read file
     std::ifstream file(absolutePath, std::ios::binary);
@@ -1031,9 +1043,7 @@ bool Script::Include(const std::filesystem::path& absolutePath) {
     v8::Local<v8::Script> script;
     if (!script::CompileSource(iso, context, std::move(source), absolutePath.string()).ToLocal(&script)) {
         logger_->warn("Failed to compile include: {}", absolutePath.string());
-        if (tryCatch.HasCaught() && !tryCatch.HasTerminated()) {
-            ReportException(tryCatch);
-        }
+        reportError();
         return false;
     }
 
@@ -1049,11 +1059,7 @@ bool Script::Include(const std::filesystem::path& absolutePath) {
 
     inProgressIncludes_.erase(normalized);
 
-    // Reported and swallowed, not rethrown: include() returns false for a file that fails to compile or
-    // throws (reference/d2bs/Script.cpp Script::Include, JS_ReportPendingException).
-    if (tryCatch.HasCaught() && !tryCatch.HasTerminated()) {
-        ReportException(tryCatch);
-    }
+    reportError();
 
     return includes_.contains(normalized);
 }

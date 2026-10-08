@@ -119,6 +119,10 @@ void CompatibilityFlags::RegisterDefaults() {
     /// @description getSkillByName and unit.setSkill(name) look names up in the 1.14d skill table (the localized
     /// names kolbot uses, e.g. "Phoenix Strike") rather than the game's skills.txt names (e.g. "Royal strike").
     Register("legacySkillNames");
+
+    /// @description include() of a file that fails to compile or throws reports the error and returns false, as d2bs
+    /// did; when disabled the error is reported and also rethrown into the caller.
+    Register("includeReturnsFalse");
 }
 
 }  // namespace d2bs::core::config
