@@ -204,7 +204,9 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description Loads and runs a libs/ script file into the current script's scope, once.
     /// @signature include(file: string)
     /// @param file {string} - path relative to the libs/ subdirectory
-    /// @returns {boolean} - true on success; false if the file is not found under libs/ or there is no current script
+    /// @returns {boolean} - true on success (or if already included); false if the file is not found under libs/, fails
+    /// to compile or throws (the error is reported; with the includeReturnsFalse compatibility flag off it is also
+    /// rethrown), or there is no current script
     function::Register(
         isolate, global, "include", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
