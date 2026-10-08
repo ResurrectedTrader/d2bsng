@@ -219,7 +219,7 @@ void CodeCache::WriteDisk(uint64_t hash, const std::vector<uint8_t>& blob) const
             return;
         }
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) - byte buffer through a char stream
-        out.write(reinterpret_cast<const char*>(blob.data()), static_cast<std::streamsize>(blob.size()));
+        out.write(reinterpret_cast<const char*>(blob.data()), blob.size());
         out.close();
         if (!out) {
             std::error_code writeEc;

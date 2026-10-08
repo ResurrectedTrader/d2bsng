@@ -133,7 +133,7 @@ std::string ReadRegString(HKEY root, const wchar_t* subKey, const wchar_t* value
 // reboots and app reinstalls; changes on a reformat.
 uint32_t SystemVolumeSerial() {
     std::array<wchar_t, MAX_PATH> winDir{};
-    if (GetSystemWindowsDirectoryW(winDir.data(), static_cast<UINT>(winDir.size())) == 0) {
+    if (GetSystemWindowsDirectoryW(winDir.data(), winDir.size()) == 0) {
         return 0;
     }
     const std::wstring root = std::wstring(winDir.data()).substr(0, 3);  // "C:\"
@@ -246,7 +246,7 @@ uint64_t TotalRamMb() {
 // User's locale as a BCP-47 tag, e.g. "en-US"; empty on failure.
 std::string GetLocale() {
     std::array<wchar_t, LOCALE_NAME_MAX_LENGTH> buffer{};
-    if (GetUserDefaultLocaleName(buffer.data(), static_cast<int>(buffer.size())) > 0) {
+    if (GetUserDefaultLocaleName(buffer.data(), buffer.size()) > 0) {
         return utils::ToStr(buffer.data(), CP_UTF8);
     }
     return {};

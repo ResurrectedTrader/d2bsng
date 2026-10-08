@@ -556,7 +556,7 @@ std::vector<StatListEntry> Unit::GetStatLists() const {
     if (!u || u->pStatListEx == nullptr) {
         return {};
     }
-    auto* ex = STATLIST_StatListExCast(static_cast<D2StatListStrc*>(u->pStatListEx));
+    auto* ex = STATLIST_StatListExCast(u->pStatListEx);
     if (ex == nullptr) {
         return {};
     }
@@ -1012,8 +1012,7 @@ std::string Unit::ItemPlayerName() const {
     if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
         return {};
     }
-    const std::string_view name{static_cast<const char*>(u->pItemData->szPlayerName),
-                                sizeof(u->pItemData->szPlayerName)};
+    const std::string_view name{u->pItemData->szPlayerName, sizeof(u->pItemData->szPlayerName)};
     return std::string{name.substr(0, name.find('\0'))};
 }
 
