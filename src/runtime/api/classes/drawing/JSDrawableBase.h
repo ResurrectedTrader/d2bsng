@@ -203,7 +203,7 @@ class JSDrawableBase : public ClassBase<Derived, DrawableType> {
         /// @description Handler invoked when this overlay is clicked.
         /// @type {function}
         /// @callback click(button: number, x: number, y: number) -> {boolean} - return true to block the click from the
-        /// game (block votes are not awaited in the current build)
+        /// game (the click waits up to 3 seconds for the answer)
         Base::Property(
             isolate, inst, "click",
             +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {

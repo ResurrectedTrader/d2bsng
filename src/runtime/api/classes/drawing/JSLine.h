@@ -19,7 +19,7 @@ class JSLine : public JSDrawableBase<JSLine, LineDrawable> {
     /// @param automap {boolean} - Whether the line is drawn on the automap.
     /// @param click {function} - Click handler.
     /// @callback click(button: number, x: number, y: number) -> {boolean} - return true to block the click from the
-    /// game (block votes are not awaited in the current build) (note: Line is not hit-tested, so this never fires)
+    /// game (the click waits up to 3 seconds for the answer) (note: Line is not hit-tested, so this never fires)
     /// @param hover {function} - Hover handler.
     /// @callback hover(x: number, y: number, entered: boolean) - fired on cursor enter (entered = true) and leave
     /// (entered = false, x and y are 0 on leave); return value ignored (note: Line is not hit-tested, so this never

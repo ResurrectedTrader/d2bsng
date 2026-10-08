@@ -21,7 +21,7 @@ class JSBox : public JSDrawableBase<JSBox, BoxDrawable> {
     /// @param automap {boolean} - Whether the box is drawn on the automap.
     /// @param click {function} - Click handler.
     /// @callback click(button: number, x: number, y: number) -> {boolean} - return true to block the click from the
-    /// game (block votes are not awaited in the current build)
+    /// game (the click waits up to 3 seconds for the answer)
     /// @param hover {function} - Hover handler.
     /// @callback hover(x: number, y: number, entered: boolean) - fired on cursor enter (entered = true) and leave
     /// (entered = false, x and y are 0 on leave); return value ignored
