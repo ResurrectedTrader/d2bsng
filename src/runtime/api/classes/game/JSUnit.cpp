@@ -1240,8 +1240,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             }
             if (!unit)
                 return;
-            // Reference: pUnit->dwMode == 12 means dead, return 0
-            if (unit.Mode() == 12) {
+            // d2bs tests mode 12, which is a monster's dead mode but a player's kick.
+            if (unit.Mode() == std::to_underlying(game::PlayerMode::Dead)) {
                 args.GetReturnValue().Set(0);
                 return;
             }
