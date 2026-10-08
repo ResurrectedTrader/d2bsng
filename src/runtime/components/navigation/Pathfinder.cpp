@@ -8,7 +8,10 @@
 #include <ranges>
 #include <unordered_set>
 
+// ReSharper disable once CppUnusedIncludeDirective - inline body of Level::FindRoomAt
+#include "game/Finders.h"
 #include "game/GameHelpers.h"
+#include "game/GameLock.h"
 #include "game/Level.h"
 #include "game/Room.h"
 #include "utils/VirtualArray.h"
@@ -16,6 +19,16 @@
 namespace d2bs::runtime::navigation {
 
 namespace {
+
+// --- Barricade-tower avoid overlay ---
+
+constexpr uint32_t BARRICADE_TOWER_PRESET_ID = 435;
+
+bool HasBarricadeOverlay(game::LevelId levelId) {
+    using game::LevelId;
+    return levelId == LevelId::ArcaneSanctuary || levelId == LevelId::FrigidHighlands ||
+           levelId == LevelId::ArreatPlateau || levelId == LevelId::FrozenTundra;
+}
 
 // --- Heuristic / Distance ---
 
@@ -172,15 +185,11 @@ LevelGrid BuildLevelGrid(game::Level level) {
         }
     }
 
-    // Barricade tower avoidance for specific levels
-    using game::LevelId;
-    const LevelId levelId = level.Id();
-    if (levelId == LevelId::ArcaneSanctuary || levelId == LevelId::FrigidHighlands ||
-        levelId == LevelId::ArreatPlateau || levelId == LevelId::FrozenTundra) {
+    if (HasBarricadeOverlay(level.Id())) {
         for (auto room = level.GetFirstRoom(); room; room = room.GetNext()) {
             auto roomPos = room.Bounds().origin;
             for (const auto& preset : room.GetPresetUnits()) {
-                if (preset.id == 435) {
+                if (preset.id == BARRICADE_TOWER_PRESET_ID) {
                     grid.Set(roomPos + preset.posInRoom, CollisionFlag::All);
                 }
             }
@@ -188,6 +197,29 @@ LevelGrid BuildLevelGrid(game::Level level) {
     }
 
     return grid;
+}
+
+CollisionFlag CollisionAt(game::Level level, Position pos) {
+    game::GameReadLock guard;
+    if (!level.Bounds().Contains(pos)) {
+        level = game::FindLevelAt(pos);
+        if (!level) {
+            return CollisionFlag::All;
+        }
+    }
+    const auto room = level.FindRoomAt(pos);
+    if (!room) {
+        return CollisionFlag::All;
+    }
+    if (HasBarricadeOverlay(level.Id())) {
+        const auto roomPos = room->Bounds().origin;
+        for (const auto& preset : room->GetPresetUnits()) {
+            if (preset.id == BARRICADE_TOWER_PRESET_ID && roomPos + preset.posInRoom == pos) {
+                return CollisionFlag::All;
+            }
+        }
+    }
+    return room->CollisionAt(pos);
 }
 
 // --- CollisionLookup members (after BuildLevelGrid) ---

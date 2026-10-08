@@ -306,12 +306,13 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             args.GetReturnValue().Set(PositionsToJS(isolate, context, path));
         });
 
-    /// @description Read the collision flag at a world coordinate on a level.
+    /// @description Read the collision flag at a world coordinate. A position outside the given level is read from
+    /// the level of the current act that covers it.
     /// @signature getCollision(levelId: LevelId, x: number, y: number)
     /// @param levelId {LevelId} - level id
     /// @param x {number} - world x coordinate
     /// @param y {number} - world y coordinate
-    /// @returns {CollisionFlag} - collision flags at the cell, or 0 if no room contains the position
+    /// @returns {CollisionFlag} - collision flags at the cell, or All (0xFFFF) if no room contains the position
     /// @throws {Error} - the level is not loaded
     function::Register(
         isolate, global, "getCollision", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -336,9 +337,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 game::GameReadLock lock;
                 if (auto level = game::Level::Get(levelId)) {
                     isLevelLoaded = true;
-                    if (auto room = level->FindRoomAt(pos)) {
-                        collision = room->CollisionAt(pos);
-                    }
+                    collision = navigation::CollisionAt(*level, pos);
                 }
             }
             if (!isLevelLoaded) {

@@ -246,4 +246,9 @@ std::vector<Position> FindPath(const PathRequest& request);
 // without duplicating the room walk + slab assembly.
 LevelGrid BuildLevelGrid(game::Level level);
 
+// The collision value getCollision reports at `pos`: read from `level`, or from the act level that covers
+// `pos` when `level` does not, with the same barricade-tower overlay as BuildLevelGrid. CollisionFlag::All
+// when no level or room covers `pos`.
+CollisionFlag CollisionAt(game::Level level, Position pos);
+
 }  // namespace d2bs::runtime::navigation
