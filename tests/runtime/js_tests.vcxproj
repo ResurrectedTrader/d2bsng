@@ -155,6 +155,8 @@
     <ClCompile Include="api\LockedHandleTest.cpp" />
     <!-- GameLoop tests -->
     <ClCompile Include="gameloop\GameLoopTest.cpp" />
+    <!-- Render event coalescing tests -->
+    <ClCompile Include="events\RenderLatchTest.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Vcpkg">
     <VcpkgEnabled>true</VcpkgEnabled>

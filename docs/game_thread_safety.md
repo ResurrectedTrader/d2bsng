@@ -180,6 +180,21 @@ game::GameThread::Execute([&] {
 
 `Execute()` releases the script's `GameReadLock` so the game thread can acquire `GameWriteLock` to drain the task queue.
 
+## Per-frame events (`render`)
+
+The `render` event fires from `GameLoop::OnDraw` (the backend's `onDraw` callback, once per rendered
+frame, in and out of game), before `Drawable::DrawAll`. The game thread only queues it, never waits on
+a script, and still holds `GameWriteLock` while it does. Each script has a `RenderLatch`
+(`components/events/RenderLatch.h`): the dispatcher posts a render event only when the script has none
+pending, and the event clears the latch on the script's thread just before the handlers run. A script
+that is busy or slow therefore has at most one render event queued and skips the frames it missed, and
+when no script listens the dispatch costs one counter increment and the `ListenerCount` probe.
+
+Handlers run on the script's thread at its next event pump, so a frame is usually already being drawn
+by then: a drawable change made in a `render` handler typically shows from the next frame. Drawable
+fields are atomics, so the handler needs no game lock to change them; reading game state from it takes
+the usual `GameReadLock`, which waits for the game thread's sleep window.
+
 ## Lock Releasers
 
 ### GameWriteLockReleaser

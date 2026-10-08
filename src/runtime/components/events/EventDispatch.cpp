@@ -118,6 +118,25 @@ void CopyDataEventDispatch(game::IpcMode mode, const std::string& payload) {
     FireIfListening<CopyDataEvent>(mode, payload);
 }
 
+void RenderEventDispatch() {
+    RenderLatch::CountFrame();
+    static ListenerCount& listeners = ListenerCount::For(RenderEvent::EVENT_NAME);
+    if (!listeners.Any()) {
+        return;
+    }
+    // Runs on the render path every frame, so it only ever queues: a script whose previous render
+    // event is still waiting is skipped, and nothing here waits for a script.
+    script::ScriptEngine::Instance().ForEachScript([](const std::shared_ptr<script::Script>& script) {
+        if (script->GetState() != script::ScriptState::Running || !script->IsEventRegistered(RenderEvent::EVENT_NAME)) {
+            return;
+        }
+        auto& latch = script->GetRenderLatch();
+        if (latch.TryArm() && !script->ExecuteEvent(std::make_shared<RenderEvent>())) {
+            latch.Disarm();
+        }
+    });
+}
+
 void ScriptBroadcastEventDispatch(const v8::FunctionCallbackInfo<v8::Value>& args) {
     // Not probed: constructing this serialises the arguments, which can run script code (getters),
     // so skipping it when nobody listens would be observable.

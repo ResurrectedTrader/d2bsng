@@ -258,6 +258,23 @@ TEST_CASE_FIXTURE(GameLoopFixture, "OnDraw paints drawables with most recently o
     // NOLINTEND(bugprone-unchecked-optional-access)
 }
 
+TEST_CASE_FIXTURE(GameLoopFixture, "OnDraw raises the render event once per frame, before the drawables") {
+    auto& s = d2bs::test::State();
+
+    GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
+    CHECK(s.renderEventCount == 0);
+
+    GameLoop::Instance().OnDraw();
+    CHECK(s.renderEventCount == 1);
+    CHECK(s.drawAllCountAtRender == 0);
+    CHECK(s.drawAllCount == 1);
+
+    GameLoop::Instance().OnDraw();
+    CHECK(s.renderEventCount == 2);
+    CHECK(s.drawAllCountAtRender == 1);
+    CHECK(s.drawAllCount == 2);
+}
+
 TEST_CASE_FIXTURE(GameLoopFixture, "waitForProfile disables script lifecycle") {
     auto& cfg = d2bs::core::config::GetAppConfig();
     cfg.waitForProfile.store(true);

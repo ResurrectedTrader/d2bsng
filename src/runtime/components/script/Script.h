@@ -15,6 +15,7 @@
 #include <unordered_map>
 #include <vector>
 #include "ScriptTypes.h"
+#include "components/events/RenderLatch.h"
 #include "game/Types.h"
 #include "utils/Profiling.h"
 // ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
@@ -173,6 +174,9 @@ class Script : public std::enable_shared_from_this<Script> {
     bool PostEvent(const std::shared_ptr<events::BaseEvent>& event, uint32_t delayMs = 0);
     void ExecuteEvents(std::chrono::milliseconds duration);
 
+    // Coalesces this script's "render" events.
+    events::RenderLatch& GetRenderLatch() { return renderLatch_; }
+
     // Delayed events (timers)
     void AddDelayedEvent(const std::shared_ptr<events::DelayedEvent>& event);
     bool RemoveDelayedEvent(uint32_t eventId);
@@ -272,6 +276,7 @@ class Script : public std::enable_shared_from_this<Script> {
     // Event registry
     std::mutex eventFunctionsMutex_;
     std::unordered_map<std::string, std::vector<v8::Global<v8::Function>>> eventFunctions_;
+    events::RenderLatch renderLatch_;
 
     // Delayed events (setTimeout/setInterval)
     std::mutex delayedEventMutex_;

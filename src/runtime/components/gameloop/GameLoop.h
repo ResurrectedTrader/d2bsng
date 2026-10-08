@@ -75,8 +75,8 @@ class GameLoop {
     // left held on exit so the next frame body starts under the write lock.
     void OnSleep(std::chrono::milliseconds duration);
 
-    // Called from the game's render function. Flushes drawables for the most
-    // recently observed game state.
+    // Called from the game's render function. Queues the script "render" event,
+    // then flushes drawables for the most recently observed game state.
     void OnDraw() const;
 
     // Attributes the caller's scope to `phase` on the game thread's timeline. Inert on other

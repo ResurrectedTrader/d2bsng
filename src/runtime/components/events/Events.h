@@ -1,6 +1,7 @@
 #pragma once
 
 #include <v8.h>
+#include <chrono>
 #include <cstdlib>
 #include <memory>
 #include <span>
@@ -11,6 +12,7 @@
 
 #include "BaseEvent.h"
 #include "BlockableEvent.h"
+#include "RenderLatch.h"
 #include "api/core/Convert.h"
 #include "components/drawing/Drawable.h"
 #include "components/script/Commands.h"
@@ -516,6 +518,43 @@ class BroadcastEvent : public BaseEvent {
 
    private:
     std::vector<std::vector<uint8_t>> values_;
+};
+
+// ============================================================================
+// Render Event
+// ============================================================================
+
+/// @event A frame was rendered (in game and out of game). Fires once per frame, before the drawables are drawn, so
+/// handlers can move or restyle drawables every frame. Handlers run on the script's own thread, so a change usually
+/// shows from the next frame. A script that falls behind skips frames rather than queueing them: at most one render
+/// event is pending per script.
+/// @param frame {number} - the number of the most recently rendered frame, counted from load; compare with the previous
+/// call's to see how many frames were skipped
+/// @param elapsed {number} - milliseconds since this script's previous render event, 0 for the first
+class RenderEvent : public BaseEvent {
+   protected:
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        return {api::convert::ToJS(isolate, frame_), api::convert::ToJS(isolate, elapsed_)};
+    }
+
+   public:
+    // One per script: the arguments are filled in on that script's thread as the event runs.
+    void Execute(v8::Isolate* isolate, const std::vector<v8::Local<v8::Function>>& fns) override {
+        auto* script = script::ScriptEngine::Instance().GetScript(isolate);
+        if (script == nullptr) {
+            return;
+        }
+        elapsed_ = script->GetRenderLatch().Deliver(std::chrono::steady_clock::now());
+        frame_ = RenderLatch::LastFrame();
+        BaseEvent::Execute(isolate, fns);
+    }
+
+    static constexpr std::string_view EVENT_NAME = "render";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
+
+   private:
+    uint32_t frame_ = 0;
+    uint32_t elapsed_ = 0;
 };
 
 // ============================================================================

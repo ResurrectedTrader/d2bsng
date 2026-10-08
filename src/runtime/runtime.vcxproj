@@ -177,6 +177,7 @@
     <ClInclude Include="components\events\DelayedEvent.h" />
     <ClInclude Include="components\events\Events.h" />
     <ClInclude Include="components\events\EventDispatch.h" />
+    <ClInclude Include="components\events\RenderLatch.h" />
     <!-- Console -->
     <ClInclude Include="components\console\ConsoleSink.h" />
     <ClInclude Include="components\console\Console.h" />

@@ -33,6 +33,11 @@ void ManaEventDispatch(uint32_t mana) {
 void PlayerAssignEventDispatch(uint32_t unitId) {
     test::State().playerAssignEvents.push_back(unitId);
 }
+void RenderEventDispatch() {
+    auto& s = test::State();
+    ++s.renderEventCount;
+    s.drawAllCountAtRender = s.drawAllCount;
+}
 
 }  // namespace d2bs::runtime::events
 

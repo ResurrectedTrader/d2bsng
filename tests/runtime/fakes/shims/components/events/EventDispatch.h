@@ -4,7 +4,7 @@
 //
 // Test-only shim for components/events/EventDispatch.h. The real header pulls
 // in <v8.h> via ScriptBroadcastEventDispatch, which the test binary does not
-// link. GameLoop.cpp only touches the three dispatchers below, so that's all we
+// link. GameLoop.cpp only touches the dispatchers below, so that's all we
 // declare here; the capturing implementations live in
 // tests/runtime/fakes/GameLoopCollaborators.cpp.
 
@@ -15,5 +15,6 @@ namespace d2bs::runtime::events {
 void LifeEventDispatch(uint32_t life);
 void ManaEventDispatch(uint32_t mana);
 void PlayerAssignEventDispatch(uint32_t unitId);
+void RenderEventDispatch();
 
 }  // namespace d2bs::runtime::events

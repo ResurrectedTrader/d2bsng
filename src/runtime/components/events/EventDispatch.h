@@ -36,6 +36,8 @@ void ItemActionEventDispatch(uint32_t unitId, uint32_t action, const std::string
 void GameActionEventDispatch(int32_t mode, uint32_t param1, uint32_t param2, const std::string& name1,
                              const std::string& name2);
 void CopyDataEventDispatch(game::IpcMode mode, const std::string& payload);
+// Once per rendered frame, on the game thread, before the drawables are drawn. Never waits for a script.
+void RenderEventDispatch();
 void ScriptBroadcastEventDispatch(const v8::FunctionCallbackInfo<v8::Value>& args);
 
 // Blockable event dispatchers (return true if event was blocked)
