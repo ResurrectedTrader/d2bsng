@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 
 #include "components/navigation/Pathfinder.h"
+#include "game/Level.h"
 
 using namespace d2bs::runtime::navigation;
 
@@ -112,4 +113,9 @@ TEST_CASE("GetWide checks distance-2 cardinals") {
     // GetWide checks center and dist-2 cardinals only, not dist-1
     // But it also checks center (10,10) which is clear
     CHECK(!HasAnyFlag(wide, CollisionFlag::Wall));
+}
+
+TEST_CASE("CollisionAt reports All for a position no level covers") {
+    // The fakes model an empty act: the level has no bounds and FindLevelAt finds nothing.
+    CHECK(CollisionAt(d2bs::game::Level(), {.x = 5000, .y = 5000}) == CollisionFlag::All);
 }
