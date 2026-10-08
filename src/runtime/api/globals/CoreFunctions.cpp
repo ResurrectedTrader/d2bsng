@@ -267,14 +267,12 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature load(file: string, ...args: any)
     /// @param file {string} - script path relative to the script base path
     /// @param args {any} - optional serializable values forwarded to the new script
-    /// @returns {D2BSScript|boolean|null} - the started script on success; false if the file is not found or there is
-    /// no
-    ///                                  current script; null if the script failed to start
+    /// @returns {null} - always null, whether or not the script started; use getScript() to find the started script
     /// @throws {Error} - if an extra argument cannot be serialized
     function::Register(
         isolate, global, "load", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            args.GetReturnValue().SetFalse();
+            args.GetReturnValue().SetNull();
 
             if (args.Length() < 1) {
                 error::ThrowError(isolate, "load requires at least 1 argument");
@@ -317,13 +315,9 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 std::free(data);  // NOLINT(cppcoreguidelines-no-malloc) - V8's ValueSerializer allocates with realloc()
             }
 
-            auto newScript = script::ScriptEngine::Instance().StartScript(absPath, mode, std::move(serializedArgs));
-            if (newScript) {
-                auto scriptObj = classes::JSScript::Create(isolate, newScript.get());
-                args.GetReturnValue().Set(scriptObj);
-            } else {
-                args.GetReturnValue().SetNull();
-            }
+            // d2bs returns null whether or not the script started (reference/d2bs/JSCore.cpp my_load), and
+            // scripts branch on that.
+            script::ScriptEngine::Instance().StartScript(absPath, mode, std::move(serializedArgs));
         });
 
     /// @description Stops the current script or all scripts, terminating execution immediately.
