@@ -38,12 +38,7 @@ class BaseEvent {
                 v8::TryCatch tryCatch(isolate);
                 (void)fn->Call(cx, cx->Global(), static_cast<int32_t>(args.size()), args.data());
                 if (tryCatch.HasCaught()) {
-                    auto message = tryCatch.Message();
-                    if (!message.IsEmpty()) {
-                        v8::String::Utf8Value errorStr(isolate, message->Get());
-                        script::GetLogger(isolate)->error("[{}] handler exception: {}", Name(),
-                                                          std::string(*errorStr, errorStr.length()));
-                    }
+                    script::ReportHandlerException(isolate, tryCatch);
                 }
             }
         }

@@ -222,6 +222,9 @@ class Script : public std::enable_shared_from_this<Script> {
                                game::Point pos);
     void DispatchDrawableHover(std::shared_ptr<const drawing::Drawable> drawable, game::Point pos, bool entered);
 
+    // Logs an uncaught exception with its file and line, then applies QuitOnError (console scripts exempt).
+    void ReportException(v8::TryCatch& tryCatch);
+
    private:
     // Drops every handler and its listener counts. Caller holds eventFunctionsMutex_.
     void ClearEventFunctionsLocked();
@@ -230,7 +233,6 @@ class Script : public std::enable_shared_from_this<Script> {
     void SetupIsolate();
     void TeardownIsolate();
     void RunScript();
-    void ReportException(v8::TryCatch& tryCatch);
 
     // Create and register this isolate's ScriptInspector (Chrome DevTools
     // target). Called once from SetupIsolate, on the isolate's own thread.
