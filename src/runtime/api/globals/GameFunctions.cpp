@@ -1087,12 +1087,12 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             args.GetReturnValue().Set(array);
         });
 
-    /// @description Test a PvP/relationship flag between two units.
+    /// @description Test a PvP/relationship flag between two players in the roster; they do not need to be in view.
     /// @signature getPlayerFlag(unitId1: number, unitId2: number, flag: RosterFlag)
-    /// @param unitId1 {number} - first unit id
-    /// @param unitId2 {number} - second unit id
+    /// @param unitId1 {number} - first player's unit id
+    /// @param unitId2 {number} - second player's unit id
     /// @param flag {RosterFlag} - relationship flag mask to test
-    /// @returns {boolean|undefined} - flag test result, false if a unit is unresolved, undefined on bad args
+    /// @returns {boolean|undefined} - flag test result, undefined on bad args
     function::Register(
         isolate, global, "getPlayerFlag", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
@@ -1114,15 +1114,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             uint32_t unitId2 = convert::To<uint32_t>(isolate, args[1]);
             const auto flag = convert::To<game::RosterFlag>(isolate, args[2]);
 
-            // Resolve both unit IDs to Unit handles. TestPvpFlag takes const Unit& and re-resolves
-            // by id internally.
-            auto u1 = game::Unit::Find(unitId1);
-            auto u2 = game::Unit::Find(unitId2);
-            if (!u1 || !u2) {
-                args.GetReturnValue().Set(false);
-                return;
-            }
-            args.GetReturnValue().Set(d2bs::game::TestPvpFlag(*u1, *u2, flag));
+            // Roster ids, not loaded units: a party member out of view still has a roster entry.
+            args.GetReturnValue().Set(game::TestPvpFlag(unitId1, unitId2, flag));
         });
 
     /// @description Get the NPC the player is currently interacting with.

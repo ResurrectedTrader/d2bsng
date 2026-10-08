@@ -866,8 +866,10 @@ void Transmute() {
     });
 }
 
-bool TestPvpFlag(const Unit& a, const Unit& b, RosterFlag flag) {
-    return d2client::PLAYERLIST_CheckFlag(a.Id(), b.Id(), flag) != 0;
+bool TestPvpFlag(uint32_t unitId1, uint32_t unitId2, RosterFlag flag) {
+    // The check walks the roster list.
+    GameReadLock guard;
+    return d2client::PLAYERLIST_CheckFlag(unitId1, unitId2, flag) != 0;
 }
 
 bool HasWaypoint(uint32_t waypointId) {
