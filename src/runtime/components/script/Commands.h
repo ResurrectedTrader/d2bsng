@@ -8,9 +8,8 @@ namespace d2bs::runtime::script {
 // V8 origin name for console/chat commands - affects stack trace reporting. Matches reference.
 inline constexpr std::string_view COMMAND_LINE_NAME = "Command Line";
 
-// Dispatch a submitted command line. Called by:
+// Dispatch a submitted console line. Called by:
 //   - GameCallbacks::onConsoleInput (overlay / ImGui / terminal Enter)
-//   - ChatInputEventDispatch on '.'-prefix
 //   - DDE Execute / IPC Evaluate handlers (if they opt in)
 //
 // Behavior:
@@ -25,6 +24,12 @@ inline constexpr std::string_view COMMAND_LINE_NAME = "Command Line";
 //
 // Fire-and-forget, thread-safe (the underlying ScriptEngine calls are).
 void RunCommand(const std::string& line);
+
+// Dispatch a '.'-prefixed chat line (without the dot). Runs only the built-ins above and returns
+// true; any other line runs nothing and returns false, so the caller lets it through to the
+// chatinput events and the game (reference/d2bs/Helpers.cpp ProcessCommand with
+// unprocessedIsCommand = false).
+bool RunChatCommand(const std::string& line);
 
 // /reload handler - stops all scripts, briefly settles, then relaunches the
 // configured starter (or no-op when waitForProfile is set). Exposed for tests.

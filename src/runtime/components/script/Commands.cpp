@@ -98,47 +98,50 @@ void ReloadAll() {
     StartStarter();
 }
 
-void RunCommand(const std::string& line) {
+namespace {
+
+// Runs `line` if its first token names a built-in; returns false (running nothing) otherwise.
+bool RunBuiltin(const std::string& line) {
     auto parts = utils::Split(line, " \t", /*maxTokens=*/2);
     if (parts.empty()) {
-        return;  // empty or whitespace-only
+        return false;
     }
     auto cmd = utils::ToLower(std::move(parts[0]));
     std::string_view args = parts.size() > 1 ? std::string_view{parts[1]} : std::string_view{};
 
     if (cmd == "start") {
         StartStarter();
-        return;
+        return true;
     }
     if (cmd == "stop") {
         ScriptEngine::Instance().StopAllScripts();
-        return;
+        return true;
     }
     if (cmd == "flush") {
         // Reference flushes the script cache (Helpers.cpp:274-278). d2bsng
         // has no script cache today - no-op for now, but .flush remains a
         // valid (and documented) built-in so users don't see "unknown command"
         // behavior diverging from reference.
-        return;
+        return true;
     }
     if (cmd == "reload") {
         ReloadAll();
-        return;
+        return true;
     }
     if (cmd == "stacks") {
         DumpAllStacks();
-        return;
+        return true;
     }
     if (cmd == "load") {
         LoadScript(args);
-        return;
+        return true;
     }
     if (cmd == "profile") {
         // .profile <name> - switch the active profile. GameLoop observes the
         // change on its next tick and reloads per-profile script paths.
         if (args.empty()) {
             Log().warn(".profile: missing profile name");
-            return;
+            return true;
         }
         auto nameStr = std::string(args);
         if (profile::Switch(nameStr)) {
@@ -146,20 +149,31 @@ void RunCommand(const std::string& line) {
         } else {
             Log().warn(".profile: profile '{}' not found", nameStr);
         }
-        return;
+        return true;
     }
     if (cmd == "exec") {
         // Reference's .exec runs the remainder as JS regardless of any other
-        // dispatch policy. Here it's redundant with the fallback below (we
-        // always JS-eval on miss), but we keep it so users who learned the
-        // reference command still see predictable behavior.
+        // dispatch policy. On the console it is redundant with the eval
+        // fallback; from chat it is the only way to evaluate JS.
         ScriptEngine::Instance().Evaluate(std::string(args));
+        return true;
+    }
+    return false;
+}
+
+}  // namespace
+
+void RunCommand(const std::string& line) {
+    if (line.find_first_not_of(" \t") == std::string::npos || RunBuiltin(line)) {
         return;
     }
-
     // Fallback: JS eval in the console script's isolate. Use the original
     // (untrimmed) line so stack traces report the expression as the user typed it.
     ScriptEngine::Instance().Evaluate(line);
+}
+
+bool RunChatCommand(const std::string& line) {
+    return RunBuiltin(line);
 }
 
 }  // namespace d2bs::runtime::script
