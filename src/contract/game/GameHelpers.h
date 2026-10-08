@@ -109,7 +109,7 @@ bool ClickMapAt(uint32_t clickType, bool shift, Point pos);
 bool ClickMapAt(uint32_t clickType, bool shift, const Unit& unit);
 bool SubmitItem(const Unit& item);
 void Transmute();
-bool TestPvpFlag(const Unit& a, const Unit& b, RosterFlag flag);
+bool TestPvpFlag(uint32_t unitId1, uint32_t unitId2, RosterFlag flag);
 bool HasWaypoint(uint32_t waypointId);
 bool IsTownByLevelNo(LevelId levelNo);
 std::string GetLocaleString(uint16_t localeId);

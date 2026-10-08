@@ -169,7 +169,7 @@ bool SubmitItem(const Unit& /*item*/) {
     return false;
 }
 void Transmute() {}
-bool TestPvpFlag(const Unit& /*a*/, const Unit& /*b*/, RosterFlag /*flag*/) {
+bool TestPvpFlag(uint32_t /*unitId1*/, uint32_t /*unitId2*/, RosterFlag /*flag*/) {
     return false;
 }
 bool HasWaypoint(uint32_t /*waypointId*/) {
