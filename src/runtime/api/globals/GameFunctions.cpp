@@ -1468,7 +1468,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
     /// @description Perform a party action (invite/leave/loot/hostile) on a party member.
     /// @signature clickParty(party: Party, mode: PartyMode)
-    /// @param party {Party} - the target party member object (cannot be yourself)
+    /// @param party {Party} - the target party member object (yourself only to leave the party)
     /// @param mode {PartyMode} - party action mode
     /// @returns {boolean} - true if the action dispatched, false on bad args or no-op conditions
     function::Register(
@@ -1513,12 +1513,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     return;
                 }
 
-                // Prevent clicking self
                 auto player = game::Unit::Player();
-                if (player && partyData->Id() == player.Id()) {
-                    args.GetReturnValue().SetFalse();
-                    return;
-                }
 
                 // Reference JSGame.cpp:1104 - AllowLoot is a no-op in non-hardcore games.
                 if (mode == game::PartyMode::AllowLoot && !HasFlag(game::GetCharFlags(), game::CharFlag::Hardcore)) {
@@ -1543,6 +1538,13 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
                 // Reference JSGame.cpp:1112 - Leave no-ops if the target unit isn't in a party.
                 if (mode == game::PartyMode::Leave && partyData->PartyId() == game::NO_PARTY_ID) {
+                    args.GetReturnValue().SetFalse();
+                    return;
+                }
+
+                // Reference JSGame.cpp:1124 refuses a self-click only after the Leave branch, so
+                // clickParty(<own roster entry>, Leave) leaves the party.
+                if (mode != game::PartyMode::Leave && player && partyData->Id() == player.Id()) {
                     args.GetReturnValue().SetFalse();
                     return;
                 }
