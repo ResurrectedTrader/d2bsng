@@ -69,10 +69,12 @@
 #include <utility>
 #include <variant>
 
+// ReSharper disable once CppUnusedIncludeDirective - inline body of Party::FindById
+#include "game/Finders.h"
 #include "game/GameCallbacks.h"
 #include "game/GameHelpers.h"
-#include "game/GameLock.h"
 #include "game/LaunchOptions.h"
+#include "game/Party.h"
 #include "game/Types.h"
 #include "hooks/HookManager.h"
 #include "hooks/InlinePatch.h"
@@ -215,15 +217,11 @@ void ResolveGameEventNames(int32_t mode, uint32_t param1, uint32_t param2, std::
                 }
             }
             break;
-        case MODE_PLAYER_RELATION: {
-            game::GameReadLock guard;
-            for (const auto* player = *imports::d2client::gpPlayerUnitList; player != nullptr; player = player->pNext) {
-                if (player->dwUnitId == param1) {
-                    name1.assign(player->szName, strnlen(player->szName, sizeof(player->szName)));
-                }
+        case MODE_PLAYER_RELATION:
+            if (const auto player = game::Party::FindById(param1)) {
+                name1 = player->Name();
             }
             break;
-        }
         case MODE_ITEMS_IN_BOX:
             if (name1.empty()) {
                 name1 = "You";
