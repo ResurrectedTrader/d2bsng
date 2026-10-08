@@ -234,15 +234,20 @@ class JsonVisitor final : public UnitVisitor {
 
 // Curated stat ids the manager's StatsPanel labels (D2BotNG stats.ts). Order is
 // irrelevant; the manager renders only ids it recognises.
-constexpr std::array<game::Stat, 22> STAT_IDS = {
+constexpr std::array<game::Stat, 27> STAT_IDS = {
     game::Stat::Strength,
     game::Stat::Energy,
     game::Stat::Dexterity,
     game::Stat::Vitality,
+    game::Stat::StatPoints,
+    game::Stat::NewSkills,
     game::Stat::MaxHitPoints,
     game::Stat::MaxMana,
+    game::Stat::MaxStamina,
     game::Stat::Level,
     game::Stat::Experience,
+    game::Stat::LastExperience,
+    game::Stat::NextExperience,
     game::Stat::Gold,
     game::Stat::GoldBank,
     game::Stat::FireResist,
