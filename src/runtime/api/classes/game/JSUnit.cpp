@@ -33,7 +33,9 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "type", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            // No *data check as type is cached
+            if (!*data) {
+                return;
+            }
             info.GetReturnValue().Set(static_cast<uint32_t>(data->Type()));
         });
 
@@ -100,7 +102,9 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "gid", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            // No *data check as unit id is usually cached
+            if (!*data) {
+                return;
+            }
             info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), static_cast<double>(data->Id())));
         });
 
