@@ -269,6 +269,17 @@ extern "C" uint32_t __fastcall OnGamePacketReceived(uint8_t* packet, uint32_t si
             }
             break;
         }
+        case 0x2A: {  // NPC transaction
+            // Reference NPCTransactionHandler: mode is the byte 100 + result
+            // (0 bought, 1 sold, 0x0C not enough gold), with no item code.
+            if (size >= 11 && cb->onItemAction != nullptr) {
+                const auto mode = static_cast<uint8_t>(100U + packet[2]);
+                uint32_t gid = 0;
+                std::memcpy(&gid, packet + 7, sizeof(uint32_t));
+                cb->onItemAction(gid, mode, std::string{}, false);
+            }
+            break;
+        }
         case 0x9C:
         case 0x9D: {  // item action
             if (size >= 19 && cb->onItemAction != nullptr) {

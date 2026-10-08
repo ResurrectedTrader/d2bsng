@@ -400,10 +400,11 @@ class GameActionEvent : public BaseEvent {
     [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 };
 
-/// @event An item add/remove/move action.
+/// @event An item add/remove/move action, or the result of buying from or selling to an NPC.
 /// @param unitId {number} - the affected unit id
-/// @param mode {number} - the action mode
-/// @param code {string} - the item code
+/// @param mode {number} - the action mode; for an NPC transaction 100 + the result (100 bought, 101 sold, 112 not
+/// enough gold)
+/// @param code {string} - the item code (empty for an NPC transaction)
 /// @param isGlobal {boolean} - true for the global (0x9D) variant
 class ItemActionEvent : public BaseEvent {
    protected:
