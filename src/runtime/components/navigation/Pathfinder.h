@@ -14,6 +14,7 @@
 
 namespace d2bs::game {
 class Level;
+class Room;
 }  // namespace d2bs::game
 
 namespace d2bs::runtime::navigation {
@@ -65,6 +66,13 @@ struct LevelGrid {
         return Contains(p) ? GetUnchecked(p) : CollisionFlag::All;
     }
     void Set(Position p, CollisionFlag value);
+
+    // Copies `room`'s collision into the grid, with its barricade towers blocked on a level
+    // that has them; `room` must belong to the grid's level.
+    void CopyRoomCollision(const game::Room& room);
+
+   private:
+    void MarkBarricades(const game::Room& room);
 };
 
 // Pre-validated view into a LevelGrid's cell data. Built by OpenWindow() once

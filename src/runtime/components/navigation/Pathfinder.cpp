@@ -14,6 +14,7 @@
 #include "game/GameLock.h"
 #include "game/Level.h"
 #include "game/Room.h"
+#include "game/Unit.h"
 #include "utils/VirtualArray.h"
 
 namespace d2bs::runtime::navigation {
@@ -161,39 +162,45 @@ std::vector<Point> CollisionLookup::FindPortals(Point start, Point end) const {
 
 // --- Build collision grid from game level ---
 
+void LevelGrid::CopyRoomCollision(const game::Room& room) {
+    auto rb = room.Bounds();
+    uint32_t roomW = rb.size.width;
+    uint32_t roomH = rb.size.height;
+    auto collData = room.GetCollisionFlat();
+    if (roomW == 0 || roomH == 0 || collData.empty())
+        return;
+
+    const auto rows = static_cast<uint32_t>(std::min<size_t>(roomH, collData.size() / roomW));
+
+    // Rooms are always fully within their level grid (D2 level layout invariant:
+    // every room's origin/size is contained by pLevel->dwPosX/Y/SizeX/Y), so the
+    // Position subtraction inside CellIndex cannot underflow here.
+    for (uint32_t ry = 0; ry < rows; ry++) {
+        Position dst{.x = rb.origin.x, .y = rb.origin.y + ry};
+        std::memcpy(&data[CellIndex(rect, dst)], &collData[ry * roomW], roomW * sizeof(CollisionFlag));
+    }
+    MarkBarricades(room);
+}
+
+void LevelGrid::MarkBarricades(const game::Room& room) {
+    if (!HasBarricadeOverlay(levelId)) {
+        return;
+    }
+    auto roomPos = room.Bounds().origin;
+    for (const auto& preset : room.GetPresetUnits()) {
+        if (preset.id == BARRICADE_TOWER_PRESET_ID) {
+            Set(roomPos + preset.posInRoom, CollisionFlag::All);
+        }
+    }
+}
+
 LevelGrid BuildLevelGrid(game::Level level) {
     LevelGrid grid(level.Bounds(), CollisionFlag::All);
     grid.levelId = level.Id();
     grid.mapSeed = game::GetMapSeed();
 
     for (auto room = level.GetFirstRoom(); room; room = room.GetNext()) {
-        auto rb = room.Bounds();
-        uint32_t roomW = rb.size.width;
-        uint32_t roomH = rb.size.height;
-        auto collData = room.GetCollisionFlat();
-        if (roomW == 0 || roomH == 0 || collData.empty())
-            continue;
-
-        const auto rows = static_cast<uint32_t>(std::min<size_t>(roomH, collData.size() / roomW));
-
-        // Rooms are always fully within their level grid (D2 level layout invariant:
-        // every room's origin/size is contained by pLevel->dwPosX/Y/SizeX/Y), so the
-        // Position subtraction inside CellIndex cannot underflow here.
-        for (uint32_t ry = 0; ry < rows; ry++) {
-            Position dst{.x = rb.origin.x, .y = rb.origin.y + ry};
-            std::memcpy(&grid.data[CellIndex(grid.rect, dst)], &collData[ry * roomW], roomW * sizeof(CollisionFlag));
-        }
-    }
-
-    if (HasBarricadeOverlay(level.Id())) {
-        for (auto room = level.GetFirstRoom(); room; room = room.GetNext()) {
-            auto roomPos = room.Bounds().origin;
-            for (const auto& preset : room.GetPresetUnits()) {
-                if (preset.id == BARRICADE_TOWER_PRESET_ID) {
-                    grid.Set(roomPos + preset.posInRoom, CollisionFlag::All);
-                }
-            }
-        }
+        grid.CopyRoomCollision(room);
     }
 
     return grid;
@@ -978,12 +985,41 @@ std::vector<Position> FindPathOnGrid(CollisionLookup& collision, Position start,
 // game's collision masks, it's safe to keep without holding a GameReadLock
 // outside the build path.
 //
-// Staleness window: doors opening / collision changes inside the same
-// level aren't reflected - accepted, getWalkDistance is a heuristic
-// check, and A* on actual traversal goes through the cache eviction or
-// re-resolve path on each fresh call sequence.
+// Reference d2bs reads collision live on every call, so a path asked for
+// after a door opens goes through it. Collision only changes where the
+// game has units, which on the client is the rooms around the player, so
+// a cache hit re-copies the player's room and its neighbours into the
+// cached grids. Those rooms are loaded, so this adds no room data.
 namespace {
 thread_local std::optional<CollisionLookup> cachedLookup;
+
+void RefreshRoomsNearPlayer(CollisionLookup& lookup) {
+    game::GameReadLock guard;
+    const auto player = game::Unit::Player();
+    if (!player) {
+        return;
+    }
+    const auto playerRoom = player.GetRoom();
+    if (!playerRoom) {
+        return;
+    }
+    auto rooms = playerRoom.GetNearby();
+    rooms.push_back(playerRoom);
+    for (const auto& room : rooms) {
+        const auto levelId = room.GetLevel().Id();
+        LevelGrid* grid = nullptr;
+        if (levelId == lookup.primary.levelId) {
+            grid = &lookup.primary;
+        } else if (auto it = lookup.secondary.find(levelId); it != lookup.secondary.end()) {
+            grid = &it->second;
+        }
+        if (grid == nullptr) {
+            continue;
+        }
+        grid->CopyRoomCollision(room);
+    }
+}
+
 }  // namespace
 
 std::vector<Position> FindPath(const PathRequest& request) {
@@ -996,6 +1032,8 @@ std::vector<Position> FindPath(const PathRequest& request) {
             return {};
         cachedLookup.emplace();
         cachedLookup->primary = BuildLevelGrid(*levelOpt);
+    } else {
+        RefreshRoomsNearPlayer(*cachedLookup);
     }
 
     return FindPathOnGrid(*cachedLookup, request.start, request.end, request.reduction, request.radius,
