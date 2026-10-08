@@ -183,7 +183,8 @@ std::vector<TokenRange> OptionTokens(const std::wstring& cmd, size_t tokenCount,
             }
         }
     }
-    LocalFree(argv);
+    // ReSharper disable once CppRedundantCastExpression - clang-tidy needs the explicit void*
+    LocalFree(static_cast<void*>(argv));
     return ranges;
 }
 
@@ -306,7 +307,8 @@ void ParseCommandLine(std::span<const BoundOption> options) {
         }
     }
 
-    LocalFree(argv);
+    // ReSharper disable once CppRedundantCastExpression - clang-tidy needs the explicit void*
+    LocalFree(static_cast<void*>(argv));
 }
 
 size_t RemoveOptions(std::span<wchar_t> text, std::span<const OptionName> options) {
