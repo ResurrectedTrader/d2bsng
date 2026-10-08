@@ -10,7 +10,9 @@
 #include "Events.h"
 #include "components/script/Commands.h"
 #include "components/script/ScriptEngine.h"
+#include "config/AppConfig.h"
 #include "game/Console.h"
+#include "game/GameHelpers.h"
 
 namespace d2bs::runtime::events {
 
@@ -111,6 +113,14 @@ void ItemActionEventDispatch(uint32_t unitId, uint32_t action, const std::string
 
 void GameActionEventDispatch(int32_t mode, uint32_t param1, uint32_t param2, const std::string& name1,
                              const std::string& name2) {
+    // A player-relation message (0x5A mode 0x07) saying a player went hostile (param2 0x03) leaves the game
+    // when QuitOnHostile is set (reference/d2bs/D2NetHandlers.cpp EventMessagesHandler).
+    constexpr int32_t MODE_PLAYER_RELATION = 0x07;
+    constexpr uint32_t RELATION_HOSTILE = 0x03;
+    if (mode == MODE_PLAYER_RELATION && param2 == RELATION_HOSTILE &&
+        core::config::GetAppConfig().quitOnHostile.load()) {
+        game::ExitGame();
+    }
     FireIfListening<GameActionEvent>(mode, param1, param2, name1, name2);
 }
 
