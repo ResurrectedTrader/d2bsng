@@ -4,6 +4,7 @@
 #include "components/drawing/Drawable.h"
 #include "components/drawing/VersionBanner.h"
 #include "components/events/EventDispatch.h"
+#include "components/events/FrameCounter.h"
 #include "components/script/ScriptEngine.h"
 #include "config/AppConfig.h"
 
@@ -43,6 +44,7 @@ void Drawable::DrawAll(game::GameState state) {
     auto& s = test::State();
     ++s.drawAllCount;
     s.lastDrawState = state;
+    s.frameAtDraw = events::FrameCounter::Current();
 }
 
 // GameLoop::OnDraw also draws the version banner; the real implementation pulls

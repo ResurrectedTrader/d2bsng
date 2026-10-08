@@ -8,6 +8,7 @@
 #include <system_error>
 #include <thread>
 
+#include "components/events/FrameCounter.h"
 #include "components/gameloop/GameLoop.h"
 #include "components/profile/ProfileService.h"
 #include "components/script/Commands.h"
@@ -21,6 +22,7 @@
 #include "utils/utils.h"
 
 using d2bs::game::GameState;
+using d2bs::runtime::events::FrameCounter;
 using d2bs::runtime::gameloop::GameLoop;
 
 namespace {
@@ -256,6 +258,23 @@ TEST_CASE_FIXTURE(GameLoopFixture, "OnDraw paints drawables with most recently o
     // NOLINTBEGIN(bugprone-unchecked-optional-access) - REQUIRE above
     CHECK(*s.lastDrawState == GameState::InGame);
     // NOLINTEND(bugprone-unchecked-optional-access)
+}
+
+TEST_CASE_FIXTURE(GameLoopFixture, "OnDraw counts the render frame once per frame, before the drawables") {
+    auto& s = d2bs::test::State();
+
+    GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
+    const auto before = FrameCounter::Current();
+
+    GameLoop::Instance().OnDraw();
+    CHECK(FrameCounter::Current() == before + 1);
+    CHECK(s.frameAtDraw == before + 1);
+    CHECK(s.drawAllCount == 1);
+
+    GameLoop::Instance().OnDraw();
+    CHECK(FrameCounter::Current() == before + 2);
+    CHECK(s.frameAtDraw == before + 2);
+    CHECK(s.drawAllCount == 2);
 }
 
 TEST_CASE_FIXTURE(GameLoopFixture, "waitForProfile disables script lifecycle") {

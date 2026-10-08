@@ -30,6 +30,8 @@ struct GameLoopState {
     std::vector<uint32_t> playerAssignEvents;
     int32_t exitGameCount = 0;
     int32_t drawAllCount = 0;
+    // FrameCounter::Current() when DrawAll last ran.
+    uint64_t frameAtDraw = 0;
     std::optional<d2bs::game::GameState> lastDrawState;
 };
 

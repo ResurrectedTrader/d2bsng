@@ -105,8 +105,9 @@ struct GameCallbacks {
     //     the game thread (pass through to real Sleep).
     void (*onSleep)(std::chrono::milliseconds duration) = nullptr;
 
-    // Called from the game's render function.
-    // Framework flushes drawables so overlays composite with the current frame.
+    // Called from the game's render function, once per rendered frame (in and out of game).
+    // Framework counts the frame for the script "render" event, then flushes drawables so
+    // overlays composite with the current frame.
     void (*onDraw)() = nullptr;
 };
 

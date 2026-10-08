@@ -24,6 +24,7 @@
 #include "components/events/DelayedEvent.h"
 #include "components/events/EventDispatch.h"
 #include "components/events/Events.h"
+#include "components/events/FrameCounter.h"
 #include "components/inspector/ScriptInspector.h"
 #include "components/script/CompileSource.h"
 #include "components/script/NativeCallHook.h"
@@ -73,7 +74,8 @@ Script::Script(std::filesystem::path path, ScriptMode mode, std::vector<std::vec
       idle_(IDLE_TIMELINE),
       mode_(mode),
       args_(std::move(args)),
-      logger_(utils::GetLogger(path_.filename().string())) {}
+      logger_(utils::GetLogger(path_.filename().string())),
+      lastRenderFrame_(events::FrameCounter::Current()) {}
 
 std::shared_ptr<spdlog::logger> GetLogger(v8::Isolate* isolate) {
     if (auto* script = ScriptEngine::Instance().GetScript(isolate)) {
@@ -887,6 +889,8 @@ void Script::ExecuteEvents(std::chrono::milliseconds duration) {
             inspector_->DrainIncoming();
         }
 
+        FireRenderEventIfNewFrame();
+
         // steady_clock::now() is QueryPerformanceCounter on MSVC, so each read
         // routes through the speedhack hook: take one reading per pass and reuse it
         // for the heap-stat throttle, the deadline check, and the wait.
@@ -916,6 +920,23 @@ void Script::ExecuteEvents(std::chrono::milliseconds duration) {
     } else {
         idle_.Leave();
     }
+}
+
+void Script::FireRenderEventIfNewFrame() {
+    // A render handler that calls delay() runs this event loop again, and a frame drawn during that delay would
+    // fire render inside itself, nesting deeper every frame. Each script has its own thread, so this is per script.
+    static thread_local bool isInRenderHandler = false;
+    if (isInRenderHandler) {
+        return;
+    }
+    const auto current = events::FrameCounter::Current();
+    if (current <= lastRenderFrame_ || !IsEventRegistered(events::RenderEvent::EVENT_NAME)) {
+        return;
+    }
+    lastRenderFrame_ = current;
+    isInRenderHandler = true;
+    const utils::DeferGuard leaveHandler([] { isInRenderHandler = false; });
+    ExecuteEvent(std::make_shared<events::RenderEvent>(current));
 }
 
 bool Script::ExecuteEvent(const std::shared_ptr<events::BaseEvent>& event) {
