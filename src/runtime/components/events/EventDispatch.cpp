@@ -11,6 +11,7 @@
 #include "components/script/Commands.h"
 #include "components/script/ScriptEngine.h"
 #include "game/Console.h"
+#include "game/GameHelpers.h"
 
 namespace d2bs::runtime::events {
 
@@ -128,11 +129,18 @@ bool KeyDownUpEventDispatch(uint32_t key, game::KeyState state) {
     // Framework-owned hotkeys run before JS dispatch and swallow the key
     // so scripts and the game both see nothing. Today: Home -> console
     // toggle. Mirrors reference/d2bs/D2Handlers.cpp:226-234, except the
-    // chat/esc-menu gate isn't applicable - our console is a separate
+    // chat/esc-menu gate isn't applied to it - our console is a separate
     // window, not an in-game overlay.
     if (state == game::KeyState::Down && key == VK_HOME) {
         game::console::Toggle();
         return /* blocked */ true;
+    }
+
+    // Keys typed into the chat box, or pressed while the Esc menu is open, go to
+    // the game without reaching scripts (reference/d2bs/D2Handlers.cpp KeyPress).
+    if (game::GetGameState() == game::GameState::InGame &&
+        (game::GetUIFlag(game::UiFlag::ChatBox) || game::GetUIFlag(game::UiFlag::EscMenu))) {
+        return false;
     }
 
     if (state == game::KeyState::Up) {
