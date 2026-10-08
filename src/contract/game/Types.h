@@ -1384,8 +1384,7 @@ enum class NodePage : uint8_t {
     Equipped = 3,
 };
 
-/// Where an item is, as `Unit.location` reports it and clickItem takes it. A unit search's mode filter matches it as
-/// 100 + the location.
+/// Where an item is, as `Unit.location` reports it and clickItem takes it.
 enum class ItemLocation : uint8_t {
     Ground = 0,
     Equip = 1,
@@ -1398,8 +1397,20 @@ enum class ItemLocation : uint8_t {
     Null = 255,  // no location (not an item)
 };
 
-// Offset for encoding ItemLocation in unit mode filter parameter.
-// Scripts use mode = 100 + ItemLocation to filter items by location.
+/// The inventory page an item is on (D2's own page numbering, not `ItemLocation`'s). A unit search's mode filter
+/// matches it as 100 + the page.
+enum class InventoryPage : uint8_t {
+    Inventory = 0,
+    Equip = 1,
+    Trade = 2,
+    Cube = 3,
+    Stash = 4,
+    Belt = 5,
+    Null = 255,  // no page
+};
+
+// Offset for encoding InventoryPage in unit mode filter parameter.
+// Scripts use mode = 100 + InventoryPage to filter items by page.
 constexpr uint32_t ITEM_LOCATION_MODE_OFFSET = 100;
 
 /// Which stash a tab belongs to, as `StashTab.kind` reports it. Plain 1.14d has a single personal tab; paged stashes

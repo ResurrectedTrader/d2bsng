@@ -823,9 +823,9 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @signature getNext(classId: number, mode?: number)
     /// @param classId {number} - Optional class-id filter (first arg when numeric). Pass -1 (or omit) for no filter.
     /// @param mode {number} - Optional unit-mode filter (second arg). Three forms: (1) a plain value matches units
-    /// whose mode equals it; (2) for Item units, a value >= 100 filters by item location instead, matching items whose
-    /// location == mode-100 (100=ground, 101=equipped, 102=belt, 103=inventory, 104=store, 105=trade, 106=cube,
-    /// 107=stash); (3) setting bit 29 (mode | 0x20000000) turns the low bits into a bitmask, matching any unit whose
+    /// whose mode equals it; (2) for Item units, a value >= 100 filters by inventory page instead, matching items whose
+    /// page == mode-100 (100=inventory, 101=equip, 102=trade, 103=cube, 104=stash, 105=belt; an item with no page
+    /// matches none); (3) setting bit 29 (mode | 0x20000000) turns the low bits into a bitmask, matching any unit whose
     /// mode equals one of the bit positions 0..27 set in mode. Pass -1 (or omit) for no filter.
     /// @signature getNext(name: string, mode?: number)
     /// @param name {string} - Optional name filter (first arg when a string).
@@ -978,8 +978,9 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @param classId {number} - Optional item class-id filter (first arg when numeric). Pass -1 (or omit) for no
     /// filter.
     /// @param mode {number} - Optional item-mode filter (second arg). Three forms: (1) a plain value matches items
-    /// whose mode equals it; (2) a value >= 100 filters by item location instead, matching items whose location ==
-    /// mode-100 (100=ground, 101=equipped, 102=belt, 103=inventory, 104=store, 105=trade, 106=cube, 107=stash); (3)
+    /// whose mode equals it; (2) a value >= 100 filters by inventory page instead, matching items whose page ==
+    /// mode-100 (100=inventory, 101=equip, 102=trade, 103=cube, 104=stash, 105=belt; an item with no page matches
+    /// none); (3)
     /// setting bit 29 (mode | 0x20000000) turns the low bits into a bitmask, matching any item whose mode equals one of
     /// the bit positions 0..27 set in mode. Pass -1 (or omit) for no filter.
     /// @param unitId {number} - Optional item unit-id filter (third arg). Pass -1 (or omit) for no filter.

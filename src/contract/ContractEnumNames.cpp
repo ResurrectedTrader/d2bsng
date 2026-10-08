@@ -1546,6 +1546,19 @@ std::string EnumName(ItemLocation value) {
     return utils::NameEnumValue("ItemLocation", ENTRIES, std::to_underlying(value));
 }
 
+std::string EnumName(InventoryPage value) {
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(InventoryPage::Inventory), .name = "Inventory"},
+        {.bits = utils::EnumBits(InventoryPage::Equip), .name = "Equip"},
+        {.bits = utils::EnumBits(InventoryPage::Trade), .name = "Trade"},
+        {.bits = utils::EnumBits(InventoryPage::Cube), .name = "Cube"},
+        {.bits = utils::EnumBits(InventoryPage::Stash), .name = "Stash"},
+        {.bits = utils::EnumBits(InventoryPage::Belt), .name = "Belt"},
+        {.bits = utils::EnumBits(InventoryPage::Null), .name = "Null"},
+    });
+    return utils::NameEnumValue("InventoryPage", ENTRIES, std::to_underlying(value));
+}
+
 std::string EnumName(StashTabKind value) {
     static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
         {.bits = utils::EnumBits(StashTabKind::Personal), .name = "Personal"},
@@ -2194,6 +2207,10 @@ std::string format_as(NodePage value) {
 }
 
 std::string format_as(ItemLocation value) {
+    return EnumName(value);
+}
+
+std::string format_as(InventoryPage value) {
     return EnumName(value);
 }
 

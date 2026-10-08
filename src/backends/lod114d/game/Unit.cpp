@@ -857,6 +857,21 @@ ItemLocation Unit::ItemLocation() const {
     return location;
 }
 
+InventoryPage Unit::InventoryPage() const {
+    static_assert(std::to_underlying(InventoryPage::Inventory) == INVPAGE_INVENTORY);
+    static_assert(std::to_underlying(InventoryPage::Equip) == INVPAGE_EQUIP);
+    static_assert(std::to_underlying(InventoryPage::Trade) == INVPAGE_TRADE);
+    static_assert(std::to_underlying(InventoryPage::Cube) == INVPAGE_CUBE);
+    static_assert(std::to_underlying(InventoryPage::Stash) == INVPAGE_STASH);
+    static_assert(std::to_underlying(InventoryPage::Belt) == INVPAGE_BELT);
+    static_assert(std::to_underlying(InventoryPage::Null) == INVPAGE_NULL);
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+        return InventoryPage::Null;
+    }
+    return static_cast<game::InventoryPage>(u->pItemData->nInvPage);
+}
+
 Size Unit::Size() const {
     const auto u = Resolve<D2UnitStrc>();
     if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {

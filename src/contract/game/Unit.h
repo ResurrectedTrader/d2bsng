@@ -121,6 +121,7 @@ class Unit {
     ItemQuality Quality() const;
     NodePage Node() const;
     ItemLocation ItemLocation() const;
+    InventoryPage InventoryPage() const;
     // The stash tab holding this item; nullopt unless the item is in the local
     // player's stash.
     std::optional<StashTab> StashTab() const;
