@@ -572,10 +572,10 @@ bool SelectCharacter(const std::string& charName) {
 }
 
 bool CreateGame(const std::string& name, const std::string& password, Difficulty difficulty) {
-    // Each UI interaction runs in its own GameThread::Execute and we sleep on
-    // the calling thread between them. Holding the game write lock across an
-    // entire multi-step flow would prevent the menu UI from repainting between
-    // clicks - clicks would "fire" against stale screen state.
+    // Clicks run on the calling thread, which Control::Click sleeps; only the
+    // edit-box text is set on the game thread. Holding the game write lock across
+    // the whole flow would stop the menu UI repainting between clicks - clicks
+    // would "fire" against stale screen state.
     if (GetGameState() != GameState::Menu) {
         return false;
     }
@@ -589,39 +589,37 @@ bool CreateGame(const std::string& name, const std::string& password, Difficulty
 
     // Single-player difficulty screen: one tap on the requested button.
     if (loc == OutOfGameLocation::SelectDifficultySinglePlayer) {
-        return GameThread::Execute([difficulty]() -> bool {
-            const auto pickButton = [](Difficulty d) -> std::optional<Position> {
-                switch (d) {
-                    case Difficulty::Normal:
-                        return Position{.x = 264, .y = 297};
-                    case Difficulty::Nightmare:
-                        return Position{.x = 264, .y = 340};
-                    case Difficulty::Hell:
-                        return Position{.x = 264, .y = 383};
-                    case Difficulty::HighestAvailable:
-                        return std::nullopt;
-                }
-                return std::nullopt;
-            };
-            const auto attempt = [](uint32_t x, uint32_t y) -> bool {
-                auto c = Control::Find(ControlType::Button, x, y, 272, 35);
-                if (!c || c->State() != ControlState::DifficultyEnabled) {
-                    return false;
-                }
-                c->Click();
-                return true;
-            };
-            if (auto pos = pickButton(difficulty)) {
-                return attempt(pos->x, pos->y);
+        const auto pickButton = [](Difficulty d) -> std::optional<Position> {
+            switch (d) {
+                case Difficulty::Normal:
+                    return Position{.x = 264, .y = 297};
+                case Difficulty::Nightmare:
+                    return Position{.x = 264, .y = 340};
+                case Difficulty::Hell:
+                    return Position{.x = 264, .y = 383};
+                case Difficulty::HighestAvailable:
+                    return std::nullopt;
             }
-            // HighestAvailable: try Hell, then Nightmare, then Normal.
-            return attempt(264, 383) || attempt(264, 340) || attempt(264, 297);
-        });
+            return std::nullopt;
+        };
+        const auto attempt = [](uint32_t x, uint32_t y) -> bool {
+            auto c = Control::Find(ControlType::Button, x, y, 272, 35);
+            if (!c || c->State() != ControlState::DifficultyEnabled) {
+                return false;
+            }
+            c->Click();
+            return true;
+        };
+        if (auto pos = pickButton(difficulty)) {
+            return attempt(pos->x, pos->y);
+        }
+        // HighestAvailable: try Hell, then Nightmare, then Normal.
+        return attempt(264, 383) || attempt(264, 340) || attempt(264, 297);
     }
 
     // Lobby flow: navigate to the Create-Game tab if not already there.
     if (loc != OutOfGameLocation::LobbyCreateGame) {
-        if (!GameThread::Execute([]() -> bool { return ClickButtonAt(533, 469, 120, 20); })) {
+        if (!ClickButtonAt(533, 469, 120, 20)) {
             return false;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -656,30 +654,26 @@ bool CreateGame(const std::string& name, const std::string& password, Difficulty
         }
         return std::nullopt;
     };
-    const bool diffOk = GameThread::Execute([&]() -> bool {
-        const auto tryBnet = [](uint32_t x, uint32_t y) -> bool {
-            auto c = Control::Find(ControlType::Button, x, y, 16, 16);
-            if (!c || c->State() == ControlState::Disabled) {
-                return false;
-            }
-            c->Click();
-            return true;
-        };
-        if (auto pos = pickBnetButton(difficulty)) {
-            return tryBnet(pos->x, pos->y);
+    const auto tryBnet = [](uint32_t x, uint32_t y) -> bool {
+        auto c = Control::Find(ControlType::Button, x, y, 16, 16);
+        if (!c || c->State() == ControlState::Disabled) {
+            return false;
         }
-        return tryBnet(698, 381) || tryBnet(555, 381) || tryBnet(430, 381);
-    });
+        c->Click();
+        return true;
+    };
+    const auto pos = pickBnetButton(difficulty);
+    const bool diffOk = pos ? tryBnet(pos->x, pos->y) : (tryBnet(698, 381) || tryBnet(555, 381) || tryBnet(430, 381));
     if (!diffOk) {
         return false;
     }
-    return GameThread::Execute([]() -> bool { return ClickButtonAt(594, 433, 172, 32); });
+    return ClickButtonAt(594, 433, 172, 32);
 }
 
 bool JoinGame(const std::string& name, const std::string& password) {
-    // Each UI interaction runs in its own GameThread::Execute and we sleep on
-    // the calling thread between them, so the menu UI can repaint between
-    // clicks.
+    // Clicks run on the calling thread, which Control::Click sleeps; only the
+    // edit-box text is set on the game thread, so the menu UI can repaint
+    // between steps.
     if (GetGameState() != GameState::Menu) {
         return false;
     }
@@ -690,7 +684,7 @@ bool JoinGame(const std::string& name, const std::string& password) {
         return false;
     }
     if (loc != OutOfGameLocation::LobbyJoinGame) {
-        if (!GameThread::Execute([]() -> bool { return ClickButtonAt(652, 469, 120, 20); })) {
+        if (!ClickButtonAt(652, 469, 120, 20)) {
             return false;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -707,7 +701,7 @@ bool JoinGame(const std::string& name, const std::string& password) {
     if (!GameThread::Execute([&]() -> bool { return SetEditBoxText(606, 148, 155, 20, password); })) {
         return false;
     }
-    return GameThread::Execute([]() -> bool { return ClickButtonAt(594, 433, 172, 32); });
+    return ClickButtonAt(594, 433, 172, 32);
 }
 
 bool CreateCharacter(const std::string& name, CharacterClass charClass, bool isHardcore, bool isLadder,
@@ -724,8 +718,8 @@ bool CreateCharacter(const std::string& name, CharacterClass charClass, bool isH
             return false;
         }
     }
-    // Each UI interaction runs in its own GameThread::Execute and we sleep /
-    // poll on the calling thread between them. Holding the game write lock
+    // Clicks, sleeps and polls run on the calling thread; only the game calls
+    // run in a GameThread::Execute. Holding the game write lock
     // across the multi-step flow would prevent the menu UI from repainting
     // between clicks - the polling loop below would see stale state forever.
     if (const auto location = GetOutOfGameLocation();
@@ -733,7 +727,7 @@ bool CreateCharacter(const std::string& name, CharacterClass charClass, bool isH
         return false;
     }
     // Click the "Create New Character" button.
-    if (!GameThread::Execute([]() -> bool { return ClickButtonAt(33, 528, 168, 60); })) {
+    if (!ClickButtonAt(33, 528, 168, 60)) {
         return false;
     }
 
@@ -768,24 +762,15 @@ bool CreateCharacter(const std::string& name, CharacterClass charClass, bool isH
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by .size() above
     const auto& entry = CLASS_ENTRIES[idx];
     const Position clickAt{.x = entry.clickX, .y = entry.clickY};
-    const bool clickedFirst = GameThread::Execute([&]() -> bool {
-        auto img = Control::Find(ControlType::Image, entry.imgX, entry.imgY, 88, 184);
-        if (!img) {
-            return false;
-        }
-        img->Click(clickAt);
-        return true;
-    });
-    if (!clickedFirst) {
+    const auto img = Control::Find(ControlType::Image, entry.imgX, entry.imgY, 88, 184);
+    if (!img) {
         return false;
     }
+    img->Click(clickAt);
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    GameThread::Execute([&]() {
-        auto img = Control::Find(ControlType::Image, entry.imgX, entry.imgY, 88, 184);
-        if (img) {
-            img->Click(clickAt);
-        }
-    });
+    if (const auto again = Control::Find(ControlType::Image, entry.imgX, entry.imgY, 88, 184)) {
+        again->Click(clickAt);
+    }
 
     // Picking a class shows the name box, the checkboxes and a greyed OK button.
     if (!PollUntil(std::chrono::seconds(3), std::chrono::milliseconds(100),

@@ -219,10 +219,14 @@ void Control::Click(std::optional<Position> pos) const {
         cy = (!pos || pos->y == ~0U) ? r.origin.y - (r.size.height / 2) : pos->y;
     }
 
-    PostMouseMessage(WM_LBUTTONDOWN, static_cast<int32_t>(cx), static_cast<int32_t>(cy));
+    // Reference clickControl sleeps before, between and after the two button
+    // events, so a script's next control lookup sees the screen the click led to.
     constexpr std::chrono::milliseconds CLICK_STEP_DELAY{100};
     std::this_thread::sleep_for(CLICK_STEP_DELAY);
+    PostMouseMessage(WM_LBUTTONDOWN, static_cast<int32_t>(cx), static_cast<int32_t>(cy));
+    std::this_thread::sleep_for(CLICK_STEP_DELAY);
     PostMouseMessage(WM_LBUTTONUP, static_cast<int32_t>(cx), static_cast<int32_t>(cy));
+    std::this_thread::sleep_for(CLICK_STEP_DELAY);
 }
 
 std::vector<Control::TextLine> Control::TextLines() const {
