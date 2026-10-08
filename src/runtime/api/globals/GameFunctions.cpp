@@ -362,7 +362,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             auto player = game::Unit::Player();
             if (!player)
                 return;
-            if (player.Mode() == 12) {
+            // d2bs tests mode 12, which is a monster's dead mode but a player's kick.
+            if (player.Mode() == std::to_underlying(game::PlayerMode::Dead)) {
                 args.GetReturnValue().Set(0);
                 return;
             }
