@@ -6,6 +6,7 @@
 #include <array>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "game/Constants.h"
@@ -43,9 +44,9 @@ inline bool Matches(const Unit& u, const UnitCursorState& s) {
     if (s.mode) {
         const uint32_t m = *s.mode;
         if (m >= ITEM_LOCATION_MODE_OFFSET && u.Type() == UnitType::Item) {
-            // Items: mode >= 100 encodes an ItemLocation filter.
-            auto loc = static_cast<uint32_t>(u.ItemLocation());
-            if (loc != m - ITEM_LOCATION_MODE_OFFSET)
+            // Items: mode >= 100 encodes an InventoryPage filter, as reference
+            // CheckUnit compares it with pItemData->ItemLocation (0x45, the page).
+            if (std::to_underlying(u.InventoryPage()) != m - ITEM_LOCATION_MODE_OFFSET)
                 return false;
         } else if ((m & (1U << 29U)) != 0) {
             // Bitmask mode: any bit 0..27 of m that matches pUnit->dwMode.

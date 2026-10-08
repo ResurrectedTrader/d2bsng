@@ -73,10 +73,10 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// filter.
     /// @param name {string} - unit name filter. Pass -1 (or omit) for no filter.
     /// @param mode {number} - unit mode filter. Pass -1 (or omit) for no filter. Two special forms: if mode >= 100 and
-    ///   the unit is an item, it filters by item location matching (mode - 100) - 100=ground, 101=equipped, 102=belt,
-    ///   103=inventory, 104=store, 105=trade, 106=cube, 107=stash. If bit 29 is set (mode | 0x20000000), the low 28
-    ///   bits are a bitmask: the unit matches when its mode equals any bit position 0..27 that is set in mode (e.g.
-    ///   0x20000003 matches modes 0 or 1).
+    ///   the unit is an item, it filters by the item's inventory page matching (mode - 100) - 100=inventory,
+    ///   101=equip, 102=trade, 103=cube, 104=stash, 105=belt; an item with no page (255) matches none. If bit 29 is
+    ///   set (mode | 0x20000000), the low 28 bits are a bitmask: the unit matches when its mode equals any bit
+    ///   position 0..27 that is set in mode (e.g. 0x20000003 matches modes 0 or 1).
     /// @param unitId {number} - specific unit id filter. Pass -1 (or omit) for no filter.
     /// @signature getUnit(type: UnitType, classId?: number, mode?: number, unitId?: number)
     /// @param classId {number} - class id filter (mutually exclusive with name). Pass -1 (or omit) for no filter.
