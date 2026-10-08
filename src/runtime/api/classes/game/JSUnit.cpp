@@ -1220,8 +1220,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// @description Returns the owning player's mercenary HP as a percentage (0-100) of its max HP (uses this unit if
     /// valid, else the local player).
     /// @signature getMercHP()
-    /// @returns {number} - Mercenary HP percent 0-100 (0 if dead or no max HP), undefined if no merc, false if the game
-    /// was not ready.
+    /// @returns {number} - Mercenary HP percent 0-100 (0 while the owner is dead or with no max HP), undefined if no
+    /// merc, false if the game was not ready.
     Method(
         isolate, proto, "getMercHP", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
@@ -1238,16 +1238,18 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             }
             if (!unit)
                 return;
+            auto merc = unit.FindMerc();
+            if (!merc)
+                return;
             // d2bs tests mode 12, which is a monster's dead mode but a player's kick.
             if (unit.Mode() == std::to_underlying(game::PlayerMode::Dead)) {
                 args.GetReturnValue().Set(0);
                 return;
             }
-            auto merc = unit.FindMerc();
-            if (!merc)
-                return;
-            uint32_t maxHp = merc->HpMax();
-            args.GetReturnValue().Set(maxHp > 0 ? (100 * merc->Hp()) / maxHp : 0);
+            // A hireling's Hp() is the game's HP percent scaled to max HP and rounded down, so rounding back up
+            // recovers that percent (exactly whenever max HP is at least 100).
+            const uint32_t maxHp = merc->HpMax();
+            args.GetReturnValue().Set(maxHp > 0 ? ((100 * merc->Hp()) + maxHp - 1) / maxHp : 0U);
         });
 
     /// @description Checks whether this monster carries the given enchantment id (Monster units only).
