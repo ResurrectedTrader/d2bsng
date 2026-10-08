@@ -179,18 +179,17 @@ void LevelGrid::CopyRoomCollision(const game::Room& room) {
         Position dst{.x = rb.origin.x, .y = rb.origin.y + ry};
         std::memcpy(&data[CellIndex(rect, dst)], &collData[ry * roomW], roomW * sizeof(CollisionFlag));
     }
+    MarkBarricades(room);
 }
 
-void LevelGrid::MarkBarricades(std::span<const game::Room> rooms) {
+void LevelGrid::MarkBarricades(const game::Room& room) {
     if (!HasBarricadeOverlay(levelId)) {
         return;
     }
-    for (const auto& room : rooms) {
-        auto roomPos = room.Bounds().origin;
-        for (const auto& preset : room.GetPresetUnits()) {
-            if (preset.id == BARRICADE_TOWER_PRESET_ID) {
-                Set(roomPos + preset.posInRoom, CollisionFlag::All);
-            }
+    auto roomPos = room.Bounds().origin;
+    for (const auto& preset : room.GetPresetUnits()) {
+        if (preset.id == BARRICADE_TOWER_PRESET_ID) {
+            Set(roomPos + preset.posInRoom, CollisionFlag::All);
         }
     }
 }
@@ -200,12 +199,9 @@ LevelGrid BuildLevelGrid(game::Level level) {
     grid.levelId = level.Id();
     grid.mapSeed = game::GetMapSeed();
 
-    std::vector<game::Room> rooms;
     for (auto room = level.GetFirstRoom(); room; room = room.GetNext()) {
         grid.CopyRoomCollision(room);
-        rooms.push_back(room);
     }
-    grid.MarkBarricades(rooms);
 
     return grid;
 }
@@ -1009,7 +1005,6 @@ void RefreshRoomsNearPlayer(CollisionLookup& lookup) {
     }
     auto rooms = playerRoom.GetNearby();
     rooms.push_back(playerRoom);
-    std::vector<std::pair<LevelGrid*, std::vector<game::Room>>> refreshed;
     for (const auto& room : rooms) {
         const auto levelId = room.GetLevel().Id();
         LevelGrid* grid = nullptr;
@@ -1022,14 +1017,6 @@ void RefreshRoomsNearPlayer(CollisionLookup& lookup) {
             continue;
         }
         grid->CopyRoomCollision(room);
-        auto entry = std::ranges::find(refreshed, grid, &decltype(refreshed)::value_type::first);
-        if (entry == refreshed.end()) {
-            entry = refreshed.insert(refreshed.end(), {grid, {}});
-        }
-        entry->second.push_back(room);
-    }
-    for (auto& [grid, gridRooms] : refreshed) {
-        grid->MarkBarricades(gridRooms);
     }
 }
 

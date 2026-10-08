@@ -67,11 +67,12 @@ struct LevelGrid {
     }
     void Set(Position p, CollisionFlag value);
 
-    // Copies `room`'s collision into the grid; `room` must belong to the grid's level.
+    // Copies `room`'s collision into the grid, with its barricade towers blocked on a level
+    // that has them; `room` must belong to the grid's level.
     void CopyRoomCollision(const game::Room& room);
-    // Marks the barricade towers of `rooms` as blocked, on a level that has them. Runs after
-    // the rooms' collision is copied, since a copy overwrites the cells it covers.
-    void MarkBarricades(std::span<const game::Room> rooms);
+
+   private:
+    void MarkBarricades(const game::Room& room);
 };
 
 // Pre-validated view into a LevelGrid's cell data. Built by OpenWindow() once
