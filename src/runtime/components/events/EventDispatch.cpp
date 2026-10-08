@@ -8,7 +8,6 @@
 #include <utility>
 
 #include "Events.h"
-#include "RenderFrames.h"
 #include "components/script/Commands.h"
 #include "components/script/ScriptEngine.h"
 #include "config/AppConfig.h"
@@ -127,10 +126,6 @@ void GameActionEventDispatch(int32_t mode, uint32_t param1, uint32_t param2, con
 
 void CopyDataEventDispatch(game::IpcMode mode, const std::string& payload) {
     FireIfListening<CopyDataEvent>(mode, payload);
-}
-
-void RenderEventDispatch() {
-    RenderFrames::Count();
 }
 
 void ScriptBroadcastEventDispatch(const v8::FunctionCallbackInfo<v8::Value>& args) {

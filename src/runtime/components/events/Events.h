@@ -533,12 +533,12 @@ class BroadcastEvent : public BaseEvent {
 class RenderEvent : public BaseEvent {
    protected:
     std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
-        return {api::convert::ToJS(isolate, frame)};
+        return {api::convert::ToJS(isolate, static_cast<double>(frame))};
     }
 
    public:
-    explicit RenderEvent(uint32_t frame) : frame(frame) {}
-    const uint32_t frame;
+    explicit RenderEvent(uint64_t frame) : frame(frame) {}
+    const uint64_t frame;
     static constexpr std::string_view EVENT_NAME = "render";
     [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
 };

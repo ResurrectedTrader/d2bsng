@@ -230,8 +230,8 @@ class Script : public std::enable_shared_from_this<Script> {
     void ClearEventFunctionsLocked();
 
     // Script thread, each event-loop pass. Fires the "render" listeners once if a frame was rendered
-    // since they last fired (see events::RenderFrames).
-    void FireRenderIfNewFrame();
+    // since they last fired (see events::FrameCounter).
+    void FireRenderEventIfNewFrame();
 
     void ThreadMain(const std::stop_token& stopToken);
     void SetupIsolate();
@@ -254,7 +254,7 @@ class Script : public std::enable_shared_from_this<Script> {
     std::atomic<ScriptState> state_{ScriptState::Stopped};
     std::shared_ptr<spdlog::logger> logger_;
     // The frame this script last fired "render" for. Script-thread-only.
-    uint32_t lastRenderFrame_;
+    uint64_t lastRenderFrame_;
 
     std::jthread thread_;
     // Shared ownership prevents use-after-dispose: Stop() and PostEvent() (called

@@ -4,6 +4,7 @@
 #include "components/drawing/Drawable.h"
 #include "components/drawing/VersionBanner.h"
 #include "components/events/EventDispatch.h"
+#include "components/events/FrameCounter.h"
 #include "components/script/ScriptEngine.h"
 #include "config/AppConfig.h"
 
@@ -33,11 +34,6 @@ void ManaEventDispatch(uint32_t mana) {
 void PlayerAssignEventDispatch(uint32_t unitId) {
     test::State().playerAssignEvents.push_back(unitId);
 }
-void RenderEventDispatch() {
-    auto& s = test::State();
-    ++s.renderEventCount;
-    s.drawAllCountAtRender = s.drawAllCount;
-}
 
 }  // namespace d2bs::runtime::events
 
@@ -48,6 +44,7 @@ void Drawable::DrawAll(game::GameState state) {
     auto& s = test::State();
     ++s.drawAllCount;
     s.lastDrawState = state;
+    s.frameAtDraw = events::FrameCounter::Current();
 }
 
 // GameLoop::OnDraw also draws the version banner; the real implementation pulls
