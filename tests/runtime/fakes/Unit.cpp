@@ -1,11 +1,13 @@
 #include "game/Unit.h"
 
 #include "fakes/GameLoopCollaborators.h"
+#include "game/Room.h"
 
 // Minimal Unit fake for GameLoop tests. Only the methods GameLoop::TakeSnapshot
 // actually calls (Player, ResolvePtr - drives operator bool, Id, Hp, Mp, Area)
-// are implemented - other Unit members exist only as declarations and are not
-// linked because no test exercises them.
+// are implemented, plus GetRoom, which the pathfinder's FindPath links against -
+// other Unit members exist only as declarations and are not linked because no
+// test exercises them.
 
 namespace d2bs::game {
 
@@ -37,6 +39,10 @@ uint32_t Unit::Mp() const {
 
 LevelId Unit::Area() const {
     return test::State().areaId;
+}
+
+Room Unit::GetRoom() const {
+    return Room();
 }
 
 }  // namespace d2bs::game
