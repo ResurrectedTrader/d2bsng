@@ -48,6 +48,10 @@ Dispatch path (all in `InputHook.cpp`):
   `intercept` consumes them, which is offered first; when `blockKeys` is set,
   the originating key-down was already neutralized before `TranslateMessage`
   ran, so any character left in the stream is our own.
+- The JS frontend's `onKeyEvent` (`events::KeyDownUpEventDispatch`) fires no
+  `keydown` / `keyup` events, and blocks nothing, while the player is in game with
+  the chat box or the Esc menu open, so typing never reaches script hotkeys (as in
+  d2bs). The Home console toggle runs before that gate.
 
 ### Backend wiring
 
