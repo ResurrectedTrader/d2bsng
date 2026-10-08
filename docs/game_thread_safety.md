@@ -190,7 +190,8 @@ so a frame costs one atomic increment whether or not any script listens. Each pa
 `render` for and, if it moved and the script listens for `render`, fires the listeners once with the latest frame
 number. No wake-up is
 needed: the loop already polls every `IdleSleepIntervalMs`, the same latency as any cross-thread posted event. A
-slow script just sees a bigger jump in `frame`; there is no backlog to drain.
+slow script just sees a bigger jump in `frame`; there is no backlog to drain. The loop never fires `render` inside a `render`
+handler: a handler that calls `delay()` would otherwise see a new frame and nest one level deeper every frame.
 
 Handlers run on the script's thread, so a frame is usually already being drawn by then: a drawable change made
 in a `render` handler typically shows from the next frame. Drawable fields are atomics, so the handler needs no

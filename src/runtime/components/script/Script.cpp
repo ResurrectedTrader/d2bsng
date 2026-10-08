@@ -923,11 +923,19 @@ void Script::ExecuteEvents(std::chrono::milliseconds duration) {
 }
 
 void Script::FireRenderEventIfNewFrame() {
+    // A render handler that calls delay() runs this event loop again, and a frame drawn during that delay would
+    // fire render inside itself, nesting deeper every frame. Each script has its own thread, so this is per script.
+    static thread_local bool isInRenderHandler = false;
+    if (isInRenderHandler) {
+        return;
+    }
     const auto current = events::FrameCounter::Current();
     if (current <= lastRenderFrame_ || !IsEventRegistered(events::RenderEvent::EVENT_NAME)) {
         return;
     }
     lastRenderFrame_ = current;
+    isInRenderHandler = true;
+    const utils::DeferGuard leaveHandler([] { isInRenderHandler = false; });
     ExecuteEvent(std::make_shared<events::RenderEvent>(current));
 }
 

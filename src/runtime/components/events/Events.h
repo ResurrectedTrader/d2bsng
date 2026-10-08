@@ -527,7 +527,8 @@ class BroadcastEvent : public BaseEvent {
 /// @event A frame was rendered (in game and out of game). Fires at most once per frame, so handlers can move or
 /// restyle drawables every frame. Handlers run on the script's own thread whenever its event loop runs (inside
 /// delay()), so a change usually shows from the next frame. A script that falls behind fires once for all the frames
-/// it missed rather than once per frame.
+/// it missed rather than once per frame; render never fires inside its own handler, so a delay() there skips the frames
+/// drawn meanwhile.
 /// @param frame {number} - the number of the most recently rendered frame, counted from load; compare with the previous
 /// call's to see how many frames were skipped
 class RenderEvent : public BaseEvent {
