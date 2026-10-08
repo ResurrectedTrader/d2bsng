@@ -153,10 +153,11 @@ bool ChatEventDispatch(const std::string& sender, const std::string& message) {
 
 bool ChatInputEventDispatch(const std::string& message) {
     // Command shortcut: '.'-prefixed chat never reaches the game; the rest
-    // of the line dispatches through the framework console. Matches
-    // reference/d2bs/D2Handlers.cpp:127 behavior - unknown dot-commands also
-    // stay consumed (they fall through to the JS-eval path inside OnCommand,
-    // which logs any ReferenceError via the EvaluateEvent path).
+    // of the line dispatches through the framework console. Unknown
+    // dot-commands also stay consumed and are evaluated as JS, which logs any
+    // ReferenceError via the EvaluateEvent path. This differs from
+    // reference/d2bs/D2Handlers.cpp GameInput, where only the built-ins are
+    // consumed and any other '.' line goes on to the chatinput events.
     if (!message.empty() && message[0] == '.') {
         script::RunCommand(message.substr(1));
         return /* block packet */ true;
