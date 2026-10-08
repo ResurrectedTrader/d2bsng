@@ -286,8 +286,9 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             info.GetReturnValue().Set(data->ItemCount());
         });
 
-    // Emitted as int32_t so the "no owner" sentinel reaches JS as literal -1 rather than 0xFFFFFFFF.
-    /// @description Owner unit ID for minions, missiles, and items (-1 when there is no owner).
+    // d2bs reads the unit's stored owner fields, which stay zero (from the zeroed unit allocation, or
+    // UNITS_StoreOwner(NULL)) on a unit with no owner, so no owner reads 0 here too.
+    /// @description Owner unit ID for minions, missiles, and items (0 when there is no owner).
     /// @type {number}
     Property(
         isolate, inst, "owner", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
@@ -295,13 +296,11 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             if (!*data) {
                 return;
             }
-            auto owner = data->GetOwner();
-            int32_t value = owner ? static_cast<int32_t>(owner->Id()) : -1;
-            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), value));
+            const auto owner = data->GetOwner();
+            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), owner ? owner->Id() : 0U));
         });
 
-    // Emitted as int32_t so the "no owner" sentinel reaches JS as literal -1.
-    /// @description Unit type of this unit's owner (-1 when there is no owner).
+    /// @description Unit type of this unit's owner (0 when there is no owner).
     /// @type {number}
     Property(
         isolate, inst, "ownertype", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
@@ -309,9 +308,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             if (!*data) {
                 return;
             }
-            auto owner = data->GetOwner();
-            int32_t value = owner ? static_cast<int32_t>(owner->Type()) : -1;
-            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), value));
+            const auto owner = data->GetOwner();
+            info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), owner ? std::to_underlying(owner->Type()) : 0U));
         });
 
     // Reference lines 280-297: only Monsters have pMonsterData; other types return undefined.
