@@ -209,6 +209,7 @@ void GameLoop::OnSleep(std::chrono::milliseconds duration) {
 void GameLoop::OnDraw() const {
     // Fires from the render function, before the next OnSleep has taken a new
     // snapshot - previous_.state is the most recently observed game state.
+    events::RenderEventDispatch();
     drawing::Drawable::DrawAll(previous_.state);
     // Always-on "d2bsng <version>" corner banner (carries the update-available
     // marker). Drawn after script drawables so it stays on top.

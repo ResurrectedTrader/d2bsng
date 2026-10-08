@@ -521,6 +521,29 @@ class BroadcastEvent : public BaseEvent {
 };
 
 // ============================================================================
+// Render Event
+// ============================================================================
+
+/// @event A frame was rendered (in game and out of game). Fires at most once per frame, so handlers can move or
+/// restyle drawables every frame. Handlers run on the script's own thread whenever its event loop runs (inside
+/// delay()), so a change usually shows from the next frame. A script that falls behind fires once for all the frames
+/// it missed rather than once per frame.
+/// @param frame {number} - the number of the most recently rendered frame, counted from load; compare with the previous
+/// call's to see how many frames were skipped
+class RenderEvent : public BaseEvent {
+   protected:
+    std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
+        return {api::convert::ToJS(isolate, frame)};
+    }
+
+   public:
+    explicit RenderEvent(uint32_t frame) : frame(frame) {}
+    const uint32_t frame;
+    static constexpr std::string_view EVENT_NAME = "render";
+    [[nodiscard]] std::string_view Name() const override { return EVENT_NAME; }
+};
+
+// ============================================================================
 // Screen Hook Events
 // ============================================================================
 

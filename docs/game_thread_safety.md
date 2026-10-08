@@ -180,6 +180,22 @@ game::GameThread::Execute([&] {
 
 `Execute()` releases the script's `GameReadLock` so the game thread can acquire `GameWriteLock` to drain the task queue.
 
+## Per-frame events (`render`)
+
+The `render` event is a signal, not a queued event. `GameLoop::OnDraw` (the backend's `onDraw` callback, once
+per rendered frame, in and out of game) only increments a global frame counter (`events::RenderFrames`,
+`components/events/RenderFrames.h`) before `Drawable::DrawAll`; it queues nothing and never waits on a script,
+so a frame costs one atomic increment whether or not any script listens. Each pass of a script's event loop
+(`Script::ExecuteEvents`, i.e. inside `delay()`) compares the counter with the frame the script last fired
+`render` for and, if it moved, fires the `render` listeners once with the latest frame number. No wake-up is
+needed: the loop already polls every `IdleSleepIntervalMs`, the same latency as any cross-thread posted event. A
+slow script just sees a bigger jump in `frame`; there is no backlog to drain.
+
+Handlers run on the script's thread, so a frame is usually already being drawn by then: a drawable change made
+in a `render` handler typically shows from the next frame. Drawable fields are atomics, so the handler needs no
+game lock to change them; reading game state from it takes the usual `GameReadLock`, which waits for the game
+thread's sleep window.
+
 ## Lock Releasers
 
 ### GameWriteLockReleaser
