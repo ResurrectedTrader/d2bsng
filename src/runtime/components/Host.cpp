@@ -306,7 +306,10 @@ game::GameCallbacks Host::BuildCallbacks() {
 
     callbacks.onMouseClick = +[](game::ClickButton button, game::Position pos, game::KeyState state) -> bool {
         const auto phase = GameLoop::Instance().InPhase(FramePhase::Events);
-        bool blocked = drawing::Drawable::OnClick(button, pos.ToPoint(), game::GetGameState());
+        // Drawable click handlers run on the button-down only, and only the down can be
+        // blocked (reference/d2bs/D2Handlers.cpp MouseMove).
+        const bool blocked =
+            state == game::KeyState::Down && drawing::Drawable::OnClick(button, pos.ToPoint(), game::GetGameState());
         events::MouseClickEventDispatch(button, pos, state);
         return blocked;
     };
