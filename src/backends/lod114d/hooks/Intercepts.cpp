@@ -67,10 +67,14 @@
 #include <string>
 #include <system_error>
 #include <utility>
+#include <variant>
 
+// ReSharper disable once CppUnusedIncludeDirective - inline body of Party::FindById
+#include "game/Finders.h"
 #include "game/GameCallbacks.h"
 #include "game/GameHelpers.h"
 #include "game/LaunchOptions.h"
+#include "game/Party.h"
 #include "game/Types.h"
 #include "hooks/HookManager.h"
 #include "hooks/InlinePatch.h"
@@ -190,6 +194,44 @@ constexpr uint32_t TEMP_PATH_PER_INSTANCE_RVA = 0x11E4C4;
 constexpr uint32_t SLEEPY_INGAME_RVA = 0x51C31;
 constexpr uint32_t SLEEPY_OOG_RVA = 0xFA66F;
 
+// Fills in the names a 0x5A event packet leaves to the client, as reference
+// D2NetHandlers.cpp EventMessagesHandler does before firing gameevent.
+void ResolveGameEventNames(int32_t mode, uint32_t param1, uint32_t param2, std::string& name1, std::string& name2) {
+    constexpr int32_t MODE_SLAIN = 0x06;
+    constexpr int32_t MODE_PLAYER_RELATION = 0x07;
+    constexpr int32_t MODE_ITEMS_IN_BOX = 0x0A;
+    switch (mode) {
+        case MODE_SLAIN:
+            // param2 is the slayer's unit type and param1 its txt row.
+            if (param2 == std::to_underlying(game::UnitType::Monster)) {
+                const auto localeId = game::GetTxtValue("monstats", param1, "NameStr");
+                if (const auto* id = std::get_if<int64_t>(&localeId)) {
+                    name2 = game::GetLocaleString(static_cast<uint16_t>(*id));
+                }
+            } else if (param2 == std::to_underlying(game::UnitType::Object)) {
+                // The reference reads objects.txt "Name" as a locale id, but the column is the ASCII
+                // name itself (so the reference resolves garbage); use the name.
+                const auto name = game::GetTxtValue("objects", param1, "Name");
+                if (const auto* str = std::get_if<std::string>(&name)) {
+                    name2 = *str;
+                }
+            }
+            break;
+        case MODE_PLAYER_RELATION:
+            if (const auto player = game::Party::FindById(param1)) {
+                name1 = player->Name();
+            }
+            break;
+        case MODE_ITEMS_IN_BOX:
+            if (name1.empty()) {
+                name1 = "You";
+            }
+            break;
+        default:
+            break;
+    }
+}
+
 // =============================================================================
 // C-side callback dispatchers
 // =============================================================================
@@ -264,8 +306,10 @@ extern "C" uint32_t __fastcall OnGamePacketReceived(uint8_t* packet, uint32_t si
                 const auto* name2 = reinterpret_cast<const char*>(packet) + 24;
                 const size_t name1Max = std::min<size_t>(16, size - 8);
                 const size_t name2Max = std::min<size_t>(16, size > 24 ? size - 24 : 0);
-                cb->onGameEvent(mode, param1, param2, std::string{name1, strnlen(name1, name1Max)},
-                                std::string{name2, strnlen(name2, name2Max)});
+                std::string resolvedName1{name1, strnlen(name1, name1Max)};
+                std::string resolvedName2{name2, strnlen(name2, name2Max)};
+                ResolveGameEventNames(mode, param1, param2, resolvedName1, resolvedName2);
+                cb->onGameEvent(mode, param1, param2, resolvedName1, resolvedName2);
             }
             break;
         }

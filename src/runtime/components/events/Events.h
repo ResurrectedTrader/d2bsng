@@ -376,8 +376,9 @@ class RealmPacketEvent : public BlockableEvent {
 /// @param mode {number} - the roster event mode
 /// @param param1 {number} - first mode-specific parameter
 /// @param param2 {number} - second mode-specific parameter
-/// @param name1 {string} - first name (e.g. the affected player)
-/// @param name2 {string} - second name (e.g. the related player)
+/// @param name1 {string} - first name (e.g. the affected player; the roster name for a player relation, "You" for
+/// your own item box)
+/// @param name2 {string} - second name (e.g. the related player; the monster or object name when one slew a player)
 class GameActionEvent : public BaseEvent {
    protected:
     std::vector<v8::Local<v8::Value>> MakeArgs(v8::Isolate* isolate) const override {
