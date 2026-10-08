@@ -162,10 +162,7 @@ std::vector<Point> CollisionLookup::FindPortals(Point start, Point end) const {
 
 // --- Build collision grid from game level ---
 
-namespace {
-
-// `room` must belong to `grid`'s level.
-void CopyRoomCollision(LevelGrid& grid, const game::Room& room) {
+void LevelGrid::CopyRoomCollision(const game::Room& room) {
     auto rb = room.Bounds();
     uint32_t roomW = rb.size.width;
     uint32_t roomH = rb.size.height;
@@ -180,35 +177,35 @@ void CopyRoomCollision(LevelGrid& grid, const game::Room& room) {
     // Position subtraction inside CellIndex cannot underflow here.
     for (uint32_t ry = 0; ry < rows; ry++) {
         Position dst{.x = rb.origin.x, .y = rb.origin.y + ry};
-        std::memcpy(&grid.data[CellIndex(grid.rect, dst)], &collData[ry * roomW], roomW * sizeof(CollisionFlag));
+        std::memcpy(&data[CellIndex(rect, dst)], &collData[ry * roomW], roomW * sizeof(CollisionFlag));
     }
 }
 
-void MarkBarricades(LevelGrid& grid, const game::Room& room) {
-    auto roomPos = room.Bounds().origin;
-    for (const auto& preset : room.GetPresetUnits()) {
-        if (preset.id == BARRICADE_TOWER_PRESET_ID) {
-            grid.Set(roomPos + preset.posInRoom, CollisionFlag::All);
+void LevelGrid::MarkBarricades(std::span<const game::Room> rooms) {
+    if (!HasBarricadeOverlay(levelId)) {
+        return;
+    }
+    for (const auto& room : rooms) {
+        auto roomPos = room.Bounds().origin;
+        for (const auto& preset : room.GetPresetUnits()) {
+            if (preset.id == BARRICADE_TOWER_PRESET_ID) {
+                Set(roomPos + preset.posInRoom, CollisionFlag::All);
+            }
         }
     }
 }
-
-}  // namespace
 
 LevelGrid BuildLevelGrid(game::Level level) {
     LevelGrid grid(level.Bounds(), CollisionFlag::All);
     grid.levelId = level.Id();
     grid.mapSeed = game::GetMapSeed();
 
+    std::vector<game::Room> rooms;
     for (auto room = level.GetFirstRoom(); room; room = room.GetNext()) {
-        CopyRoomCollision(grid, room);
+        grid.CopyRoomCollision(room);
+        rooms.push_back(room);
     }
-
-    if (HasBarricadeOverlay(grid.levelId)) {
-        for (auto room = level.GetFirstRoom(); room; room = room.GetNext()) {
-            MarkBarricades(grid, room);
-        }
-    }
+    grid.MarkBarricades(rooms);
 
     return grid;
 }
@@ -1012,6 +1009,7 @@ void RefreshRoomsNearPlayer(CollisionLookup& lookup) {
     }
     auto rooms = playerRoom.GetNearby();
     rooms.push_back(playerRoom);
+    std::vector<std::pair<LevelGrid*, std::vector<game::Room>>> refreshed;
     for (const auto& room : rooms) {
         const auto levelId = room.GetLevel().Id();
         LevelGrid* grid = nullptr;
@@ -1023,10 +1021,15 @@ void RefreshRoomsNearPlayer(CollisionLookup& lookup) {
         if (grid == nullptr) {
             continue;
         }
-        CopyRoomCollision(*grid, room);
-        if (HasBarricadeOverlay(levelId)) {
-            MarkBarricades(*grid, room);
+        grid->CopyRoomCollision(room);
+        auto entry = std::ranges::find(refreshed, grid, &decltype(refreshed)::value_type::first);
+        if (entry == refreshed.end()) {
+            entry = refreshed.insert(refreshed.end(), {grid, {}});
         }
+        entry->second.push_back(room);
+    }
+    for (auto& [grid, gridRooms] : refreshed) {
+        grid->MarkBarricades(gridRooms);
     }
 }
 
