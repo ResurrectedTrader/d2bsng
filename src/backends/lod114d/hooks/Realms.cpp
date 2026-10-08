@@ -220,7 +220,7 @@ int __stdcall HookedRead(const char* subkey, const char* valueName, int type, vo
     const std::vector<char> merged = Serialize(list);
 
     if (outLen != nullptr) {
-        *outLen = static_cast<uint32_t>(merged.size());
+        *outLen = merged.size();
     }
     if (buf != nullptr) {
         const size_t n = std::min(static_cast<size_t>(len), merged.size());

@@ -1432,8 +1432,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                     const uint32_t statIndex = std::to_underlying(entry.statId);
                     if (entry.subIndex > 0x200) {
                         // Charge/skill stat: build object with {skill, level, charges, maxcharges}
-                        int32_t skill = static_cast<int32_t>(entry.subIndex >> 6);
-                        int32_t level = static_cast<int32_t>(entry.subIndex & 0x3F);
+                        int32_t skill = entry.subIndex >> 6;
+                        int32_t level = entry.subIndex & 0x3F;
                         int32_t charges = 0;
                         int32_t maxcharges = 0;
                         if (entry.value > 0x200) {

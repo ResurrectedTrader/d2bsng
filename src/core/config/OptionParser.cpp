@@ -183,7 +183,7 @@ std::vector<TokenRange> OptionTokens(const std::wstring& cmd, size_t tokenCount,
             }
         }
     }
-    LocalFree(static_cast<void*>(argv));
+    LocalFree(argv);
     return ranges;
 }
 
@@ -306,7 +306,7 @@ void ParseCommandLine(std::span<const BoundOption> options) {
         }
     }
 
-    LocalFree(static_cast<void*>(argv));
+    LocalFree(argv);
 }
 
 size_t RemoveOptions(std::span<wchar_t> text, std::span<const OptionName> options) {

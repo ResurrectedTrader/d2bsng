@@ -56,9 +56,9 @@ struct StashPage {
 // The tab's identity as sent on the wire and folded into the stash hash.
 json PageMeta(const game::StashTab& tab) {
     json meta = json::object();
-    meta["kind"] = static_cast<uint32_t>(tab.Kind());
+    meta["kind"] = tab.Kind();
     meta["index"] = tab.Index();
-    meta["type"] = static_cast<uint32_t>(tab.Type());
+    meta["type"] = tab.Type();
     meta["name"] = tab.Name();
     meta["gold"] = tab.Gold();
     return meta;
