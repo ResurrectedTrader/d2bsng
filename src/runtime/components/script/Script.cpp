@@ -1033,7 +1033,6 @@ bool Script::Include(const std::filesystem::path& absolutePath) {
         logger_->warn("Failed to compile include: {}", absolutePath.string());
         if (tryCatch.HasCaught() && !tryCatch.HasTerminated()) {
             ReportException(tryCatch);
-            tryCatch.ReThrow();
         }
         return false;
     }
@@ -1050,9 +1049,10 @@ bool Script::Include(const std::filesystem::path& absolutePath) {
 
     inProgressIncludes_.erase(normalized);
 
+    // Reported and swallowed, not rethrown: include() returns false for a file that fails to compile or
+    // throws (reference/d2bs/Script.cpp Script::Include, JS_ReportPendingException).
     if (tryCatch.HasCaught() && !tryCatch.HasTerminated()) {
         ReportException(tryCatch);
-        tryCatch.ReThrow();
     }
 
     return includes_.contains(normalized);
