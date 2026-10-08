@@ -68,12 +68,7 @@ class BlockableEvent : public BaseEvent {
                     block = true;
                 }
                 if (tryCatch.HasCaught()) {
-                    auto message = tryCatch.Message();
-                    if (!message.IsEmpty()) {
-                        v8::String::Utf8Value errorStr(isolate, message->Get());
-                        script::GetLogger(isolate)->error("[{}] handler exception: {}", Name(),
-                                                          std::string(*errorStr, errorStr.length()));
-                    }
+                    script::ReportHandlerException(isolate, tryCatch);
                     // Exception counts as block=false for this handler
                 }
             }

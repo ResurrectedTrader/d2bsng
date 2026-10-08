@@ -39,12 +39,7 @@ class DelayedEvent : public BaseEvent {
         auto cx = isolate->GetCurrentContext();
         (void)fn->Call(cx, cx->Global(), 0, nullptr);
         if (tryCatch.HasCaught()) {
-            auto message = tryCatch.Message();
-            if (!message.IsEmpty()) {
-                v8::String::Utf8Value errorStr(isolate, message->Get());
-                script::GetLogger(isolate)->error("[{}] handler exception: {}", Name(),
-                                                  std::string(*errorStr, errorStr.length()));
-            }
+            script::ReportHandlerException(isolate, tryCatch);
         }
     }
 

@@ -81,6 +81,12 @@ std::shared_ptr<spdlog::logger> GetLogger(v8::Isolate* isolate) {
     return utils::GetLogger("js");
 }
 
+void ReportHandlerException(v8::Isolate* isolate, v8::TryCatch& tryCatch) {
+    if (auto* script = ScriptEngine::Instance().GetScript(isolate)) {
+        script->ReportException(tryCatch);
+    }
+}
+
 // NOLINTNEXTLINE(bugprone-exception-escape) - join() can throw std::system_error; terminate is fine at teardown
 Script::~Script() {
     Stop();
