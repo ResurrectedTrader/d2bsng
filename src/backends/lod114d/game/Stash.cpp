@@ -24,6 +24,14 @@ StashTabType StashTab::Type() const {
     return StashTabType::Normal;
 }
 
+bool StashTab::RemoveOnly() const {
+    return false;
+}
+
+uint32_t StashTab::Season() const {
+    return 0;
+}
+
 std::string StashTab::Name() const {
     GameReadLock guard;
     return plugy::IsActive() && plugy::HasStashTabs() ? plugy::PageName(kind_, index_) : std::string{};

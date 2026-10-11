@@ -27,6 +27,13 @@ class StashTab {
     // The tab exists right now (there is a player unit and the tab is present).
     explicit operator bool() const;
     StashTabType Type() const;
+    // Items can be taken off the tab but not put on it (shared tabs from a
+    // previous season), so Deposit and drops onto it fail. false wherever the
+    // game has no such tabs, 1.14d included.
+    bool RemoveOnly() const;
+    // The season a shared tab belongs to, as the game numbers it. 0 wherever the
+    // game has no seasons, 1.14d included.
+    uint32_t Season() const;
     // User-given name; empty when unnamed.
     std::string Name() const;
     // Gold stored on the tab. Where gold is not tracked per tab it is attributed to
