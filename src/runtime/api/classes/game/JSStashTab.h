@@ -49,6 +49,21 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
                 info.GetReturnValue().Set(static_cast<uint32_t>(Unwrap(info.Holder())->Type()));
             });
 
+        /// @description True for a tab items can only be taken off, never put on (shared tabs from a previous
+        /// season): `deposit` and dropping an item on it fail. Always false on 1.14d.
+        /// @type {boolean}
+        Property(
+            isolate, inst, "removeOnly", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
+                info.GetReturnValue().Set(Unwrap(info.Holder())->RemoveOnly());
+            });
+
+        /// @description The season a shared tab belongs to, as the game numbers it. Always 0 on 1.14d.
+        /// @type {number}
+        Property(
+            isolate, inst, "season", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
+                info.GetReturnValue().Set(Unwrap(info.Holder())->Season());
+            });
+
         /// @description User-given tab name; empty when unnamed or when the tab is gone.
         /// @type {string}
         Property(

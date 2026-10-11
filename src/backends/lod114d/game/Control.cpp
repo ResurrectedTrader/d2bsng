@@ -223,6 +223,10 @@ void Control::Click(std::optional<Position> pos) const {
     constexpr std::chrono::milliseconds CLICK_STEP_DELAY{100};
     std::this_thread::sleep_for(CLICK_STEP_DELAY);
     PostMouseMessage(WM_LBUTTONUP, static_cast<int32_t>(cx), static_cast<int32_t>(cy));
+    // Let the game process the release before scripts inspect the next menu.
+    // Without this pause, TCP-host login sees the old TCP/IP screen after
+    // clicking Host and queues Cancel onto the new character-select screen.
+    std::this_thread::sleep_for(CLICK_STEP_DELAY);
 }
 
 std::vector<Control::TextLine> Control::TextLines() const {

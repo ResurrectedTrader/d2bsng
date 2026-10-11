@@ -23,6 +23,8 @@ class StashTab {
     StashTabKind Kind() const;   uint32_t Index() const;   // identity, no resolve
     explicit operator bool() const;      // the tab exists right now
     StashTabType Type() const;           // always Normal on LoD
+    bool RemoveOnly() const;             // items can be taken off, not put on; false on LoD
+    uint32_t Season() const;             // a shared tab's season; 0 on LoD
     std::string Name() const;            // user-given, empty when unnamed
     uint32_t Gold() const;               // see Gold
     std::vector<Unit> GetItems() const;  // shown or not
@@ -45,6 +47,12 @@ holds items with stackable-item support, `Chronicle` tracks found set / unique
 / runeword items and holds no items. Every LoD tab is `Normal`. `Chronicle`
 stays in the C++ enum only (marked `@internal`, so the API docs and the d.ts
 leave it out): no tab ever reports it.
+
+`RemoveOnly()` marks a tab items can only be taken off, never put on - shared
+tabs from a previous season. `Deposit` and drops onto such a tab fail;
+withdrawing and picking items up work as usual. `Season()` is the season a
+shared tab belongs to, as the game numbers it. No LoD tab is remove-only, and
+every LoD tab reports season 0.
 
 An advanced tab holds one stack per item class, and items move on and off it
 only through `Withdraw` and `Deposit`, never through grid placement:
@@ -108,7 +116,8 @@ one to one, the same shape as `Unit` or `Room`:
 
 - `getStashTabs()` -> `StashTab[]`, personal first, then shared
 - `unit.stashTab` -> `StashTab | undefined`
-- `tab.kind`, `tab.index`, `tab.type`, `tab.name`, `tab.gold` (getters)
+- `tab.kind`, `tab.index`, `tab.type`, `tab.removeOnly`, `tab.season`,
+  `tab.name`, `tab.gold` (getters)
 - `tab.items` -> `Unit[]`, built on each access, so listing tabs stays cheap
 - `tab.click(x, y)` / `tab.click(item)` -> `boolean` (true = handed to the game);
   the item form clicks the cell an item on this tab sits on, and is false for
@@ -145,11 +154,12 @@ open. A backend whose pool only supports moving
 
 The character-state producer (`components/characterstate`) sends the stash as
 `containers.stash.pages`, one entry per tab from `GetStashTabs()`, each carrying
-the tab's `kind`, `index`, `type`, `name` and `gold` plus the shared grid
-`width` / `height` and its `items` (from `StashTab::GetItems()`, so tabs that
-are not shown are included). 1.14d produces a single personal page; `name` is
-the tab's name, empty when unnamed. Every item on an advanced page (`type` 1)
-is a slot, so its document carries its stack size as `stackCount` (its
+the tab's `kind`, `index`, `type`, `removeOnly`, `season`, `name` and `gold`
+plus the shared grid `width` / `height` and its `items` (from
+`StashTab::GetItems()`, so tabs that are not shown are included). 1.14d
+produces a single personal page, never `removeOnly` and with `season` 0; `name`
+is the tab's name, empty when unnamed. Every item on an advanced page (`type`
+1) is a slot, so its document carries its stack size as `stackCount` (its
 `ItemCount()`, which for any other item counts its socket fillers); no other
 item has the key, so it never appears on 1.14d. The stash hash folds every
 page's identity and contents, so a rename, a gold move, a page appearing or a

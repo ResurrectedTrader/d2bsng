@@ -59,6 +59,8 @@ json PageMeta(const game::StashTab& tab) {
     meta["kind"] = tab.Kind();
     meta["index"] = tab.Index();
     meta["type"] = tab.Type();
+    meta["removeOnly"] = tab.RemoveOnly();
+    meta["season"] = tab.Season();
     meta["name"] = tab.Name();
     meta["gold"] = tab.Gold();
     return meta;
