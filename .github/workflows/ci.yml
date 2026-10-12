@@ -22,7 +22,7 @@ jobs:
     name: Format
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Pin clang-format so CI matches local: build.ps1 prefers a PATH
       # clang-format at this version, otherwise an unpinned VS-bundled one drifts
       # between machines. Keep this version in sync with $PINNED_CLANG_FORMAT in build.ps1.

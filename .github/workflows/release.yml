@@ -35,11 +35,11 @@ permissions:
 jobs:
   version:
     name: Version
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       version: ${{ steps.v.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Compute next version
@@ -83,10 +83,10 @@ jobs:
       # in vcpkg.json. Bumping it deliberately invalidates the binary cache.
       VCPKG_REF: 9e44ec0e9f247d77c230ced0ee66c76296837807
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Restore vcpkg binary cache
         id: vcpkg
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           # run_id (+ job) keeps every save key unique so a fresh run always
@@ -123,7 +123,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "vcpkg install failed for manifest $root" }
           }
       - name: Save vcpkg binary cache
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           key: ${{ steps.vcpkg.outputs.cache-primary-key }}
@@ -140,7 +140,7 @@ jobs:
           "version=$($node.InnerText.Trim())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
       - name: Check V8 cache
         id: v8cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: dependencies/v8/${{ steps.v8.outputs.version }}
           key: v8-${{ runner.os }}-${{ steps.v8.outputs.version }}
@@ -155,7 +155,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "V8 fetch failed" }
       - name: Save V8 cache
         if: steps.v8cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: dependencies/v8/${{ steps.v8.outputs.version }}
           key: v8-${{ runner.os }}-${{ steps.v8.outputs.version }}
@@ -174,12 +174,12 @@ jobs:
       # in vcpkg.json. Bumping it deliberately invalidates the binary cache.
       VCPKG_REF: 9e44ec0e9f247d77c230ced0ee66c76296837807
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: true   # D2MOO headers only; its external/ submodules are not used
       # Filled by `deps` in this run; the prefix keys are only a fallback.
       - name: Restore vcpkg binary cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           key: ${{ needs.deps.outputs.vcpkg-key }}
@@ -205,7 +205,7 @@ jobs:
       # Filled by `deps`. On a miss the build's own FetchV8 target downloads
       # the archive instead, so this only saves the download.
       - name: Restore V8
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: dependencies/v8/${{ needs.deps.outputs.v8-version }}
           key: v8-${{ runner.os }}-${{ needs.deps.outputs.v8-version }}
@@ -226,7 +226,7 @@ jobs:
           .\Release\js_tests.exe
           if ($LASTEXITCODE -ne 0) { throw "tests failed" }
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: d2bs-binaries
           path: |
@@ -250,12 +250,12 @@ jobs:
       # in vcpkg.json. Bumping it deliberately invalidates the binary cache.
       VCPKG_REF: 9e44ec0e9f247d77c230ced0ee66c76296837807
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: true   # LaunchOptions.cpp (a backend TU) pulls D2MOO headers
       # Both caches are filled by `deps` in this run.
       - name: Restore vcpkg binary cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           key: ${{ needs.deps.outputs.vcpkg-key }}
@@ -266,7 +266,7 @@ jobs:
       # not in the repository.
       - name: Restore V8
         id: v8
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: dependencies/v8/${{ needs.deps.outputs.v8-version }}
           key: v8-${{ runner.os }}-${{ needs.deps.outputs.v8-version }}
@@ -303,7 +303,7 @@ jobs:
           python scripts/gen_dts.py api.json -o d2bsng.d.ts --version "${{ needs.version.outputs.version }}"
           if ($LASTEXITCODE -ne 0) { throw "gen_dts.py failed" }
       - name: Upload API artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: d2bs-api
           path: |
@@ -318,7 +318,7 @@ jobs:
     # Gathers every release's api.json server-side (no rate limits) into a
     # same-origin bundle the static page reads - no runtime GitHub API calls.
     needs: [release]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       pages: write
@@ -327,7 +327,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build docs site from releases
         env:
           GH_TOKEN: ${{ github.token }}
@@ -337,25 +337,25 @@ jobs:
             --releases releases.json --data-dir data --out site \
             --repo "${{ github.repository }}" --download
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: site
       - name: Deploy to GitHub Pages
         id: deploy
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
   release:
     name: Release
     needs: [version, build, api]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       # d2bs-binaries (dll + pdb) from `build`, d2bs-api (api.json + d.ts)
       # from `api`, flattened into one dist/.
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: d2bs-*
           merge-multiple: true
