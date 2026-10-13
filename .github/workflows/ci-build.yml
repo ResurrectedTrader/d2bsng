@@ -33,7 +33,7 @@ jobs:
        startsWith(github.event.comment.body, '/ci') &&
        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
     name: Prepare
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       ref: ${{ steps.r.outputs.ref }}
       sha: ${{ steps.r.outputs.sha }}
@@ -69,13 +69,13 @@ jobs:
       # in vcpkg.json. Bumping it deliberately invalidates the binary cache.
       VCPKG_REF: 9e44ec0e9f247d77c230ced0ee66c76296837807
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare.outputs.ref }}
           submodules: true   # D2MOO headers only; its external/ submodules are not used
       - name: Restore vcpkg binary cache
         id: vcpkg
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           # run_id (+ job) keeps every save key unique so a fresh build always
@@ -117,7 +117,7 @@ jobs:
           if (-not $node) { throw "V8Version not found in Directory.Build.props" }
           "version=$($node.InnerText.Trim())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
       - name: Cache V8
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: dependencies/v8/${{ steps.v8.outputs.version }}
           key: v8-${{ runner.os }}-${{ steps.v8.outputs.version }}
@@ -144,7 +144,7 @@ jobs:
       # the freshly-populated binary cache persisted even if a later step fails.
       - name: Save vcpkg binary cache
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           key: ${{ steps.vcpkg.outputs.cache-primary-key }}
@@ -161,13 +161,13 @@ jobs:
       # in vcpkg.json. Bumping it deliberately invalidates the binary cache.
       VCPKG_REF: 9e44ec0e9f247d77c230ced0ee66c76296837807
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare.outputs.ref }}
           submodules: true
       - name: Restore vcpkg binary cache
         id: vcpkg
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           key: vcpkg-${{ runner.os }}-${{ env.VCPKG_REF }}-${{ hashFiles('vcpkg.json', 'tests/runtime/vcpkg.json') }}-${{ github.run_id }}-${{ github.job }}
@@ -196,7 +196,7 @@ jobs:
         run: .\build.ps1 test
       - name: Save vcpkg binary cache
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           key: ${{ steps.vcpkg.outputs.cache-primary-key }}
@@ -207,7 +207,7 @@ jobs:
     needs: [prepare, build, tests]
     if: always() && github.event_name == 'issue_comment'
     name: Report
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Set commit status
         env:
