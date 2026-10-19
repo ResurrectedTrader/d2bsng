@@ -1,6 +1,7 @@
 #include "game/Unit.h"
 
 #include "PlugY.h"
+#include "UnitTables.h"
 #include "asm_thunks/asm_thunks.h"
 #include "game/Common.h"
 #include "game/Constants.h"
@@ -75,7 +76,6 @@ inline D2UnitStrc* AsUnit(void* p) noexcept {
 // Constants and struct now live in imports/extras/D2UnitHashTables.h.
 using lod114d::imports::d2common::STATLIST_UnitGetStatValue;
 using lod114d::imports::extras::D2UnitHashTable;
-using lod114d::imports::extras::D2UnitHashTables;
 using lod114d::imports::extras::UNIT_HASH_BUCKETS;
 using lod114d::imports::extras::UNIT_HASH_TYPE_COUNT;
 
@@ -121,27 +121,6 @@ D2UnitStrc* FirstUnitInTable(const D2UnitHashTable* table) {
     return nullptr;
 }
 
-// Resolve a per-type table pointer for either the server or client unit
-// registry. Returns nullptr when the type is out of range.
-const D2UnitHashTable* TableForType(const D2UnitHashTables* tables, UnitType type) {
-    const auto typeIdx = static_cast<uint32_t>(type);
-    if (tables == nullptr || typeIdx >= UNIT_HASH_TYPE_COUNT) {
-        return nullptr;
-    }
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by UNIT_HASH_TYPE_COUNT check above
-    return &tables->tables[typeIdx];
-}
-
-// Reference parity: monster types live in the server-side table, missiles
-// (type 3) live in the client-side table. The factory wraps both lookups.
-D2UnitStrc* FindUnitInHashTable(uint32_t id, UnitType type) {
-    auto* found = lod114d::imports::d2client::UNITS_GetServerSideUnit(id, type);
-    if (found != nullptr) {
-        return found;
-    }
-    return lod114d::imports::d2client::UNITS_GetClientSideUnit(id, type);
-}
-
 // A skill is treated as "from a charged item" when it's bound to an item
 // (nOwnerGUID set) and still has charges remaining. The game also keeps a
 // dedicated 1/0 IsCharge byte at offset 0x3C of the Skill struct (used by
@@ -176,7 +155,7 @@ void* Unit::ResolvePtr() const {
     if (auto* cached = cache_.Get()) {
         return cached;
     }
-    void* resolved = FindUnitInHashTable(unitId_, type_);
+    void* resolved = unit_tables::FindUnitInHashTable(unitId_, type_);
     cache_.Set(resolved);
     return resolved;
 }
@@ -327,10 +306,7 @@ uint32_t Unit::Hp() const {
     if (u->dwUnitType == UNIT_MONSTER) {
         const uint32_t ownerId = lod114d::imports::d2client::MONSTERS_GetOwner(u->dwUnitId);
         if (ownerId != NO_OWNER_GUID) {
-            auto* ownerUnit = lod114d::imports::d2client::UNITS_GetClientSideUnit(ownerId, UnitType::Player);
-            if (ownerUnit == nullptr) {
-                ownerUnit = lod114d::imports::d2client::UNITS_GetServerSideUnit(ownerId, UnitType::Player);
-            }
+            auto* ownerUnit = unit_tables::FindUnitInHashTable(ownerId, UnitType::Player);
             if (ownerUnit != nullptr) {
                 const auto percent = lod114d::imports::d2common::UNITS_GetCurrentLifePercentage(u->dwUnitId);
                 const auto maxHp = static_cast<uint32_t>(STATLIST_UnitGetStatValue(u, Stat::MaxHitPoints, 0)) >>
@@ -899,6 +875,71 @@ uint32_t Unit::ItemType() const {
     return static_cast<uint32_t>(txt->wType[0]);
 }
 
+namespace {
+
+// Describing a gem or a rune runs the client's CMODS_BuildSocketFillerModsText (1.14d 0x004E6850, its gem / rune prop
+// set helpers 0x004E67D0 / 0x004E6720): for each item kind it assigns the gems.txt mods to the filler's magic stat list
+// (ITEMMODS_AssignProperty 0x0065FEC0 -> ITEMMODS_GetOrCreateStatList 0x0065CBF0: the item's last STATLIST_MAGIC list,
+// state 0, created when there is none), formats that list and frees it (#10474 + STATLIST_FreeStatList). A socketed
+// filler's magic list is the one holding the socket mods it gives its parent (CITEMS_ApplyItemStatsToOwner 0x004C0D20),
+// added up into the parent's and its owner's stats through the filler's merged stat list, so the free takes them off
+// all three, and the first kind's line also shows them; a loose filler loses the empty list CITEMS_SetItemMode made.
+// The vanilla UI only ever hovers a loose filler.
+//
+// For the description the guard hides the filler's magic lists (their STATLIST_MAGIC bit, the only thing the client's
+// lookups by flag test), so each prop set gets a list of its own that the free then takes back, and detaches the
+// filler's stat list from its parent, so those temporary stats stop at the filler exactly as for a loose one. It then
+// restores the bits, the parent and the stat list's flags (the temporary stats can set STATLIST_PERMANENT on it). A
+// socketed filler is so described as it would be loose: its four kind lines are the gems.txt mods alone, and its own
+// stat lines are empty, as they are once the client freed its list.
+class SocketFillerStatsGuard {
+   public:
+    explicit SocketFillerStatsGuard(D2UnitStrc* item) {
+        if (lod114d::imports::d2common::ITEMS_CheckItemTypeId(item, ITEMTYPE_GEM) == 0 &&
+            lod114d::imports::d2common::ITEMS_CheckItemTypeId(item, ITEMTYPE_RUNE) == 0) {
+            return;
+        }
+        D2StatListExStrc* statList = item->pStatListEx;
+        if (statList == nullptr || (statList->dwFlags & STATLIST_EXTENDED) == 0) {
+            return;
+        }
+        statList_ = statList;
+        parent_ = statList->pParent;
+        flags_ = statList->dwFlags;
+        statList->pParent = nullptr;
+        for (D2StatListStrc* list = statList->pMyLastList; list != nullptr; list = list->pPrevLink) {
+            if ((list->dwFlags & STATLIST_MAGIC) != 0) {
+                list->dwFlags &= ~STATLIST_MAGIC;
+                hidden_.push_back(list);
+            }
+        }
+    }
+
+    ~SocketFillerStatsGuard() {
+        if (statList_ == nullptr) {
+            return;
+        }
+        for (D2StatListStrc* list : hidden_) {
+            list->dwFlags |= STATLIST_MAGIC;
+        }
+        statList_->pParent = parent_;
+        statList_->dwFlags = flags_;
+    }
+
+    SocketFillerStatsGuard(const SocketFillerStatsGuard&) = delete;
+    SocketFillerStatsGuard& operator=(const SocketFillerStatsGuard&) = delete;
+    SocketFillerStatsGuard(SocketFillerStatsGuard&&) = delete;
+    SocketFillerStatsGuard& operator=(SocketFillerStatsGuard&&) = delete;
+
+   private:
+    D2StatListExStrc* statList_ = nullptr;
+    D2StatListStrc* parent_ = nullptr;
+    uint32_t flags_ = 0;
+    std::vector<D2StatListStrc*> hidden_;
+};
+
+}  // namespace
+
 std::string Unit::Description() const {
     const auto unitId = Id();
     const auto unitType = Type();
@@ -921,21 +962,22 @@ std::string Unit::Description() const {
     // across the thread hop would risk a use-after-free if the item is
     // freed between resolve and execute.
     return GameThread::Execute([unitId, unitType]() -> std::string {
-        auto* u = lod114d::imports::d2client::UNITS_GetServerSideUnit(unitId, unitType);
-        if (u == nullptr) {
-            u = lod114d::imports::d2client::UNITS_GetClientSideUnit(unitId, unitType);
-        }
+        auto* u = unit_tables::FindUnitInHashTable(unitId, unitType);
         if (u == nullptr || u->pItemData == nullptr) {
             return {};
         }
         if (u->pItemData->pExtraData.pParentInv == nullptr || u->pItemData->pExtraData.pParentInv->pOwner == nullptr) {
             return {};
         }
+        const uint32_t savedFlag = *lod114d::imports::d2client::gbItemDescFlag;
         auto* savedItem = *lod114d::imports::d2client::gpItemDescItem;
         *lod114d::imports::d2client::gbItemDescFlag = 1;
         *lod114d::imports::d2client::gpItemDescItem = u;
-        lod114d::imports::d2client::ITEMS_LoadDescription(u->pItemData->pExtraData.pParentInv->pOwner, 0);
-        *lod114d::imports::d2client::gbItemDescFlag = 0;
+        {
+            const SocketFillerStatsGuard guard(u);
+            lod114d::imports::d2client::ITEMS_LoadDescription(u->pItemData->pExtraData.pParentInv->pOwner, 0);
+        }
+        *lod114d::imports::d2client::gbItemDescFlag = savedFlag;
 
         auto& buf = *lod114d::imports::d2client::gwszItemDescBuffer;
         const auto len = wcsnlen(buf.data(), buf.size());
@@ -1135,9 +1177,7 @@ std::optional<Unit> Unit::GetNextItem() const {
 
 std::optional<Unit> Unit::GetFirstInGame(UnitType type) {
     GameReadLock guard;
-    const auto* tables = (type == UnitType::Missile) ? lod114d::imports::d2client::gClientSideUnitHashTables.Ptr()
-                                                     : lod114d::imports::d2client::gServerSideUnitHashTables.Ptr();
-    const auto* table = TableForType(tables, type);
+    const auto* table = unit_tables::TableForType(type);
     if (auto* head = FirstUnitInTable(table)) {
         return FromPtr(head);
     }
@@ -1152,9 +1192,7 @@ std::optional<Unit> Unit::GetNextInGame() const {
     if (auto* next = u->pListNext) {
         return FromPtr(next);
     }
-    const auto* tables = (u->dwUnitType == UNIT_MISSILE) ? lod114d::imports::d2client::gClientSideUnitHashTables.Ptr()
-                                                         : lod114d::imports::d2client::gServerSideUnitHashTables.Ptr();
-    const auto* table = TableForType(tables, static_cast<UnitType>(u->dwUnitType));
+    const auto* table = unit_tables::TableForType(static_cast<UnitType>(u->dwUnitType));
     if (table == nullptr) {
         return std::nullopt;
     }
@@ -1642,14 +1680,14 @@ Unit Unit::Player() {
 std::optional<Unit> Unit::Find(uint32_t id, std::optional<UnitType> type) {
     GameReadLock guard;
     if (type) {
-        if (auto* u = FindUnitInHashTable(id, *type)) {
+        if (auto* u = unit_tables::FindUnitInHashTable(id, *type)) {
             return FromPtr(u);
         }
         return std::nullopt;
     }
     // No type constraint - try every type bucket in turn (0..5).
     for (uint32_t t = 0; t < UNIT_HASH_TYPE_COUNT; ++t) {
-        if (auto* u = FindUnitInHashTable(id, static_cast<UnitType>(t))) {
+        if (auto* u = unit_tables::FindUnitInHashTable(id, static_cast<UnitType>(t))) {
             return FromPtr(u);
         }
     }

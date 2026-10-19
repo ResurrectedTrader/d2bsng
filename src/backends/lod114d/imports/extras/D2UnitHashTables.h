@@ -5,11 +5,11 @@
 
 #include <Units/Units.h>  // D2UnitStrc
 
-// D2's unit registry: 6 fixed-type hash tables, each 128 buckets indexed
-// by `dwUnitId & 0x7F`. The server-side table holds 5 of the 6 types
-// (Player/Monster/Object/Item/Tile); missiles live in the client-side
-// table at type slot 3. Reference parity:
-// reference/d2bs/D2Structs.h `UnitHashTable`.
+// Each of the client's two registries has six fixed-type hash tables,
+// each 128 buckets indexed by dwUnitId&0x7F. API enumeration uses the
+// replicated registry for Player/Monster/Object/Item/Tile and client-only
+// for missiles. These are not the D2Game server's registry. Layout matches
+// reference/d2bs/D2Structs.h UnitHashTable.
 //
 // Bucket chain link: each unit's `pListNext` points to the next unit in
 // the same bucket (or null at the end). Walking ALL units of a given

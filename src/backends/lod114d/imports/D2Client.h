@@ -51,8 +51,6 @@ inline StdcallFunc<D2BitBufferStrc*()> QUESTRECORD_GetQuestInfo{0xB32D0};
 inline FastcallFunc<void(uint32_t /*dwItemId*/)> ITEMS_Submit{0xB2370};
 inline FastcallFunc<void()> ITEMS_Transmute{0x8A0D0};
 
-inline FastcallFunc<D2UnitStrc*(uint32_t /*dwId*/, game::UnitType /*dwType*/)> UNITS_GetClientSideUnit{0x63990};
-inline FastcallFunc<D2UnitStrc*(uint32_t /*dwId*/, game::UnitType /*dwType*/)> UNITS_GetServerSideUnit{0x639B0};
 inline FastcallFunc<D2UnitStrc*()> UI_GetInteractingNPC{0xB1620};
 inline StdcallFunc<D2UnitStrc*()> UNITS_GetSelectedUnit{0x67A10};
 // `size_t` matches `DWORD` on Win32 (both 32-bit) and lets callers pass
@@ -165,11 +163,12 @@ inline GameVar<D2AutomapLayerStrc*> gpAutomapLayer{0x3A5164};
 
 inline GameVar<uint32_t> gnMercReviveCost{0x3C0DD0};
 
-// 6 type-tables * 128 hash buckets each. Server-side covers 5 types
-// (Player/Monster/Object/Item/Tile); missiles live in the client-side
-// table at type-slot 3. See imports/extras/D2UnitHashTables.h.
-inline GameVar<extras::D2UnitHashTables> gServerSideUnitHashTables{0x3A5E70};
-inline GameVar<extras::D2UnitHashTables> gClientSideUnitHashTables{0x3A5270};
+// Two client registries, each six type tables * 128 buckets. Normal API
+// enumeration uses replicated units except missiles, which use client-only.
+// 0x00463A50 chooses client-only for unit + 0xC4 bit 0x200000. Neither array is
+// the in-process D2Game server's unit registry. See extras/D2UnitHashTables.h.
+inline GameVar<extras::D2UnitHashTables> gReplicatedUnitHashTables{0x3A5E70};
+inline GameVar<extras::D2UnitHashTables> gClientOnlyUnitHashTables{0x3A5270};
 
 // DWORDs, as reference D2Ptrs.h declares them; the action holds the dialog's
 // GoldActionMode code.

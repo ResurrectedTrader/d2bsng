@@ -156,6 +156,14 @@ The same guard covers a handle taken from an argument after `IsInstance` (`click
 
 One exception to "one game state per guard": the first resolve of a room or level the game has not built yet runs the level's init on the game thread, and hands the lock back while it does. The reads after it can then see a later frame than the ones before it. That is safe, because a guard holds identity handles, not raw pointers - every read re-resolves - but a binding cannot rely on its reads agreeing across such a resolve.
 
+## Unit identity on 1.14d
+
+Unit lookup walks the same registry as `GetFirstInGame` / `GetNextInGame`: replicated units for
+players, monsters, objects, items and tiles, and client-only units for missiles. It follows `pListNext`
+from bucket `id & 0x7F`, matching ID and type, without calling game lookup functions or falling back to
+the other registry. IDs can collide across registries, so selecting a different one can change a
+handle's identity after a frame invalidates its cache.
+
 ## HandleCache (HandleCache.h)
 
 Each identity-based handle caches its resolved game pointer per-frame. First resolve walks the game data structure (~O(n)). Subsequent resolves in the same frame return the cached pointer (~O(1)).
@@ -179,6 +187,14 @@ game::GameThread::Execute([&] {
 ```
 
 `Execute()` releases the script's `GameReadLock` so the game thread can acquire `GameWriteLock` to drain the task queue.
+
+Profile names and explicit switches have separate lifecycle meanings. `login(name)` uses
+`AppConfig::SetProfileName` to store the active name without restarting its calling script.
+`profile::Switch` uses `SwitchProfileName`, which also increments a counter. `GetProfileState()` reads
+the name and counter together under the configuration lock. The game loop reloads paths when the name
+changes, but restarts the starter scripts only for an explicit switch to a different name (compared
+case-insensitively), a cleared startup latch, or the normal game-session transition. A name update
+inside `Login` must not cause the game thread to join the script waiting for that same thread.
 
 The 1.14d backend's `overhead()` hands the game a server overhead message (0x26, type 5) through
 `ReceiveGamePacket` and its own locked incoming packet queue. A game read lock excludes local
@@ -252,3 +268,12 @@ while the game thread waits on the write lock for the duration. Copy the game da
 under the lock, then build the JS values after it (as `getControls()`, `getPresetUnits()`
 and `getRoom()` do). A number or a single string is cheap enough to build under it, as the
 bindings above do.
+
+## Timed script delays
+
+`Script::ExecuteEvents` keeps `delay(n)` timed until its deadline even when an in-game script observes
+loading, a missing player room, or another state outside `InGame`. This restores reference d2bs
+`JSCore.cpp::my_delay` behavior: its timed wait continues while its menu check only gates event
+dispatch. In particular, kolbot's `while (!me.gameReady) delay(n)` loop sleeps between readiness
+checks. Script stop, game exit, restart and profile switch still interrupt the wait through `Stop()`;
+the sleep is bounded by `IdleSleepIntervalMs`.
