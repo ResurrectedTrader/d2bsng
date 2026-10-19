@@ -51,23 +51,6 @@ inline StdcallFunc<D2BitBufferStrc*()> QUESTRECORD_GetQuestInfo{0xB32D0};
 inline FastcallFunc<void(uint32_t /*dwItemId*/)> ITEMS_Submit{0xB2370};
 inline FastcallFunc<void()> ITEMS_Transmute{0x8A0D0};
 
-// 1.14d 0x00463990 reads 0x007A5E70 (wire-replicated client units), while
-// 0x004639B0 reads 0x007A5270 (client-only units, including missiles). Reference's
-// function names conflict with its table names; neither is a D2Game lookup.
-inline FastcallFunc<D2UnitStrc*(uint32_t /*dwId*/, game::UnitType /*dwType*/)> UNITS_FindReplicatedUnit{0x63990};
-inline FastcallFunc<D2UnitStrc*(uint32_t /*dwId*/, game::UnitType /*dwType*/)> UNITS_FindClientOnlyUnit{0x639B0};
-
-inline D2UnitStrc* UNITS_FindUnit(uint32_t id, game::UnitType type) {
-    // Match enumeration and 0x004639D0's owner-domain selection. IDs can
-    // collide across these registries, so trying the other one first is wrong.
-    const bool clientOnlyFirst = type == game::UnitType::Missile;
-    auto* unit = clientOnlyFirst ? UNITS_FindClientOnlyUnit(id, type) : UNITS_FindReplicatedUnit(id, type);
-    if (unit != nullptr) {
-        return unit;
-    }
-    // Preserve lookup availability when only the other registry contains the ID.
-    return clientOnlyFirst ? UNITS_FindReplicatedUnit(id, type) : UNITS_FindClientOnlyUnit(id, type);
-}
 inline FastcallFunc<D2UnitStrc*()> UI_GetInteractingNPC{0xB1620};
 inline StdcallFunc<D2UnitStrc*()> UNITS_GetSelectedUnit{0x67A10};
 // `size_t` matches `DWORD` on Win32 (both 32-bit) and lets callers pass

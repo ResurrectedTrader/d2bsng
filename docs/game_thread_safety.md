@@ -158,10 +158,11 @@ One exception to "one game state per guard": the first resolve of a room or leve
 
 ## Unit identity on 1.14d
 
-Unit lookup uses the same primary registry as `GetFirstInGame` / `GetNextInGame`: replicated units for
-players, monsters, objects, items and tiles, and client-only units for missiles. `UNITS_FindUnit` centralizes
-that order, with the other registry used only when the primary lookup misses. A unit ID can exist in both
-registries, so changing the order can resolve a handle to a different unit after a frame invalidates its cache.
+Unit lookup walks the same registry as `GetFirstInGame` / `GetNextInGame`: replicated units for
+players, monsters, objects, items and tiles, and client-only units for missiles. It follows `pListNext`
+from bucket `id & 0x7F`, matching ID and type, without calling game lookup functions or falling back to
+the other registry. IDs can collide across registries, so selecting a different one can change a
+handle's identity after a frame invalidates its cache.
 
 ## HandleCache (HandleCache.h)
 

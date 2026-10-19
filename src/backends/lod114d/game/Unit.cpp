@@ -1,6 +1,7 @@
 #include "game/Unit.h"
 
 #include "PlugY.h"
+#include "UnitTables.h"
 #include "asm_thunks/asm_thunks.h"
 #include "game/Common.h"
 #include "game/Constants.h"
@@ -72,7 +73,6 @@ inline D2UnitStrc* AsUnit(void* p) noexcept {
 // Constants and struct now live in imports/extras/D2UnitHashTables.h.
 using lod114d::imports::d2common::STATLIST_UnitGetStatValue;
 using lod114d::imports::extras::D2UnitHashTable;
-using lod114d::imports::extras::D2UnitHashTables;
 using lod114d::imports::extras::UNIT_HASH_BUCKETS;
 using lod114d::imports::extras::UNIT_HASH_TYPE_COUNT;
 
@@ -118,24 +118,6 @@ D2UnitStrc* FirstUnitInTable(const D2UnitHashTable* table) {
     return nullptr;
 }
 
-// Resolve a per-type table pointer in either client registry.
-// Returns nullptr when the type is out of range.
-const D2UnitHashTable* TableForType(const D2UnitHashTables* tables, UnitType type) {
-    const auto typeIdx = static_cast<uint32_t>(type);
-    if (tables == nullptr || typeIdx >= UNIT_HASH_TYPE_COUNT) {
-        return nullptr;
-    }
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index) - bounded by UNIT_HASH_TYPE_COUNT check above
-    return &tables->tables[typeIdx];
-}
-
-// Match enumeration's client registry: replicated units, except client-only
-// missiles. A same-ID visual object must not replace a replicated waypoint
-// when a cached handle is resolved on a later frame.
-D2UnitStrc* FindUnitInHashTable(uint32_t id, UnitType type) {
-    return lod114d::imports::d2client::UNITS_FindUnit(id, type);
-}
-
 // A skill is treated as "from a charged item" when it's bound to an item
 // (nOwnerGUID set) and still has charges remaining. The game also keeps a
 // dedicated 1/0 IsCharge byte at offset 0x3C of the Skill struct (used by
@@ -170,7 +152,7 @@ void* Unit::ResolvePtr() const {
     if (auto* cached = cache_.Get()) {
         return cached;
     }
-    void* resolved = FindUnitInHashTable(unitId_, type_);
+    void* resolved = unit_tables::FindUnitInHashTable(unitId_, type_);
     cache_.Set(resolved);
     return resolved;
 }
@@ -321,7 +303,7 @@ uint32_t Unit::Hp() const {
     if (u->dwUnitType == UNIT_MONSTER) {
         const uint32_t ownerId = lod114d::imports::d2client::MONSTERS_GetOwner(u->dwUnitId);
         if (ownerId != NO_OWNER_GUID) {
-            auto* ownerUnit = lod114d::imports::d2client::UNITS_FindUnit(ownerId, UnitType::Player);
+            auto* ownerUnit = unit_tables::FindUnitInHashTable(ownerId, UnitType::Player);
             if (ownerUnit != nullptr) {
                 const auto percent = lod114d::imports::d2common::UNITS_GetCurrentLifePercentage(u->dwUnitId);
                 const auto maxHp = static_cast<uint32_t>(STATLIST_UnitGetStatValue(u, Stat::MaxHitPoints, 0)) >>
@@ -912,7 +894,7 @@ std::string Unit::Description() const {
     // across the thread hop would risk a use-after-free if the item is
     // freed between resolve and execute.
     return GameThread::Execute([unitId, unitType]() -> std::string {
-        auto* u = lod114d::imports::d2client::UNITS_FindUnit(unitId, unitType);
+        auto* u = unit_tables::FindUnitInHashTable(unitId, unitType);
         if (u == nullptr || u->pItemData == nullptr) {
             return {};
         }
@@ -1123,9 +1105,7 @@ std::optional<Unit> Unit::GetNextItem() const {
 
 std::optional<Unit> Unit::GetFirstInGame(UnitType type) {
     GameReadLock guard;
-    const auto* tables = (type == UnitType::Missile) ? lod114d::imports::d2client::gClientOnlyUnitHashTables.Ptr()
-                                                     : lod114d::imports::d2client::gReplicatedUnitHashTables.Ptr();
-    const auto* table = TableForType(tables, type);
+    const auto* table = unit_tables::TableForType(type);
     if (auto* head = FirstUnitInTable(table)) {
         return FromPtr(head);
     }
@@ -1140,9 +1120,7 @@ std::optional<Unit> Unit::GetNextInGame() const {
     if (auto* next = u->pListNext) {
         return FromPtr(next);
     }
-    const auto* tables = (u->dwUnitType == UNIT_MISSILE) ? lod114d::imports::d2client::gClientOnlyUnitHashTables.Ptr()
-                                                         : lod114d::imports::d2client::gReplicatedUnitHashTables.Ptr();
-    const auto* table = TableForType(tables, static_cast<UnitType>(u->dwUnitType));
+    const auto* table = unit_tables::TableForType(static_cast<UnitType>(u->dwUnitType));
     if (table == nullptr) {
         return std::nullopt;
     }
@@ -1621,14 +1599,14 @@ Unit Unit::Player() {
 std::optional<Unit> Unit::Find(uint32_t id, std::optional<UnitType> type) {
     GameReadLock guard;
     if (type) {
-        if (auto* u = FindUnitInHashTable(id, *type)) {
+        if (auto* u = unit_tables::FindUnitInHashTable(id, *type)) {
             return FromPtr(u);
         }
         return std::nullopt;
     }
     // No type constraint - try every type bucket in turn (0..5).
     for (uint32_t t = 0; t < UNIT_HASH_TYPE_COUNT; ++t) {
-        if (auto* u = FindUnitInHashTable(id, static_cast<UnitType>(t))) {
+        if (auto* u = unit_tables::FindUnitInHashTable(id, static_cast<UnitType>(t))) {
             return FromPtr(u);
         }
     }
