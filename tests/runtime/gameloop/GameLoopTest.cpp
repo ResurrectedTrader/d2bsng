@@ -967,3 +967,49 @@ TEST_CASE_FIXTURE(GameLoopFixture, "Second game in a session: Menu -> InGame aft
     // Menu -> InGame).
     CHECK(GameLoop::Instance().GameStartTime().has_value());
 }
+
+TEST_CASE_FIXTURE(GameLoopFixture, "Login profile name updates keep the current starter running") {
+    TempIniForGameLoop tmp;
+    auto& cfg = d2bs::core::config::GetAppConfig();
+    d2bs::config::ScriptPaths paths;
+    paths.basePath = "/scripts";
+    paths.starterScript = "starter.dbj";
+    paths.gameScript = "game.dbj";
+    cfg.SetScriptPaths(paths);
+    cfg.SetDefaultScriptPaths(paths);
+
+    auto& state = d2bs::test::State();
+    SUBCASE("Menu starter") {
+        state.clientState = GameState::Menu;
+    }
+    SUBCASE("In-game starter") {
+        state.clientState = GameState::InGame;
+        state.playerId = 42;
+    }
+    GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
+    const auto& started = d2bs::runtime::script::ScriptEngine::Instance().StartedScripts();
+    REQUIRE(started.size() == 1);
+    const auto starter = started[0];
+    const auto switches = cfg.GetProfileState().switchCount;
+
+    cfg.SetProfileName("login-profile");
+    GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
+    GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
+
+    CHECK(cfg.GetProfileState().name == "login-profile");
+    CHECK(cfg.GetProfileState().switchCount == switches);
+    CHECK(started.size() == 1);
+    CHECK_FALSE(starter->IsStopped());
+
+    d2bs::config::ProfileData next;
+    next.name = "next-profile";
+    next.type = d2bs::config::ProfileType::SinglePlayer;
+    REQUIRE(d2bs::runtime::profile::Add(next));
+    REQUIRE(d2bs::runtime::profile::Switch(next.name));
+    GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
+
+    CHECK(cfg.GetProfileState().switchCount == switches + 1);
+    CHECK(starter->IsStopped());
+    REQUIRE(started.size() == 2);
+    CHECK(started[1]->GetMode() == starter->GetMode());
+}

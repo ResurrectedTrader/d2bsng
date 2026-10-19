@@ -180,6 +180,14 @@ game::GameThread::Execute([&] {
 
 `Execute()` releases the script's `GameReadLock` so the game thread can acquire `GameWriteLock` to drain the task queue.
 
+Profile names and explicit switches have separate lifecycle meanings. `login(name)` uses
+`AppConfig::SetProfileName` to store the active name without restarting its calling script.
+`profile::Switch` uses `SwitchProfileName`, which also increments a counter. `GetProfileState()` reads
+the name and counter together under the configuration lock. The game loop reloads paths when the name
+changes, but restarts the starter scripts only for an explicit switch to a different name (compared
+case-insensitively), a cleared startup latch, or the normal game-session transition. A name update
+inside `Login` must not cause the game thread to join the script waiting for that same thread.
+
 ## Per-frame events (`render`)
 
 The `render` event is a signal, not a queued event. `GameLoop::OnDraw` (the backend's `onDraw` callback, once

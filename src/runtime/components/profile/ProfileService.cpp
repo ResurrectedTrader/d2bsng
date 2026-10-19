@@ -37,11 +37,11 @@ bool Switch(const std::string& name) {
         return false;
     }
 
-    // SetProfileName publishes the name and clears the waitForProfile latch
+    // SwitchProfileName publishes the name and clears the waitForProfile latch
     // atomically (release store paired with the game loop's acquire load), so
     // there's no observable window where the latch is clear but the name is
     // stale.
-    core::config::GetAppConfig().SetProfileName(name);
+    core::config::GetAppConfig().SwitchProfileName(name);
     return true;
 }
 
