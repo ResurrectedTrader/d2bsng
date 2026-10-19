@@ -748,10 +748,7 @@ bool ClickMapAt(uint32_t clickType, bool shift, const Unit& unit) {
         return false;
     }
     return GameThread::Execute([clickType, shift, unitId, unitType]() -> bool {
-        auto* pUnit = d2client::UNITS_GetServerSideUnit(unitId, unitType);
-        if (pUnit == nullptr) {
-            pUnit = d2client::UNITS_GetClientSideUnit(unitId, unitType);
-        }
+        auto* pUnit = d2client::UNITS_FindUnit(unitId, unitType);
         if (pUnit == nullptr) {
             return false;
         }
@@ -1138,10 +1135,7 @@ ClickResult ClickItem(ClickButton button, const Unit& item) {
 
         // Resolve the framework Unit handle to its raw D2UnitStrc -- we need
         // pItemData->nBodyLoc / nInvPage and pItemPath grid coords directly.
-        auto* itemPtr = d2client::UNITS_GetServerSideUnit(item.Id(), UnitType::Item);
-        if (itemPtr == nullptr) {
-            itemPtr = d2client::UNITS_GetClientSideUnit(item.Id(), UnitType::Item);
-        }
+        auto* itemPtr = d2client::UNITS_FindUnit(item.Id(), UnitType::Item);
         if (itemPtr == nullptr || itemPtr->pItemData == nullptr || itemPtr->pStaticPath == nullptr) {
             return ClickResult::InvalidTarget;
         }
@@ -1506,14 +1500,8 @@ uint32_t CheckUnitCollision(const Unit& unit1, const Unit& unit2, CollisionFlag 
     const auto id2 = unit2.Id();
     const auto type2 = unit2.Type();
     GameReadLock guard;
-    auto* p1 = d2client::UNITS_GetServerSideUnit(id1, type1);
-    if (p1 == nullptr) {
-        p1 = d2client::UNITS_GetClientSideUnit(id1, type1);
-    }
-    auto* p2 = d2client::UNITS_GetServerSideUnit(id2, type2);
-    if (p2 == nullptr) {
-        p2 = d2client::UNITS_GetClientSideUnit(id2, type2);
-    }
+    auto* p1 = d2client::UNITS_FindUnit(id1, type1);
+    auto* p2 = d2client::UNITS_FindUnit(id2, type2);
     if (p1 == nullptr || p2 == nullptr) {
         return 0;
     }

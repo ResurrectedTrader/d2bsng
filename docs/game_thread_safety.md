@@ -156,6 +156,13 @@ The same guard covers a handle taken from an argument after `IsInstance` (`click
 
 One exception to "one game state per guard": the first resolve of a room or level the game has not built yet runs the level's init on the game thread, and hands the lock back while it does. The reads after it can then see a later frame than the ones before it. That is safe, because a guard holds identity handles, not raw pointers - every read re-resolves - but a binding cannot rely on its reads agreeing across such a resolve.
 
+## Unit identity on 1.14d
+
+Unit lookup uses the same primary registry as `GetFirstInGame` / `GetNextInGame`: replicated units for
+players, monsters, objects, items and tiles, and client-only units for missiles. `UNITS_FindUnit` centralizes
+that order, with the other registry used only when the primary lookup misses. A unit ID can exist in both
+registries, so changing the order can resolve a handle to a different unit after a frame invalidates its cache.
+
 ## HandleCache (HandleCache.h)
 
 Each identity-based handle caches its resolved game pointer per-frame. First resolve walks the game data structure (~O(n)). Subsequent resolves in the same frame return the cached pointer (~O(1)).
