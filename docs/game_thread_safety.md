@@ -246,3 +246,12 @@ while the game thread waits on the write lock for the duration. Copy the game da
 under the lock, then build the JS values after it (as `getControls()`, `getPresetUnits()`
 and `getRoom()` do). A number or a single string is cheap enough to build under it, as the
 bindings above do.
+
+## Timed script delays
+
+`Script::ExecuteEvents` keeps `delay(n)` timed until its deadline even when an in-game script observes
+loading, a missing player room, or another state outside `InGame`. This restores reference d2bs
+`JSCore.cpp::my_delay` behavior: its timed wait continues while its menu check only gates event
+dispatch. In particular, kolbot's `while (!me.gameReady) delay(n)` loop sleeps between readiness
+checks. Script stop, game exit, restart and profile switch still interrupt the wait through `Stop()`;
+the sleep is bounded by `IdleSleepIntervalMs`.
