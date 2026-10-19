@@ -313,6 +313,11 @@ LoginResult Login(const config::ProfileData& profile) {
                         }
                         break;
                     }
+                    // The launcher disables Log in above 13 characters, including text set by scripts.
+                    if (utils::ToWStr(profile.password).size() > 13) {
+                        step = std::string{"Battle.net passwords must contain at most 13 characters"};
+                        break;
+                    }
                     if (!SetEditBoxText(322, 342, 162, 19, profile.username)) {
                         step = std::string{"Failed to set the 'Username' text-edit box."};
                         break;
