@@ -896,6 +896,71 @@ uint32_t Unit::ItemType() const {
     return static_cast<uint32_t>(txt->wType[0]);
 }
 
+namespace {
+
+// Describing a gem or a rune runs the client's CMODS_BuildSocketFillerModsText (1.14d 0x004E6850, its gem / rune prop
+// set helpers 0x004E67D0 / 0x004E6720): for each item kind it assigns the gems.txt mods to the filler's magic stat list
+// (ITEMMODS_AssignProperty 0x0065FEC0 -> ITEMMODS_GetOrCreateStatList 0x0065CBF0: the item's last STATLIST_MAGIC list,
+// state 0, created when there is none), formats that list and frees it (#10474 + STATLIST_FreeStatList). A socketed
+// filler's magic list is the one holding the socket mods it gives its parent (CITEMS_ApplyItemStatsToOwner 0x004C0D20),
+// added up into the parent's and its owner's stats through the filler's merged stat list, so the free takes them off
+// all three, and the first kind's line also shows them; a loose filler loses the empty list CITEMS_SetItemMode made.
+// The vanilla UI only ever hovers a loose filler.
+//
+// For the description the guard hides the filler's magic lists (their STATLIST_MAGIC bit, the only thing the client's
+// lookups by flag test), so each prop set gets a list of its own that the free then takes back, and detaches the
+// filler's stat list from its parent, so those temporary stats stop at the filler exactly as for a loose one. It then
+// restores the bits, the parent and the stat list's flags (the temporary stats can set STATLIST_PERMANENT on it). A
+// socketed filler is so described as it would be loose: its four kind lines are the gems.txt mods alone, and its own
+// stat lines are empty, as they are once the client freed its list.
+class SocketFillerStatsGuard {
+   public:
+    explicit SocketFillerStatsGuard(D2UnitStrc* item) {
+        if (lod114d::imports::d2common::ITEMS_CheckItemTypeId(item, ITEMTYPE_GEM) == 0 &&
+            lod114d::imports::d2common::ITEMS_CheckItemTypeId(item, ITEMTYPE_RUNE) == 0) {
+            return;
+        }
+        D2StatListExStrc* statList = item->pStatListEx;
+        if (statList == nullptr || (statList->dwFlags & STATLIST_EXTENDED) == 0) {
+            return;
+        }
+        statList_ = statList;
+        parent_ = statList->pParent;
+        flags_ = statList->dwFlags;
+        statList->pParent = nullptr;
+        for (D2StatListStrc* list = statList->pMyLastList; list != nullptr; list = list->pPrevLink) {
+            if ((list->dwFlags & STATLIST_MAGIC) != 0) {
+                list->dwFlags &= ~STATLIST_MAGIC;
+                hidden_.push_back(list);
+            }
+        }
+    }
+
+    ~SocketFillerStatsGuard() {
+        if (statList_ == nullptr) {
+            return;
+        }
+        for (D2StatListStrc* list : hidden_) {
+            list->dwFlags |= STATLIST_MAGIC;
+        }
+        statList_->pParent = parent_;
+        statList_->dwFlags = flags_;
+    }
+
+    SocketFillerStatsGuard(const SocketFillerStatsGuard&) = delete;
+    SocketFillerStatsGuard& operator=(const SocketFillerStatsGuard&) = delete;
+    SocketFillerStatsGuard(SocketFillerStatsGuard&&) = delete;
+    SocketFillerStatsGuard& operator=(SocketFillerStatsGuard&&) = delete;
+
+   private:
+    D2StatListExStrc* statList_ = nullptr;
+    D2StatListStrc* parent_ = nullptr;
+    uint32_t flags_ = 0;
+    std::vector<D2StatListStrc*> hidden_;
+};
+
+}  // namespace
+
 std::string Unit::Description() const {
     const auto unitId = Id();
     const auto unitType = Type();
@@ -928,11 +993,15 @@ std::string Unit::Description() const {
         if (u->pItemData->pExtraData.pParentInv == nullptr || u->pItemData->pExtraData.pParentInv->pOwner == nullptr) {
             return {};
         }
+        const uint32_t savedFlag = *lod114d::imports::d2client::gbItemDescFlag;
         auto* savedItem = *lod114d::imports::d2client::gpItemDescItem;
         *lod114d::imports::d2client::gbItemDescFlag = 1;
         *lod114d::imports::d2client::gpItemDescItem = u;
-        lod114d::imports::d2client::ITEMS_LoadDescription(u->pItemData->pExtraData.pParentInv->pOwner, 0);
-        *lod114d::imports::d2client::gbItemDescFlag = 0;
+        {
+            const SocketFillerStatsGuard guard(u);
+            lod114d::imports::d2client::ITEMS_LoadDescription(u->pItemData->pExtraData.pParentInv->pOwner, 0);
+        }
+        *lod114d::imports::d2client::gbItemDescFlag = savedFlag;
 
         auto& buf = *lod114d::imports::d2client::gwszItemDescBuffer;
         const auto len = wcsnlen(buf.data(), buf.size());
