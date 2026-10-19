@@ -95,6 +95,7 @@ inline StdcallFunc<uint32_t(D2UnitStrc* /*pUnit*/, D2SkillStrc* /*pSkill*/, bool
     0x2442A0};
 
 inline StdcallFunc<int32_t(D2UnitStrc* /*pItem*/, D2UnitStrc* /*pUnit*/)> ITEMS_GetLevelRequirement{0x22BA60};
+inline StdcallFunc<int32_t(D2UnitStrc* /*pItem*/, int32_t /*nItemType*/)> ITEMS_CheckItemTypeId{0x229BB0};
 
 inline StdcallFunc<int32_t(D2UnitStrc* /*pPlayer*/, D2UnitStrc* /*pItem*/, D2C_Difficulties /*nDifficulty*/,
                            D2BitBufferStrc* /*pQuestFlags*/, uint32_t /*nVendorId*/,
