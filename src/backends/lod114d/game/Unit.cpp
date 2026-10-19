@@ -44,6 +44,8 @@
 #include <array>
 #include <cstdint>
 #include <limits>
+#include <map>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -1466,17 +1468,44 @@ void Unit::Overhead(const std::string& text) const {
     if (text.empty()) {
         return;
     }
-    const auto ansi = utils::ToStr(utils::ToWStr(text), CP_ACP);
-    const auto u = Resolve<D2UnitStrc>();
-    if (!u) {
+    // One owned text and one posted task per (type, id), including aliases such as me.
+    // Never retain a resolved pointer across the post: the unit may retire before Drain.
+    static std::mutex pendingMutex;
+    static std::map<std::pair<UnitType, uint32_t>, std::string> pendingTexts;
+    const auto key = std::pair{Type(), Id()};
+    const std::lock_guard lock(pendingMutex);
+    const auto [entry, isInserted] = pendingTexts.insert_or_assign(key, utils::ToStr(utils::ToWStr(text), CP_ACP));
+    if (!isInserted) {
         return;
     }
-    auto* msg = lod114d::imports::d2common::CHAT_AllocHoverMsg(nullptr, ansi.c_str(),
-                                                               *lod114d::imports::d2client::gnOverheadTrigger);
-    if (msg == nullptr) {
-        return;
+    Unit unit;
+    unit.type_ = key.first;
+    unit.unitId_ = key.second;
+    try {
+        GameThread::Post([unit, key] {
+            std::string ansi;
+            {
+                const std::lock_guard pendingLock(pendingMutex);
+                auto pending = pendingTexts.extract(key);
+                ansi = std::move(pending.mapped());
+            }
+            const auto u = unit.Resolve<D2UnitStrc>();
+            if (!u) {
+                return;
+            }
+            auto* msg = lod114d::imports::d2common::CHAT_AllocHoverMsg(nullptr, ansi.c_str(),
+                                                                       *lod114d::imports::d2client::gnOverheadTrigger);
+            if (msg == nullptr) {
+                return;
+            }
+            // Match native TEXT_SetUnitHoverText (Game.exe 0x0049F410): release the replaced message.
+            lod114d::imports::d2common::CHAT_FreeHoverMsg(nullptr, u->pHoverText);
+            u->pHoverText = msg;
+        });
+    } catch (...) {
+        pendingTexts.erase(entry);
+        throw;
     }
-    u->pHoverText = msg;
 }
 
 void Unit::Revive() const {

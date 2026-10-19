@@ -180,6 +180,14 @@ game::GameThread::Execute([&] {
 
 `Execute()` releases the script's `GameReadLock` so the game thread can acquire `GameWriteLock` to drain the task queue.
 
+`Post()` queues owned work without waiting for a drain. `Unit::Overhead` uses it to keep at most one
+pending text and one queued task per (unit type, id); repeated calls replace the pending text. The task
+removes that entry, resolves a fresh identity handle, then allocates the replacement, frees the previous
+hover message and assigns the replacement under the game thread's write lock. A call after the task
+takes its text queues the next update. Empty strings remain a no-op, and JS argument handling and the
+boolean return are unchanged. `GameThread::PendingCount()` counts tasks awaiting a drain, excluding a
+running batch.
+
 ## Per-frame events (`render`)
 
 The `render` event is a signal, not a queued event. `GameLoop::OnDraw` (the backend's `onDraw` callback, once

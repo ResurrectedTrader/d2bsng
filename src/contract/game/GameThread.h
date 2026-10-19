@@ -3,6 +3,7 @@
 #include <spdlog/spdlog.h>
 
 #include <chrono>
+#include <cstddef>
 #include <filesystem>
 #include <format>
 #include <functional>
@@ -21,7 +22,7 @@ namespace d2bs::game {
 
 // Executes functions on the game thread from script threads.
 // Script threads post tasks to a queue; the GameLoop orchestrator drains the queue
-// each frame on the game thread, outside the write lock. Use for game functions
+// each frame on the game thread, under the write lock. Use for game functions
 // that depend on thread-local storage or must be called from the game thread
 // (UI control manipulation, certain D2 API calls).
 //
@@ -101,6 +102,12 @@ class GameThread {
             std::lock_guard lock(queueMutex_);
             queue_.push({std::function<void()>(std::forward<F>(func)), loc});
         }
+    }
+
+    // Tasks awaiting the next drain; excludes the batch already running on the game thread.
+    static size_t PendingCount() {
+        const std::lock_guard lock(queueMutex_);
+        return queue_.size();
     }
 
     // Drain the task queue on the game thread each frame. GameReadLock is a no-op under GameWriteLock, so tasks can
