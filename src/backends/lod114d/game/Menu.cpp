@@ -65,8 +65,6 @@ enum class StringId : uint16_t {
     Register = 11097,          // "REGISTER"
     EnterChat = 11126,         // "ENTER CHAT"
     RealmRestricted = 11162,   // "Your connection has been temporarily restricted ..."
-    // expansionstring.tbl (base 20000)
-    Copyright = 21882,  // " Copyright 2001 Blizzard Entertainment"
 };
 
 lod114d::imports::extras::D2WinControlStrc* ResolveCtrlPtr(ControlType type, Rect bounds) {
@@ -1018,8 +1016,10 @@ OutOfGameLocation GetOutOfGameLocation() {
     if (findControl(ControlType::Button, 187, 470, 80, 20, StringId::Help)) {
         return OutOfGameLocation::LobbyChat;
     }
-    // Splash screen: the copyright textbox.
-    if (findControl(ControlType::TextBox, 100, 580, 600, 80, StringId::Copyright)) {
+    // Splash screen: the copyright textbox, the only control at this rect. Matched by rect alone: the reference also
+    // compared its text with string 21882 ("Copyright 2001 Blizzard Entertainment"), but 1.14d's title screen
+    // (MAINMENU_CreateTitleScreen 0x0042FB20) rewrites the year to "2000 - 2016" before it adds the line.
+    if (findControl(ControlType::TextBox, 100, 580, 600, 80)) {
         return OutOfGameLocation::SplashScreen;
     }
     // Gateway selection: OK button.
