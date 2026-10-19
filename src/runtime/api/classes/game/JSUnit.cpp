@@ -1763,16 +1763,12 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             if (args.Length() > 0) {
                 auto* isolate = args.GetIsolate();
                 std::string text = convert::ToString(isolate, args[0]);
-                game::Unit unit;
-                {
-                    const auto data = Unwrap(args.This());
-                    if (!*data) {
-                        return;
-                    }
-                    unit = *data;
+                const auto data = Unwrap(args.This());
+                if (!*data) {
+                    return;
                 }
                 if (!text.empty()) {
-                    unit.Overhead(text);
+                    data->Overhead(text);
                 }
             }
             args.GetReturnValue().Set(true);

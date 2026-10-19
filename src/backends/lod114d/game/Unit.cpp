@@ -22,7 +22,7 @@
 #include <D2Inventory.h>           // D2InventoryStrc, D2ItemExtraDataStrc
 #include <D2Items.h>               // D2C_ItemModes (IMODE_ONGROUND, IMODE_DROPPING)
 #include <D2Monsters.h>            // D2C_MonTypeFlags
-#include <D2PacketDef.h>           // D2GSPacketClt3C
+#include <D2PacketDef.h>           // D2GSPacketClt3C, D2GSPacketSrv26
 #include <D2Skills.h>              // D2SkillStrc, D2SkillListStrc
 #include <D2StatList.h>            // D2StatStrc, D2StatListExStrc, D2C_ItemStats
 #include <D2States.h>              // D2C_States
@@ -42,11 +42,12 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <limits>
-#include <map>
-#include <mutex>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -1468,43 +1469,26 @@ void Unit::Overhead(const std::string& text) const {
     if (text.empty()) {
         return;
     }
-    // One owned text and one posted task per (type, id), including aliases such as me.
-    // Never retain a resolved pointer across the post: the unit may retire before Drain.
-    static std::mutex pendingMutex;
-    static std::map<std::pair<UnitType, uint32_t>, std::string> pendingTexts;
-    constexpr size_t MAX_PENDING_UNITS = 1024;
-    const auto key = std::pair{Type(), Id()};
-    const std::lock_guard lock(pendingMutex);
-    if (const auto pending = pendingTexts.find(key); pending != pendingTexts.end()) {
-        pending->second = utils::ToStr(utils::ToWStr(text), CP_ACP);
+    const auto ansi = utils::ToStr(utils::ToWStr(text), CP_ACP);
+    const auto message = std::string_view{ansi.c_str()}.substr(0, 255);
+    if (message.empty()) {
         return;
     }
-    // Bound new identities too when scripts submit faster than the game thread drains.
-    if (pendingTexts.size() >= MAX_PENDING_UNITS) {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u) {
         return;
     }
-    const auto entry = pendingTexts.emplace(key, utils::ToStr(utils::ToWStr(text), CP_ACP)).first;
-    Unit unit;
-    unit.type_ = key.first;
-    unit.unitId_ = key.second;
-    try {
-        GameThread::Post([unit, key] {
-            std::string ansi;
-            {
-                const std::lock_guard pendingLock(pendingMutex);
-                auto pending = pendingTexts.extract(key);
-                ansi = std::move(pending.mapped());
-            }
-            const auto u = unit.Resolve<D2UnitStrc>();
-            if (!u) {
-                return;
-            }
-            lod114d::asm_thunks::SetUnitHoverText(u, ansi.c_str(), lod114d::imports::d2client::GAME_GetLanguageCode());
-        });
-    } catch (...) {
-        pendingTexts.erase(entry);
-        throw;
-    }
+    D2GSPacketSrv26 packet{};
+    packet.nHeader = 0x26;
+    packet.nMessageType = 5;
+    packet.nLang = lod114d::imports::d2client::GAME_GetLanguageCode();
+    packet.nUnitType = static_cast<uint8_t>(u->dwUnitType);
+    packet.dwUnitGUID = u->dwUnitId;
+    // The wire format packs both strings: empty name at byte 10, message at byte 11.
+    constexpr size_t MESSAGE_OFFSET = offsetof(D2GSPacketSrv26, szName) + 1;
+    auto buffer = std::span{reinterpret_cast<uint8_t*>(&packet), sizeof(packet)};
+    std::memcpy(buffer.subspan(MESSAGE_OFFSET).data(), message.data(), message.size());
+    ReceiveGamePacket(buffer.first(MESSAGE_OFFSET + message.size() + 1));
 }
 
 void Unit::Revive() const {

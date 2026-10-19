@@ -193,8 +193,6 @@ inline GameVar<uint32_t> gnPing{0x3A04A4};
 inline GameVar<uint32_t> gnFPS{0x3BB390};
 inline GameVar<game::Language> gnLang{0x3BB5DC};
 
-inline GameVar<uint32_t> gnOverheadTrigger{0x3BF20E};
-
 inline GameVar<uint32_t> gnRecentInteractId{0x3C0D25};
 // Pointer to the player's quest-flag bit buffer. Passed as `pQuestFlags` to
 // ITEMS_GetTransactionCost / ITEMS_GetAllRepairCosts (vendor pricing varies
@@ -269,8 +267,6 @@ inline GameAsmFunc Say_I{0x7CBDA};
 inline GameAsmFunc SetSelectedUnit_I{0x66DE0};   // __usercall(arg@<eax>)
 inline GameAsmFunc LeftClickItem_I{0x8FFE0};     // __userpurge(a1@<eax>, ...)
 inline GameAsmFunc InitAutomapLayer_I{0x58D40};  // __usercall(a1@<edi>)
-// Game.exe 1.14d 0x0049F410: __userpurge(text in edx, unit in edi, language on stack), retn 4.
-inline GameAsmFunc TEXT_SetUnitHoverText{0x9F410};
 
 // ---- Inline-patch intercept tail-call targets ------------------------------
 // Hook subsystem (`src/backends/lod114d/hooks/Intercepts.cpp`) overwrites a CALL/JMP at a

@@ -75,10 +75,6 @@ void __stdcall LeftClickItem(uint32_t location, D2UnitStrc* pPlayer, D2Inventory
 // (`D2CLIENT_InitAutomapLayer_STUB`).
 D2AutomapLayerStrc* __fastcall InitAutomapLayer(uint32_t nLayerNo);
 
-// TEXT_SetUnitHoverText, Game.exe 1.14d 0x0049F410: text in EDX, unit in EDI,
-// language on the stack (retn 4). Preserve the caller's callee-saved EDI.
-void __fastcall SetUnitHoverText(D2UnitStrc* unit, const char* text, uint32_t language);
-
 // Translate a level number into its automap layer number via D2COMMON_GetLayer
 // (AutomapLayer2 has nLayerNo at offset +0x08), then invoke InitAutomapLayer
 // with the resolved layer number. Reference: D2Helpers.cpp:347-350.

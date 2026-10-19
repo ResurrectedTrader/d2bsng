@@ -507,7 +507,11 @@ void ReceiveGamePacket(std::span<const uint8_t> data) {
     if (data.empty()) {
         return;
     }
+    // Local game-thread producers rely on frame serialization; the TCP producer uses this critical section.
+    const GameReadLock guard;
+    EnterCriticalSection(d2net::gIncomingPacketCriticalSection.Ptr());
     d2net::CLIENT_DequeueGamePacket(data.data(), data.size());
+    LeaveCriticalSection(d2net::gIncomingPacketCriticalSection.Ptr());
 }
 
 // === Chat ===

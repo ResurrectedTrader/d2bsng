@@ -180,17 +180,11 @@ game::GameThread::Execute([&] {
 
 `Execute()` releases the script's `GameReadLock` so the game thread can acquire `GameWriteLock` to drain the task queue.
 
-`Post()` queues owned work without waiting for a drain. The 1.14d backend's `Unit::Overhead` keeps its
-own mutex-protected pending texts: one text and one queued task per (unit type, id), with repeated calls
-replacing the pending text. At most 1024 distinct units can await a drain; calls for another unit are
-dropped at the limit, while updates to pending units still replace their text. The task
-removes that entry, resolves a fresh identity handle, then calls the game's `TEXT_SetUnitHoverText`
-(Game.exe 1.14d 0x0049F410) under the game thread's write lock. The game owns allocation, timeout,
-language tagging and replacement of the old message. The language is the current `GAME_GetLanguageCode()`,
-as for locally generated native text; `CTEXT_OnChatMessage` supplies its sender's language byte.
-A call after the task takes its text queues the next update. Empty strings remain a no-op, and JS argument handling and the
-boolean return are unchanged. All coalescing and queue limits live in the backend; posting uses the
-existing `GameThread::Post()` API.
+The 1.14d backend's `overhead()` hands the game a server overhead message (0x26, type 5) through
+`ReceiveGamePacket` and its own locked incoming packet queue. A game read lock excludes local
+game-thread producers; the game's critical section serializes injection with the TCP producer and
+packet drains. The next packet drain handles the text through the game's overhead-message path,
+which frees and replaces the previous message. Empty text remains a no-op.
 
 ## Per-frame events (`render`)
 

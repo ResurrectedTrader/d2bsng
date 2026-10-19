@@ -13,7 +13,6 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-braces"
 #include <D2BitManip.h>            // D2BitBufferStrc
-#include <D2Chat.h>                // D2HoverTextStrc
 #include <D2Constants.h>           // D2C_Difficulties, D2C_TransactionTypes
 #include <D2Inventory.h>           // D2InventoryStrc
 #include <D2Skills.h>              // D2SkillStrc
@@ -118,9 +117,6 @@ inline StdcallFunc<D2UnitStrc*(D2UnitStrc* /*pItem*/)> INVENTORY_GetNextItem{0x2
 // inventory implicitly (MOO's signature takes a D2InventoryStrc*); reference's
 // __fastcall void shape is preserved here.
 inline FastcallFunc<D2UnitStrc*()> INVENTORY_GetCursorItem{0x680A0};
-
-inline StdcallFunc<D2HoverTextStrc*(void* /*pMemPool*/, const char* /*szText*/, uint32_t /*nTimeout*/)>
-    CHAT_AllocHoverMsg{0x261110};
 
 // Mark/unmark client-visibility tracking for a room. d2bs's walkability-sweep
 // calls these to force the game to populate a room's collision data without
