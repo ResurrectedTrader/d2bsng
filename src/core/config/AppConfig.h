@@ -120,6 +120,14 @@ struct AppConfig {
     // hash) rather than relying on the stored form.
     std::string GetProfileName() const;
     void SetProfileName(std::string name);
+    // Explicit switches restart scripts; login() only stores the active name with SetProfileName.
+    void SwitchProfileName(std::string name);
+    // The name and the number of switches so far, read together.
+    struct ProfileState {
+        std::string name;
+        uint32_t switchCount = 0;
+    };
+    ProfileState GetProfileState() const;
 
     // Resolved runtime script paths. basePath is absolute (install dir joined
     // with the INI's [settings]/ScriptPath) and the three script names default
@@ -140,6 +148,7 @@ struct AppConfig {
 
    private:
     std::string profileName_;
+    uint32_t profileSwitchCount_ = 0;
     d2bs::config::ScriptPaths scriptPaths_;
     d2bs::config::ScriptPaths defaultScriptPaths_;
 

@@ -127,6 +127,7 @@
     <ClInclude Include="game\LaunchOptions.h" />
     <ClInclude Include="game\PlugY.h" />
     <ClInclude Include="game\RoomData.h" />
+    <ClInclude Include="game\UnitTables.h" />
     <ClInclude Include="imports\D2MOOConfig.h" />
     <ClInclude Include="imports\ImportTypes.h" />
     <ClInclude Include="imports\D2Client.h" />

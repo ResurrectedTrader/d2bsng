@@ -36,6 +36,7 @@ struct Snapshot {
     game::LevelId areaId = game::LevelId::None;
     bool waitForProfile = false;
     std::string profileName;
+    uint32_t profileSwitchCount = 0;
 
     // Game-session latch. Set when we observe `InGame`; cleared when we
     // observe `Menu`. Transient `Null`/`Busy` mid-game (waypoint UI, area

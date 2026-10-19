@@ -897,8 +897,9 @@ void Script::ExecuteEvents(std::chrono::milliseconds duration) {
         // GetHeapStatistics iterates all heap spaces (not cheap), so throttle.
         UpdateHeapStats(now);
 
-        if (now >= deadline || state_.load() != ScriptState::Running || stopToken.stop_requested() ||
-            (mode_ == ScriptMode::InGame && game::GetGameState() != game::GameState::InGame)) {
+        // Reference JSCore.cpp my_delay waits through loading; game state only gates event dispatch there.
+        // Stop() still interrupts the wait within one idle slice.
+        if (now >= deadline || state_.load() != ScriptState::Running || stopToken.stop_requested()) {
             break;
         }
 
