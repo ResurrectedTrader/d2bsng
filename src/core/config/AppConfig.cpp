@@ -34,6 +34,20 @@ void AppConfig::SetProfileName(std::string name) {
     }
 }
 
+void AppConfig::SwitchProfileName(std::string name) {
+    std::unique_lock lock(stateMutex_);
+    profileName_ = std::move(name);
+    ++profileSwitchCount_;
+    if (!profileName_.empty()) {
+        waitForProfile.store(false, std::memory_order_release);
+    }
+}
+
+AppConfig::ProfileState AppConfig::GetProfileState() const {
+    std::shared_lock lock(stateMutex_);
+    return {.name = profileName_, .switchCount = profileSwitchCount_};
+}
+
 d2bs::config::ScriptPaths AppConfig::GetScriptPaths() const {
     std::shared_lock lock(stateMutex_);
     return scriptPaths_;

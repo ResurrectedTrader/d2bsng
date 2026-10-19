@@ -362,6 +362,9 @@ void GameLoop::DriveScriptLifecycle(const Snapshot& prev, const Snapshot& cur) {
     // Profile names preserve user-supplied case at storage; compare case-insensitively
     // so Switch("foo") followed by Switch("FOO") does not trigger a relaunch.
     const bool profileChanged = !utils::EqualsCaseInsensitive(prev.profileName, cur.profileName);
+    // login() stores its profile name while the calling script is still waiting for Login.
+    // Joining that script here would prevent its pending game-thread call from finishing.
+    const bool profileSwitched = profileChanged && prev.profileSwitchCount != cur.profileSwitchCount;
     const bool sessionEntered = !prev.inSession && cur.inSession;
     const bool sessionExited = prev.inSession && !cur.inSession;
 
@@ -372,7 +375,7 @@ void GameLoop::DriveScriptLifecycle(const Snapshot& prev, const Snapshot& cur) {
         ReloadPathsForProfile(cur.profileName);
     }
 
-    if (!stateChanged && !latchCleared && !profileChanged) {
+    if (!stateChanged && !latchCleared && !profileSwitched) {
         return;
     }
 
@@ -407,7 +410,7 @@ void GameLoop::DriveScriptLifecycle(const Snapshot& prev, const Snapshot& cur) {
     if (sessionExited) {
         stopMode(script::ScriptMode::InGame);
     }
-    if (sessionEntered || (profileChanged && cur.state == game::GameState::InGame)) {
+    if (sessionEntered || (profileSwitched && cur.state == game::GameState::InGame)) {
         stopMode(script::ScriptMode::InGame);
         startStarter(paths.gameScript, script::ScriptMode::InGame);
     }
@@ -422,7 +425,7 @@ void GameLoop::DriveScriptLifecycle(const Snapshot& prev, const Snapshot& cur) {
         // firstMenuEntry: non-InGame predecessor - captures Null->Menu and
         // any future Busy->Menu transitions.
         const bool firstMenuEntry = prev.state != game::GameState::InGame;
-        const bool userRequested = latchCleared || profileChanged;
+        const bool userRequested = latchCleared || profileSwitched;
         const bool autoStartAllowed = firstMenuEntry && core::config::GetAppConfig().startAtMenu.load();
         if (userRequested || autoStartAllowed) {
             stopMode(script::ScriptMode::OutOfGame);
@@ -436,7 +439,9 @@ void GameLoop::TakeSnapshot(Snapshot& out) {
 
     auto& cfg = core::config::GetAppConfig();
     out.waitForProfile = cfg.waitForProfile.load(std::memory_order_acquire);
-    out.profileName = cfg.GetProfileName();
+    auto profile = cfg.GetProfileState();
+    out.profileName = std::move(profile.name);
+    out.profileSwitchCount = profile.switchCount;
 
     auto player = game::Unit::Player();
     if (!player) {
