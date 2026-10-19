@@ -1472,12 +1472,18 @@ void Unit::Overhead(const std::string& text) const {
     // Never retain a resolved pointer across the post: the unit may retire before Drain.
     static std::mutex pendingMutex;
     static std::map<std::pair<UnitType, uint32_t>, std::string> pendingTexts;
+    constexpr size_t MAX_PENDING_UNITS = 1024;
     const auto key = std::pair{Type(), Id()};
     const std::lock_guard lock(pendingMutex);
-    const auto [entry, isInserted] = pendingTexts.insert_or_assign(key, utils::ToStr(utils::ToWStr(text), CP_ACP));
-    if (!isInserted) {
+    if (const auto pending = pendingTexts.find(key); pending != pendingTexts.end()) {
+        pending->second = utils::ToStr(utils::ToWStr(text), CP_ACP);
         return;
     }
+    // Bound new identities too when scripts submit faster than the game thread drains.
+    if (pendingTexts.size() >= MAX_PENDING_UNITS) {
+        return;
+    }
+    const auto entry = pendingTexts.emplace(key, utils::ToStr(utils::ToWStr(text), CP_ACP)).first;
     Unit unit;
     unit.type_ = key.first;
     unit.unitId_ = key.second;
@@ -1493,14 +1499,7 @@ void Unit::Overhead(const std::string& text) const {
             if (!u) {
                 return;
             }
-            auto* msg = lod114d::imports::d2common::CHAT_AllocHoverMsg(nullptr, ansi.c_str(),
-                                                                       *lod114d::imports::d2client::gnOverheadTrigger);
-            if (msg == nullptr) {
-                return;
-            }
-            // Match native TEXT_SetUnitHoverText (Game.exe 0x0049F410): release the replaced message.
-            lod114d::imports::d2common::CHAT_FreeHoverMsg(nullptr, u->pHoverText);
-            u->pHoverText = msg;
+            lod114d::asm_thunks::SetUnitHoverText(u, ansi.c_str(), lod114d::imports::d2client::GAME_GetLanguageCode());
         });
     } catch (...) {
         pendingTexts.erase(entry);

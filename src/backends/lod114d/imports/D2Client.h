@@ -269,6 +269,8 @@ inline GameAsmFunc Say_I{0x7CBDA};
 inline GameAsmFunc SetSelectedUnit_I{0x66DE0};   // __usercall(arg@<eax>)
 inline GameAsmFunc LeftClickItem_I{0x8FFE0};     // __userpurge(a1@<eax>, ...)
 inline GameAsmFunc InitAutomapLayer_I{0x58D40};  // __usercall(a1@<edi>)
+// Game.exe 1.14d 0x0049F410: __userpurge(text in edx, unit in edi, language on stack), retn 4.
+inline GameAsmFunc TEXT_SetUnitHoverText{0x9F410};
 
 // ---- Inline-patch intercept tail-call targets ------------------------------
 // Hook subsystem (`src/backends/lod114d/hooks/Intercepts.cpp`) overwrites a CALL/JMP at a

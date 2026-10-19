@@ -63,6 +63,7 @@ uintptr_t sayAddr = 0;
 uintptr_t setSelectedUnit = 0;
 uintptr_t leftClickItem = 0;
 uintptr_t initAutomapLayer = 0;
+uintptr_t setUnitHoverText = 0;
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace
@@ -76,7 +77,7 @@ bool Init() {
         const imports::GameAsmFunc& fn;
         uintptr_t* slot;
     };
-    const std::array<Entry, 9> entries = {{
+    const std::array<Entry, 10> entries = {{
         {.name = "D2CLIENT TakeWaypoint_I", .fn = imports::d2client::TakeWaypoint_I, .slot = &takeWaypoint},
         {.name = "D2CLIENT ClickBelt_I", .fn = imports::d2client::ClickBelt_I, .slot = &clickBelt},
         {.name = "D2CLIENT ClickBeltRight_I", .fn = imports::d2client::ClickBeltRight_I, .slot = &clickBeltRight},
@@ -86,6 +87,9 @@ bool Init() {
         {.name = "D2CLIENT SetSelectedUnit_I", .fn = imports::d2client::SetSelectedUnit_I, .slot = &setSelectedUnit},
         {.name = "D2CLIENT LeftClickItem_I", .fn = imports::d2client::LeftClickItem_I, .slot = &leftClickItem},
         {.name = "D2CLIENT InitAutomapLayer_I", .fn = imports::d2client::InitAutomapLayer_I, .slot = &initAutomapLayer},
+        {.name = "D2CLIENT TEXT_SetUnitHoverText",
+         .fn = imports::d2client::TEXT_SetUnitHoverText,
+         .slot = &setUnitHoverText},
     }};
 
     for (const auto& e : entries) {
@@ -232,6 +236,17 @@ __declspec(naked) D2AutomapLayerStrc* __fastcall InitAutomapLayer(uint32_t /*nLa
         call dword ptr [initAutomapLayer]
         pop edi
         ret
+    }
+}
+
+__declspec(naked) void __fastcall SetUnitHoverText(D2UnitStrc* /*unit*/, const char* /*text*/, uint32_t /*language*/) {
+    __asm {
+        push edi
+        mov edi, ecx
+        push dword ptr [esp + 8]  // language (past saved EDI and return address)
+        call dword ptr [setUnitHoverText]
+        pop edi
+        ret 4
     }
 }
 

@@ -121,8 +121,6 @@ inline FastcallFunc<D2UnitStrc*()> INVENTORY_GetCursorItem{0x680A0};
 
 inline StdcallFunc<D2HoverTextStrc*(void* /*pMemPool*/, const char* /*szText*/, uint32_t /*nTimeout*/)>
     CHAT_AllocHoverMsg{0x261110};
-// D2Common 1.10f #10893 (0x6FDC3C80); Game.exe 1.14d 0x006611A0.
-inline StdcallFunc<void(void* /*pMemPool*/, D2HoverTextStrc* /*pHoverMsg*/)> CHAT_FreeHoverMsg{0x2611A0};
 
 // Mark/unmark client-visibility tracking for a room. d2bs's walkability-sweep
 // calls these to force the game to populate a room's collision data without
