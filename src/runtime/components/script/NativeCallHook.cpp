@@ -5,6 +5,7 @@
 
 #include "components/script/Script.h"
 #include "components/script/ScriptEngine.h"
+#include "game/GameThread.h"
 
 namespace d2bs::runtime::script {
 
@@ -123,7 +124,11 @@ void MethodTrampoline(const v8::FunctionCallbackInfo<v8::Value>& args) {
         return;
     }
     const utils::profiling::ScopedNativeCall timing(utils::profiling::NativeCall::Function, binding->stats);
-    binding->callback(args);
+    try {
+        binding->callback(args);
+    } catch (const game::GameThread::Cancelled&) {
+        args.GetIsolate()->TerminateExecution();
+    }
 }
 
 void PropertyGetterTrampoline(v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
@@ -134,7 +139,11 @@ void PropertyGetterTrampoline(v8::Local<v8::Name> property, const v8::PropertyCa
         return;
     }
     const utils::profiling::ScopedNativeCall timing(utils::profiling::NativeCall::Getter, accessors->getStats);
-    accessors->getter(property, info);
+    try {
+        accessors->getter(property, info);
+    } catch (const game::GameThread::Cancelled&) {
+        info.GetIsolate()->TerminateExecution();
+    }
 }
 
 void PropertySetterTrampoline(v8::Local<v8::Name> property, v8::Local<v8::Value> value,
@@ -146,7 +155,11 @@ void PropertySetterTrampoline(v8::Local<v8::Name> property, v8::Local<v8::Value>
         return;
     }
     const utils::profiling::ScopedNativeCall timing(utils::profiling::NativeCall::Setter, accessors->setStats);
-    accessors->setter(property, value, info);
+    try {
+        accessors->setter(property, value, info);
+    } catch (const game::GameThread::Cancelled&) {
+        info.GetIsolate()->TerminateExecution();
+    }
 }
 
 }  // namespace d2bs::runtime::script
