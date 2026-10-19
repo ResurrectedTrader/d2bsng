@@ -23,8 +23,8 @@ inline const lod114d::imports::extras::D2UnitHashTable* TableForType(UnitType ty
     return &tables->tables[typeIdx];
 }
 
-// Callers hold the game lock. Matches 1.14d 0x00463940's bucket walk;
-// reject a mismatched type instead of the game's fatal assertion.
+// Callers hold the game lock. 1.14d CUNIT_FindUnitInBucket (0x00463940) stops at the first ID match
+// and halts on a type mismatch: each table holds one type. We skip mismatches instead.
 inline D2UnitStrc* FindUnitInHashTable(uint32_t id, UnitType type) {
     const auto* table = TableForType(type);
     if (table == nullptr) {
@@ -32,8 +32,8 @@ inline D2UnitStrc* FindUnitInHashTable(uint32_t id, UnitType type) {
     }
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index) - id mask bounds the bucket index
     for (auto* unit = table->buckets[id & 0x7FU]; unit != nullptr; unit = unit->pListNext) {
-        if (unit->dwUnitId == id) {
-            return unit->dwUnitType == static_cast<uint32_t>(type) ? unit : nullptr;
+        if (unit->dwUnitId == id && unit->dwUnitType == static_cast<uint32_t>(type)) {
+            return unit;
         }
     }
     return nullptr;
