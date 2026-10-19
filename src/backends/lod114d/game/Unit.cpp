@@ -23,7 +23,7 @@
 #include <D2Inventory.h>           // D2InventoryStrc, D2ItemExtraDataStrc
 #include <D2Items.h>               // D2C_ItemModes (IMODE_ONGROUND, IMODE_DROPPING)
 #include <D2Monsters.h>            // D2C_MonTypeFlags
-#include <D2PacketDef.h>           // D2GSPacketClt3C
+#include <D2PacketDef.h>           // D2GSPacketClt3C, D2GSPacketSrv26
 #include <D2Skills.h>              // D2SkillStrc, D2SkillListStrc
 #include <D2StatList.h>            // D2StatStrc, D2StatListExStrc, D2C_ItemStats
 #include <D2States.h>              // D2C_States
@@ -43,9 +43,12 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -1505,16 +1508,25 @@ void Unit::Overhead(const std::string& text) const {
         return;
     }
     const auto ansi = utils::ToStr(utils::ToWStr(text), CP_ACP);
+    const auto message = std::string_view{ansi.c_str()}.substr(0, 255);
+    if (message.empty()) {
+        return;
+    }
     const auto u = Resolve<D2UnitStrc>();
     if (!u) {
         return;
     }
-    auto* msg = lod114d::imports::d2common::CHAT_AllocHoverMsg(nullptr, ansi.c_str(),
-                                                               *lod114d::imports::d2client::gnOverheadTrigger);
-    if (msg == nullptr) {
-        return;
-    }
-    u->pHoverText = msg;
+    D2GSPacketSrv26 packet{};
+    packet.nHeader = 0x26;
+    packet.nMessageType = 5;
+    packet.nLang = lod114d::imports::d2client::GAME_GetLanguageCode();
+    packet.nUnitType = static_cast<uint8_t>(u->dwUnitType);
+    packet.dwUnitGUID = u->dwUnitId;
+    // The wire format packs both strings: empty name at byte 10, message at byte 11.
+    constexpr size_t MESSAGE_OFFSET = offsetof(D2GSPacketSrv26, szName) + 1;
+    auto buffer = std::span{reinterpret_cast<uint8_t*>(&packet), sizeof(packet)};
+    std::memcpy(buffer.subspan(MESSAGE_OFFSET).data(), message.data(), message.size());
+    ReceiveGamePacket(buffer.first(MESSAGE_OFFSET + message.size() + 1));
 }
 
 void Unit::Revive() const {

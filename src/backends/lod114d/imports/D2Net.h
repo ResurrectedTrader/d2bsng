@@ -4,6 +4,8 @@
 #include "D2MOOConfig.h"
 #include "ImportTypes.h"
 
+#include <Windows.h>
+
 #include <cstdint>
 
 // All offsets below are Game.exe-relative for 1.14d. Calling conventions
@@ -11,6 +13,9 @@
 
 // NOLINTBEGIN(readability-identifier-naming) - MOO-style names use DOMAIN_PascalCase with embedded underscores
 namespace d2bs::lod114d::imports::d2net {
+
+// Game.exe 1.14d 0x00882CE8: shared by the TCP producer and both incoming queue drains.
+inline GameVar<CRITICAL_SECTION> gIncomingPacketCriticalSection{0x482CE8};
 
 // ---- Functions -------------------------------------------------------------
 // Pointer args declared `const` even though the underlying game functions

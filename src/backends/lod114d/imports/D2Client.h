@@ -192,8 +192,6 @@ inline GameVar<uint32_t> gnPing{0x3A04A4};
 inline GameVar<uint32_t> gnFPS{0x3BB390};
 inline GameVar<game::Language> gnLang{0x3BB5DC};
 
-inline GameVar<uint32_t> gnOverheadTrigger{0x3BF20E};
-
 inline GameVar<uint32_t> gnRecentInteractId{0x3C0D25};
 // Pointer to the player's quest-flag bit buffer. Passed as `pQuestFlags` to
 // ITEMS_GetTransactionCost / ITEMS_GetAllRepairCosts (vendor pricing varies

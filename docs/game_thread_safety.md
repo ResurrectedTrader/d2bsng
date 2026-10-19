@@ -196,6 +196,13 @@ changes, but restarts the starter scripts only for an explicit switch to a diffe
 case-insensitively), a cleared startup latch, or the normal game-session transition. A name update
 inside `Login` must not cause the game thread to join the script waiting for that same thread.
 
+The 1.14d backend's `overhead()` hands the game a server overhead message (0x26, type 5) through
+`ReceiveGamePacket` and its own locked incoming packet queue. A game read lock excludes local
+game-thread producers; the game's critical section serializes injection with the TCP producer and
+packet drains. `utils::CriticalSectionLock` holds that critical section for the enqueue call and releases
+it when the scope exits, before the game read lock. The next packet drain handles the text through the
+game's overhead-message path, which frees and replaces the previous message. Empty text remains a no-op.
+
 ## Per-frame events (`render`)
 
 The `render` event is a signal, not a queued event. `GameLoop::OnDraw` (the backend's `onDraw` callback, once
