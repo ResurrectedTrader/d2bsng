@@ -33,6 +33,7 @@
 #include "config/CompatibilityFlags.h"
 #include "game/GameHelpers.h"
 #include "game/GameLock.h"
+#include "game/GameThread.h"
 #include "speedhack/Speedhack.h"
 #include "utils/DeferGuard.h"
 #include "utils/Profiling.h"
@@ -148,13 +149,8 @@ void Script::Resume() {
 
 void Script::Join() {
     if (thread_.joinable()) {
-        // Release game locks while blocked: the target thread may need to
-        // acquire GameReadLock (script-side) or GameWriteLock-protected drain
-        // work (game-side) to make progress and exit. Without the releasers,
-        // the join can close an AB-BA cycle - e.g. game thread joining a script
-        // that's blocked on GameReadLock, or a script holding GameReadLock
-        // joining a thread that needs GameThread::Execute to drain.
-        // Each releaser is a no-op when its lock isn't held on this thread.
+        // Stop() cancels pending game-thread calls. Release both locks so the
+        // script can restore its read-lock depth and unwind before we join it.
         game::GameWriteLockReleaser writeReleaser;
         game::GameReadLockReleaser readReleaser;
         thread_.join();
@@ -227,6 +223,7 @@ void Script::AttachInspector() {
 }
 
 void Script::ThreadMain(const std::stop_token& stopToken) {
+    const game::GameThread::CancellationScope cancellation(stopToken);
     // Keep ourselves alive for the entire duration of ThreadMain.
     // RemoveSelfFromEngine() drops the engine map's shared_ptr, which may be the
     // last external reference.  Without this, `this` is destroyed mid-function.

@@ -151,6 +151,7 @@
     <ClCompile Include="profile\ProfileTest.cpp" />
     <!-- Game lock tests -->
     <ClCompile Include="game\GameLockTest.cpp" />
+    <ClCompile Include="script\GameThreadTest.cpp" />
     <!-- Binding lock guard tests -->
     <ClCompile Include="api\LockedHandleTest.cpp" />
     <!-- GameLoop tests -->

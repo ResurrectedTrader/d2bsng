@@ -26,6 +26,7 @@
 #include "game/Constants.h"
 #include "game/Control.h"
 #include "game/GameLock.h"
+#include "game/GameThread.h"
 // ReSharper disable once CppUnusedIncludeDirective - inline Find*/Get* defs (declared in the handle headers)
 #include "game/Finders.h"
 #include "game/GameHelpers.h"
@@ -1187,9 +1188,13 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                         // the click unless it has a line with the same text.
                         auto* iso = handlerArgs.GetIsolate();
                         const std::string text = convert::ToString(iso, handlerArgs.DataV2().As<v8::Value>());
-                        if (!game::SelectDialogLineByText(text)) {
-                            // Reference parallel: my_clickDialog at JSGame.cpp:223.
-                            error::ThrowError(iso, "That dialog is not currently clickable.");
+                        try {
+                            if (!game::SelectDialogLineByText(text)) {
+                                // Reference parallel: my_clickDialog at JSGame.cpp:223.
+                                error::ThrowError(iso, "That dialog is not currently clickable.");
+                            }
+                        } catch (const game::GameThread::Cancelled&) {
+                            iso->TerminateExecution();
                         }
                     },
                     convert::ToJS(isolate, lines[i].text));

@@ -180,6 +180,24 @@ game::GameThread::Execute([&] {
 
 `Execute()` releases the script's `GameReadLock` so the game thread can acquire `GameWriteLock` to drain the task queue.
 
+`Script::ThreadMain` installs a `GameThread::CancellationScope` with its stop token. `Stop()` cancels a
+pending synchronous call without needing a queue drain. Dispatch and cancellation claim the call under
+its own mutex: cancellation wakes the waiter with `GameThread::Cancelled`, and a later drain skips the
+callable without touching its expired references. Once dispatch claims the call, cancellation cannot
+wake the waiter early; it waits for the running callable to finish. Callable exceptions are delivered to
+the waiting thread through the future.
+
+Method, getter and setter trampolines, and the dialog-line handler callback, catch cancellation before
+it crosses V8 and terminate the stopped isolate's execution. The interrupted binding keeps its existing
+failure return value; no subsequent native statements or JS run. `Post()` remains independent of script
+cancellation and must own everything its deferred callable needs.
+
+Every lifecycle path must call `Stop()` before joining a live script. Profile replacement
+(`StartScript`), console restart/reload, destruction and shutdown do so; game exit stops the in-game
+scripts. `Script::Join()` releases both game locks while waiting so a cancelled caller can restore its
+recursive read lock and unwind. Releasing locks alone cannot make a queued call finish while the game
+thread is blocked joining its caller.
+
 ## Per-frame events (`render`)
 
 The `render` event is a signal, not a queued event. `GameLoop::OnDraw` (the backend's `onDraw` callback, once

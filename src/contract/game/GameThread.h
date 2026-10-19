@@ -7,10 +7,13 @@
 #include <format>
 #include <functional>
 #include <future>
+#include <memory>
 #include <mutex>
 #include <queue>
 #include <source_location>
+#include <stop_token>
 #include <type_traits>
+#include <utility>
 
 #include "game/GameLock.h"
 #include "utils/Profiling.h"
@@ -51,11 +54,55 @@ class GameThread {
     inline static std::queue<QueuedTask> queue_;
     // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables, cert-err58-cpp)
 
+    // The callable stays on the waiting thread's stack. Cancelled tasks must
+    // never dereference it, even if Drain already took its batch from queue_.
+    template <typename T>
+    struct CallState {
+        std::mutex mutex;
+        bool pending = true;
+        std::promise<T> promise;
+
+        bool Start() {
+            const std::lock_guard lock(mutex);
+            return std::exchange(pending, false);
+        }
+
+        void Cancel() {
+            const std::lock_guard lock(mutex);
+            if (std::exchange(pending, false)) {
+                promise.set_exception(std::make_exception_ptr(Cancelled{}));
+            }
+        }
+    };
+
+    // Keep non-trivial TLS destruction out of header COMDATs (LLVM LTO).
+    inline static thread_local const std::stop_token* stopToken_ = nullptr;
+
    public:
+    struct Cancelled {};
+
+    // Install the owning script's token for synchronous calls on this thread.
+    class CancellationScope {
+        std::stop_token token_;
+        const std::stop_token* previous_;
+
+       public:
+        explicit CancellationScope(std::stop_token token)
+            : token_(std::move(token)), previous_(std::exchange(stopToken_, &token_)) {}
+        ~CancellationScope() { stopToken_ = previous_; }
+        CancellationScope(const CancellationScope&) = delete;
+        CancellationScope& operator=(const CancellationScope&) = delete;
+    };
+
     // Post func to the game thread, block until it returns the result. Releases GameReadLock while waiting.
     template <typename F>
     static auto Execute(F func, std::source_location loc = std::source_location::current()) -> decltype(func()) {
         using T = decltype(func());
+        const auto stopToken = stopToken_ ? *stopToken_ : std::stop_token{};
+
+        if (stopToken.stop_requested()) {
+            throw Cancelled{};
+        }
 
         if (GameWriteLock::IsHeldByCurrentThread()) {
             if constexpr (std::is_void_v<T>) {
@@ -66,21 +113,29 @@ class GameThread {
             }
         }
 
-        std::promise<T> promise;
-        auto future = promise.get_future();
+        auto state = std::make_shared<CallState<T>>();
+        auto future = state->promise.get_future();
+        const std::stop_callback cancellation(stopToken, [state] { state->Cancel(); });
         {
-            std::lock_guard lock(queueMutex_);
-            if constexpr (std::is_void_v<T>) {
-                // set_value only throws on a second call, which cannot happen here.
-                // NOLINTNEXTLINE(bugprone-exception-escape)
-                queue_.push({[f = std::move(func), &promise] {
-                                 f();
-                                 promise.set_value();
-                             },
-                             loc});
-            } else {
-                queue_.push({[f = std::move(func), &promise] { promise.set_value(f()); }, loc});
-            }
+            const std::lock_guard lock(queueMutex_);
+            queue_.push({[state, &func] {
+                             if (!state->Start()) {
+                                 return;
+                             }
+                             // Once dispatch starts, the caller must wait until all
+                             // access to its referenced data ends, even if stopped meanwhile.
+                             try {
+                                 if constexpr (std::is_void_v<T>) {
+                                     func();
+                                     state->promise.set_value();
+                                 } else {
+                                     state->promise.set_value(func());
+                                 }
+                             } catch (...) {
+                                 state->promise.set_exception(std::current_exception());
+                             }
+                         },
+                         loc});
         }
 
         // A wait, not work: descheduled until the game thread's next drain, which can be most of a

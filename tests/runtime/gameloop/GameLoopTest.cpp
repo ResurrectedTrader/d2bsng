@@ -32,6 +32,8 @@ namespace {
 // previous snapshot / first-tick sentinel; GameLoopCollaborators::Reset zeroes
 // the captured event vectors and the inputs TakeSnapshot reads.
 struct GameLoopFixture {
+    ~GameLoopFixture() { GameLoop::Instance().ResetForTesting(); }
+
     GameLoopFixture() {
         GameLoop::Instance().ResetForTesting();
         d2bs::test::Reset();
