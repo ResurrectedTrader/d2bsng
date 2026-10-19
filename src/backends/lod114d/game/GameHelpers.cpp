@@ -54,6 +54,7 @@
 #include "imports/extras/TransactionDialogs.h"
 #include "imports/extras/WindowHandlers.h"
 #include "input/InputHook.h"
+#include "utils/CriticalSection.h"
 #include "utils/Profiling.h"
 #include "utils/utils.h"
 
@@ -510,9 +511,8 @@ void ReceiveGamePacket(std::span<const uint8_t> data) {
     }
     // Local game-thread producers rely on frame serialization; the TCP producer uses this critical section.
     const GameReadLock guard;
-    EnterCriticalSection(d2net::gIncomingPacketCriticalSection.Ptr());
+    const utils::CriticalSectionLock packetLock(*d2net::gIncomingPacketCriticalSection.Ptr());
     d2net::CLIENT_DequeueGamePacket(data.data(), data.size());
-    LeaveCriticalSection(d2net::gIncomingPacketCriticalSection.Ptr());
 }
 
 // === Chat ===
