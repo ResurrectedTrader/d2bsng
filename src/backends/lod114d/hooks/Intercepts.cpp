@@ -332,24 +332,26 @@ extern "C" uint32_t __fastcall OnGamePacketReceived(uint8_t* packet, uint32_t si
                 std::memcpy(&gid, packet + 4, sizeof(uint32_t));
                 const uint8_t dest = (packet[13] & 0x1C) >> 2;
                 int64_t icode = 0;
+                const auto readCode = [&](size_t offset, int shift) {
+                    if (size >= offset + sizeof(icode)) {
+                        std::memcpy(&icode, packet + offset, sizeof(icode));
+                        icode >>= shift;
+                    }
+                };
                 switch (dest) {
                     case 0:
                     case 2:
-                        std::memcpy(&icode, packet + 15, sizeof(int64_t));
-                        icode >>= 0x04;
+                        readCode(15, 0x04);
                         break;
                     case 3:
                     case 4:
                     case 6:
                         if ((mode == 0 || mode == 2) && dest == 3) {
-                            std::memcpy(&icode, packet + 17, sizeof(int64_t));
-                            icode >>= 0x05;
+                            readCode(17, 0x05);
                         } else if (mode != 0xF && mode != 1 && mode != 12) {
-                            std::memcpy(&icode, packet + 17, sizeof(int64_t));
-                            icode >>= 0x1C;
+                            readCode(17, 0x1C);
                         } else {
-                            std::memcpy(&icode, packet + 15, sizeof(int64_t));
-                            icode >>= 0x04;
+                            readCode(15, 0x04);
                         }
                         break;
                     default:
@@ -408,21 +410,30 @@ extern "C" void OnGameDraw() {
 }
 
 // P14: ChatPacketRecv (BNet). pPacket in ecx (after `sub ecx,4` in the
-// thunk -> original buffer base), arg in edx (after `add edx,4` -> length-ish
-// per reference). Returns non-zero to pass through.
-extern "C" uint32_t __fastcall OnChatPacketRecv(const uint8_t* packet, uint32_t /*len*/) {
+// thunk -> original buffer base), total packet length in edx. In 1.14d, the loop at 0x0051C760 reads the header's
+// uint16 length, passes length - 4 and buffer + 4 at 0x0051C7A8 / 0x0051C7AC, and the dispatcher at 0x00521B20
+// forwards that payload length. The thunk adds the header back. Returns non-zero to pass through.
+extern "C" uint32_t __fastcall OnChatPacketRecv(const uint8_t* packet, uint32_t len) {
     const auto* cb = GetActiveCallbacks();
-    if (cb == nullptr || packet == nullptr) {
+    if (cb == nullptr || packet == nullptr || len < 2) {
         return 1;
     }
     if (packet[1] != 0x0F) {
         return 1;  // not a chat-format SID - pass through
     }
+    if (len <= 28) {
+        return 1;
+    }
     const uint8_t mode = packet[4];
     const auto* who = reinterpret_cast<const char*>(packet) + 28;
-    const size_t whoLen = strnlen(who, 64);
+    const size_t whoMax = std::min<size_t>(64, len - 28);
+    const size_t whoLen = strnlen(who, whoMax);
+    if (whoLen == whoMax || 28U + whoLen + 1U >= len) {
+        return 1;
+    }
     const auto* said = who + whoLen + 1;
-    const size_t saidLen = strnlen(said, 256);
+    const size_t saidMax = std::min<size_t>(256, len - (28U + whoLen + 1U));
+    const size_t saidLen = strnlen(said, saidMax);
     switch (mode) {
         case 0x02:
             if (cb->onChatMessage != nullptr) {
