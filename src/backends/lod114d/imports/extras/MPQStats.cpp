@@ -2442,8 +2442,11 @@ constexpr std::array<ColumnSchema, 1> COLS_BELTS = {{
 }};
 
 constexpr std::array<TableSchema, 29> TABLES = {{
+    // D2Common's gpItemsTxt / gnItemsTxtRecordCount (DATATBLS_LoadItemsTxt 0x006315D0). The copy at 0x008426F0 that
+    // reference d2bs reads is only built when the launcher draws a character (D2COMP_AllocTxt_Items 0x00504570), so a
+    // process that went straight into a game had no items table there for its whole first game.
     {.name = "items",
-     .info = {.tableOffset = 0x4426f0U, .countOffset = 0x4426ecU, .isAbsolute = true, .recordSize = 0x1a8U},
+     .info = {.tableOffset = 0x56ca5cU, .countOffset = 0x56ca58U, .isAbsolute = true, .recordSize = 0x1a8U},
      .columns = COLS_ITEMS},
     {.name = "monstats",
      .info = {.tableOffset = 0xa78U, .countOffset = 0xa80U, .isAbsolute = false, .recordSize = 0x1a8U},
