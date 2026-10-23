@@ -23,7 +23,8 @@ inline FastcallFunc<void()> D2WIN_TakeScreenshot{0xFA7A0};
 inline FastcallFunc<void(const wchar_t* /*wStr*/, int32_t /*nX*/, int32_t /*nY*/, uint32_t /*dwColor*/,
                          uint32_t /*bCentered*/)>
     D2WIN_DrawText{0x102320};
-inline FastcallFunc<uint32_t(const wchar_t* /*wStr*/, uint32_t* /*pWidth*/, uint32_t* /*pFileNo*/)> D2WIN_GetTextSize{
+// D2Win #10131: writes the width and the height (1.14d 0x00502520).
+inline FastcallFunc<void(const wchar_t* /*wStr*/, uint32_t* /*pWidth*/, uint32_t* /*pHeight*/)> D2WIN_GetTextSize{
     0x102520};
 inline FastcallFunc<uint32_t(uint32_t /*dwSize*/)> D2WIN_SetTextSize{0x102EF0};
 // MOO: ARCHIVE_LoadMPQFile(szModuleName, szFileName, szLabel, a4, HANDLE hFile,

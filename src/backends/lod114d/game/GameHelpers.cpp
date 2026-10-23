@@ -454,8 +454,8 @@ Size GetTextSize(const std::string& text, uint32_t font) {
     auto wide = utils::ToWStr(text, CP_UTF8);
     const auto oldSize = d2win::D2WIN_SetTextSize(font);
     uint32_t width = 0;
-    uint32_t fileNo = 0;
-    const auto height = d2win::D2WIN_GetTextSize(wide.c_str(), &width, &fileNo);
+    uint32_t height = 0;
+    d2win::D2WIN_GetTextSize(wide.c_str(), &width, &height);
     d2win::D2WIN_SetTextSize(oldSize);
     return {.width = width, .height = height};
 }
