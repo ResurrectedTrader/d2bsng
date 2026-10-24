@@ -27,8 +27,8 @@ concept GameHandle = std::same_as<T, game::Unit> || std::same_as<T, game::Room> 
                      std::same_as<T, game::Party> || std::same_as<T, game::Control> || std::same_as<T, game::StashTab>;
 
 // A wrapper's game handle together with a GameReadLock held for this object's lifetime,
-// so `if (!*data)` and every `data->...` after it run against one game state: the game
-// thread cannot advance a frame or free the object in between.
+// so `if (!data || !*data)` and every `data->...` after it run against one game state: the
+// game thread cannot advance a frame or free the object in between.
 //
 // The lock is shared and re-entrant, so the handle's own accessors (which lock through
 // Resolved<T>) nest inside it for free. While one is alive the game thread cannot take

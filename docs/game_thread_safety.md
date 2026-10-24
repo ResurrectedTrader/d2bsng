@@ -102,14 +102,14 @@ a GameReadLock" below - so a binding that only calls one of those needs nothing 
 
 ### Bindings - `Unwrap` returns a LockedHandle
 
-Every accessor on a handle resolves it again, so a binding that tests a handle and then reads it takes two lock windows - `if (!*data)` in one and `data->GetStat(n)` in the next - and the game thread can free the object in between. The script then sees `0` or `""` where it should have seen `undefined`. Nothing unsafe happens (each read re-resolves under its own lock), but the answer is inconsistent.
+Every accessor on a handle resolves it again, so a binding that tests a handle and then reads it takes two lock windows - `if (!data || !*data)` in one and `data->GetStat(n)` in the next - and the game thread can free the object in between. The script then sees `0` or `""` where it should have seen `undefined`. Nothing unsafe happens (each read re-resolves under its own lock), but the answer is inconsistent.
 
 So for the game handle natives - `game::Unit`, `Room`, `Level`, `Party`, `Control`, `StashTab`, named by the `GameHandle` concept (`api/core/LockedHandle.h`) - `ClassBase::Unwrap` returns a `LockedHandle<T>` rather than a `T*`. It takes a `GameReadLock` when it is created and holds it for its lifetime, and gives the handle through `->` / `*`, so the validity test and every read after it run against one game state. Its own `operator bool` is the pointer test (false when the receiver was not a wrapper of this class); `*data`'s bool is still the "does the game object exist" test. The accessors' own `Resolved<T>` locks nest inside it for free. Every other class - value natives such as `ExitInfo` and `PresetUnitInfo`, and the script-owned ones (File, SQLite, Socket, Script, the drawables, ...) - still gets its raw pointer; the choice is made from the type at compile time, and there is no unlocked `Unwrap` for a game handle.
 
 ```cpp
 Property(isolate, inst, "hp", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
     const auto data = Unwrap(info.Holder());  // lock taken here ...
-    if (!*data) {
+    if (!data || !*data) {
         return;                               // undefined: the unit is gone
     }
     info.GetReturnValue().Set(data->Hp());    // ... so the unit is still there for this read
@@ -129,7 +129,7 @@ Method(isolate, proto, "getItems", +[](const v8::FunctionCallbackInfo<v8::Value>
     std::vector<game::Unit> items;
     {
         const auto data = Unwrap(args.This());
-        if (!*data) {
+        if (!data || !*data) {
             return;
         }
         items = data->GetItems();
@@ -141,7 +141,7 @@ Method(isolate, proto, "move", +[](const v8::FunctionCallbackInfo<v8::Value>& ar
     game::Unit unit;
     {
         const auto data = Unwrap(args.This());
-        if (!*data) {
+        if (!data || !*data) {
             return;
         }
         unit = *data;

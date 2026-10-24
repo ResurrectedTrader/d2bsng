@@ -33,7 +33,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "type", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             info.GetReturnValue().Set(static_cast<uint32_t>(data->Type()));
@@ -44,7 +44,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "classid", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             info.GetReturnValue().Set(data->ClassId());
@@ -56,7 +56,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "mode", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             info.GetReturnValue().Set(data->Mode());
@@ -67,7 +67,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "name", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             auto* isolate = info.GetIsolate();
@@ -79,7 +79,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "act", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             // The game stores a 0-based act, the JS API exposes it 1-based.
@@ -91,7 +91,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "flagsex", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             info.GetReturnValue().Set(std::to_underlying(data->FlagsEx()));
@@ -102,7 +102,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "gid", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), static_cast<double>(data->Id())));
@@ -113,7 +113,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "x", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             info.GetReturnValue().Set(data->Pos().x);
@@ -124,7 +124,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "y", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             info.GetReturnValue().Set(data->Pos().y);
@@ -138,7 +138,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "preciseX", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             info.GetReturnValue().Set(data->PrecisePos().x);
@@ -152,7 +152,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "preciseY", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             info.GetReturnValue().Set(data->PrecisePos().y);
@@ -164,7 +164,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "targetx", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             auto type = data->Type();
@@ -180,7 +180,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "targety", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             auto type = data->Type();
@@ -195,7 +195,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "area", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             info.GetReturnValue().Set(std::to_underlying(data->Area()));
@@ -206,7 +206,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "hp", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             info.GetReturnValue().Set(data->Hp());
@@ -217,7 +217,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "hpmax", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             info.GetReturnValue().Set(data->HpMax());
@@ -228,7 +228,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "mp", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             info.GetReturnValue().Set(data->Mp());
@@ -239,7 +239,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "mpmax", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             info.GetReturnValue().Set(data->MpMax());
@@ -250,7 +250,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "stamina", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             info.GetReturnValue().Set(data->Stamina());
@@ -261,7 +261,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "staminamax", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             info.GetReturnValue().Set(data->StaminaMax());
@@ -272,7 +272,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "charlvl", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             info.GetReturnValue().Set(data->CharLevel());
@@ -284,7 +284,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "itemcount", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             info.GetReturnValue().Set(data->ItemCount());
@@ -297,7 +297,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "owner", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             const auto owner = data->GetOwner();
@@ -309,7 +309,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "ownertype", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             const auto owner = data->GetOwner();
@@ -322,7 +322,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "spectype", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Monster) {
+            if (!data || !*data || data->Type() != UnitType::Monster) {
                 return;
             }
             info.GetReturnValue().Set(std::to_underlying(data->SpecType()));
@@ -333,7 +333,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "direction", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             info.GetReturnValue().Set(data->Direction());
@@ -345,7 +345,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "uniqueid", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             if (const auto id = data->SuperUniqueId()) {
@@ -360,7 +360,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "code", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             auto* isolate = info.GetIsolate();
@@ -376,7 +376,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "prefix", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             auto* isolate = info.GetIsolate();
@@ -388,7 +388,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "suffix", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             auto* isolate = info.GetIsolate();
@@ -400,7 +400,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "prefixnum", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             info.GetReturnValue().Set(data->PrefixNum());
@@ -411,7 +411,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "suffixnum", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             info.GetReturnValue().Set(data->SuffixNum());
@@ -423,7 +423,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "rareprefixnum", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             info.GetReturnValue().Set(data->RarePrefixNum());
@@ -435,7 +435,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "raresuffixnum", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             info.GetReturnValue().Set(data->RareSuffixNum());
@@ -450,7 +450,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "prefixes", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             auto* isolate = info.GetIsolate();
@@ -477,7 +477,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "suffixes", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             auto* isolate = info.GetIsolate();
@@ -501,7 +501,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "prefixnums", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             auto* isolate = info.GetIsolate();
@@ -525,7 +525,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "suffixnums", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             auto* isolate = info.GetIsolate();
@@ -548,7 +548,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "fname", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             auto* isolate = info.GetIsolate();
@@ -560,7 +560,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "quality", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             info.GetReturnValue().Set(static_cast<uint32_t>(data->Quality()));
@@ -571,7 +571,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "node", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             info.GetReturnValue().Set(static_cast<uint32_t>(data->Node()));
@@ -582,7 +582,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "location", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             info.GetReturnValue().Set(static_cast<uint8_t>(data->ItemLocation()));
@@ -595,7 +595,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             std::optional<game::StashTab> tab;
             {
                 const auto data = Unwrap(info.Holder());
-                if (!*data || data->Type() != UnitType::Item) {
+                if (!data || !*data || data->Type() != UnitType::Item) {
                     return;
                 }
                 tab = data->StashTab();
@@ -616,7 +616,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "sizex", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             info.GetReturnValue().Set(data->Size().width);
@@ -627,7 +627,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "sizey", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             info.GetReturnValue().Set(data->Size().height);
@@ -638,7 +638,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "itemType", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             info.GetReturnValue().Set(data->ItemType());
@@ -652,7 +652,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             game::Unit item;
             {
                 const auto data = Unwrap(info.Holder());
-                if (!*data || data->Type() != UnitType::Item) {
+                if (!data || !*data || data->Type() != UnitType::Item) {
                     return;
                 }
                 item = *data;
@@ -665,7 +665,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "bodylocation", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             info.GetReturnValue().Set(static_cast<uint32_t>(data->BodyLocation()));
@@ -676,7 +676,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "ilvl", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             info.GetReturnValue().Set(data->ItemLevel());
@@ -687,7 +687,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "lvlreq", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             info.GetReturnValue().Set(data->LevelRequirement());
@@ -699,7 +699,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "gfx", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             info.GetReturnValue().Set(data->GfxIndex());
@@ -712,7 +712,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "fileindex", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             info.GetReturnValue().Set(static_cast<int32_t>(data->FileIndex().value_or(-1)));
@@ -723,7 +723,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "itemformat", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             info.GetReturnValue().Set(data->ItemFormat());
@@ -734,7 +734,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "earlvl", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             info.GetReturnValue().Set(data->EarLevel());
@@ -745,7 +745,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "playername", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Item) {
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
             info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), data->ItemPlayerName()));
@@ -760,7 +760,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "runwalk", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             // Only return a value for the player unit (matches reference: pUnit == GetPlayerUnit)
@@ -775,7 +775,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "weaponswitch", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             // Only return a value for the player unit (matches reference: pUnit == GetPlayerUnit)
@@ -796,7 +796,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "objtype", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Object) {
+            if (!data || !*data || data->Type() != UnitType::Object) {
                 return;
             }
             info.GetReturnValue().Set(data->ObjType());
@@ -808,7 +808,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Property(
         isolate, inst, "islocked", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.Holder());
-            if (!*data || data->Type() != UnitType::Object) {
+            if (!data || !*data || data->Type() != UnitType::Object) {
                 return;
             }
             info.GetReturnValue().Set(data->IsLocked());
@@ -836,7 +836,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
         isolate, proto, "getNext", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             const auto data = Unwrap(args.This());
-            if (!*data) {
+            if (!data || !*data) {
                 args.GetReturnValue().SetFalse();
                 return;
             }
@@ -899,7 +899,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     Method(
         isolate, proto, "repair", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             const auto data = Unwrap(args.This());
-            if (!*data) {
+            if (!data || !*data) {
                 args.GetReturnValue().SetFalse();
                 return;
             }
@@ -921,7 +921,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             game::Unit unit;
             {
                 const auto data = Unwrap(args.This());
-                if (!*data) {
+                if (!data || !*data) {
                     args.GetReturnValue().SetFalse();
                     return;
                 }
@@ -954,7 +954,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             game::Unit unit;
             {
                 const auto data = Unwrap(args.This());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 // Reference line 829: if unit is the player unit, return early
@@ -1012,7 +1012,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             std::optional<game::Unit> invItem;
             {
                 const auto data = Unwrap(args.This());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 invItem = data->FindFirstInventoryItem(cursor);
@@ -1038,7 +1038,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             std::vector<game::Unit> items;
             {
                 const auto data = Unwrap(args.This());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 // Reference parity: GetItems() returns Regular kind (not InventoryItem).
@@ -1092,7 +1092,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             }
 
             const auto data = Unwrap(args.This());
-            if (!*data) {
+            if (!data || !*data) {
                 args.GetReturnValue().SetFalse();
                 return;
             }
@@ -1171,7 +1171,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             std::optional<game::Unit> owner;
             {
                 const auto data = Unwrap(args.This());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 if (data->Type() == UnitType::Object) {
@@ -1203,7 +1203,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             std::optional<game::Unit> merc;
             {
                 const auto data = Unwrap(args.This());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 // Reference line 1668: only players have mercenaries
@@ -1271,7 +1271,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             const auto data = Unwrap(args.This());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             // Reference line 1914: only monsters have enchants
@@ -1332,7 +1332,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             const auto data = Unwrap(args.This());
-            if (!*data) {
+            if (!data || !*data) {
                 args.GetReturnValue().SetFalse();
                 return;
             }
@@ -1373,7 +1373,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             std::vector<game::StatEntry> stats;
             {
                 const auto data = Unwrap(args.This());
-                if (!*data) {
+                if (!data || !*data) {
                     args.GetReturnValue().SetFalse();
                     return;
                 }
@@ -1504,7 +1504,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             std::vector<game::StatListEntry> lists;
             {
                 const auto data = Unwrap(args.This());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 lists = data->GetStatLists();
@@ -1528,7 +1528,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             const auto data = Unwrap(args.This());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             // Reference line 1141: only items have flags
@@ -1553,7 +1553,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             const auto data = Unwrap(args.This());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             // Reference line 1163: only items have flags
@@ -1587,7 +1587,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             const auto data = Unwrap(args.This());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             // Reference line 1243-1244: only items have cost
@@ -1646,7 +1646,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             game::Unit unit;
             {
                 const auto data = Unwrap(args.This());
-                if (!*data) {
+                if (!data || !*data) {
                     args.GetReturnValue().SetFalse();
                     return;
                 }
@@ -1725,7 +1725,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             game::Position target;
             {
                 const auto data = Unwrap(args.This());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 auto player = game::Unit::Player();
@@ -1764,7 +1764,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 auto* isolate = args.GetIsolate();
                 std::string text = convert::ToString(isolate, args[0]);
                 const auto data = Unwrap(args.This());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 if (!text.empty()) {
@@ -1784,7 +1784,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             const auto data = Unwrap(args.This());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             data->Revive();
@@ -1812,7 +1812,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             game::Unit item;
             {
                 const auto data = Unwrap(args.This());
-                if (!*data) {
+                if (!data || !*data) {
                     args.GetReturnValue().SetFalse();
                     return;
                 }
@@ -1846,7 +1846,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             const auto data = Unwrap(args.This());
-            if (!*data) {
+            if (!data || !*data) {
                 return;
             }
             // Reference line 1960: only monsters and players have minions
@@ -1897,7 +1897,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             game::Position pos;
             {
                 const auto data = Unwrap(args.This());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 pos = data->Pos();
