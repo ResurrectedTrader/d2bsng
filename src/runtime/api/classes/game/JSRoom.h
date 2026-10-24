@@ -32,7 +32,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         Property(
             isolate, inst, "number", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(data->Number());
@@ -43,7 +43,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         Property(
             isolate, inst, "x", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 // reference d2bs parity: room.x/y are exposed as subtiles; Room::Bounds() returns game-coords (see
@@ -56,7 +56,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         Property(
             isolate, inst, "y", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 // reference d2bs parity: room.x/y are exposed as subtiles; Room::Bounds() returns game-coords (see
@@ -69,7 +69,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         Property(
             isolate, inst, "xsize", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(data->Bounds().size.width);
@@ -80,7 +80,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         Property(
             isolate, inst, "ysize", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(data->Bounds().size.height);
@@ -91,7 +91,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         Property(
             isolate, inst, "subnumber", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(data->SubNumber());
@@ -102,7 +102,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         Property(
             isolate, inst, "area", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());
-                if (!*data) {
+                if (!data || !*data) {
                     info.GetReturnValue().Set(0);
                     return;
                 }
@@ -115,7 +115,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         Property(
             isolate, inst, "level", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());
-                if (!*data) {
+                if (!data || !*data) {
                     info.GetReturnValue().Set(0);
                     return;
                 }
@@ -127,7 +127,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         Property(
             isolate, inst, "correcttomb", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());
-                if (!*data) {
+                if (!data || !*data) {
                     info.GetReturnValue().Set(0);
                     return;
                 }
@@ -141,7 +141,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         Method(
             isolate, proto, "getNext", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 const auto data = Unwrap(args.This());
-                if (!*data) {
+                if (!data || !*data) {
                     args.GetReturnValue().SetFalse();
                     return;
                 }
@@ -172,7 +172,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 game::Room room;
                 {
                     const auto data = Unwrap(args.This());
-                    if (!*data) {
+                    if (!data || !*data) {
                         return;
                     }
                     room = *data;
@@ -209,7 +209,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 std::vector<game::PresetUnitInfo> presets;
                 {
                     const auto data = Unwrap(args.This());
-                    if (!*data) {
+                    if (!data || !*data) {
                         return;  // Returns undefined - reference returns undefined when room is null
                     }
                     presets = data->GetPresetUnits(nType, nClass);
@@ -243,7 +243,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 std::vector<std::vector<game::CollisionFlag>> collision;
                 {
                     const auto data = Unwrap(args.This());
-                    if (!*data) {
+                    if (!data || !*data) {
                         return;  // Returns undefined - reference returns undefined when room is null
                     }
                     collision = data->GetCollision();
@@ -277,7 +277,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 std::vector<game::CollisionFlag> flat;
                 {
                     const auto data = Unwrap(args.This());
-                    if (!*data) {
+                    if (!data || !*data) {
                         return;  // Returns undefined - reference returns undefined when room is null
                     }
                     flat = data->GetCollisionFlat();
@@ -302,7 +302,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 std::vector<game::Room> nearby;
                 {
                     const auto data = Unwrap(args.This());
-                    if (*data) {
+                    if (data && *data) {
                         nearby = data->GetNearby();
                     }
                 }
@@ -340,7 +340,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                     return;
                 }
                 const auto data = Unwrap(args.This());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 int32_t nStat = convert::To<int32_t>(isolate, args[0]);
@@ -358,7 +358,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 game::Room first;
                 {
                     const auto data = Unwrap(args.This());
-                    if (!*data) {
+                    if (!data || !*data) {
                         return;
                     }
                     first = data->GetFirst();
@@ -383,7 +383,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                     return;  // Returns undefined, matching reference early-return
                 }
                 const auto data = Unwrap(args.This());
-                if (!*data) {
+                if (!data || !*data) {
                     return;  // undefined, matching reference
                 }
 

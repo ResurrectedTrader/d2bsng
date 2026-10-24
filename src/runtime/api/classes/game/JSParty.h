@@ -31,7 +31,7 @@ class JSParty : public ClassBase<JSParty, game::Party> {
         Property(
             isolate, inst, "x", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(data->Pos().x);
@@ -42,7 +42,7 @@ class JSParty : public ClassBase<JSParty, game::Party> {
         Property(
             isolate, inst, "y", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(data->Pos().y);
@@ -53,7 +53,7 @@ class JSParty : public ClassBase<JSParty, game::Party> {
         Property(
             isolate, inst, "area", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(static_cast<int32_t>(data->LevelId()));
@@ -64,7 +64,7 @@ class JSParty : public ClassBase<JSParty, game::Party> {
         Property(
             isolate, inst, "gid", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), static_cast<double>(data->Id())));
@@ -75,7 +75,7 @@ class JSParty : public ClassBase<JSParty, game::Party> {
         Property(
             isolate, inst, "life", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(data->Life());
@@ -86,7 +86,7 @@ class JSParty : public ClassBase<JSParty, game::Party> {
         Property(
             isolate, inst, "partyflag", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(std::to_underlying(data->PartyState()));
@@ -97,7 +97,7 @@ class JSParty : public ClassBase<JSParty, game::Party> {
         Property(
             isolate, inst, "partyid", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(data->PartyId());
@@ -108,7 +108,7 @@ class JSParty : public ClassBase<JSParty, game::Party> {
         Property(
             isolate, inst, "name", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), data->Name()));
@@ -119,7 +119,7 @@ class JSParty : public ClassBase<JSParty, game::Party> {
         Property(
             isolate, inst, "classid", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(std::to_underlying(data->ClassId()));
@@ -130,7 +130,7 @@ class JSParty : public ClassBase<JSParty, game::Party> {
         Property(
             isolate, inst, "level", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = Unwrap(info.Holder());
-                if (!*data) {
+                if (!data || !*data) {
                     return;
                 }
                 info.GetReturnValue().Set(data->CharacterLevel());
@@ -148,7 +148,7 @@ class JSParty : public ClassBase<JSParty, game::Party> {
                     return;
                 }
                 const auto data = Unwrap(args.This());
-                if (!*data) {
+                if (!data || !*data) {
                     args.GetReturnValue().SetFalse();
                     return;
                 }

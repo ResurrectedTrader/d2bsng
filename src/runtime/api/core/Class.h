@@ -154,11 +154,8 @@ class ClassBase {
     // has to come first - V8's inline field accessor does no bounds check, so probing field
     // 1 on a plain object would read out of bounds.
     //
-    // This is a type check, not a hardening boundary. Most accessors go straight to
-    // `if (!*data)`, which dereferences the result, so a nullptr return still faults - and
     // V8 14 removed AccessorSignature, so a script that lifts a getter onto a foreign
-    // receiver can reach that. Deliberate, and not defended against: scripts are trusted
-    // here (they already have sockets, files and raw packet access).
+    // receiver reaches the binding with it, and this returns nullptr.
     //
     // A game handle (GameHandle) comes back inside a LockedHandle instead, so the binding's
     // validity test and its reads run under one read lock; see LockedHandle for the rules
