@@ -116,7 +116,6 @@
     <ClCompile Include="hooks\HookManager.cpp" />
     <ClCompile Include="hooks\InlinePatch.cpp" />
     <ClCompile Include="hooks\Intercepts.cpp" />
-    <ClCompile Include="hooks\PendingPickup.cpp" />
     <ClCompile Include="hooks\Realms.cpp" />
     <!-- Console host (window + GL + ImGui glue; UI lives in the js frontend) -->
     <ClCompile Include="console\Console.cpp">
@@ -163,7 +162,6 @@
     <ClInclude Include="hooks\HookManager.h" />
     <ClInclude Include="hooks\InlinePatch.h" />
     <ClInclude Include="hooks\Intercepts.h" />
-    <ClInclude Include="hooks\PendingPickup.h" />
     <ClInclude Include="hooks\Realms.h" />
     <ClInclude Include="console\Console.h" />
   </ItemGroup>

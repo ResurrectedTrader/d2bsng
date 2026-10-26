@@ -66,6 +66,7 @@
 #include <span>
 #include <string>
 #include <system_error>
+#include <thread>
 #include <utility>
 #include <variant>
 
@@ -73,14 +74,15 @@
 #include "game/Finders.h"
 #include "game/GameCallbacks.h"
 #include "game/GameHelpers.h"
+#include "game/GameLock.h"
 #include "game/LaunchOptions.h"
 #include "game/Party.h"
 #include "game/Types.h"
 #include "hooks/HookManager.h"
 #include "hooks/InlinePatch.h"
-#include "hooks/PendingPickup.h"
 #include "imports/BnClient.h"
 #include "imports/D2Client.h"
+#include "imports/D2Common.h"
 #include "imports/D2Game.h"
 #include "imports/D2Gfx.h"
 #include "imports/D2Launch.h"
@@ -89,6 +91,10 @@
 #include "imports/D2Win.h"
 #include "utils/threadutils.h"
 #include "utils/utils.h"
+
+#include "UnitTables.h"
+
+#include <D2PacketDef.h>  // D2GSPacketClt16
 
 namespace d2bs::lod114d::hooks::intercepts {
 
@@ -146,6 +152,9 @@ std::atomic clickActionActive{false};
 std::atomic<D2UnitStrc*> clickActionUnit{nullptr};
 
 std::atomic<IncomingPacketObserver> incomingPacketObserver{nullptr};
+
+// When the client last sent a ground pickup of a beltable item (see WaitOutBeltPickupWindow).
+std::atomic<std::chrono::steady_clock::time_point> lastBeltablePickup{};
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 constexpr uint32_t P1_RVA = 0x7C89D;
@@ -265,7 +274,6 @@ extern "C" uint32_t __fastcall OnGamePacketReceived(uint8_t* packet, uint32_t si
     if (auto* observer = incomingPacketObserver.load(std::memory_order_acquire); observer != nullptr) {
         observer(std::span<const uint8_t>{packet, size});
     }
-    pickup::OnPacketReceived(std::span<const uint8_t>{packet, size});
     const auto* cb = GetActiveCallbacks();
     if (cb == nullptr) {
         return 1;
@@ -392,6 +400,20 @@ extern "C" uint32_t __fastcall OnGamePacketReceived(uint8_t* packet, uint32_t si
     return blocked ? 0U : 1U;
 }
 
+void NoteBeltablePickup(std::span<const uint8_t> packet) {
+    constexpr uint8_t CLT_PICKUP_ITEM = 0x16;
+    if (packet.size() < sizeof(D2GSPacketClt16) || packet[0] != CLT_PICKUP_ITEM) {
+        return;
+    }
+    uint32_t itemId = 0;
+    std::memcpy(&itemId, packet.subspan(offsetof(D2GSPacketClt16, dwUnitGUID)).data(), sizeof(itemId));
+    const game::GameReadLock guard;
+    auto* item = game::unit_tables::FindUnitInHashTable(itemId, game::UnitType::Item);
+    if (item != nullptr && imports::d2common::ITEMS_CheckIfBeltable(item) != 0) {
+        lastBeltablePickup.store(std::chrono::steady_clock::now(), std::memory_order_release);
+    }
+}
+
 // P4: GamePacketSent. ecx=packet, edx=size (the naked thunk pulls them off
 // the saved context - see the asm body). Returns non-zero to allow.
 extern "C" uint32_t __fastcall OnGamePacketSent(uint8_t* packet, uint32_t size) {
@@ -403,7 +425,7 @@ extern "C" uint32_t __fastcall OnGamePacketSent(uint8_t* packet, uint32_t size) 
     if (cb != nullptr && cb->onGamePacketSent != nullptr && cb->onGamePacketSent(data)) {
         return 0;
     }
-    pickup::OnPacketSent(data);
+    NoteBeltablePickup(data);
     return 1;
 }
 
@@ -1084,6 +1106,21 @@ bool Init() {
 
 void SetIncomingPacketObserver(IncomingPacketObserver observer) {
     incomingPacketObserver.store(observer, std::memory_order_release);
+}
+
+void WaitOutBeltPickupWindow() {
+    if (GetGameThreadId() == GetCurrentThreadId()) {
+        return;
+    }
+    // A few server frames (25 fps): long enough that the pickup is handled in an
+    // earlier server frame than the belt use under normal jitter.
+    constexpr std::chrono::milliseconds BELT_PICKUP_WINDOW{100};
+    const auto remaining =
+        lastBeltablePickup.load(std::memory_order_acquire) + BELT_PICKUP_WINDOW - std::chrono::steady_clock::now();
+    if (remaining > std::chrono::steady_clock::duration::zero()) {
+        const game::GameReadLockReleaser releaser;
+        std::this_thread::sleep_for(remaining);
+    }
 }
 
 void InstallAll() {

@@ -10,7 +10,7 @@
 #include "game/GameLock.h"
 #include "game/GameThread.h"
 #include "game/Room.h"
-#include "hooks/PendingPickup.h"
+#include "hooks/Intercepts.h"
 #include "imports/D2Client.h"
 #include "imports/D2Common.h"
 #include "imports/D2Net.h"
@@ -1384,7 +1384,7 @@ bool Unit::Interact() const {
     }
 
     if (beltItemId.has_value()) {
-        lod114d::hooks::pickup::WaitForPendingPickup();
+        lod114d::hooks::intercepts::WaitOutBeltPickupWindow();
         D2GSPacketClt26 packet{};
         packet.nHeader = 0x26U;
         packet.nItemGUID = static_cast<int32_t>(*beltItemId);

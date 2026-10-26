@@ -46,6 +46,19 @@ void RemoveAll();
 using IncomingPacketObserver = void (*)(std::span<const uint8_t> packet);
 void SetIncomingPacketObserver(IncomingPacketObserver observer);
 
+// Call before sending a belt use (client 0x26). A ground pickup (0x16) of a
+// beltable item and a belt use that reach the server in the same server frame
+// make D2Game put the potion in the column's first free slot, then compact the
+// column, and send the belt updates in queue order (the new potion first): the
+// client places one item on another and later asserts in
+// CITEMS_ItemAction_UpdateStats (Game.exe 0x4C4C70, FOG_DisplayHalt line 3166,
+// on an SCMD 0x9D). Native D2Game does this; the native client's drink path
+// (CPANEL_UseBeltItem) does not guard against it, but a bot's concurrent pickit
+// and potion threads hit it. So within a short window after such a pickup this
+// sleeps out the rest of the window, releasing the thread's game read locks.
+// Returns at once on the game thread, which must not block.
+void WaitOutBeltPickupWindow();
+
 namespace detail {
 
 // RAII guard for the P5 GetSelectedUnit intercept's click-target override.
