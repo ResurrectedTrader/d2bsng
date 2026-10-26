@@ -10,6 +10,7 @@
 #include "game/GameLock.h"
 #include "game/GameThread.h"
 #include "game/Room.h"
+#include "hooks/PendingPickup.h"
 #include "imports/D2Client.h"
 #include "imports/D2Common.h"
 #include "imports/D2Net.h"
@@ -1344,6 +1345,7 @@ void Unit::Move(Position target) const {
 }
 
 bool Unit::Interact() const {
+    std::optional<uint32_t> beltItemId;
     {
         const auto u = Resolve<D2UnitStrc>();
         if (!u || u == lod114d::imports::d2client::UNITS_GetPlayerUnit()) {
@@ -1376,13 +1378,18 @@ bool Unit::Interact() const {
                 return false;
             }
             if (location == ItemLocation::Belt) {
-                D2GSPacketClt26 packet{};
-                packet.nHeader = 0x26U;
-                packet.nItemGUID = static_cast<int32_t>(u->dwUnitId);
-                lod114d::imports::d2net::CLIENT_Send(sizeof(packet), 1U, reinterpret_cast<uint8_t*>(&packet));
-                return false;
+                beltItemId = u->dwUnitId;
             }
         }
+    }
+
+    if (beltItemId.has_value()) {
+        lod114d::hooks::pickup::WaitForPendingPickup();
+        D2GSPacketClt26 packet{};
+        packet.nHeader = 0x26U;
+        packet.nItemGUID = static_cast<int32_t>(*beltItemId);
+        lod114d::imports::d2net::CLIENT_Send(sizeof(packet), 1U, reinterpret_cast<uint8_t*>(&packet));
+        return false;
     }
 
     // Default path: a left-click on the unit's screen position via the

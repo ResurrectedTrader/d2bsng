@@ -78,6 +78,7 @@
 #include "game/Types.h"
 #include "hooks/HookManager.h"
 #include "hooks/InlinePatch.h"
+#include "hooks/PendingPickup.h"
 #include "imports/BnClient.h"
 #include "imports/D2Client.h"
 #include "imports/D2Game.h"
@@ -264,6 +265,7 @@ extern "C" uint32_t __fastcall OnGamePacketReceived(uint8_t* packet, uint32_t si
     if (auto* observer = incomingPacketObserver.load(std::memory_order_acquire); observer != nullptr) {
         observer(std::span<const uint8_t>{packet, size});
     }
+    pickup::OnPacketReceived(std::span<const uint8_t>{packet, size});
     const auto* cb = GetActiveCallbacks();
     if (cb == nullptr) {
         return 1;
@@ -393,11 +395,16 @@ extern "C" uint32_t __fastcall OnGamePacketReceived(uint8_t* packet, uint32_t si
 // P4: GamePacketSent. ecx=packet, edx=size (the naked thunk pulls them off
 // the saved context - see the asm body). Returns non-zero to allow.
 extern "C" uint32_t __fastcall OnGamePacketSent(uint8_t* packet, uint32_t size) {
-    const auto* cb = GetActiveCallbacks();
-    if (cb == nullptr || cb->onGamePacketSent == nullptr || packet == nullptr || size == 0) {
+    if (packet == nullptr || size == 0) {
         return 1;
     }
-    return cb->onGamePacketSent(std::span<const uint8_t>{packet, size}) ? 0 : 1;
+    const std::span<const uint8_t> data{packet, size};
+    const auto* cb = GetActiveCallbacks();
+    if (cb != nullptr && cb->onGamePacketSent != nullptr && cb->onGamePacketSent(data)) {
+        return 0;
+    }
+    pickup::OnPacketSent(data);
+    return 1;
 }
 
 // P2 / P17: GameDraw / GameDrawOOG. Plain `void` calls - the framework
