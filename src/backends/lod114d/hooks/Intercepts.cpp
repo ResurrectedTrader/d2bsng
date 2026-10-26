@@ -40,6 +40,7 @@
 //
 //   RequiredWork (uncond)  0x11C7AF  CALL/5  E8 4C 53 00 00        -> SID pkt handler
 //   TempPathPerInstance    0x11E4C4  CALL/6  FF 15 44 C3 6C 00     IAT GetTempPathA
+//   UninterruptableHalt    0x5B0E19  byte/1  74 1F                 jz -> jmp
 //
 // RequiredWork suppresses SID_REQUIREDWORK (0x4C) so a server can't make the
 // client download and run an extra-work DLL; it is unconditional (reference
@@ -138,6 +139,7 @@ SiteState siteP17, siteP18, siteP19, siteP21, siteP22;
 
 // d2bsng addition - unconditional SID_REQUIREDWORK (0x4C) suppression.
 SiteState siteRequiredWork;
+SiteState siteUninterruptableHalt;
 
 // Conditional[] sites - installed only when their LaunchOptions toggle is set.
 // siteTempPathPerInstance is a d2bsng addition gated on -multi (multiInstance).
@@ -208,6 +210,14 @@ constexpr uint32_t TEMP_PATH_PER_INSTANCE_RVA = 0x11E4C4;
 // both DLLs are merged into Game.exe at the same offsets over the image base.
 constexpr uint32_t SLEEPY_INGAME_RVA = 0x51C31;
 constexpr uint32_t SLEEPY_OOG_RVA = 0xFA66F;
+
+// d2bsng addition (unconditional): AITHINK_ExecuteAiFn (0x5B0E00) halts the
+// process - FOG_DisplayHalt (line 0x1A6) then exit(-1) - when it resets the AI of
+// a monster in STATE_UNINTERRUPTABLE (0x36), e.g. when a curse that resets AI on
+// removal (Cloak of Shadows, Dim Vision, Taunt, Terror) expires mid-Leap / Jump /
+// Whirlwind. 1.10f D2Game.dll (0x6FCF07ED) only calls FOG_DisplayWarning there and
+// carries on, so flip the `jz` (74 1F) that skips the halt into `jmp` (EB 1F).
+constexpr uint32_t UNINTERRUPTABLE_HALT_RVA = 0x1B0E19;
 
 // Fills in the names a 0x5A event packet leaves to the client, as reference
 // D2NetHandlers.cpp EventMessagesHandler does before firing gameevent.
@@ -1167,6 +1177,20 @@ void InstallAll() {
     // d2bsng addition (unconditional, reference parity): suppress SID_REQUIREDWORK.
     InstallSite(siteRequiredWork, REQUIRED_WORK_RVA, &RequiredWorkThunk, 5, /*isJmp=*/false);
 
+    if (!siteUninterruptableHalt.installed) {
+        constexpr std::array<uint8_t, 2> HALT_SKIP_JZ = {0x74, 0x1F};
+        constexpr uint8_t OPCODE_JMP_REL8 = 0xEB;
+        const uintptr_t site = moduleBase + UNINTERRUPTABLE_HALT_RVA;
+        const auto* bytes = reinterpret_cast<const uint8_t*>(site);
+        if (bytes[0] == HALT_SKIP_JZ[0] && bytes[1] == HALT_SKIP_JZ[1]) {
+            WriteByte(site, OPCODE_JMP_REL8, siteUninterruptableHalt.original[0]);
+            siteUninterruptableHalt.installed = true;
+        } else {
+            spdlog::warn("uninterruptable AI-reset halt site at {:#x} holds {:02X} {:02X}, not 74 1F - left unpatched",
+                         site, bytes[0], bytes[1]);
+        }
+    }
+
     // Conditional[] sites - each gated on its LaunchOptions toggle.
     const auto& opts = game::GetLaunchOptions();
 
@@ -1248,6 +1272,10 @@ void RemoveAll() {
     RestoreSite(siteCreateWindowTitled, CREATE_WINDOW_TITLED_RVA, 6);
     RestoreSite(siteBypassMultiInstance, BYPASS_MULTI_INSTANCE_RVA, 6);
 
+    if (siteUninterruptableHalt.installed) {
+        RestoreByte(moduleBase + UNINTERRUPTABLE_HALT_RVA, siteUninterruptableHalt.original[0]);
+        siteUninterruptableHalt.installed = false;
+    }
     RestoreSite(siteRequiredWork, REQUIRED_WORK_RVA, 5);
     RestoreSite(siteP22, P22_RVA, 6);
     RestoreSite(siteP21, P21_RVA, 6);
