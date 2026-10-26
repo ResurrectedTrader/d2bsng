@@ -502,6 +502,10 @@ void SendGamePacket(std::span<const uint8_t> data) {
     if (data.empty()) {
         return;
     }
+    constexpr uint8_t CLT_USE_BELT_ITEM = 0x26;
+    if (data[0] == CLT_USE_BELT_ITEM) {
+        lod114d::hooks::intercepts::WaitOutBeltPickupWindow();
+    }
     d2net::CLIENT_Send(data.size(), 1, data.data());
 }
 

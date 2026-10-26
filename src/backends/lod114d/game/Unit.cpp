@@ -10,6 +10,7 @@
 #include "game/GameLock.h"
 #include "game/GameThread.h"
 #include "game/Room.h"
+#include "hooks/Intercepts.h"
 #include "imports/D2Client.h"
 #include "imports/D2Common.h"
 #include "imports/D2Net.h"
@@ -1379,6 +1380,8 @@ bool Unit::Interact() const {
                 D2GSPacketClt26 packet{};
                 packet.nHeader = 0x26U;
                 packet.nItemGUID = static_cast<int32_t>(u->dwUnitId);
+                // Hands the read lock back while it waits; `u` is not read after it.
+                lod114d::hooks::intercepts::WaitOutBeltPickupWindow();
                 lod114d::imports::d2net::CLIENT_Send(sizeof(packet), 1U, reinterpret_cast<uint8_t*>(&packet));
                 return false;
             }
