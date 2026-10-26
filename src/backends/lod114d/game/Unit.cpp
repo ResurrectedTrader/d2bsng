@@ -1345,7 +1345,6 @@ void Unit::Move(Position target) const {
 }
 
 bool Unit::Interact() const {
-    std::optional<uint32_t> beltItemId;
     {
         const auto u = Resolve<D2UnitStrc>();
         if (!u || u == lod114d::imports::d2client::UNITS_GetPlayerUnit()) {
@@ -1378,18 +1377,15 @@ bool Unit::Interact() const {
                 return false;
             }
             if (location == ItemLocation::Belt) {
-                beltItemId = u->dwUnitId;
+                D2GSPacketClt26 packet{};
+                packet.nHeader = 0x26U;
+                packet.nItemGUID = static_cast<int32_t>(u->dwUnitId);
+                // Hands the read lock back while it waits; `u` is not read after it.
+                lod114d::hooks::intercepts::WaitOutBeltPickupWindow();
+                lod114d::imports::d2net::CLIENT_Send(sizeof(packet), 1U, reinterpret_cast<uint8_t*>(&packet));
+                return false;
             }
         }
-    }
-
-    if (beltItemId.has_value()) {
-        lod114d::hooks::intercepts::WaitOutBeltPickupWindow();
-        D2GSPacketClt26 packet{};
-        packet.nHeader = 0x26U;
-        packet.nItemGUID = static_cast<int32_t>(*beltItemId);
-        lod114d::imports::d2net::CLIENT_Send(sizeof(packet), 1U, reinterpret_cast<uint8_t*>(&packet));
-        return false;
     }
 
     // Default path: a left-click on the unit's screen position via the

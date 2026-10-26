@@ -153,16 +153,13 @@ std::atomic<D2UnitStrc*> clickActionUnit{nullptr};
 
 std::atomic<IncomingPacketObserver> incomingPacketObserver{nullptr};
 
-// The client's last ground pickup (see WaitOutBeltPickupWindow): the steady-clock
-// millisecond tick (truncated) in the high half, the item id in the low half, so
-// the hook stores both in one lock-free write.
-std::atomic<uint64_t> lastPickup{0};
-
-uint32_t TickMs() {
-    return static_cast<uint32_t>(
-        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch())
-            .count());
-}
+// The client's last ground pickup (see WaitOutBeltPickupWindow).
+struct Pickup {
+    uint32_t itemId = 0;
+    DWORD tick = 0;  // GetTickCount
+};
+std::atomic<Pickup> lastPickup{};
+static_assert(std::atomic<Pickup>::is_always_lock_free);
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 constexpr uint32_t P1_RVA = 0x7C89D;
@@ -415,7 +412,7 @@ void NotePickup(std::span<const uint8_t> packet) {
     }
     uint32_t itemId = 0;
     std::memcpy(&itemId, packet.subspan(offsetof(D2GSPacketClt16, dwUnitGUID)).data(), sizeof(itemId));
-    lastPickup.store((uint64_t{TickMs()} << 32U) | itemId, std::memory_order_release);
+    lastPickup.store(Pickup{.itemId = itemId, .tick = GetTickCount()}, std::memory_order_release);
 }
 
 // P4: GamePacketSent. ecx=packet, edx=size (the naked thunk pulls them off
@@ -1118,15 +1115,15 @@ void WaitOutBeltPickupWindow() {
     }
     // A few server frames (25 fps): long enough that the pickup is handled in an
     // earlier server frame than the belt use under normal jitter.
-    constexpr uint32_t BELT_PICKUP_WINDOW_MS = 100;
-    const uint64_t pickup = lastPickup.load(std::memory_order_acquire);
-    const uint32_t elapsed = TickMs() - static_cast<uint32_t>(pickup >> 32U);
-    if (pickup == 0 || elapsed >= BELT_PICKUP_WINDOW_MS) {
+    constexpr DWORD BELT_PICKUP_WINDOW_MS = 100;
+    const Pickup pickup = lastPickup.load(std::memory_order_acquire);
+    const DWORD elapsed = GetTickCount() - pickup.tick;
+    if (pickup.itemId == 0 || elapsed >= BELT_PICKUP_WINDOW_MS) {
         return;
     }
     {
         const game::GameReadLock guard;
-        auto* item = game::unit_tables::FindUnitInHashTable(static_cast<uint32_t>(pickup), game::UnitType::Item);
+        auto* item = game::unit_tables::FindUnitInHashTable(pickup.itemId, game::UnitType::Item);
         if (item == nullptr || imports::d2common::ITEMS_CheckIfBeltable(item) == 0) {
             return;
         }
