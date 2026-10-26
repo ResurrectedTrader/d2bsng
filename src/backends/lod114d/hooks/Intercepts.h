@@ -54,9 +54,10 @@ void SetIncomingPacketObserver(IncomingPacketObserver observer);
 // CITEMS_ItemAction_UpdateStats (Game.exe 0x4C4C70, FOG_DisplayHalt line 3166,
 // on an SCMD 0x9D). Native D2Game does this; the native client's drink path
 // (CPANEL_UseBeltItem) does not guard against it, but a bot's concurrent pickit
-// and potion threads hit it. So within a short window after such a pickup this
-// sleeps out the rest of the window, releasing the thread's game read locks.
-// Returns at once on the game thread, which must not block.
+// and potion threads hit it. The send hook records the last pickup lock-free;
+// if that was within a short window and its item is beltable, this sleeps out
+// the rest of the window with the thread's game read locks released. Returns at
+// once on the game thread, which must not block.
 void WaitOutBeltPickupWindow();
 
 namespace detail {

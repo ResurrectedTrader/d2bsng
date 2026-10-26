@@ -153,8 +153,16 @@ std::atomic<D2UnitStrc*> clickActionUnit{nullptr};
 
 std::atomic<IncomingPacketObserver> incomingPacketObserver{nullptr};
 
-// When the client last sent a ground pickup of a beltable item (see WaitOutBeltPickupWindow).
-std::atomic<std::chrono::steady_clock::time_point> lastBeltablePickup{};
+// The client's last ground pickup (see WaitOutBeltPickupWindow): the steady-clock
+// millisecond tick (truncated) in the high half, the item id in the low half, so
+// the hook stores both in one lock-free write.
+std::atomic<uint64_t> lastPickup{0};
+
+uint32_t TickMs() {
+    return static_cast<uint32_t>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch())
+            .count());
+}
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 constexpr uint32_t P1_RVA = 0x7C89D;
@@ -400,18 +408,14 @@ extern "C" uint32_t __fastcall OnGamePacketReceived(uint8_t* packet, uint32_t si
     return blocked ? 0U : 1U;
 }
 
-void NoteBeltablePickup(std::span<const uint8_t> packet) {
+void NotePickup(std::span<const uint8_t> packet) {
     constexpr uint8_t CLT_PICKUP_ITEM = 0x16;
     if (packet.size() < sizeof(D2GSPacketClt16) || packet[0] != CLT_PICKUP_ITEM) {
         return;
     }
     uint32_t itemId = 0;
     std::memcpy(&itemId, packet.subspan(offsetof(D2GSPacketClt16, dwUnitGUID)).data(), sizeof(itemId));
-    const game::GameReadLock guard;
-    auto* item = game::unit_tables::FindUnitInHashTable(itemId, game::UnitType::Item);
-    if (item != nullptr && imports::d2common::ITEMS_CheckIfBeltable(item) != 0) {
-        lastBeltablePickup.store(std::chrono::steady_clock::now(), std::memory_order_release);
-    }
+    lastPickup.store((uint64_t{TickMs()} << 32U) | itemId, std::memory_order_release);
 }
 
 // P4: GamePacketSent. ecx=packet, edx=size (the naked thunk pulls them off
@@ -425,7 +429,7 @@ extern "C" uint32_t __fastcall OnGamePacketSent(uint8_t* packet, uint32_t size) 
     if (cb != nullptr && cb->onGamePacketSent != nullptr && cb->onGamePacketSent(data)) {
         return 0;
     }
-    NoteBeltablePickup(data);
+    NotePickup(data);
     return 1;
 }
 
@@ -1114,13 +1118,21 @@ void WaitOutBeltPickupWindow() {
     }
     // A few server frames (25 fps): long enough that the pickup is handled in an
     // earlier server frame than the belt use under normal jitter.
-    constexpr std::chrono::milliseconds BELT_PICKUP_WINDOW{100};
-    const auto remaining =
-        lastBeltablePickup.load(std::memory_order_acquire) + BELT_PICKUP_WINDOW - std::chrono::steady_clock::now();
-    if (remaining > std::chrono::steady_clock::duration::zero()) {
-        const game::GameReadLockReleaser releaser;
-        std::this_thread::sleep_for(remaining);
+    constexpr uint32_t BELT_PICKUP_WINDOW_MS = 100;
+    const uint64_t pickup = lastPickup.load(std::memory_order_acquire);
+    const uint32_t elapsed = TickMs() - static_cast<uint32_t>(pickup >> 32U);
+    if (pickup == 0 || elapsed >= BELT_PICKUP_WINDOW_MS) {
+        return;
     }
+    {
+        const game::GameReadLock guard;
+        auto* item = game::unit_tables::FindUnitInHashTable(static_cast<uint32_t>(pickup), game::UnitType::Item);
+        if (item == nullptr || imports::d2common::ITEMS_CheckIfBeltable(item) == 0) {
+            return;
+        }
+    }
+    const game::GameReadLockReleaser releaser;
+    std::this_thread::sleep_for(std::chrono::milliseconds{BELT_PICKUP_WINDOW_MS - elapsed});
 }
 
 void InstallAll() {
