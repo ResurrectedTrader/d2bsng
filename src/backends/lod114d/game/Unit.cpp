@@ -1075,7 +1075,14 @@ uint32_t Unit::ItemCost(ItemCostMode mode, uint32_t npcClassId, Difficulty diffi
     }
 
     const auto u = Resolve<D2UnitStrc>();
-    if (!u || u->dwUnitType != UNIT_ITEM) {
+    if (!u || u->dwUnitType != UNIT_ITEM || u->pItemData == nullptr) {
+        return 0U;
+    }
+    // ITEMS_CalculateTransactionCost halts the game when a tome's suffix (its books.txt row)
+    // has no record. Native prices only the items its own UI shows; a script can reach a
+    // tome whose suffix is not a valid books.txt row.
+    if (lod114d::imports::d2common::ITEMS_CheckItemTypeId(u, ITEMTYPE_BOOK) != 0 &&
+        lod114d::imports::d2common::DATATBLS_GetBooksTxtRecord(u->pItemData->wMagicSuffix[0]) == nullptr) {
         return 0U;
     }
     return lod114d::imports::d2common::ITEMS_GetTransactionCost(

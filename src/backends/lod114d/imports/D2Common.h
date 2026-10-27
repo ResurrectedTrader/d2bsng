@@ -18,7 +18,7 @@
 #include <D2Skills.h>              // D2SkillStrc
 #include <D2StatList.h>            // D2StatListExStrc, D2StatStrc
 #include <D2Waypoints.h>           // D2WaypointDataStrc
-#include <DataTbls/ItemsTbls.h>    // D2ItemsTxt
+#include <DataTbls/ItemsTbls.h>    // D2ItemsTxt, D2BooksTxt
 #include <DataTbls/LevelsTbls.h>   // D2LevelsTxt
 #include <DataTbls/ObjectsTbls.h>  // D2ObjectsTxt
 #include <Units/Units.h>           // D2UnitStrc
@@ -52,6 +52,7 @@ inline StdcallFunc<D2ObjectsTxt*(uint32_t /*nObjectId*/)> DATATBLS_GetObjectsTxt
 
 inline StdcallFunc<D2LevelsTxt*(game::LevelId /*nLevelId*/)> DATATBLS_GetLevelsTxtRecord{0x21DB70};
 inline StdcallFunc<D2ItemsTxt*(uint32_t /*nItemId*/)> DATATBLS_GetItemsTxtRecord{0x2335F0};
+inline StdcallFunc<D2BooksTxt*(int32_t /*nBookId*/)> DATATBLS_GetBooksTxtRecord{0x2374B0};
 
 // 1.14d-only entry: returns the per-level "misc/layer" structure indexed by
 // nLevelNo. No matching D2MOO ordinal; named under the DRLG_ domain to match
