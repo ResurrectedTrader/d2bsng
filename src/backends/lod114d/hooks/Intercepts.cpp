@@ -1058,9 +1058,9 @@ void PopInitFailure(const wchar_t* detail) {
 }  // namespace
 
 bool Init() {
-    moduleBase = reinterpret_cast<uintptr_t>(GetModuleHandle(nullptr));
+    moduleBase = imports::GameModuleBase();
     if (moduleBase == 0) {
-        PopInitFailure(L"GetModuleHandle returned NULL");
+        PopInitFailure(L"no game module base");
         return false;
     }
 

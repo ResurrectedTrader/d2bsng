@@ -3,6 +3,7 @@
 #include <spdlog/logger.h>
 #include <windows.h>
 
+#include <atomic>
 #include <filesystem>
 #include <thread>
 
@@ -16,6 +17,8 @@ class Host {
    public:
     static void Initialize(HMODULE hModule);
     static void Shutdown();
+    // True once Initialize finished bringing the frontend up (the script engine, services).
+    static bool IsInitialized() { return isInitialized_.load(); }
 
     Host() = delete;
 
@@ -29,6 +32,7 @@ class Host {
     // The d2bs.ini to load.
     static std::filesystem::path ConfigPath();
 
+    inline static std::atomic<bool> isInitialized_{false};
     inline static std::jthread initThread_;
     inline static std::filesystem::path dllDir_;
     inline static std::shared_ptr<spdlog::logger> logger_;

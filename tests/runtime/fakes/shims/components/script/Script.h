@@ -19,6 +19,7 @@ class Script {
     ScriptMode GetMode() const { return mode_; }
     const std::filesystem::path& GetPath() const { return path_; }
     void Stop() { stopped_ = true; }
+    void Join() {}
     bool IsStopped() const { return stopped_; }
 
    private:

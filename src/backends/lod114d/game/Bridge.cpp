@@ -31,11 +31,10 @@ bool Bridge::Init() {
         return initSucceeded.load(std::memory_order_acquire);
     }
 
-    auto base = reinterpret_cast<uintptr_t>(GetModuleHandle(nullptr));
+    const auto base = lod114d::imports::GameModuleBase();
     if (base == 0) {
-        MessageBoxW(nullptr,
-                    L"d2bsng: failed to obtain the Diablo II module base address (GetModuleHandle returned NULL).",
-                    L"d2bsng init failure", MB_OK | MB_ICONERROR);
+        MessageBoxW(nullptr, L"d2bsng: failed to obtain the Diablo II module base address.", L"d2bsng init failure",
+                    MB_OK | MB_ICONERROR);
         return false;
     }
 

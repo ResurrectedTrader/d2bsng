@@ -1,11 +1,29 @@
 #include "imports/ImportTypes.h"
 
+#include <Windows.h>
+
+#include <atomic>
+
 #ifdef _DEBUG
-    #include <Windows.h>
     #include <cstdio>
 #endif
 
 namespace d2bs::lod114d::imports {
+
+namespace {
+
+std::atomic<uintptr_t> gameModuleBase{0};
+
+}  // namespace
+
+uintptr_t GameModuleBase() noexcept {
+    const uintptr_t base = gameModuleBase.load(std::memory_order_acquire);
+    return base != 0 ? base : reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
+}
+
+void SetGameModuleBase(uintptr_t base) noexcept {
+    gameModuleBase.store(base, std::memory_order_release);
+}
 
 Registry& Registry::Get() noexcept {
     // Meyers singleton - constructed on first call, destroyed at process

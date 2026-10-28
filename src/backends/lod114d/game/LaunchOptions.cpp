@@ -68,6 +68,11 @@ std::vector<core::config::OptionSpec<LaunchOptions>> BuildSpecs() {
     /// @category Performance
     builder.Add("-sleepy", "", +[](LaunchOptions& o, std::wstring_view) { o.sleepy = true; });
 
+    /// @description Run without the d2bs console window: its window and render thread are never created, and the
+    /// console hotkey and hideConsole / showConsole do nothing. Script output still reaches the log.
+    /// @category Performance
+    builder.Add("-noconsole", "", +[](LaunchOptions& o, std::wstring_view) { o.disableConsole = true; });
+
     /// @description Add an extra Battle.net realm to the login server list, given as name:host (repeatable). The
     /// client dials it on the standard BNCS port 6112; it is injected into the in-memory server list only, never the
     /// registry.

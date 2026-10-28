@@ -22,6 +22,7 @@
 #include "game/GameThread.h"
 #include "game/HandleCache.h"
 #include "game/Unit.h"
+#include "host/Host.h"
 #include "speedhack/Speedhack.h"
 #include "utils/Profiling.h"
 #include "utils/utils.h"
@@ -169,8 +170,10 @@ void GameLoop::OnSleep(std::chrono::milliseconds duration) {
     previous_ = cur;
 
     frame_.Enter(FramePhase::Asleep);
-    if (writeLockHeld_) {
-        game::GameWriteLock::Release();
+    // A host that schedules the scripts itself runs the frame's wait (host::RunFrame), the first one too.
+    if (!writeLockHeld_) {
+        (void)host::RunFrame();
+    } else if (game::GameWriteLock::Release(); !host::RunFrame()) {
         // Release for idleSleep-ms real-wall slices so script readers get windows,
         // re-draining each slice; yield under 1ms wall left. A large
         // IdleSleepIntervalMs just coarsens the deadline re-check (idle CPU vs latency).
@@ -205,6 +208,27 @@ void GameLoop::OnSleep(std::chrono::milliseconds duration) {
     // Left open until the next OnSleep: everything in between is the game running its own frame.
     frame_.Enter(FramePhase::Game);
     writeLockHeld_ = true;
+}
+
+void GameLoop::EndGameSession() {
+    if (writeLockHeld_) {
+        game::GameWriteLock::Release();
+        writeLockHeld_ = false;
+    }
+    auto& engine = script::ScriptEngine::Instance();
+    std::vector<std::shared_ptr<script::Script>> stopped;
+    engine.ForEachScript([&stopped](const std::shared_ptr<script::Script>& script) {
+        if (script->GetMode() == script::ScriptMode::InGame) {
+            script->Stop();
+            stopped.push_back(script);
+        }
+    });
+    for (const auto& script : stopped) {
+        script->Join();
+    }
+    previous_.inSession = false;
+    previous_.state = game::GameState::Null;
+    gameStartedAt_.store({}, std::memory_order_release);
 }
 
 void GameLoop::OnDraw() const {

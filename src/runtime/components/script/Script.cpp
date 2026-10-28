@@ -34,6 +34,7 @@
 #include "game/GameHelpers.h"
 #include "game/GameLock.h"
 #include "game/GameThread.h"
+#include "host/Host.h"
 #include "speedhack/Speedhack.h"
 #include "utils/DeferGuard.h"
 #include "utils/Profiling.h"
@@ -111,7 +112,9 @@ void Script::Start() {
     if (!state_.compare_exchange_strong(expected, ScriptState::Starting)) {
         return;  // Not in Stopped state - already running or stopping
     }
-    thread_ = std::jthread([this](const std::stop_token& token) { ThreadMain(token); });
+    thread_ = host::StartScriptThread(
+        path_.filename().string(),
+        [](void* context, const std::stop_token& token) { static_cast<Script*>(context)->ThreadMain(token); }, this);
 }
 
 void Script::Stop() {
@@ -120,6 +123,7 @@ void Script::Stop() {
     while (current != ScriptState::Stopped && current != ScriptState::Stopping) {
         if (state_.compare_exchange_weak(current, ScriptState::Stopping)) {
             thread_.request_stop();
+            host::OnScriptWake(thread_, 0);
 
             // Safe to call TerminateExecution if isolate was initialized
             // (Ready or later state). The shared_ptr copy keeps the
@@ -153,7 +157,7 @@ void Script::Join() {
         // script can restore its read-lock depth and unwind before we join it.
         game::GameWriteLockReleaser writeReleaser;
         game::GameReadLockReleaser readReleaser;
-        thread_.join();
+        host::JoinScriptThread(thread_);
     }
 }
 
@@ -866,6 +870,13 @@ void Script::ExecuteEvents(std::chrono::milliseconds duration) {
     // Reached from a handler (delay() inside a callback): hand the handler phase back on exit.
     const bool nested = idle_.InPhase();
 
+    // A script stopping in delay() that was not terminated (a binding's TryCatch took the termination) would otherwise
+    // loop on delay() forever while it is joined.
+    if (stopToken.stop_requested() && !iso->IsExecutionTerminating()) {
+        iso->TerminateExecution();
+        return;
+    }
+
     // When paused, sleep without processing events.
     while (state_.load() == ScriptState::Paused && !stopToken.stop_requested()) {
         idle_.Enter(IdlePhase::Paused);
@@ -910,8 +921,14 @@ void Script::ExecuteEvents(std::chrono::milliseconds duration) {
         const auto realRemaining = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::duration<double, std::milli>(deadline - now) / speed);
         idle_.Enter(IdlePhase::Wait);
-        core::speedhack::SpeedhackDisabledScope realWaits;
-        std::this_thread::sleep_for(std::clamp(realRemaining, std::chrono::milliseconds(1), idleSleep));
+        // A host that wakes the script for every event may sleep past idleSleep; a script with render listeners still
+        // wakes each slice for the frames it is drawn.
+        host::ScriptWait(
+            realRemaining, idleSleep,
+            [](void* context) {
+                return static_cast<Script*>(context)->IsEventRegistered(events::RenderEvent::EVENT_NAME);
+            },
+            this);
     }
     if (nested) {
         idle_.Resume(IdlePhase::Handlers);
@@ -1012,6 +1029,8 @@ bool Script::PostEvent(const std::shared_ptr<events::BaseEvent>& event, uint32_t
                                 }
                             }),
                             static_cast<double>(delayMs) / 1000.0);
+    // A host-scheduled script in delay() sleeps to its deadline: the post wakes it.
+    host::OnScriptWake(thread_, delayMs);
     return true;
 }
 

@@ -41,7 +41,7 @@
 // (TargetsHelpers.cmake's D2MOO_set_dll_decl): empty when building a static
 // library / consuming as part of the same module, `__declspec(dllimport)`
 // when linking against a DLL. We never link against any D2MOO output -
-// every former-DLL function is resolved via GetModuleHandle(nullptr) +
+// every former-DLL function is resolved via imports::GameModuleBase() +
 // offset against Game.exe - so each macro is empty here. Overridable via
 // project PreprocessorDefinitions.
 #ifndef D2COMMON_DLL_DECL

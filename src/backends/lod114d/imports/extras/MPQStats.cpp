@@ -5,10 +5,9 @@
 #include "imports/extras/MPQStats.h"
 
 #include "imports/D2Common.h"
+#include "imports/ImportTypes.h"
 #include "utils/CaseInsensitiveMap.h"
 #include "utils/utils.h"
-
-#include <Windows.h>  // GetModuleHandle
 
 #include <algorithm>
 #include <array>
@@ -2543,9 +2542,8 @@ constexpr std::array<TableSchema, 29> TABLES = {{
 // === Lookup helpers =========================================================
 
 // Cached Game.exe module base; absolute-mode tables are resolved against it.
-// First call from a tool/test thread is benign (GetModuleHandle is reentrant).
 uintptr_t ModuleBase() {
-    static const uintptr_t BASE = reinterpret_cast<uintptr_t>(GetModuleHandle(nullptr));
+    static const uintptr_t BASE = GameModuleBase();
     return BASE;
 }
 

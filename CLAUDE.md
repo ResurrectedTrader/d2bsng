@@ -20,6 +20,7 @@ Design docs live in `docs/`. Read the one(s) covering whatever you are about to 
 - `docs/plugy_stash.md` - PlugY's multi-page stash on 1.14d, the backend behind `docs/stash_tabs.md` when PlugY is present: how PlugY pages the stash (only the shown page lives in the inventory; the rest hang off a `PYPlayerData` tail appended to the player data, parked items are stored-mode with no parent inventory), the version-allowlisted detection in `backends/lod114d/game/PlugY.cpp`, running PlugY's `Init` from `Bridge::Init` when PlugY.dll was injected without PlugY.exe, the patch-site overlap check against d2bs's hooks, the blocking swap-in / click / ack-wait / swap-back sequence over PlugY's 0x3A channel, the shared gold pool, and how to remove the PlugY code again.
 - `docs/code_cache.md` - the script code cache: why per-script isolates make V8's own compilation cache useless across scripts, the memory + opt-in disk tiers of `runtime::script::CodeCache`, how it hooks into `CompileSource` (eager on a miss / consume on a hit / drop on a rejected blob), the key (post-transform source + origin + V8 build tag), the header-less on-disk entries and cross-instance sharing, and the `CodeCachePath` / `CodeCacheMemoryLimit` / `CodeCacheDiskLimit` settings.
 - `docs/analytics.md` - anonymous usage analytics (Aptabase): the `Analytics` component, the `session_start` / `profile_active` events (the latter carrying a per-install `profileHash`, never the profile name) and exactly what they do / do not collect, the compile-time app key (build-time only; the project key is the committed default in `Directory.Build.props`, overridable per-build via `-p:D2bsAnalyticsKey` / gitignored `d2bs.local.props` / `D2BS_ANALYTICS_KEY`, and an empty value compiles analytics out), the per-launch opt-out (`-noanalytics`/`D2BS_ANALYTICS_DISABLE`), the backend-agnostic `features` tag list via `game::GetActiveFeatures()`, the anonymous `installId` (derived per launch, never stored), and the `game::GetAnalyticsLaunchOptions()` / `game::GetBackendVersion()` contract accessors.
+- `docs/host_hooks.md` - extension points for a program that hosts the frontend and a backend itself (`src/contract/host/Host.h`, `d2bs::host`): link-time functions every executable defines once - `src/core/host/DefaultHost.cpp`, the in-process host (plain script threads, real-time waits) d2bs.dll and `js_tests` compile, which inlines under LTO (the disassembly check against main) - the seven hooks with their call sites and why each must be one, what a host gets from outside instead (its own `game/GameCallbacks.cpp` / `game/Ipc.cpp` in place of the backend's, `-noconsole`, V8 flags), and the plain embedding APIs (`SetGameModuleBase`, `GameLoop::EndGameSession`, ...). Also the one JS-visible change they brought: scripts enumerate by path.
 
 ## Build Commands
 
@@ -215,11 +216,13 @@ d2bsng/
 │   ├── utils/              utils.lib - standalone utilities (crypto, threading, stackwalker, profiling counters)
 │   ├── contract/           contract.lib - the boundary both frontends and backends compile against
 │   │   ├── game/               Game interface headers + framework-owned utilities (GameLock.cpp and Common.cpp are compiled)
-│   │   └── config/             Shared DTOs: ProfileData, ScriptPaths
+│   │   ├── config/             Shared DTOs: ProfileData, ScriptPaths
+│   │   └── host/               Host hooks (Host.h; docs/host_hooks.md)
 │   ├── core/               core.lib - shared infrastructure (depends on contract)
 │   │   ├── config/             AppConfig, IniConfigStore, CompatibilityFlags, Version, OptionParser (launch-option parsing, and removing those switches from the command line afterwards)
 │   │   ├── detour/             Typed Detours slots + batched attach/detach transactions (every Detours hook in the tree)
 │   │   ├── speedhack/          Global game-time scaling
+│   │   ├── host/               DefaultHost.cpp: the in-process host hooks each injectable DLL and js_tests compile (not in core.lib)
 │   │   ├── input/              WH_GETMESSAGE input hook + WM_COPYDATA subclass + injected-input tagging
 │   │   ├── proxy/              SOCKS5 connect hook + bypass scope for script sockets
 │   │   └── http/               WinHTTP request engine (takes the proxy bypass above)
@@ -390,7 +393,7 @@ that a stripped include was actually unused.
 These are the intended dependencies. A few deliberate exceptions are noted inline - each one lets a layer reuse an existing type or helper instead of duplicating it, which is the cheaper trade-off than the indirection that removing the edge would require.
 
 - **utils/** depends on: standard library, Windows headers, third-party libs (spdlog, stackwalker).
-- **contract/** (the boundary) depends on: utils + standard library only. NEVER on core, the frontend, V8, or any backend. Holds the game interface (`game/*.h`), the framework-owned utilities (Finders/GameLock/GameThread/HandleCache/Types), and the shared DTOs (`config/ProfileData.h`, `config/ScriptPaths.h`). `game/Menu.h` includes `config/ProfileData.h` (same project) so `Login()` takes the profile struct by const-ref.
+- **contract/** (the boundary) depends on: utils + standard library only. NEVER on core, the frontend, V8, or any backend. Holds the game interface (`game/*.h`), the framework-owned utilities (Finders/GameLock/GameThread/HandleCache/Types), the shared DTOs (`config/ProfileData.h`, `config/ScriptPaths.h`) and the host hooks (`host/Host.h`, defined per executable - see docs/host_hooks.md). `game/Menu.h` includes `config/ProfileData.h` (same project) so `Login()` takes the profile struct by const-ref.
 - **core/** (shared infra) depends on: contract + utils. Holds config (AppConfig/Ini/CompatibilityFlags/Version/OptionParser), detour (the Detours slot/batch API every hook in the tree goes through), speedhack, proxy (SOCKS5 hook), http (the WinHTTP request engine, which takes the proxy bypass), input (the game-window input hook). NEVER on the frontend or a backend.
 - **runtime/** (JavaScript frontend) depends on: contract + core + utils + V8. Reaches the game only through `game::` contract symbols (resolved at the DLL link) and pushes its hooks down through the `GameCallbacks` table; it NEVER references a concrete backend.
   - **runtime/api/** depends on: contract (game/ interface + DTOs), core, components/, utils/, V8.
@@ -665,7 +668,7 @@ the directory under the project root holding the file.
   `runtime::components::profile`. A backend is named by its own directory
   (`lod114d`), never by `backends/`.
 - **The contract is the exception.** It is the vocabulary every project shares, so it keeps
-  short names: `d2bs::game` (`game/`) and `d2bs::config` (`config/`). A backend's `game/`
+  short names: `d2bs::game` (`game/`), `d2bs::config` (`config/`) and `d2bs::host` (`host/`). A backend's `game/`
   directory is its implementation of that contract, so it is `d2bs::game` as well - the member
   definitions (`game::Unit::Pos`) have to be, and the helpers beside them serve only those
   (`game::plugy`, `game::RoomDataGuard`). A contract function implemented elsewhere in a

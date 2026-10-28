@@ -127,6 +127,7 @@
     <ClCompile Include="..\..\src\utils\utils.cpp" />
     <ClCompile Include="..\..\src\utils\Profiling.cpp" />
     <ClCompile Include="..\..\src\utils\EnumNaming.cpp" />
+    <ClCompile Include="..\..\src\core\host\DefaultHost.cpp" />
     <!-- Test cases -->
     <ClCompile Include="config\OptionParserTest.cpp" />
     <ClCompile Include="utils\EnumNamingTest.cpp" />

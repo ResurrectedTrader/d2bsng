@@ -16,6 +16,7 @@
 #include <vector>
 #include "ScriptTypes.h"
 #include "game/Types.h"
+#include "host/Host.h"
 #include "utils/Profiling.h"
 // ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
 #include "RuntimeEnumNames.h"
@@ -256,7 +257,7 @@ class Script : public std::enable_shared_from_this<Script> {
     // The frame this script last fired "render" for. Script-thread-only.
     uint64_t lastRenderFrame_;
 
-    std::jthread thread_;
+    host::ScriptThread thread_;
     // Shared ownership prevents use-after-dispose: Stop() and PostEvent() (called
     // from external threads) atomically load a refcounted copy, keeping the isolate
     // alive for the duration of their call.  TeardownIsolate() atomically exchanges
