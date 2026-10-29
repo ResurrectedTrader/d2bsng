@@ -1364,13 +1364,14 @@ void Unit::Move(Position target) const {
 }
 
 bool Unit::Interact() const {
-    bool isGroundItem = false;
+    bool isBeltableGroundItem = false;
     {
         const auto u = Resolve<D2UnitStrc>();
         if (!u || u == lod114d::imports::d2client::UNITS_GetPlayerUnit()) {
             return false;
         }
-        isGroundItem = u->dwUnitType == UNIT_ITEM && u->dwItemMode == IMODE_ONGROUND;
+        isBeltableGroundItem = u->dwUnitType == UNIT_ITEM && u->dwItemMode == IMODE_ONGROUND &&
+                               lod114d::imports::d2common::ITEMS_CheckIfBeltable(u);
 
         // Items in inventory/stash use packet 0x20; belt items use 0x26. Reference
         // hard-codes these because the underlying ClickItem path is gated behind
@@ -1411,7 +1412,7 @@ bool Unit::Interact() const {
 
     // The click picks a ground item up with a 0x16 sent from the game thread, which
     // cannot wait, so a pickup right after a belt use waits here.
-    if (isGroundItem) {
+    if (isBeltableGroundItem) {
         lod114d::hooks::intercepts::WaitOutBeltUseWindow(Id());
     }
 
