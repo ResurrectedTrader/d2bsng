@@ -210,27 +210,6 @@ void GameLoop::OnSleep(std::chrono::milliseconds duration) {
     writeLockHeld_ = true;
 }
 
-void GameLoop::EndGameSession() {
-    if (writeLockHeld_) {
-        game::GameWriteLock::Release();
-        writeLockHeld_ = false;
-    }
-    auto& engine = script::ScriptEngine::Instance();
-    std::vector<std::shared_ptr<script::Script>> stopped;
-    engine.ForEachScript([&stopped](const std::shared_ptr<script::Script>& script) {
-        if (script->GetMode() == script::ScriptMode::InGame) {
-            script->Stop();
-            stopped.push_back(script);
-        }
-    });
-    for (const auto& script : stopped) {
-        script->Join();
-    }
-    previous_.inSession = false;
-    previous_.state = game::GameState::Null;
-    gameStartedAt_.store({}, std::memory_order_release);
-}
-
 void GameLoop::OnDraw() const {
     // Fires from the render function, before the next OnSleep has taken a new
     // snapshot - previous_.state is the most recently observed game state.

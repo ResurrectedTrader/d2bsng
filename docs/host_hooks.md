@@ -60,11 +60,8 @@ A host gets the rest from outside, with mechanisms d2bs.dll has anyway:
 * **Settings**: the backend's `-noconsole` launch option (no console window), `core::speedhack::Remove()` after the
   backend's install, V8 flags through `v8::V8::SetFlagsFromString` before `runtime::Host::Initialize`, and the ini's
   `EngineSingleThreaded`.
-* **Plain APIs** d2bs.dll never calls: `lod114d::imports::SetGameModuleBase` (every import, patch and hook offset is
-  relative to `GameModuleBase()`, which Bridge::Init sets to the process image unless it was set first),
-  `GameThread::HasPending`, `runtime::Host::IsInitialized` and `GameLoop::EndGameSession` (one game after another
-  without the menu).
-
+* **The game's base**: `lod114d::imports::SetGameModuleBase` before `Bridge::Init` (every import, patch and hook
+  offset is relative to `GameModuleBase()`, which Bridge::Init sets to the process image unless it was set first).
 ## Rules
 
 * Nothing in `runtime`, `contract`, `core`, `utils` or a backend may name a host or its types; a host's state lives

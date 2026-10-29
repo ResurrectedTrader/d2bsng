@@ -76,12 +76,6 @@ class GameLoop {
     // left held on exit so the next frame body starts under the write lock.
     void OnSleep(std::chrono::milliseconds duration);
 
-    // On the game thread, between games of a host that plays one game after another without the menu: what the
-    // game's exit to the menu does - the InGame scripts stop (and are
-    // waited for) and the session latch clears, so the next game's entry starts the game script afresh. The frame
-    // write lock is handed back; the next OnSleep takes it again.
-    void EndGameSession();
-
     // Called from the game's render function. Counts the frame for the script
     // "render" event, then flushes drawables for the most recently observed game state.
     void OnDraw() const;
