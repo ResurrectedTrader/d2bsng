@@ -509,9 +509,8 @@ void SendGamePacket(std::span<const uint8_t> data) {
     }
     constexpr uint8_t CLT_PICKUP_ITEM = 0x16;
     if (data[0] == CLT_PICKUP_ITEM && data.size() >= sizeof(D2GSPacketClt16)) {
-        uint32_t itemId = 0;
-        std::memcpy(&itemId, data.subspan(offsetof(D2GSPacketClt16, dwUnitGUID)).data(), sizeof(itemId));
-        lod114d::hooks::intercepts::WaitOutBeltUseWindow(itemId);
+        const auto* pickup = reinterpret_cast<const D2GSPacketClt16*>(data.data());
+        lod114d::hooks::intercepts::WaitOutBeltUseWindow(pickup->dwUnitGUID);
     }
     d2net::CLIENT_Send(data.size(), 1, data.data());
 }

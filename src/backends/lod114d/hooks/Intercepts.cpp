@@ -295,13 +295,12 @@ bool IsWarpOfRoomlessDeadUnit(std::span<const uint8_t> packet) {
     if (packet.size() < sizeof(D2GSPacketSrv15) || packet[0] != 0x15U) {
         return false;
     }
-    const auto type = packet[offsetof(D2GSPacketSrv15, nUnitType)];
+    const auto* warp = reinterpret_cast<const D2GSPacketSrv15*>(packet.data());
+    const auto type = warp->nUnitType;
     if (type != UNIT_PLAYER && type != UNIT_MONSTER) {
         return false;
     }
-    uint32_t unitId = 0;
-    std::memcpy(&unitId, packet.subspan(offsetof(D2GSPacketSrv15, dwUnitGUID)).data(), sizeof(unitId));
-    auto* unit = game::unit_tables::FindUnitInHashTable(unitId, static_cast<game::UnitType>(type));
+    auto* unit = game::unit_tables::FindUnitInHashTable(warp->dwUnitGUID, static_cast<game::UnitType>(type));
     if (unit == nullptr || unit == imports::d2client::UNITS_GetPlayerUnit() ||
         imports::d2common::UNITS_GetRoom(unit) != nullptr) {
         return false;
@@ -468,9 +467,8 @@ void NoteBeltPacket(std::span<const uint8_t> packet) {
     if (packet.size() < sizeof(D2GSPacketClt16) || packet[0] != CLT_PICKUP_ITEM) {
         return;
     }
-    uint32_t itemId = 0;
-    std::memcpy(&itemId, packet.subspan(offsetof(D2GSPacketClt16, dwUnitGUID)).data(), sizeof(itemId));
-    lastPickup.store(Pickup{.itemId = itemId, .tick = GetTickCount()}, std::memory_order_release);
+    const auto* pickup = reinterpret_cast<const D2GSPacketClt16*>(packet.data());
+    lastPickup.store(Pickup{.itemId = pickup->dwUnitGUID, .tick = GetTickCount()}, std::memory_order_release);
 }
 
 // P4: GamePacketSent. ecx=packet, edx=size (the naked thunk pulls them off
@@ -1180,7 +1178,7 @@ uint32_t BeltWindowLeft(Pickup pickup) {
     }
     const game::GameReadLock guard;
     auto* item = game::unit_tables::FindUnitInHashTable(pickup.itemId, game::UnitType::Item);
-    if (item == nullptr || imports::d2common::ITEMS_CheckIfBeltable(item) == 0) {
+    if (item == nullptr || !imports::d2common::ITEMS_CheckIfBeltable(item)) {
         return 0;
     }
     return BELT_WINDOW_MS - elapsed;
