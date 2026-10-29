@@ -1128,6 +1128,11 @@ uint32_t Unit::WeaponSwitch() const {
 
 // === Traversal ===
 
+bool Unit::HasInventory() const {
+    const auto u = Resolve<D2UnitStrc>();
+    return u && u->pInventory != nullptr;
+}
+
 std::optional<Unit> Unit::GetFirstItem() const {
     const auto u = Resolve<D2UnitStrc>();
     if (!u || u->pInventory == nullptr) {

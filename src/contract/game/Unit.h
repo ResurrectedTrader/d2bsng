@@ -166,6 +166,7 @@ class Unit {
     // standard loop pattern is
     //   for (auto u = First(); u; u = u->Next()) { ... }
     // where both sides are `std::optional<Unit>`.
+    bool HasInventory() const;
     std::optional<Unit> GetFirstItem() const;
     std::optional<Unit> GetNextItem() const;
     // First unit of `type` in that hash table (walks buckets for first non-null).

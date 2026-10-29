@@ -1599,9 +1599,11 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             if (mode < game::ItemCostMode::Buy || mode > game::ItemCostMode::Repair) {
                 return;
             }
-            // Default NPC: use currently interacting NPC, fall back to Charsi
+            // Default NPC: the interacting unit if it is a vendor-like NPC, else Charsi. The client's
+            // active-NPC slot can hold a non-NPC unit (a monster) whose class id has no npc.txt row,
+            // which makes the native cost calculation halt.
             auto npc = game::Unit::InteractingNPC();
-            uint32_t npcClassId = npc ? npc->ClassId() : game::NPC_CHARSI_CLASS_ID;
+            uint32_t npcClassId = npc && npc->HasInventory() ? npc->ClassId() : game::NPC_CHARSI_CLASS_ID;
             auto difficulty = game::GetDifficulty();
             if (args.Length() > 1) {
                 if (args[1]->IsObject()) {
