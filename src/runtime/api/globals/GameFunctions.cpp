@@ -956,7 +956,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature getBaseStat(table: string|number, row: number, column: string|number)
     /// @signature getBaseStat(table: string|number, row: number)
     /// @param table {string|number} - table name, or index into the known table-name list
-    /// @param row {number} - row index
+    /// @param row {number} - row index in the table's load order, for every table; for "npc" that is not the NPC's
+    /// class id - find the row whose "npc" column holds it, as the game does
     /// @param column {string|number} - column name, or index into the resolved table's columns; omit for the whole row
     /// @returns {number|string|object|undefined} - the cell value; a {column: value} object when column is omitted;
     /// undefined if unresolved, the row is out of range, or the cell is empty

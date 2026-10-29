@@ -21,7 +21,6 @@
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-braces"
-#include <D2DataTbls.h>            // D2DataTablesStrc
 #include <D2Inventory.h>           // D2InventoryStrc, D2ItemExtraDataStrc
 #include <D2Items.h>               // D2C_ItemModes (IMODE_ONGROUND, IMODE_DROPPING)
 #include <D2Monsters.h>            // D2C_MonTypeFlags
@@ -56,6 +55,7 @@
 #include <tuple>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace d2bs::game {
@@ -79,16 +79,17 @@ inline D2UnitStrc* AsUnit(void* p) noexcept {
 // client's interacting unit can be one, e.g. Greiz (a hireling NPC with a monstats
 // inventory but no price list) right after hiring.
 uint32_t PricingNpcClassId(uint32_t npcClassId) {
-    static_assert(offsetof(D2DataTablesStrc, pNpcTxt) == 0x9A8 &&
-                  offsetof(D2DataTablesStrc, nNpcTxtRecordCount) == 0x9AC);
-    const auto* tables = reinterpret_cast<const D2DataTablesStrc*>(*lod114d::imports::d2common::sgptDataTables);
-    if (tables == nullptr || tables->pNpcTxt == nullptr) {
-        return NPC_CHARSI_CLASS_ID;
+    // DATATBLS_GetNpcTxtRecord's walk: npc.txt rows matched on their npc column.
+    for (uint32_t row = 0;; ++row) {
+        const TxtValue value = GetTxtValue("npc", row, "npc");
+        const auto* npc = std::get_if<int64_t>(&value);
+        if (npc == nullptr) {
+            return NPC_CHARSI_CLASS_ID;
+        }
+        if (*npc == npcClassId) {
+            return npcClassId;
+        }
     }
-    const std::span rows{tables->pNpcTxt, static_cast<size_t>(std::max(tables->nNpcTxtRecordCount, 0))};
-    const bool hasRow =
-        std::ranges::any_of(rows, [npcClassId](const D2NpcTxt& row) { return row.dwNpc == npcClassId; });
-    return hasRow ? npcClassId : NPC_CHARSI_CLASS_ID;
 }
 
 // Reference parity: D2 unit hash tables - 6 type buckets x 128 hash entries.

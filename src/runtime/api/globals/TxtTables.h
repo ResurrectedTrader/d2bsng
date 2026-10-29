@@ -4,7 +4,7 @@
 // Schema of the Diablo II 1.14d data tables (.txt): table index -> name,
 // and per-table column index -> name. Includes the appended 'affixes' table
 // (magicprefix / magicsuffix).
-// Summary: 28 tables, 2297 columns total.
+// Summary: 29 tables, 2316 columns total.
 #pragma once
 
 #include <array>
@@ -16,7 +16,7 @@ namespace d2bs::runtime::api::globals {
 // ============================================================================
 // Table name lookup: table index -> canonical .txt table name.
 // ============================================================================
-inline constexpr std::array<std::string_view, 28> TXT_TABLE_NAMES = {
+inline constexpr std::array<std::string_view, 29> TXT_TABLE_NAMES = {
     "items",         // [ 0]
     "monstats",      // [ 1]
     "skilldesc",     // [ 2]
@@ -45,6 +45,7 @@ inline constexpr std::array<std::string_view, 28> TXT_TABLE_NAMES = {
     "superuniques",  // [25]
     "affixes",       // [26]
     "properties",    // [27]
+    "npc",           // [28]
 };
 
 // ----------------------------------------------------------------------------
@@ -2512,6 +2513,31 @@ inline constexpr std::array<std::string_view, 29> TXT_COLUMNS_PROPERTIES = {
     "stat7",  // [28]
 };
 
+// ----------------------------------------------------------------------------
+// [28] npc - 19 columns
+// ----------------------------------------------------------------------------
+inline constexpr std::array<std::string_view, 19> TXT_COLUMNS_NPC = {
+    "npc",              // [ 0]
+    "sell mult",        // [ 1]
+    "buy mult",         // [ 2]
+    "rep mult",         // [ 3]
+    "questflag A",      // [ 4]
+    "questflag B",      // [ 5]
+    "questflag C",      // [ 6]
+    "questsellmult A",  // [ 7]
+    "questsellmult B",  // [ 8]
+    "questsellmult C",  // [ 9]
+    "questbuymult A",   // [10]
+    "questbuymult B",   // [11]
+    "questbuymult C",   // [12]
+    "questrepmult A",   // [13]
+    "questrepmult B",   // [14]
+    "questrepmult C",   // [15]
+    "max buy",          // [16]
+    "max buy (N)",      // [17]
+    "max buy (H)",      // [18]
+};
+
 // ============================================================================
 // Column lookup: table index -> span of that table's column names.
 // Use together with TXT_TABLE_NAMES to resolve (tableIdx, colIdx) -> names.
@@ -2545,6 +2571,7 @@ inline constexpr std::array TXT_COLUMNS_BY_TABLE = {
     std::span<const std::string_view>{TXT_COLUMNS_SUPERUNIQUES},  // [25] superuniques
     std::span<const std::string_view>{TXT_COLUMNS_AFFIXES},       // [26] affixes
     std::span<const std::string_view>{TXT_COLUMNS_PROPERTIES},    // [27] properties
+    std::span<const std::string_view>{TXT_COLUMNS_NPC},           // [28] npc
 };
 
 }  // namespace d2bs::runtime::api::globals
