@@ -167,7 +167,7 @@ Detection Detect(HMODULE module) {
         return Detection::Inactive;
     }
 
-    const auto base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
+    const auto base = lod114d::imports::GameModuleBase();
     // D2Common's InitPlayerData in 1.14d Game.exe. Its allocation call is the one
     // PlugY redirects to grow the block by sizeof(PYPlayerData):
     //   +0x47  BA 6C 01 00 00   mov edx, sizeof(D2PlayerDataStrc)
@@ -393,7 +393,7 @@ void InstallInitHook() {
     if (module == nullptr) {
         return;
     }
-    const auto base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
+    const auto base = lod114d::imports::GameModuleBase();
     // Game.exe's startup loads advapi32 through this `call [IAT LoadLibraryA]`. It is
     // where PlugY.exe's stub runs PlugY's Init: Fog's memory pool already exists (Init
     // allocates through it), and nothing PlugY's startup-time features hook has run

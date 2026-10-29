@@ -2,20 +2,24 @@
 
 #include <spdlog/spdlog.h>
 
+#include <atomic>
 #include <chrono>
+#include <exception>
 #include <filesystem>
 #include <format>
 #include <functional>
-#include <future>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <queue>
 #include <source_location>
 #include <stop_token>
 #include <type_traits>
 #include <utility>
+#include <variant>
 
 #include "game/GameLock.h"
+#include "host/Host.h"
 #include "utils/Profiling.h"
 #include "utils/threadutils.h"
 #include "utils/utils.h"
@@ -56,22 +60,28 @@ class GameThread {
 
     // The callable stays on the waiting thread's stack. Cancelled tasks must
     // never dereference it, even if Drain already took its batch from queue_.
+    // The outcome (result, exception) is written before the release store of Done and read after the waiter's acquire.
     template <typename T>
     struct CallState {
-        std::mutex mutex;
-        bool pending = true;
-        std::promise<T> promise;
+        std::atomic<host::TaskState> state{host::TaskState::Pending};
+        std::exception_ptr error;
+        std::conditional_t<std::is_void_v<T>, std::monostate, std::optional<T>> result;
 
         bool Start() {
-            const std::lock_guard lock(mutex);
-            return std::exchange(pending, false);
+            auto expected = host::TaskState::Pending;
+            return state.compare_exchange_strong(expected, host::TaskState::Running, std::memory_order_acq_rel);
         }
 
         void Cancel() {
-            const std::lock_guard lock(mutex);
-            if (std::exchange(pending, false)) {
-                promise.set_exception(std::make_exception_ptr(Cancelled{}));
+            auto expected = host::TaskState::Pending;
+            if (state.compare_exchange_strong(expected, host::TaskState::Cancelled, std::memory_order_acq_rel)) {
+                state.notify_one();
             }
+        }
+
+        void Finish() {
+            state.store(host::TaskState::Done, std::memory_order_release);
+            state.notify_one();
         }
     };
 
@@ -114,7 +124,6 @@ class GameThread {
         }
 
         auto state = std::make_shared<CallState<T>>();
-        auto future = state->promise.get_future();
         const std::stop_callback cancellation(stopToken, [state] { state->Cancel(); });
         {
             const std::lock_guard lock(queueMutex_);
@@ -127,13 +136,13 @@ class GameThread {
                              try {
                                  if constexpr (std::is_void_v<T>) {
                                      func();
-                                     state->promise.set_value();
                                  } else {
-                                     state->promise.set_value(func());
+                                     state->result.emplace(func());
                                  }
                              } catch (...) {
-                                 state->promise.set_exception(std::current_exception());
+                                 state->error = std::current_exception();
                              }
+                             state->Finish();
                          },
                          loc});
         }
@@ -145,7 +154,16 @@ class GameThread {
         // Release game read lock so the game thread's frame-advance write lock
         // can proceed. Re-acquires on scope exit.
         GameReadLockReleaser releaser;
-        return future.get();
+        host::WaitForTask(state->state);
+        if (state->state.load(std::memory_order_acquire) == host::TaskState::Cancelled) {
+            throw Cancelled{};
+        }
+        if (state->error) {
+            std::rethrow_exception(state->error);
+        }
+        if constexpr (!std::is_void_v<T>) {
+            return std::move(*state->result);
+        }
     }
 
     // Post a function to the game thread without waiting.

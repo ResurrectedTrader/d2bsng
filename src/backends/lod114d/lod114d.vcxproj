@@ -103,6 +103,7 @@
     <ClCompile Include="game\Party.cpp" />
     <ClCompile Include="game\GameCallbacks.cpp" />
     <ClCompile Include="game\GameHelpers.cpp" />
+    <ClCompile Include="game\Ipc.cpp" />
     <ClCompile Include="game\LaunchOptions.cpp" />
     <ClCompile Include="game\Menu.cpp" />
     <ClCompile Include="game\Stash.cpp" />

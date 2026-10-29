@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <map>
 #include <memory>
 #include <ranges>
@@ -38,6 +39,14 @@ class ScriptEngine {
     Script* GetScript(v8::Isolate* iso = nullptr);
     std::vector<std::shared_ptr<Script>> GetAllScripts();
 
+    // Scripts enumerate by path (case-insensitive; StartScript keeps one script per path): getScript() / getNext() and
+    // every event fan-out see the same order each run, which OS thread ids (the scripts_ key) do not give.
+    static void SortByPath(std::vector<std::shared_ptr<Script>>& scripts) {
+        std::ranges::sort(scripts, [](const std::shared_ptr<Script>& a, const std::shared_ptr<Script>& b) {
+            return a->GetNormalizedPath() < b->GetNormalizedPath();
+        });
+    }
+
     // Snapshots to avoid deadlock when a callback calls ScriptEngine methods.
     template <typename Fn>
     void ForEachScript(const Fn& fn) {
@@ -49,6 +58,7 @@ class ScriptEngine {
                 snapshot.push_back(script);
             }
         }
+        SortByPath(snapshot);
         for (auto& script : snapshot) {
             fn(script);
         }

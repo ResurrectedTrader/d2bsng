@@ -6,6 +6,7 @@
 #include "components/script/Script.h"
 #include "components/script/ScriptEngine.h"
 #include "game/GameThread.h"
+#include "host/Host.h"
 
 namespace d2bs::runtime::script {
 
@@ -123,6 +124,7 @@ void MethodTrampoline(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (binding == nullptr || binding->callback == nullptr) {
         return;
     }
+    host::OnNativeCall(binding->name);
     const utils::profiling::ScopedNativeCall timing(utils::profiling::NativeCall::Function, binding->stats);
     try {
         binding->callback(args);
@@ -138,6 +140,7 @@ void PropertyGetterTrampoline(v8::Local<v8::Name> property, const v8::PropertyCa
     if (accessors == nullptr || accessors->getter == nullptr) {
         return;
     }
+    host::OnNativeCall(accessors->name);
     const utils::profiling::ScopedNativeCall timing(utils::profiling::NativeCall::Getter, accessors->getStats);
     try {
         accessors->getter(property, info);
@@ -154,6 +157,7 @@ void PropertySetterTrampoline(v8::Local<v8::Name> property, v8::Local<v8::Value>
     if (accessors == nullptr || accessors->setter == nullptr) {
         return;
     }
+    host::OnNativeCall(accessors->name);
     const utils::profiling::ScopedNativeCall timing(utils::profiling::NativeCall::Setter, accessors->setStats);
     try {
         accessors->setter(property, value, info);

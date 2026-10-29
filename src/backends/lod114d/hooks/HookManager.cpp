@@ -140,7 +140,7 @@ core::input::Hooks BuildInputHooks(const game::GameCallbacks* callbacks) {
 // ---------------------------------------------------------------------------
 
 void InstallDetoursHooks() {
-    const auto base = reinterpret_cast<uintptr_t>(GetModuleHandle(nullptr));
+    const auto base = imports::GameModuleBase();
     // cursor-lock site
     constexpr uintptr_t CURSOR_LOCK_OFFSET = 0x68770;
     cursorLockHook.SetTarget(reinterpret_cast<CursorLockFn>(base + CURSOR_LOCK_OFFSET));

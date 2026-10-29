@@ -16,6 +16,7 @@
 #include <vector>
 #include "ScriptTypes.h"
 #include "game/Types.h"
+#include "host/Host.h"
 #include "utils/Profiling.h"
 // ReSharper disable once CppUnusedIncludeDirective - EnumName / format_as for the enumerations below
 #include "RuntimeEnumNames.h"

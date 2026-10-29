@@ -1,11 +1,27 @@
 #include "imports/ImportTypes.h"
 
+#include <Windows.h>
+
 #ifdef _DEBUG
-    #include <Windows.h>
     #include <cstdio>
 #endif
 
 namespace d2bs::lod114d::imports {
+
+namespace {
+
+// Written once (by the host, or by Bridge::Init) before any thread that reads it starts: a plain read is enough.
+uintptr_t gameModuleBase = 0;
+
+}  // namespace
+
+uintptr_t GameModuleBase() noexcept {
+    return gameModuleBase;
+}
+
+void SetGameModuleBase(uintptr_t base) noexcept {
+    gameModuleBase = base;
+}
 
 Registry& Registry::Get() noexcept {
     // Meyers singleton - constructed on first call, destroyed at process

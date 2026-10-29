@@ -15,6 +15,7 @@
 #include <string>
 #include <thread>
 
+#include "game/LaunchOptions.h"
 #include "hooks/HookManager.h"
 #include "imports/D2Gfx.h"
 #include "utils/Profiling.h"
@@ -291,7 +292,7 @@ LRESULT CALLBACK ConsoleWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 void RenderLoop(const std::stop_token& stop) {
     utils::threads::SetThreadDescription("d2bs console render");
 
-    HINSTANCE hInst = GetModuleHandleW(nullptr);
+    auto* hInst = reinterpret_cast<HINSTANCE>(imports::GameModuleBase());
 
     WNDCLASSEXW wc{};
     wc.cbSize = sizeof(wc);
@@ -458,6 +459,9 @@ void RenderLoop(const std::stop_token& stop) {
 }  // namespace
 
 void Init() {
+    if (game::GetLaunchOptions().disableConsole) {
+        return;
+    }
     bool expected = false;
     if (!running.compare_exchange_strong(expected, true)) {
         return;

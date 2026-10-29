@@ -5,6 +5,12 @@
 
 namespace d2bs::lod114d::imports {
 
+// Base address of the mapped Game.exe that every import, patch and hook offset is relative to. Bridge::Init sets it to
+// the process image (Game.exe when d2bs.dll is injected into it) unless a host that maps Game.exe into its own process
+// set it first; nothing reads it before then.
+[[nodiscard]] uintptr_t GameModuleBase() noexcept;
+void SetGameModuleBase(uintptr_t base) noexcept;
+
 // ----------------------------------------------------------------------------
 // Calling-convention tag types
 // ----------------------------------------------------------------------------

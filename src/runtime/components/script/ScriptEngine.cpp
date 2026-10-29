@@ -195,6 +195,7 @@ std::vector<std::shared_ptr<Script>> ScriptEngine::GetAllScripts() {
     for (auto& script : scripts_ | std::views::values) {
         result.push_back(script);
     }
+    SortByPath(result);
 
     return result;
 }

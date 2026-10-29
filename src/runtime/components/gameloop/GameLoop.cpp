@@ -22,6 +22,7 @@
 #include "game/GameThread.h"
 #include "game/HandleCache.h"
 #include "game/Unit.h"
+#include "host/Host.h"
 #include "speedhack/Speedhack.h"
 #include "utils/Profiling.h"
 #include "utils/utils.h"
@@ -169,8 +170,10 @@ void GameLoop::OnSleep(std::chrono::milliseconds duration) {
     previous_ = cur;
 
     frame_.Enter(FramePhase::Asleep);
-    if (writeLockHeld_) {
-        game::GameWriteLock::Release();
+    // A host that schedules the scripts itself runs the frame's wait (host::RunFrame), the first one too.
+    if (!writeLockHeld_) {
+        (void)host::RunFrame();
+    } else if (game::GameWriteLock::Release(); !host::RunFrame()) {
         // Release for idleSleep-ms real-wall slices so script readers get windows,
         // re-draining each slice; yield under 1ms wall left. A large
         // IdleSleepIntervalMs just coarsens the deadline re-check (idle CPU vs latency).

@@ -114,6 +114,7 @@
     <ClInclude Include="game\StashTab.h" />
     <ClInclude Include="game\Types.h" />
     <ClInclude Include="game\Unit.h" />
+    <ClInclude Include="host\Host.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\utils\utils.vcxproj">
