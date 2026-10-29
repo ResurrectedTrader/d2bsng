@@ -189,12 +189,12 @@ game::GameThread::Execute([&] {
 `Execute()` releases the script's `GameReadLock` so the game thread can acquire `GameWriteLock` to drain the task queue.
 
 `Script::ThreadMain` installs a `GameThread::CancellationScope` with its stop token. `Stop()` cancels a
-pending synchronous call without needing a queue drain. Dispatch and cancellation claim the call under
-its own mutex: cancellation wakes the waiter with `GameThread::Cancelled`, and a later drain skips the
+pending synchronous call without needing a queue drain. Dispatch and cancellation claim the call by
+compare-exchanging its atomic `host::TaskState` out of Pending (to Running or Cancelled): cancellation wakes the waiter with `GameThread::Cancelled`, and a later drain skips the
 callable without touching its expired references. Once dispatch claims the call, cancellation cannot
 wake the waiter early; it waits for the running callable to finish. Callable exceptions are delivered to
-the waiting thread through the call's state (an `std::exception_ptr` stored before its `done` flag is set; the
-waiter blocks on that flag with `std::atomic::wait`).
+the waiting thread through the call's state (an `std::exception_ptr` stored before the release store of Done; the
+waiter blocks on the state with `std::atomic::wait` until it is Done or Cancelled).
 
 Method, getter and setter trampolines, and the dialog-line handler callback, catch cancellation before
 it crosses V8 and terminate the stopped isolate's execution. The interrupted binding keeps its existing

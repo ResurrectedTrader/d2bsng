@@ -37,7 +37,7 @@ and the hand-offs between the scripts and the game thread.
 | `OnScriptWake(thread, delayMs)` | `Script::Stop`, `Script::PostEvent` | the other half of `ScriptWait`: wakes a script sleeping to its deadline for an event, timer or stop |
 | `OnNativeCall(name)` | every native binding call (the trampolines) | a call quantum on deterministic points (a script that never blocks yields); counting clock reads from outside misses spins on game state |
 | `RunFrame()` | `GameLoop::OnSleep`, with the frame's write lock released | the host runs the scripts' turns for the frame instead of the timed wait; on a held-still virtual clock that wait never ends |
-| `WaitForTask(done)` | `GameThread::Execute`, with the game read lock released | the wait for a posted task. In process: `done.wait` (an atomic wait), a blocking wait the host cannot see; a host that schedules the thread gives up its turns until the game thread ran the task |
+| `WaitForTask(state)` | `GameThread::Execute`, with the game read lock released | the wait for a posted task, until its `TaskState` is Done or Cancelled. In process: `state.wait` (an atomic wait), a blocking wait the host cannot see; a host that schedules the thread gives up its turns until the game thread ran or the script cancelled the task |
 
 `ScriptWait`'s long wait and `OnScriptWake` are the only optional part. Without them a script's delay polls in slices
 through the host's `Sleep` detour, as d2bs.dll does natively: the native simulator's runs stay deterministic, but take
