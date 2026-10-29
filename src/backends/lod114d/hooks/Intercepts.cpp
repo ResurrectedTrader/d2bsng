@@ -161,11 +161,11 @@ std::atomic<IncomingPacketObserver> incomingPacketObserver{nullptr};
 // The client's last ground pickup (see WaitOutBeltPickupWindow).
 struct Pickup {
     uint32_t itemId = 0;
-    DWORD tick = 0;  // GetTickCount
+    uint32_t tick = 0;  // GetTickCount
 };
 std::atomic<Pickup> lastPickup{};
 // GetTickCount of the client's last belt use (see WaitOutBeltUseWindow).
-std::atomic<DWORD> lastBeltUseTick{0};
+std::atomic<uint32_t> lastBeltUseTick{0};
 static_assert(std::atomic<Pickup>::is_always_lock_free);
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -1172,9 +1172,9 @@ namespace {
 // The rest of the belt window when `pickup` is a beltable item picked up (or, for a pickup, a
 // belt use sent) less than a few server frames (25 fps) ago, else zero: long enough that the
 // pickup and the belt use are handled in different server frames under normal jitter.
-DWORD BeltWindowLeft(Pickup pickup) {
-    constexpr DWORD BELT_WINDOW_MS = 100;
-    const DWORD elapsed = GetTickCount() - pickup.tick;
+uint32_t BeltWindowLeft(Pickup pickup) {
+    constexpr uint32_t BELT_WINDOW_MS = 100;
+    const uint32_t elapsed = GetTickCount() - pickup.tick;
     if (pickup.itemId == 0 || pickup.tick == 0 || elapsed >= BELT_WINDOW_MS) {
         return 0;
     }
@@ -1197,7 +1197,7 @@ void WaitOutBeltWindow(Latest latest) {
     }
     constexpr int32_t MAX_WAITS = 3;
     for (int32_t i = 0; i < MAX_WAITS; ++i) {
-        const DWORD left = BeltWindowLeft(latest());
+        const uint32_t left = BeltWindowLeft(latest());
         if (left == 0) {
             return;
         }
