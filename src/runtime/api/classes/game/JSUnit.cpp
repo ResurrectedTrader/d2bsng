@@ -23,17 +23,6 @@ namespace extract = extract;
 
 using game::UnitType;
 
-namespace {
-
-// The pricing NPC when a script names none: the interacting unit, else Charsi. The backend prices a
-// class the game has no price list for (a monster in the active-NPC slot, a hireling NPC) as Charsi.
-uint32_t DefaultPricingNpcClassId() {
-    const auto npc = game::Unit::InteractingNPC();
-    return npc ? npc->ClassId() : game::NPC_CHARSI_CLASS_ID;
-}
-
-}  // namespace
-
 // NOLINTNEXTLINE(readability-function-size) - V8 template configuration, intentionally large
 void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
     auto inst = tpl->InstanceTemplate();
@@ -1610,7 +1599,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             if (mode < game::ItemCostMode::Buy || mode > game::ItemCostMode::Repair) {
                 return;
             }
-            uint32_t npcClassId = DefaultPricingNpcClassId();
+            const auto npc = game::Unit::InteractingNPC();
+            uint32_t npcClassId = npc ? npc->ClassId() : game::NPC_CHARSI_CLASS_ID;
             auto difficulty = game::GetDifficulty();
             if (args.Length() > 1) {
                 if (args[1]->IsObject()) {
@@ -1887,7 +1877,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 args.GetReturnValue().Set(0);
                 return;
             }
-            uint32_t npcClassId = DefaultPricingNpcClassId();
+            const auto npc = game::Unit::InteractingNPC();
+            uint32_t npcClassId = npc ? npc->ClassId() : game::NPC_CHARSI_CLASS_ID;
             if (args.Length() > 0 && args[0]->IsNumber()) {
                 npcClassId = convert::To<uint32_t>(isolate, args[0]);
             }
