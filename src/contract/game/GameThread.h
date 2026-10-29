@@ -60,32 +60,28 @@ class GameThread {
 
     // The callable stays on the waiting thread's stack. Cancelled tasks must
     // never dereference it, even if Drain already took its batch from queue_.
-    // The outcome (result, exception, cancellation) is written before `done` is set and read after it is seen set.
+    // The outcome (result, exception) is written before the release store of Done and read after the waiter's acquire.
     template <typename T>
     struct CallState {
-        std::mutex mutex;
-        bool pending = true;
-        bool isCancelled = false;
-        std::atomic<bool> done{false};
+        std::atomic<host::TaskState> state{host::TaskState::Pending};
         std::exception_ptr error;
         std::conditional_t<std::is_void_v<T>, std::monostate, std::optional<T>> result;
 
         bool Start() {
-            const std::lock_guard lock(mutex);
-            return std::exchange(pending, false);
+            auto expected = host::TaskState::Pending;
+            return state.compare_exchange_strong(expected, host::TaskState::Running, std::memory_order_acq_rel);
         }
 
         void Cancel() {
-            const std::lock_guard lock(mutex);
-            if (std::exchange(pending, false)) {
-                isCancelled = true;
-                Finish();
+            auto expected = host::TaskState::Pending;
+            if (state.compare_exchange_strong(expected, host::TaskState::Cancelled, std::memory_order_acq_rel)) {
+                state.notify_one();
             }
         }
 
         void Finish() {
-            done.store(true, std::memory_order_release);
-            done.notify_one();
+            state.store(host::TaskState::Done, std::memory_order_release);
+            state.notify_one();
         }
     };
 
@@ -158,8 +154,8 @@ class GameThread {
         // Release game read lock so the game thread's frame-advance write lock
         // can proceed. Re-acquires on scope exit.
         GameReadLockReleaser releaser;
-        host::WaitForTask(state->done);
-        if (state->isCancelled) {
+        host::WaitForTask(state->state);
+        if (state->state.load(std::memory_order_acquire) == host::TaskState::Cancelled) {
             throw Cancelled{};
         }
         if (state->error) {

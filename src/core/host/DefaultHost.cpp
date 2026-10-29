@@ -15,16 +15,16 @@
 
 namespace d2bs::host {
 
-ScriptThread StartScriptThread(std::string_view /*name*/, void (*body)(void* context, const std::stop_token& token),
+std::jthread StartScriptThread(std::string_view /*name*/, void (*body)(void* context, const std::stop_token& token),
                                void* context) {
-    return ScriptThread([body, context](const std::stop_token& token) { body(context, token); });
+    return std::jthread([body, context](const std::stop_token& token) { body(context, token); });
 }
 
-void JoinScriptThread(ScriptThread& thread) {
+void JoinScriptThread(std::jthread& thread) {
     thread.join();
 }
 
-void OnScriptWake(const ScriptThread& /*thread*/, uint32_t /*delayMs*/) {}
+void OnScriptWake(const std::jthread& /*thread*/, uint32_t /*delayMs*/) {}
 
 void ScriptWait(std::chrono::milliseconds remaining, std::chrono::milliseconds slice,
                 bool (* /*mustWakeEachSlice*/)(void* context), void* /*context*/) {
@@ -38,8 +38,12 @@ bool RunFrame() {
     return false;
 }
 
-void WaitForTask(const std::atomic<bool>& done) {
-    done.wait(false, std::memory_order_acquire);
+void WaitForTask(const std::atomic<TaskState>& state) {
+    auto current = state.load(std::memory_order_acquire);
+    while (current != TaskState::Done && current != TaskState::Cancelled) {
+        state.wait(current, std::memory_order_acquire);
+        current = state.load(std::memory_order_acquire);
+    }
 }
 
 }  // namespace d2bs::host

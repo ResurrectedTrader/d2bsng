@@ -11,6 +11,7 @@
 #include "game/Constants.h"
 #include "game/Menu.h"
 #include "game/Types.h"
+#include "host/Host.h"
 #include "utils/EnumNaming.h"
 
 namespace d2bs::config {
@@ -2305,3 +2306,25 @@ std::string format_as(Language value) {
 // NOLINTEND(readability-identifier-naming)
 
 }  // namespace d2bs::game
+
+namespace d2bs::host {
+
+std::string EnumName(TaskState value) {
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(TaskState::Pending), .name = "Pending"},
+        {.bits = utils::EnumBits(TaskState::Running), .name = "Running"},
+        {.bits = utils::EnumBits(TaskState::Done), .name = "Done"},
+        {.bits = utils::EnumBits(TaskState::Cancelled), .name = "Cancelled"},
+    });
+    return utils::NameEnumValue("TaskState", ENTRIES, std::to_underlying(value));
+}
+
+// NOLINTBEGIN(readability-identifier-naming) - fmt's customisation point name
+
+std::string format_as(TaskState value) {
+    return EnumName(value);
+}
+
+// NOLINTEND(readability-identifier-naming)
+
+}  // namespace d2bs::host
