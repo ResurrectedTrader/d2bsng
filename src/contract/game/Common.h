@@ -13,10 +13,6 @@
 
 namespace d2bs::game {
 
-// Reference parity: an NPC class without a monstats inventory prices as Charsi,
-// so the game is never handed a class id it has no price list for.
-uint32_t PricingNpcClassId(uint32_t npcClassId);
-
 // Reference parity: levels.txt carries 255 in `Waypoint` for a level no
 // waypoint reaches, and sending the game there can take it down. A row the
 // lookup cannot read as a number is not rejected.

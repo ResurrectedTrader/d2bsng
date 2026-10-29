@@ -5,7 +5,6 @@
 #include <chrono>
 #include <optional>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "api/classes/game/JSStashTab.h"
@@ -26,18 +25,11 @@ using game::UnitType;
 
 namespace {
 
-// The pricing NPC when a script names none: the interacting unit if its monstats.txt row has an
-// inventory (a vendor), else Charsi. The client's active-NPC slot can hold a non-NPC unit (a monster)
-// whose class id has no npc.txt row, which makes the native cost calculation halt.
+// The pricing NPC when a script names none: the interacting unit, else Charsi. The backend prices a
+// class the game has no price list for (a monster in the active-NPC slot, a hireling NPC) as Charsi.
 uint32_t DefaultPricingNpcClassId() {
     const auto npc = game::Unit::InteractingNPC();
-    if (!npc) {
-        return game::NPC_CHARSI_CLASS_ID;
-    }
-    const uint32_t classId = npc->ClassId();
-    const auto inventory = game::GetTxtValue("monstats", classId, "inventory");
-    const auto* hasInventory = std::get_if<int64_t>(&inventory);
-    return hasInventory != nullptr && *hasInventory != 0 ? classId : game::NPC_CHARSI_CLASS_ID;
+    return npc ? npc->ClassId() : game::NPC_CHARSI_CLASS_ID;
 }
 
 }  // namespace

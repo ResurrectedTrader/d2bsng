@@ -21,6 +21,7 @@
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-braces"
+#include <D2DataTbls.h>            // D2DataTablesStrc
 #include <D2Inventory.h>           // D2InventoryStrc, D2ItemExtraDataStrc
 #include <D2Items.h>               // D2C_ItemModes (IMODE_ONGROUND, IMODE_DROPPING)
 #include <D2Monsters.h>            // D2C_MonTypeFlags
@@ -71,6 +72,23 @@ namespace {
 
 inline D2UnitStrc* AsUnit(void* p) noexcept {
     return static_cast<D2UnitStrc*>(p);
+}
+
+// The NPC the game prices with: the given class if npc.txt has a row for it, else Charsi.
+// ITEMS_CalculateTransactionCost halts (line 3292) on a class without a row - the
+// client's interacting unit can be one, e.g. Greiz (a hireling NPC with a monstats
+// inventory but no price list) right after hiring.
+uint32_t PricingNpcClassId(uint32_t npcClassId) {
+    static_assert(offsetof(D2DataTablesStrc, pNpcTxt) == 0x9A8 &&
+                  offsetof(D2DataTablesStrc, nNpcTxtRecordCount) == 0x9AC);
+    const auto* tables = reinterpret_cast<const D2DataTablesStrc*>(*lod114d::imports::d2common::sgptDataTables);
+    if (tables == nullptr || tables->pNpcTxt == nullptr) {
+        return NPC_CHARSI_CLASS_ID;
+    }
+    const std::span rows{tables->pNpcTxt, static_cast<size_t>(std::max(tables->nNpcTxtRecordCount, 0))};
+    const bool hasRow =
+        std::ranges::any_of(rows, [npcClassId](const D2NpcTxt& row) { return row.dwNpc == npcClassId; });
+    return hasRow ? npcClassId : NPC_CHARSI_CLASS_ID;
 }
 
 // Reference parity: D2 unit hash tables - 6 type buckets x 128 hash entries.
@@ -1345,11 +1363,13 @@ void Unit::Move(Position target) const {
 }
 
 bool Unit::Interact() const {
+    bool isGroundItem = false;
     {
         const auto u = Resolve<D2UnitStrc>();
         if (!u || u == lod114d::imports::d2client::UNITS_GetPlayerUnit()) {
             return false;
         }
+        isGroundItem = u->dwUnitType == UNIT_ITEM && u->dwItemMode == IMODE_ONGROUND;
 
         // Items in inventory/stash use packet 0x20; belt items use 0x26. Reference
         // hard-codes these because the underlying ClickItem path is gated behind
@@ -1386,6 +1406,12 @@ bool Unit::Interact() const {
                 return false;
             }
         }
+    }
+
+    // The click picks a ground item up with a 0x16 sent from the game thread, which
+    // cannot wait, so a pickup right after a belt use waits here.
+    if (isGroundItem) {
+        lod114d::hooks::intercepts::WaitOutBeltUseWindow(Id());
     }
 
     // Default path: a left-click on the unit's screen position via the
@@ -1652,7 +1678,7 @@ uint32_t Unit::GetRepairCost(uint32_t npcClassId) const {
     if (player == nullptr) {
         return 0U;
     }
-    return lod114d::imports::d2common::ITEMS_GetAllRepairCosts(nullptr, player, npcClassId,
+    return lod114d::imports::d2common::ITEMS_GetAllRepairCosts(nullptr, player, PricingNpcClassId(npcClassId),
                                                                static_cast<D2C_Difficulties>(GetDifficulty()),
                                                                *lod114d::imports::d2client::gpItemPriceList, nullptr);
 }
