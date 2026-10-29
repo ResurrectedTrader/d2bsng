@@ -5,6 +5,7 @@
 #include <chrono>
 #include <optional>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "api/classes/game/JSStashTab.h"
@@ -22,6 +23,24 @@ namespace d2bs::runtime::api::classes {
 namespace extract = extract;
 
 using game::UnitType;
+
+namespace {
+
+// The pricing NPC when a script names none: the interacting unit if its monstats.txt row has an
+// inventory (a vendor), else Charsi. The client's active-NPC slot can hold a non-NPC unit (a monster)
+// whose class id has no npc.txt row, which makes the native cost calculation halt.
+uint32_t DefaultPricingNpcClassId() {
+    const auto npc = game::Unit::InteractingNPC();
+    if (!npc) {
+        return game::NPC_CHARSI_CLASS_ID;
+    }
+    const uint32_t classId = npc->ClassId();
+    const auto inventory = game::GetTxtValue("monstats", classId, "inventory");
+    const auto* hasInventory = std::get_if<int64_t>(&inventory);
+    return hasInventory != nullptr && *hasInventory != 0 ? classId : game::NPC_CHARSI_CLASS_ID;
+}
+
+}  // namespace
 
 // NOLINTNEXTLINE(readability-function-size) - V8 template configuration, intentionally large
 void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
@@ -1599,11 +1618,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             if (mode < game::ItemCostMode::Buy || mode > game::ItemCostMode::Repair) {
                 return;
             }
-            // Default NPC: the interacting unit if it is a vendor-like NPC, else Charsi. The client's
-            // active-NPC slot can hold a non-NPC unit (a monster) whose class id has no npc.txt row,
-            // which makes the native cost calculation halt.
-            auto npc = game::Unit::InteractingNPC();
-            uint32_t npcClassId = npc && npc->HasInventory() ? npc->ClassId() : game::NPC_CHARSI_CLASS_ID;
+            uint32_t npcClassId = DefaultPricingNpcClassId();
             auto difficulty = game::GetDifficulty();
             if (args.Length() > 1) {
                 if (args[1]->IsObject()) {
@@ -1880,9 +1895,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 args.GetReturnValue().Set(0);
                 return;
             }
-            // Default NPC: use currently interacting NPC, fall back to Charsi
-            auto npc = game::Unit::InteractingNPC();
-            uint32_t npcClassId = npc ? npc->ClassId() : game::NPC_CHARSI_CLASS_ID;
+            uint32_t npcClassId = DefaultPricingNpcClassId();
             if (args.Length() > 0 && args[0]->IsNumber()) {
                 npcClassId = convert::To<uint32_t>(isolate, args[0]);
             }
