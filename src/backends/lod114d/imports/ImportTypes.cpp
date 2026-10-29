@@ -2,8 +2,6 @@
 
 #include <Windows.h>
 
-#include <atomic>
-
 #ifdef _DEBUG
     #include <cstdio>
 #endif
@@ -12,17 +10,17 @@ namespace d2bs::lod114d::imports {
 
 namespace {
 
-std::atomic<uintptr_t> gameModuleBase{0};
+// Written once (by the host, or by Bridge::Init) before any thread that reads it starts: a plain read is enough.
+uintptr_t gameModuleBase = 0;
 
 }  // namespace
 
 uintptr_t GameModuleBase() noexcept {
-    const uintptr_t base = gameModuleBase.load(std::memory_order_acquire);
-    return base != 0 ? base : reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
+    return gameModuleBase;
 }
 
 void SetGameModuleBase(uintptr_t base) noexcept {
-    gameModuleBase.store(base, std::memory_order_release);
+    gameModuleBase = base;
 }
 
 Registry& Registry::Get() noexcept {
