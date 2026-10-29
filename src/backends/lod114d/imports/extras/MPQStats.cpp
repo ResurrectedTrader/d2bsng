@@ -2541,12 +2541,6 @@ constexpr std::array<TableSchema, 29> TABLES = {{
 
 // === Lookup helpers =========================================================
 
-// Cached Game.exe module base; absolute-mode tables are resolved against it.
-uintptr_t ModuleBase() {
-    static const uintptr_t BASE = GameModuleBase();
-    return BASE;
-}
-
 // Read the row-pointer pair (base, count) for a given table.
 // Returns nullptr in `outBase` when the data table is not yet loaded.
 void ResolveTableBase(const TableInfo& info, const uint8_t** outBase, uint32_t* outCount) {
@@ -2558,7 +2552,7 @@ void ResolveTableBase(const TableInfo& info, const uint8_t** outBase, uint32_t* 
     const uint8_t* tablePtrLoc = nullptr;
     const uint8_t* countPtrLoc = nullptr;
     if (info.isAbsolute) {
-        const auto base = ModuleBase();
+        const auto base = GameModuleBase();
         if (base == 0) {
             return;
         }
