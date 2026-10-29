@@ -2440,7 +2440,32 @@ constexpr std::array<ColumnSchema, 1> COLS_BELTS = {{
     {.name = "numboxes", .type = FieldKind::Byte, .bitOrLen = 0x0U, .offset = 0x4U},
 }};
 
-constexpr std::array<TableSchema, 29> TABLES = {{
+// npc.txt - the vendors' price multipliers, 0x4C-byte D2NpcTxt records. Columns and
+// offsets as Game.exe DATATBLS_LoadNpcTxt (0x00656620) declares them; 'npc' is the
+// monster class id (NAME_TO_DWORD), which is what DATATBLS_GetNpcTxtRecord matches on.
+constexpr std::array<ColumnSchema, 19> COLS_NPC = {{
+    {.name = "npc", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x00U},
+    {.name = "sell mult", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x04U},
+    {.name = "buy mult", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x08U},
+    {.name = "rep mult", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x0cU},
+    {.name = "questflag A", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x10U},
+    {.name = "questflag B", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x14U},
+    {.name = "questflag C", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x18U},
+    {.name = "questsellmult A", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x1cU},
+    {.name = "questsellmult B", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x20U},
+    {.name = "questsellmult C", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x24U},
+    {.name = "questbuymult A", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x28U},
+    {.name = "questbuymult B", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x2cU},
+    {.name = "questbuymult C", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x30U},
+    {.name = "questrepmult A", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x34U},
+    {.name = "questrepmult B", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x38U},
+    {.name = "questrepmult C", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x3cU},
+    {.name = "max buy", .type = FieldKind::DwordSigned, .bitOrLen = 0x0U, .offset = 0x40U},
+    {.name = "max buy (N)", .type = FieldKind::DwordSigned, .bitOrLen = 0x0U, .offset = 0x44U},
+    {.name = "max buy (H)", .type = FieldKind::DwordSigned, .bitOrLen = 0x0U, .offset = 0x48U},
+}};
+
+constexpr std::array<TableSchema, 30> TABLES = {{
     // D2Common's gpItemsTxt / gnItemsTxtRecordCount (DATATBLS_LoadItemsTxt 0x006315D0). The copy at 0x008426F0 that
     // reference d2bs reads is only built when the launcher draws a character (D2COMP_AllocTxt_Items 0x00504570), so a
     // process that went straight into a game had no items table there for its whole first game.
@@ -2537,6 +2562,10 @@ constexpr std::array<TableSchema, 29> TABLES = {{
     {.name = "belts",
      .info = {.tableOffset = 0x56d4f8U, .countOffset = 0x0U, .isAbsolute = true, .recordSize = 0x108U},
      .columns = COLS_BELTS},
+    // pNpcTxt / nNpcTxtRecordCount in *sgptDataTables (0x9a8 / 0x9ac), rows in npc.txt order.
+    {.name = "npc",
+     .info = {.tableOffset = 0x9a8U, .countOffset = 0x9acU, .isAbsolute = false, .recordSize = 0x4cU},
+     .columns = COLS_NPC},
 }};
 
 // === Lookup helpers =========================================================

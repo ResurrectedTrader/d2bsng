@@ -56,9 +56,15 @@ void SetIncomingPacketObserver(IncomingPacketObserver observer);
 // (CPANEL_UseBeltItem) does not guard against it, but a bot's concurrent pickit
 // and potion threads hit it. The send hook records the last pickup lock-free;
 // if that was within a short window and its item is beltable, this sleeps out
-// the rest of the window with the thread's game read locks released. Returns at
-// once on the game thread, which must not block.
+// the rest of the window with the thread's game read locks released, then again
+// for a pickup sent meanwhile (a few times at most). Returns at once on the game
+// thread, which must not block.
 void WaitOutBeltPickupWindow();
+
+// Call before a ground pickup (client 0x16) of `pickupItemId`: the same race the
+// other way round - a belt use sent just before the pickup. Waits out the window
+// after the client's last belt use when the item is beltable, as above.
+void WaitOutBeltUseWindow(uint32_t pickupItemId);
 
 namespace detail {
 

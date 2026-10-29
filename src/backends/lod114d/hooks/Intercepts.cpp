@@ -95,7 +95,10 @@
 
 #include "UnitTables.h"
 
-#include <D2PacketDef.h>  // D2GSPacketClt16
+#include <D2Monsters.h>    // D2C_MonModes
+#include <D2PacketDef.h>   // D2GSPacketClt16, D2GSPacketSrv15
+#include <Units/Player.h>  // D2C_PlayerModes
+#include <Units/Units.h>   // D2UnitStrc, UNITFLAG_ISDEAD
 
 namespace d2bs::lod114d::hooks::intercepts {
 
@@ -158,9 +161,11 @@ std::atomic<IncomingPacketObserver> incomingPacketObserver{nullptr};
 // The client's last ground pickup (see WaitOutBeltPickupWindow).
 struct Pickup {
     uint32_t itemId = 0;
-    DWORD tick = 0;  // GetTickCount
+    uint32_t tick = 0;  // GetTickCount
 };
 std::atomic<Pickup> lastPickup{};
+// GetTickCount of the client's last belt use (see WaitOutBeltUseWindow).
+std::atomic<uint32_t> lastBeltUseTick{0};
 static_assert(std::atomic<Pickup>::is_always_lock_free);
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -277,6 +282,40 @@ extern "C" uint32_t __fastcall OnGameInput(wchar_t* wMsg) {
 // block. Reference dispatched per-packet-id handlers in C; we do the same and
 // fan out via the `onChatMessage`, `onItemAction`, `onGameEvent` callbacks.
 //
+namespace {
+
+// SCMD_Handler0x15_UnitWarpXY (Game.exe 0x45D160) halts ("Could not get act!", line 1336) when the
+// warped unit has no room afterwards, and CUNIT_WarpUnit leaves a dead unit where it is. So the warp
+// of a dead unit whose room the client has already freed halts the client: the player's hireling
+// dying in the server frame the player takes a portal is kept across the 0x0A that moves it (the
+// client never removes its own hireling), its old rooms unload, the client asks for it again
+// (C->S 0x4B) and the server answers with this warp. Dropping it leaves the corpse as it is, which
+// is what the warp would have done.
+bool IsWarpOfRoomlessDeadUnit(std::span<const uint8_t> packet) {
+    if (packet.size() < sizeof(D2GSPacketSrv15) || packet[0] != 0x15U) {
+        return false;
+    }
+    const auto* warp = reinterpret_cast<const D2GSPacketSrv15*>(packet.data());
+    const auto type = warp->nUnitType;
+    if (type != UNIT_PLAYER && type != UNIT_MONSTER) {
+        return false;
+    }
+    auto* unit = game::unit_tables::FindUnitInHashTable(warp->dwUnitGUID, static_cast<game::UnitType>(type));
+    if (unit == nullptr || unit == imports::d2client::UNITS_GetPlayerUnit() ||
+        imports::d2common::UNITS_GetRoom(unit) != nullptr) {
+        return false;
+    }
+    if ((unit->dwFlags & UNITFLAG_ISDEAD) != 0) {
+        return true;
+    }
+    if (type == UNIT_PLAYER) {
+        return unit->dwAnimMode == PLRMODE_DEATH || unit->dwAnimMode == PLRMODE_DEAD;
+    }
+    return unit->dwAnimMode == MONMODE_DEATH || unit->dwAnimMode == MONMODE_DEAD;
+}
+
+}  // namespace
+
 // Block-decision policy: if EITHER the global `onGamePacketReceived` handler
 // OR a blockable per-id handler (`onChatMessage`) returns true, the packet
 // is blocked. Reference's equivalent was `!event && perHandler` (pass-through
@@ -288,6 +327,9 @@ extern "C" uint32_t __fastcall OnGamePacketReceived(uint8_t* packet, uint32_t si
     }
     if (auto* observer = incomingPacketObserver.load(std::memory_order_acquire); observer != nullptr) {
         observer(std::span<const uint8_t>{packet, size});
+    }
+    if (IsWarpOfRoomlessDeadUnit(std::span<const uint8_t>{packet, size})) {
+        return 0;
     }
     const auto* cb = GetActiveCallbacks();
     if (cb == nullptr) {
@@ -415,14 +457,18 @@ extern "C" uint32_t __fastcall OnGamePacketReceived(uint8_t* packet, uint32_t si
     return blocked ? 0U : 1U;
 }
 
-void NotePickup(std::span<const uint8_t> packet) {
+void NoteBeltPacket(std::span<const uint8_t> packet) {
+    constexpr uint8_t CLT_USE_BELT_ITEM = 0x26;
+    if (packet[0] == CLT_USE_BELT_ITEM) {
+        lastBeltUseTick.store(GetTickCount(), std::memory_order_release);
+        return;
+    }
     constexpr uint8_t CLT_PICKUP_ITEM = 0x16;
     if (packet.size() < sizeof(D2GSPacketClt16) || packet[0] != CLT_PICKUP_ITEM) {
         return;
     }
-    uint32_t itemId = 0;
-    std::memcpy(&itemId, packet.subspan(offsetof(D2GSPacketClt16, dwUnitGUID)).data(), sizeof(itemId));
-    lastPickup.store(Pickup{.itemId = itemId, .tick = GetTickCount()}, std::memory_order_release);
+    const auto* pickup = reinterpret_cast<const D2GSPacketClt16*>(packet.data());
+    lastPickup.store(Pickup{.itemId = pickup->dwUnitGUID, .tick = GetTickCount()}, std::memory_order_release);
 }
 
 // P4: GamePacketSent. ecx=packet, edx=size (the naked thunk pulls them off
@@ -436,7 +482,7 @@ extern "C" uint32_t __fastcall OnGamePacketSent(uint8_t* packet, uint32_t size) 
     if (cb != nullptr && cb->onGamePacketSent != nullptr && cb->onGamePacketSent(data)) {
         return 0;
     }
-    NotePickup(data);
+    NoteBeltPacket(data);
     return 1;
 }
 
@@ -1119,27 +1165,55 @@ void SetIncomingPacketObserver(IncomingPacketObserver observer) {
     incomingPacketObserver.store(observer, std::memory_order_release);
 }
 
-void WaitOutBeltPickupWindow() {
+namespace {
+
+// The rest of the belt window when `pickup` is a beltable item picked up (or, for a pickup, a
+// belt use sent) less than a few server frames (25 fps) ago, else zero: long enough that the
+// pickup and the belt use are handled in different server frames under normal jitter.
+uint32_t BeltWindowLeft(Pickup pickup) {
+    constexpr uint32_t BELT_WINDOW_MS = 100;
+    const uint32_t elapsed = GetTickCount() - pickup.tick;
+    if (pickup.itemId == 0 || pickup.tick == 0 || elapsed >= BELT_WINDOW_MS) {
+        return 0;
+    }
+    const game::GameReadLock guard;
+    auto* item = game::unit_tables::FindUnitInHashTable(pickup.itemId, game::UnitType::Item);
+    if (item == nullptr || !imports::d2common::ITEMS_CheckIfBeltable(item)) {
+        return 0;
+    }
+    return BELT_WINDOW_MS - elapsed;
+}
+
+// Sleeps out the belt window of `latest()` with the thread's game read locks released, and again
+// for a newer one sent meanwhile (the pickit thread keeps picking potions up while the potion
+// thread waits), a few times at most so a drink is not held off for long. Returns at once on the
+// game thread, which must not block.
+template <typename Latest>
+void WaitOutBeltWindow(Latest latest) {
     if (GetGameThreadId() == GetCurrentThreadId()) {
         return;
     }
-    // A few server frames (25 fps): long enough that the pickup is handled in an
-    // earlier server frame than the belt use under normal jitter.
-    constexpr DWORD BELT_PICKUP_WINDOW_MS = 100;
-    const Pickup pickup = lastPickup.load(std::memory_order_acquire);
-    const DWORD elapsed = GetTickCount() - pickup.tick;
-    if (pickup.itemId == 0 || elapsed >= BELT_PICKUP_WINDOW_MS) {
-        return;
-    }
-    {
-        const game::GameReadLock guard;
-        auto* item = game::unit_tables::FindUnitInHashTable(pickup.itemId, game::UnitType::Item);
-        if (item == nullptr || imports::d2common::ITEMS_CheckIfBeltable(item) == 0) {
+    constexpr int32_t MAX_WAITS = 3;
+    for (int32_t i = 0; i < MAX_WAITS; ++i) {
+        const uint32_t left = BeltWindowLeft(latest());
+        if (left == 0) {
             return;
         }
+        const game::GameReadLockReleaser releaser;
+        std::this_thread::sleep_for(std::chrono::milliseconds{left});
     }
-    const game::GameReadLockReleaser releaser;
-    std::this_thread::sleep_for(std::chrono::milliseconds{BELT_PICKUP_WINDOW_MS - elapsed});
+}
+
+}  // namespace
+
+void WaitOutBeltPickupWindow() {
+    WaitOutBeltWindow([] { return lastPickup.load(std::memory_order_acquire); });
+}
+
+void WaitOutBeltUseWindow(uint32_t pickupItemId) {
+    WaitOutBeltWindow([pickupItemId] {
+        return Pickup{.itemId = pickupItemId, .tick = lastBeltUseTick.load(std::memory_order_acquire)};
+    });
 }
 
 void InstallAll() {

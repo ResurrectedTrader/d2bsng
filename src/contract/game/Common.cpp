@@ -10,7 +10,6 @@
 #include <utility>
 #include <variant>
 
-#include "game/Constants.h"
 #include "game/GameHelpers.h"
 #include "game/GameLock.h"
 #include "game/Unit.h"
@@ -261,12 +260,6 @@ constexpr auto SKILLS_1_14D = std::to_array<SkillEntry>({
 });
 
 }  // namespace
-
-uint32_t PricingNpcClassId(uint32_t npcClassId) {
-    const auto inventory = GetTxtValue("monstats", npcClassId, "inventory");
-    const auto* row = std::get_if<int64_t>(&inventory);
-    return row == nullptr || *row == 0 ? NPC_CHARSI_CLASS_ID : npcClassId;
-}
 
 bool IsWaypointLevel(LevelId levelId) {
     constexpr int64_t NO_WAYPOINT = 255;

@@ -66,7 +66,8 @@
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-braces"
-#include <D2DataTbls.h>  // D2DataTablesStrc
+#include <D2DataTbls.h>   // D2DataTablesStrc
+#include <D2PacketDef.h>  // D2GSPacketClt16
 // ReSharper disable once CppUnusedIncludeDirective
 #include <DataTbls/InvTbls.h>    // D2InventoryGridInfoStrc
 #include <DataTbls/ItemsTbls.h>  // D2ItemsTxt
@@ -505,6 +506,11 @@ void SendGamePacket(std::span<const uint8_t> data) {
     constexpr uint8_t CLT_USE_BELT_ITEM = 0x26;
     if (data[0] == CLT_USE_BELT_ITEM) {
         lod114d::hooks::intercepts::WaitOutBeltPickupWindow();
+    }
+    constexpr uint8_t CLT_PICKUP_ITEM = 0x16;
+    if (data[0] == CLT_PICKUP_ITEM && data.size() >= sizeof(D2GSPacketClt16)) {
+        const auto* pickup = reinterpret_cast<const D2GSPacketClt16*>(data.data());
+        lod114d::hooks::intercepts::WaitOutBeltUseWindow(pickup->dwUnitGUID);
     }
     d2net::CLIENT_Send(data.size(), 1, data.data());
 }

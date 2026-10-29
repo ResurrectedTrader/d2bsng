@@ -130,10 +130,7 @@ def emit_header(tables: list[tuple[str, list[str]]], script_rel: str) -> str:
     emit("// Column lookup: table index -> span of that table's column names.")
     emit("// Use together with TXT_TABLE_NAMES to resolve (tableIdx, colIdx) -> names.")
     emit("// ============================================================================")
-    emit(
-        f"inline constexpr std::array<std::span<const std::string_view>, "
-        f"{len(tables)}> TXT_COLUMNS_BY_TABLE = {{"
-    )
+    emit("inline constexpr std::array TXT_COLUMNS_BY_TABLE = {")
     max_ident_len = max(len(_sanitize_ident(name)) for name, _ in tables)
     for idx, (name, _) in enumerate(tables):
         ident = _sanitize_ident(name).upper()
@@ -213,6 +210,23 @@ def main() -> int:
                 "val1", "val2", "val3", "val4", "val5", "val6", "val7",
                 "func1", "func2", "func3", "func4", "func5", "func6", "func7",
                 "stat1", "stat2", "stat3", "stat4", "stat5", "stat6", "stat7",
+            ],
+        )
+    )
+
+    # npc.txt (the vendors' price multipliers) is not in the reference BaseStatTable
+    # either. Appended after the others so their table indices stay put. Columns in
+    # Game.exe DATATBLS_LoadNpcTxt's field order (0x4C-byte D2NpcTxt records).
+    tables.append(
+        (
+            "npc",
+            [
+                "npc", "sell mult", "buy mult", "rep mult",
+                "questflag A", "questflag B", "questflag C",
+                "questsellmult A", "questsellmult B", "questsellmult C",
+                "questbuymult A", "questbuymult B", "questbuymult C",
+                "questrepmult A", "questrepmult B", "questrepmult C",
+                "max buy", "max buy (N)", "max buy (H)",
             ],
         )
     )

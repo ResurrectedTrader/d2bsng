@@ -55,6 +55,7 @@
 #include <tuple>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace d2bs::game {
@@ -71,6 +72,24 @@ namespace {
 
 inline D2UnitStrc* AsUnit(void* p) noexcept {
     return static_cast<D2UnitStrc*>(p);
+}
+
+// The NPC the game prices with: the given class if npc.txt has a row for it, else Charsi.
+// ITEMS_CalculateTransactionCost halts (line 3292) on a class without a row - the
+// client's interacting unit can be one, e.g. Greiz (a hireling NPC with a monstats
+// inventory but no price list) right after hiring.
+uint32_t PricingNpcClassId(uint32_t npcClassId) {
+    // DATATBLS_GetNpcTxtRecord's walk: npc.txt rows matched on their npc column.
+    for (uint32_t row = 0;; ++row) {
+        const TxtValue value = GetTxtValue("npc", row, "npc");
+        const auto* npc = std::get_if<int64_t>(&value);
+        if (npc == nullptr) {
+            return NPC_CHARSI_CLASS_ID;
+        }
+        if (*npc == npcClassId) {
+            return npcClassId;
+        }
+    }
 }
 
 // Reference parity: D2 unit hash tables - 6 type buckets x 128 hash entries.
@@ -1345,11 +1364,14 @@ void Unit::Move(Position target) const {
 }
 
 bool Unit::Interact() const {
+    bool isBeltableGroundItem = false;
     {
         const auto u = Resolve<D2UnitStrc>();
         if (!u || u == lod114d::imports::d2client::UNITS_GetPlayerUnit()) {
             return false;
         }
+        isBeltableGroundItem = u->dwUnitType == UNIT_ITEM && u->dwItemMode == IMODE_ONGROUND &&
+                               lod114d::imports::d2common::ITEMS_CheckIfBeltable(u);
 
         // Items in inventory/stash use packet 0x20; belt items use 0x26. Reference
         // hard-codes these because the underlying ClickItem path is gated behind
@@ -1386,6 +1408,12 @@ bool Unit::Interact() const {
                 return false;
             }
         }
+    }
+
+    // The click picks a ground item up with a 0x16 sent from the game thread, which
+    // cannot wait, so a pickup right after a belt use waits here.
+    if (isBeltableGroundItem) {
+        lod114d::hooks::intercepts::WaitOutBeltUseWindow(Id());
     }
 
     // Default path: a left-click on the unit's screen position via the
@@ -1652,7 +1680,7 @@ uint32_t Unit::GetRepairCost(uint32_t npcClassId) const {
     if (player == nullptr) {
         return 0U;
     }
-    return lod114d::imports::d2common::ITEMS_GetAllRepairCosts(nullptr, player, npcClassId,
+    return lod114d::imports::d2common::ITEMS_GetAllRepairCosts(nullptr, player, PricingNpcClassId(npcClassId),
                                                                static_cast<D2C_Difficulties>(GetDifficulty()),
                                                                *lod114d::imports::d2client::gpItemPriceList, nullptr);
 }
