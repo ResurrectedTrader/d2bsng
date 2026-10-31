@@ -225,7 +225,8 @@ d2bsng/
 │   │   ├── host/               DefaultHost.cpp: the in-process host hooks each injectable DLL and js_tests compile (not in core.lib)
 │   │   ├── input/              WH_GETMESSAGE input hook + WM_COPYDATA subclass + injected-input tagging
 │   │   ├── proxy/              SOCKS5 connect hook + bypass scope for script sockets
-│   │   └── http/               WinHTTP request engine (takes the proxy bypass above)
+│   │   ├── http/               WinHTTP request engine (takes the proxy bypass above)
+│   │   └── analytics/          Aptabase event post + the derived installId (docs/analytics.md)
 │   ├── runtime/            runtime.lib - JavaScript scripting frontend (V8); depends on contract + core
 │   │   ├── api/                V8 bindings: classes/ (game, io, scripting, drawing), globals/, core/
 │   │   ├── components/         Frontend internals, one directory each:

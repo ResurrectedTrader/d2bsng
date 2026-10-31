@@ -12,6 +12,8 @@ profile it runs. There is no per-action tracking, no keystroke/screen capture,
 and no game data of any kind.
 
 - Component: `src/runtime/components/analytics/Analytics.h` / `.cpp`
+- The event post and the derived ids, shared with our other programs:
+  `src/core/analytics/Aptabase.h` / `.cpp`
 - Launch switches: `src/backends/lod114d/game/LaunchOptions.cpp`
   (`-noanalytics`)
 - Contract surface: `game::GetAnalyticsLaunchOptions()`,
@@ -339,8 +341,7 @@ app key configured also leaves it permanently off.
 All work - resolving the install id (a registry read plus
 `GetVolumeInformationW` / `GetComputerNameW`; no file I/O), building the JSON,
 and the HTTPS POST - runs on a dedicated `std::jthread`, never the game thread or
-a V8 isolate. The request goes through the V8-free
-`api::classes::PerformHttpRequest` (WinHTTP), which bypasses the game's SOCKS5
+a V8 isolate. The request goes through `core::http::Perform` (WinHTTP), which bypasses the game's SOCKS5
 proxy detour, exactly like the update checker. The send is best-effort: a failed
 POST (e.g. the network isn't up yet at inject time) is retried a few times at a
 fixed 30s interval, then abandoned. A failure never blocks or crashes the

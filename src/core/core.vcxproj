@@ -85,6 +85,7 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="analytics\Aptabase.cpp" />
     <ClCompile Include="config\AppConfig.cpp" />
     <ClCompile Include="config\CompatibilityFlags.cpp" />
     <ClCompile Include="config\IniConfigStore.cpp" />
@@ -98,6 +99,7 @@
     <ClCompile Include="speedhack\Speedhack.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="analytics\Aptabase.h" />
     <ClInclude Include="config\AppConfig.h" />
     <ClInclude Include="config\CompatibilityFlags.h" />
     <ClInclude Include="config\ConfigStore.h" />
