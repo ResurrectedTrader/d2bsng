@@ -1252,45 +1252,12 @@ def extract_enums(result, flags):
     return {name: d for name, d in defs.items() if name in referenced}
 
 
-_C_ESCAPES = {"n": "\n", "t": "\t", "\\": "\\", '"': '"', "'": "'", "?": "?", "0": "\0"}
-
-
-def _c_string_value(spelling):
-    """The value of one ordinary C string-literal token (simple escapes only)."""
-    body = strip_quotes(spelling)
-    return re.sub(r"\\(.)", lambda m: _C_ESCAPES.get(m.group(1), m.group(1)), body)
-
-
-def _option_text_fields(arg):
-    """The ``{.description = "...", .category = "...", .defaultValue = "..."}``
-    OptionText of a builder.Add call, read from its tokens: each designated
-    field's adjacent string literals, concatenated the way C++ does."""
-    tokens = list(arg.get_tokens())
-    fields = {}
-    i = 0
-    while i + 2 < len(tokens):
-        if tokens[i].spelling == "." and tokens[i + 2].spelling == "=":
-            field = tokens[i + 1].spelling
-            j = i + 3
-            parts = []
-            while j < len(tokens) and tokens[j].spelling.startswith('"'):
-                parts.append(_c_string_value(tokens[j].spelling))
-                j += 1
-            if parts:
-                fields[field] = "".join(parts)
-            i = j
-        else:
-            i += 1
-    return fields
-
-
 def _parse_launch_option_rows(tu, rel):
     """Collect launch-option rows from the option registry's builder: the
-    ``builder.Add("-name", "<syntax>", {...}, ...)`` calls. The switch name is
-    the first string arg, the argument syntax the second; the description /
-    category / default come from the OptionText third argument, or - for a call
-    without one - from the preceding /// doc block (@description / @category /
-    @default)."""
+    documented ``builder.Add("-name", "<syntax>", ...)`` calls, read the same
+    way as RegisterDefaults' Register() calls. The switch name is the first
+    string arg, the argument syntax the second; the description / category come
+    from the preceding /// doc block."""
     rows = []
     for cur in tu.cursor.walk_preorder():
         if (
@@ -1303,28 +1270,17 @@ def _parse_launch_option_rows(tu, rel):
                     name = nth_arg_string(call, 0)
                     if not name:
                         continue
-                    args = call_args(call)
-                    text = _option_text_fields(args[2]) if len(args) == 4 else {}
-                    if not text:
-                        src = call.location.file
-                        doc = extract_doc_comment(Path(src.name), call.location.line) if src else {}
-                        doc = doc or {}
-                        text = {
-                            "description": doc.get("description", ""),
-                            "category": doc.get("category", ""),
-                            "defaultValue": doc.get("default", ""),
-                        }
+                    src = call.location.file
+                    doc = extract_doc_comment(Path(src.name), call.location.line) if src else {}
                     row = {
                         "name": name,
                         "syntax": nth_arg_string(call, 1) or "",
-                        "description": text.get("description", ""),
+                        "description": (doc or {}).get("description", ""),
                         "file": rel,
                         "line": call.location.line,
                     }
-                    if text.get("category"):
-                        row["category"] = text["category"]
-                    if text.get("defaultValue"):
-                        row["default"] = text["defaultValue"]
+                    if (doc or {}).get("category"):
+                        row["category"] = doc["category"]
                     rows.append(row)
     return rows
 

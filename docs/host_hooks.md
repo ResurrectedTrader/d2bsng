@@ -65,10 +65,6 @@ A host gets the rest from outside, with mechanisms d2bs.dll has anyway:
   relative to `GameModuleBase()`, which Bridge::Init sets to the process image unless it was set first),
   `GameThread::HasPending`, `runtime::Host::IsInitialized` and `GameLoop::EndGameSession` (one game after another
   without the menu).
-* **The backend's launch options**: `game::GetLaunchOptionSpecs()` (lod114d) is the table the backend parses, each
-  switch with its syntax, description, category and default, so a host can list them in its own help and forward
-  them; `core::config::ParseArguments` parses a host's own argument list against a table of the same shape and reports
-  unknown switches, missing values and rejected values (the backend itself still ignores switches it does not know).
 
 ## Rules
 

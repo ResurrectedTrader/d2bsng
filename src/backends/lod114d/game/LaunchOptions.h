@@ -4,8 +4,6 @@
 #include <string>
 #include <vector>
 
-#include "config/OptionParser.h"
-
 namespace d2bs::game {
 
 // All command-line switches recognised by the d2bs port. Parsed once from
@@ -40,9 +38,5 @@ struct LaunchOptions {
 // Parse GetCommandLineW() once and return a stable reference. Safe to call
 // from any thread after process start; the parser runs under std::call_once.
 const LaunchOptions& GetLaunchOptions();
-
-// The table GetLaunchOptions parses: every switch with its syntax and help text. A host that embeds the backend
-// lists it (help, validation) and forwards the switches it was given on the command line the backend reads.
-const std::vector<core::config::OptionSpec<LaunchOptions>>& GetLaunchOptionSpecs();
 
 }  // namespace d2bs::game

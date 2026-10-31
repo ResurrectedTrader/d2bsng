@@ -8,13 +8,10 @@
 #include <cstdint>
 #include <cstring>
 #include <cwchar>
-#include <format>
 #include <span>
 #include <string>
 #include <string_view>
 #include <vector>
-
-#include "utils/Strings.h"
 
 namespace d2bs::core::config {
 
@@ -277,44 +274,6 @@ size_t ScrubBuffer(wchar_t* text, size_t length, const std::vector<TokenRange>& 
 
 }  // namespace
 
-std::vector<ParseError> ParseArguments(std::span<const std::wstring_view> args, std::span<const BoundOption> options,
-                                       ParseSettings settings) {
-    std::vector<ParseError> errors;
-    for (size_t i = 0; i < args.size(); ++i) {
-        const std::wstring_view token = args[i];
-        const auto option = std::ranges::find_if(
-            options, [token](const BoundOption& candidate) { return EqualsAscii(token, candidate.name); });
-        if (option == options.end()) {
-            if (settings.isUnknownAnError) {
-                const std::string name = utils::ToStr(std::wstring{token});
-                errors.push_back({.option = name, .value = {}, .message = "unknown switch " + name});
-            }
-            continue;
-        }
-        if (!option->takesValue) {
-            if (!option->apply({})) {
-                errors.push_back(
-                    {.option = std::string{option->name}, .value = {}, .message = std::format("bad {}", option->name)});
-            }
-            continue;
-        }
-        if (i + 1 >= args.size()) {
-            errors.push_back({.option = std::string{option->name},
-                              .value = {},
-                              .message = std::format("{} needs a value", option->name)});
-            continue;
-        }
-        const std::wstring_view value = args[++i];
-        if (!value.empty() && !option->apply(value)) {
-            const std::string text = utils::ToStr(std::wstring{value});
-            errors.push_back({.option = std::string{option->name},
-                              .value = text,
-                              .message = std::format("bad {} '{}'", option->name, text)});
-        }
-    }
-    return errors;
-}
-
 void ParseCommandLine(std::span<const BoundOption> options) {
     const auto* cmdLine = GetCommandLineW();
     if (cmdLine == nullptr) {
@@ -328,12 +287,25 @@ void ParseCommandLine(std::span<const BoundOption> options) {
     }
 
     // argv[0] is the program name; skip it.
-    std::vector<std::wstring_view> args;
-    args.reserve(argc > 1 ? argc - 1 : 0);
     for (int32_t i = 1; i < argc; ++i) {
-        args.emplace_back(argv[i]);
+        const std::wstring_view token{argv[i]};
+        for (const auto& option : options) {
+            if (!EqualsAscii(token, option.name)) {
+                continue;
+            }
+            if (option.takesValue) {
+                if (i + 1 < argc) {
+                    const std::wstring_view value{argv[++i]};
+                    if (!value.empty()) {
+                        option.apply(value);
+                    }
+                }
+            } else {
+                option.apply({});
+            }
+            break;
+        }
     }
-    ParseArguments(std::span<const std::wstring_view>{args}, options);
 
     // ReSharper disable once CppRedundantCastExpression - clang-tidy needs the explicit void*
     LocalFree(static_cast<void*>(argv));
