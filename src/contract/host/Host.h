@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cstdint>
 #include <stop_token>
+#include <string>
 #include <string_view>
 #include <thread>
 
@@ -42,6 +43,24 @@ void ScriptWait(std::chrono::milliseconds remaining, std::chrono::milliseconds s
 
 // Before every native binding a script calls (functions and accessors), on the script's thread.
 void OnNativeCall(std::string_view name);
+// A binding's result, read only on request: Hash() of its value (numbers, booleans and strings by value, objects by
+// kind) and a short Text().
+class NativeResult {
+   public:
+    NativeResult() = default;
+    NativeResult(const NativeResult&) = delete;
+    NativeResult(NativeResult&&) = delete;
+    NativeResult& operator=(const NativeResult&) = delete;
+    NativeResult& operator=(NativeResult&&) = delete;
+    virtual ~NativeResult() = default;
+
+    [[nodiscard]] virtual uint64_t Hash() const = 0;
+    [[nodiscard]] virtual std::string Text() const = 0;
+};
+
+// After every native binding call that returned (functions and getters), on the script's thread. Only used by the
+// simulator; d2bs.dll's host ignores it.
+void ObserveNativeResult(const NativeResult& result);
 
 // --- The game thread -------------------------------------------------------------------------------------------
 

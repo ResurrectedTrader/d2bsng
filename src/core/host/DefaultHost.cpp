@@ -34,6 +34,8 @@ void ScriptWait(std::chrono::milliseconds remaining, std::chrono::milliseconds s
 
 void OnNativeCall(std::string_view /*name*/) {}
 
+void ObserveNativeResult(const NativeResult& /*result*/) {}
+
 bool RunFrame() {
     return false;
 }

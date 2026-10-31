@@ -36,6 +36,7 @@ and the hand-offs between the scripts and the game thread.
 | `ScriptWait(remaining, slice, mustWakeEachSlice, context)` | `Script::ExecuteEvents` (delay) | the wait between event pumps. In process: a real sleep of at most `slice` (`IdleSleepIntervalMs`). A host that wakes the script for every event sleeps to the deadline in one hand-off instead of one per slice (speed only), except for a script with render listeners |
 | `OnScriptWake(thread, delayMs)` | `Script::Stop`, `Script::PostEvent` | the other half of `ScriptWait`: wakes a script sleeping to its deadline for an event, timer or stop |
 | `OnNativeCall(name)` | every native binding call (the trampolines) | a call quantum on deterministic points (a script that never blocks yields); counting clock reads from outside misses spins on game state |
+| `ObserveNativeResult(result)` | every native binding call that returned (the trampolines) | a binding's result, for a host that logs or counts what the scripts saw (only the simulator does). `result` computes its `Hash()` (numbers, booleans and strings by value, objects by kind) and `Text()` only when asked, so the in-process no-op costs nothing |
 | `RunFrame()` | `GameLoop::OnSleep`, with the frame's write lock released | the host runs the scripts' turns for the frame instead of the timed wait; on a held-still virtual clock that wait never ends |
 | `WaitForTask(state)` | `GameThread::Execute`, with the game read lock released | the wait for a posted task, until its `TaskState` is Done or Cancelled. In process: `state.wait` (an atomic wait), a blocking wait the host cannot see; a host that schedules the thread gives up its turns until the game thread ran or the script cancelled the task |
 
@@ -60,8 +61,11 @@ A host gets the rest from outside, with mechanisms d2bs.dll has anyway:
 * **Settings**: the backend's `-noconsole` launch option (no console window), `core::speedhack::Remove()` after the
   backend's install, V8 flags through `v8::V8::SetFlagsFromString` before `runtime::Host::Initialize`, and the ini's
   `EngineSingleThreaded`.
-* **The game's base**: `lod114d::imports::SetGameModuleBase` before `Bridge::Init` (every import, patch and hook
-  offset is relative to `GameModuleBase()`, which Bridge::Init sets to the process image unless it was set first).
+* **Plain APIs** only the simulator calls (d2bs.dll never does): `lod114d::imports::SetGameModuleBase` (every import, patch and hook offset is
+  relative to `GameModuleBase()`, which Bridge::Init sets to the process image unless it was set first),
+  `GameThread::HasPending`, `runtime::Host::IsInitialized` and `GameLoop::EndGameSession` (one game after another
+  without the menu).
+
 ## Rules
 
 * Nothing in `runtime`, `contract`, `core`, `utils` or a backend may name a host or its types; a host's state lives

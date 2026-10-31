@@ -143,6 +143,7 @@ void Host::DoInitialize(HMODULE hModule) {
         analytics::Analytics::Instance().Start();
 
         logger_->info("d2bsng initialized");
+        isInitialized_ = true;
     } catch (const std::exception& ex) {
         logger_->error("Host::Initialize failed: {}", ex.what());
     } catch (...) {

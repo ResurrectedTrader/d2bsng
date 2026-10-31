@@ -1,7 +1,10 @@
 #include "components/script/NativeCallHook.h"
 
+#include <bit>
 #include <deque>
+#include <format>
 #include <mutex>
+#include <string>
 
 #include "components/script/Script.h"
 #include "components/script/ScriptEngine.h"
@@ -21,6 +24,60 @@ void OnNativeCall(v8::Isolate* isolate) {
 }
 
 namespace {
+
+// Numbers, booleans and strings by value, an object only by kind (its identity changes every call). Reads the return
+// value only when asked, so a host that ignores results costs no handle.
+class V8NativeResult final : public host::NativeResult {
+   public:
+    V8NativeResult(v8::Isolate* isolate, v8::ReturnValue<v8::Value> returnValue)
+        : isolate_(isolate), returnValue_(returnValue) {}
+
+    [[nodiscard]] uint64_t Hash() const override {
+        const auto value = returnValue_.Get();
+        if (value.IsEmpty() || value->IsUndefined()) {
+            return 2;
+        }
+        if (value->IsNull()) {
+            return 3;
+        }
+        if (value->IsNumber()) {
+            return std::bit_cast<uint64_t>(value.As<v8::Number>()->Value());
+        }
+        if (value->IsBoolean()) {
+            return value->BooleanValue(isolate_) ? 5 : 4;
+        }
+        if (value->IsString()) {
+            return static_cast<uint64_t>(value.As<v8::String>()->GetIdentityHash()) | (uint64_t{1} << 40);
+        }
+        return 1;
+    }
+
+    [[nodiscard]] std::string Text() const override {
+        constexpr size_t MAX_TEXT = 60;
+        const auto value = returnValue_.Get();
+        if (value.IsEmpty() || value->IsUndefined()) {
+            return "undefined";
+        }
+        if (value->IsNull()) {
+            return "null";
+        }
+        if (value->IsNumber()) {
+            return std::format("{}", value.As<v8::Number>()->Value());
+        }
+        if (value->IsBoolean()) {
+            return value->BooleanValue(isolate_) ? "true" : "false";
+        }
+        if (value->IsString()) {
+            const v8::String::Utf8Value utf8(isolate_, value);
+            return std::string{*utf8 != nullptr ? *utf8 : ""}.substr(0, MAX_TEXT);
+        }
+        return "object";
+    }
+
+   private:
+    v8::Isolate* isolate_;
+    v8::ReturnValue<v8::Value> returnValue_;
+};
 
 // deque: callers keep pointers into these for the isolate's lifetime, and the entries hold atomics
 // so cannot move. Never destroyed - v8::Externals point into them past static destruction. The
@@ -128,6 +185,7 @@ void MethodTrampoline(const v8::FunctionCallbackInfo<v8::Value>& args) {
     const utils::profiling::ScopedNativeCall timing(utils::profiling::NativeCall::Function, binding->stats);
     try {
         binding->callback(args);
+        host::ObserveNativeResult(V8NativeResult{args.GetIsolate(), args.GetReturnValue()});
     } catch (const game::GameThread::Cancelled&) {
         args.GetIsolate()->TerminateExecution();
     }
@@ -144,6 +202,7 @@ void PropertyGetterTrampoline(v8::Local<v8::Name> property, const v8::PropertyCa
     const utils::profiling::ScopedNativeCall timing(utils::profiling::NativeCall::Getter, accessors->getStats);
     try {
         accessors->getter(property, info);
+        host::ObserveNativeResult(V8NativeResult{info.GetIsolate(), info.GetReturnValue()});
     } catch (const game::GameThread::Cancelled&) {
         info.GetIsolate()->TerminateExecution();
     }
