@@ -98,9 +98,13 @@ class ClassBase {
     static constexpr int32_t TYPE_TAG_FIELD = 1;
     static constexpr int32_t INTERNAL_FIELD_COUNT = 2;
 
+    static bool HasTypeTag(v8::Local<v8::Object> obj) {
+        return !obj.IsEmpty() && obj->InternalFieldCount() >= INTERNAL_FIELD_COUNT &&
+               obj->GetAlignedPointerFromInternalField(TYPE_TAG_FIELD, v8::kEmbedderDataTypeTagDefault) == &typeTag_;
+    }
+
     static NativeType* NativeOf(v8::Local<v8::Object> obj) {
-        if (obj.IsEmpty() || obj->InternalFieldCount() < INTERNAL_FIELD_COUNT ||
-            obj->GetAlignedPointerFromInternalField(TYPE_TAG_FIELD, v8::kEmbedderDataTypeTagDefault) != &typeTag_) {
+        if (!HasTypeTag(obj)) {
             return nullptr;
         }
         return static_cast<NativeType*>(
@@ -137,14 +141,13 @@ class ClassBase {
         cache.templates.erase(isolate);
     }
 
-    // Check if a value is an instance of this class
+    // Check if a value is an instance of this class, by the type tag Wrap stamps on every instance (CreateInstance and
+    // the constructors) - the same test Unwrap applies to its receiver, without the template cache's lock.
     static bool IsInstance(v8::Local<v8::Value> value) {
         if (value.IsEmpty() || !value->IsObject()) {
             return false;
         }
-        // Every caller is inside a V8 callback, so the current isolate owns this value.
-        auto* isolate = v8::Isolate::GetCurrent();
-        return GetTemplate(isolate)->HasInstance(value);
+        return HasTypeTag(value.As<v8::Object>());
     }
 
     // Unwrap native pointer from V8 object.
