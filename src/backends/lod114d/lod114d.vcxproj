@@ -124,6 +124,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="game\ControlHelpers.h" />
     <ClInclude Include="game\DrlgHelpers.h" />
     <ClInclude Include="game\LaunchOptions.h" />
     <ClInclude Include="game\PlugY.h" />
@@ -144,17 +145,7 @@
     <ClInclude Include="imports\BnClient.h" />
     <ClInclude Include="imports\Storm.h" />
     <ClInclude Include="imports\extras\BNGatewayAccess.h" />
-    <ClInclude Include="imports\extras\BnetData.h" />
-    <ClInclude Include="imports\extras\D2ActiveRoomStrc.h" />
-    <ClInclude Include="imports\extras\D2DrlgActStrc.h" />
-    <ClInclude Include="imports\extras\D2DrlgLevelStrc.h" />
-    <ClInclude Include="imports\extras\D2DrlgRoomStrc.h" />
-    <ClInclude Include="imports\extras\D2DrlgStrc.h" />
-    <ClInclude Include="imports\extras\D2PresetUnitStrc.h" />
-    <ClInclude Include="imports\extras\D2RoomTileStrc.h" />
     <ClInclude Include="imports\extras\D2UnitHashTables.h" />
-    <ClInclude Include="imports\extras\D2WinControlStrc.h" />
-    <ClInclude Include="imports\extras\GameStructInfo.h" />
     <ClInclude Include="imports\extras\MPQStats.h" />
     <ClInclude Include="imports\extras\NPCMenu.h" />
     <ClInclude Include="imports\extras\TransactionDialogs.h" />

@@ -7,14 +7,11 @@
 #include "game/Types.h"
 #include "imports/D2Client.h"
 #include "imports/D2Common.h"
-#include "imports/extras/D2DrlgActStrc.h"
-#include "imports/extras/D2DrlgLevelStrc.h"
-#include "imports/extras/D2DrlgRoomStrc.h"
-#include "imports/extras/D2PresetUnitStrc.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-braces"
 #include <DataTbls/ObjectsTbls.h>  // D2ObjectsTxt
+#include <Drlg/D2DrlgPreset.h>     // D2PresetUnitStrc
 #include <Units/Units.h>           // D2UnitStrc
 #pragma clang diagnostic pop
 
@@ -34,16 +31,12 @@ constexpr int32_t SUBTILE_SCALE = 5;
 // `InitLevel` mutates the level's room chain - must run on the game thread
 // to avoid TOCTOU races with concurrent script readers and the engine's
 // frame work.
-//
-// `D2UnitStrc::pDrlgAct` is typed as D2MOO's `::D2DrlgActStrc*`, but the bytes
-// at that address follow the 1.14d allocation modeled by
-// `extras::D2DrlgActStrc`. Reinterpret at the unit boundary.
 inline D2DrlgLevelStrc* FindLevelInChain(LevelId levelId) {
     auto* player = lod114d::imports::d2client::UNITS_GetPlayerUnit();
     if (player == nullptr) {
         return nullptr;
     }
-    auto* act = reinterpret_cast<D2DrlgActStrc*>(player->pDrlgAct);
+    auto* act = player->pDrlgAct;
     if (act == nullptr || act->pDrlg == nullptr) {
         return nullptr;
     }
@@ -82,15 +75,16 @@ inline D2DrlgRoomStrc* FindRoomInLevelByPos(D2DrlgLevelStrc* lvl, Position pos) 
 // special automap cells per (type, txtFileNo, level) - special NPC icons,
 // the Lower Kurast uberchest hint, the Anya/Frozen River markers, etc.
 // Returns the chosen cell number for `preset`, or -1 to skip.
-inline int32_t PickPresetCellNo(const lod114d::imports::extras::D2PresetUnitStrc* preset, uint32_t levelNo) {
+inline int32_t PickPresetCellNo(const D2PresetUnitStrc* preset, uint32_t levelNo) {
     int32_t cell = -1;
-    if (preset->nUnitType == UnitType::Monster) {  // Special NPCs
+    const auto unitType = static_cast<UnitType>(preset->nUnitType);
+    if (unitType == UnitType::Monster) {  // Special NPCs
         if (preset->nIndex == 256) {
             cell = 300;  // Izzy
         } else if (preset->nIndex == 745) {
             cell = 745;  // Hephasto
         }
-    } else if (preset->nUnitType == UnitType::Object) {
+    } else if (unitType == UnitType::Object) {
         if (preset->nIndex == 580 && levelNo == 79) {
             cell = 318;  // Lower Kurast uberchest hint
         } else if (preset->nIndex == 371) {

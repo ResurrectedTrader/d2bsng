@@ -6,30 +6,64 @@
 #include <string_view>
 #include <thread>
 
+#include "ControlHelpers.h"
 #include "game/GameHelpers.h"
 #include "game/GameLock.h"
 #include "game/GameThread.h"
 #include "imports/D2Gfx.h"
 #include "imports/D2Lang.h"
 #include "imports/D2Win.h"
-#include "imports/extras/D2WinControlStrc.h"
 #include "input/InputHook.h"
 #include "utils/utils.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-braces"
-#include <D2WinTextBox.h>  // D2WinTextBoxLineStrc (full layout, for pColumns/pNext field access)
+#include <D2WinButton.h>   // D2WinButtonStrc
+#include <D2WinEditBox.h>  // D2WinEditBoxStrc
+#include <D2WinTextBox.h>  // D2WinTextBoxStrc, D2WinTextBoxLineStrc
 #pragma clang diagnostic pop
+
+#include <cstddef>
 
 namespace d2bs::game {
 
-using lod114d::imports::extras::D2WinControlStrc;
+static_assert(offsetof(D2WinControlStrc, nType) == 0x00);
+static_assert(offsetof(D2WinControlStrc, dwFlags) == 0x08);
+static_assert(offsetof(D2WinControlStrc, nImageX) == 0x0C);
+static_assert(offsetof(D2WinControlStrc, nHeight) == 0x18);
+static_assert(offsetof(D2WinControlStrc, pNext) == 0x3C);
+static_assert(offsetof(D2WinTextBoxStrc, pFirstLine) == 0x48);
+static_assert(offsetof(D2WinEditBoxStrc, nSelectionStart) == 0x54);
+static_assert(offsetof(D2WinEditBoxStrc, nSelectionEnd) == 0x58);
+static_assert(offsetof(D2WinEditBoxStrc, wszText) == 0x5C);
+static_assert(offsetof(D2WinEditBoxStrc, nCaretPosition) == 0x25C);
+static_assert(offsetof(D2WinEditBoxStrc, dwEditBoxFlags) == 0x260);
+static_assert(offsetof(D2WinButtonStrc, wszText) == 0x64);
+static_assert(std::to_underlying(ControlType::EditBox) == D2WIN_EDITBOX);
+static_assert(std::to_underlying(ControlType::TextBox) == D2WIN_TEXTBOX);
+static_assert(std::to_underlying(ControlType::Button) == D2WIN_BUTTON);
 
 namespace {
 
 D2WinControlStrc* AsCtrl(void* p) noexcept {
     return static_cast<D2WinControlStrc*>(p);
 }
+
+// Reference d2bs reads every non-button control through the edit box layout
+// (its single Control struct), so Text() / IsPassword() keep doing that.
+// NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast) - D2Win controls start with their D2WinControlStrc header
+D2WinEditBoxStrc* AsEditBox(D2WinControlStrc* ctrl) noexcept {
+    return reinterpret_cast<D2WinEditBoxStrc*>(ctrl);
+}
+
+D2WinButtonStrc* AsButton(D2WinControlStrc* ctrl) noexcept {
+    return reinterpret_cast<D2WinButtonStrc*>(ctrl);
+}
+
+D2WinTextBoxStrc* AsTextBox(D2WinControlStrc* ctrl) noexcept {
+    return reinterpret_cast<D2WinTextBoxStrc*>(ctrl);
+}
+// NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
 
 void PostMouseMessage(uint32_t msg, int32_t x, int32_t y) {
     auto* hwnd = lod114d::imports::d2gfx::WINDOW_GetWindow();
@@ -52,7 +86,7 @@ void* Control::ResolvePtr() const {
     }
     void* resolved = nullptr;
     for (auto* p = *lod114d::imports::d2win::gpFirstControl; p != nullptr; p = p->pNext) {
-        if (p->dwType == type_ && p->rect == bounds_) {
+        if (TypeOf(p) == type_ && BoundsOf(p) == bounds_) {
             resolved = p;
             break;
         }
@@ -71,21 +105,22 @@ Control Control::FromPtr(void* p) {
         return Control{};
     }
     auto* ctrl = AsCtrl(p);
-    Control handle{ctrl->dwType, ctrl->rect};
+    Control handle{TypeOf(ctrl), BoundsOf(ctrl)};
     handle.cache_.Set(p);
     return handle;
 }
 
 std::string Control::Text() const {
     const auto ctrl = Resolve<D2WinControlStrc>();
-    // CONTROL_CLOAKED_PASSWORD (33) is the dwIsCloaked sentinel the game uses
-    // to mark a textbox as a password field - reference reads dwIsCloaked != 33
-    // before exposing wText (reference/d2bs/JSControl.cpp:81).
-    if (!ctrl || ctrl->dwIsCloaked == CONTROL_CLOAKED_PASSWORD) {
+    // CONTROL_CLOAKED_PASSWORD (33) is the edit box flag set the game gives a
+    // password field - reference reads it != 33 before exposing the text
+    // (reference/d2bs/JSControl.cpp:81).
+    if (!ctrl || AsEditBox(ctrl)->dwEditBoxFlags == CONTROL_CLOAKED_PASSWORD) {
         return {};
     }
-    const wchar_t* src = ctrl->dwType == ControlType::Button ? ctrl->wText2.data() : ctrl->wText.data();
-    return utils::ToStr(std::wstring{src});
+    const Unicode* src = TypeOf(ctrl) == ControlType::Button ? AsButton(ctrl)->wszText : AsEditBox(ctrl)->wszText;
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) - D2MOO Unicode is wchar_t on Win32
+    return utils::ToStr(std::wstring{reinterpret_cast<const wchar_t*>(src)});
 }
 
 void Control::SetText(const std::string& text) const {
@@ -94,22 +129,22 @@ void Control::SetText(const std::string& text) const {
     }
     // Re-resolved on the game thread: a pointer resolved here goes stale while Execute waits.
     GameThread::Execute([self = *this, wide = utils::ToWStr(text)] {
-        if (const auto ctrl = self.Resolve<D2WinControlStrc>(); ctrl && ctrl->dwType == ControlType::EditBox) {
-            lod114d::imports::d2win::CONTROL_SetText(ctrl, wide.c_str());
+        if (const auto ctrl = self.Resolve<D2WinControlStrc>(); ctrl && TypeOf(ctrl) == ControlType::EditBox) {
+            lod114d::imports::d2win::EDITBOX_SetText(AsEditBox(ctrl), wide.c_str());
         }
     });
 }
 
 Rect Control::Bounds() const {
     const auto ctrl = Resolve<D2WinControlStrc>();
-    return ctrl ? ctrl->rect : Rect::Zero;
+    return ctrl ? BoundsOf(ctrl) : Rect::Zero;
 }
 
 // The JS-visible "state" (this minus 2) and "disabled" (raw) views are derived in
 // the bindings.
 ControlState Control::State() const {
     const auto ctrl = Resolve<D2WinControlStrc>();
-    return ctrl ? ctrl->dwState : ControlState{};
+    return ctrl ? static_cast<ControlState>(ctrl->dwFlags) : ControlState{};
 }
 
 // Reference's setter memset's the field with a single repeated byte (buggy:
@@ -119,12 +154,12 @@ void Control::SetState(ControlState value) const {
     if (!ctrl) {
         return;
     }
-    ctrl->dwState = value;
+    ctrl->dwFlags = std::to_underlying(value);
 }
 
 bool Control::IsPassword() const {
     const auto ctrl = Resolve<D2WinControlStrc>();
-    return ctrl && ctrl->dwIsCloaked == CONTROL_CLOAKED_PASSWORD;
+    return ctrl && AsEditBox(ctrl)->dwEditBoxFlags == CONTROL_CLOAKED_PASSWORD;
 }
 
 ControlType Control::Type() const {
@@ -132,13 +167,13 @@ ControlType Control::Type() const {
     if (!ctrl) {
         return ControlType::Unknown;
     }
-    return ctrl->dwType;
+    return TypeOf(ctrl);
 }
 
 // Character-index caret, not a 2D screen coordinate.
 uint32_t Control::CursorPos() const {
     const auto ctrl = Resolve<D2WinControlStrc>();
-    return ctrl ? ctrl->dwCursorPos : 0U;
+    return ctrl ? static_cast<uint32_t>(AsEditBox(ctrl)->nCaretPosition) : 0U;
 }
 
 // Same memset bug as SetState; see SetState comment.
@@ -147,17 +182,20 @@ void Control::SetCursorPos(uint32_t offset) const {
     if (!ctrl) {
         return;
     }
-    ctrl->dwCursorPos = offset;
+    AsEditBox(ctrl)->nCaretPosition = static_cast<int32_t>(offset);
 }
 
+// Reference d2bs names 0x58 the selection start and 0x54 its end; the game
+// keeps the anchor (-1 for none) at 0x54 and the caret end at 0x58. Scripts see
+// the reference naming.
 uint32_t Control::SelectStart() const {
     const auto ctrl = Resolve<D2WinControlStrc>();
-    return ctrl ? ctrl->dwSelectStart : 0U;
+    return ctrl ? static_cast<uint32_t>(AsEditBox(ctrl)->nSelectionEnd) : 0U;
 }
 
 uint32_t Control::SelectEnd() const {
     const auto ctrl = Resolve<D2WinControlStrc>();
-    return ctrl ? ctrl->dwSelectEnd : 0U;
+    return ctrl ? static_cast<uint32_t>(AsEditBox(ctrl)->nSelectionStart) : 0U;
 }
 
 bool Control::HasLocaleText(uint16_t localeId) const {
@@ -171,15 +209,19 @@ bool Control::HasLocaleText(uint16_t localeId) const {
     }
     // Reference findControl: match the resolved locale string against the button's
     // text (exact), or find it within a textbox's text.
-    if (ctrl->dwType == ControlType::Button) {
-        return std::wstring_view{localeText} == std::wstring_view{ctrl->wText2.data()};
+    // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast) - D2MOO Unicode is wchar_t on Win32
+    if (TypeOf(ctrl) == ControlType::Button) {
+        return std::wstring_view{localeText} ==
+               std::wstring_view{reinterpret_cast<const wchar_t*>(AsButton(ctrl)->wszText)};
     }
-    if (ctrl->dwType == ControlType::TextBox) {
-        if (ctrl->pFirstText == nullptr || ctrl->pFirstText->pColumns[0] == nullptr) {
+    // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
+    if (TypeOf(ctrl) == ControlType::TextBox) {
+        const auto* firstLine = AsTextBox(ctrl)->pFirstLine;
+        if (firstLine == nullptr || firstLine->pColumns[0] == nullptr) {
             return false;
         }
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) - D2MOO Unicode is wchar_t on Win32
-        const auto* controlText = reinterpret_cast<const wchar_t*>(ctrl->pFirstText->pColumns[0]);
+        const auto* controlText = reinterpret_cast<const wchar_t*>(firstLine->pColumns[0]);
         return std::wstring_view{localeText}.contains(controlText);
     }
     return false;
@@ -214,7 +256,7 @@ void Control::Click(std::optional<Position> pos) const {
         // (reference/d2bs/Control.cpp:118-121). Rect::Center() adds half the height
         // on both axes, which lands sizeY/2 too low and clicks the control stacked
         // directly below (e.g. Single Player hits Battle.net).
-        const auto& r = ctrl->rect;
+        const auto r = BoundsOf(ctrl);
         cx = (!pos || pos->x == ~0U) ? r.origin.x + (r.size.width / 2) : pos->x;
         cy = (!pos || pos->y == ~0U) ? r.origin.y - (r.size.height / 2) : pos->y;
     }
@@ -231,11 +273,11 @@ void Control::Click(std::optional<Position> pos) const {
 
 std::vector<Control::TextLine> Control::TextLines() const {
     const auto ctrl = Resolve<D2WinControlStrc>();
-    if (!ctrl || ctrl->dwType != ControlType::TextBox) {
+    if (!ctrl || TypeOf(ctrl) != ControlType::TextBox) {
         return {};
     }
     std::vector<TextLine> out;
-    for (auto* node = ctrl->pFirstText; node != nullptr; node = node->pNext) {
+    for (auto* node = AsTextBox(ctrl)->pFirstLine; node != nullptr; node = node->pNext) {
         if (node->pColumns[0] == nullptr) {
             continue;
         }

@@ -28,5 +28,9 @@ inline StdcallFunc<void(void* /*pContext*/, uint32_t /*nX*/, uint32_t /*nY*/, ui
 inline StdcallFunc<HWND()> WINDOW_GetWindow{0xF59A0};
 inline StdcallFunc<uint32_t()> D2GFX_GetResolutionMode{0xF5160};
 
+// MOO: int32_t __stdcall D2GFX_EndScene(). Only the tail target of intercept P9
+// (hooks/Intercepts.cpp), which replaces its CALL at 0x44EBEF.
+inline GameAsmFunc D2GFX_EndScene{0xF6190};
+
 }  // namespace d2bs::lod114d::imports::d2gfx
 // NOLINTEND(readability-identifier-naming)

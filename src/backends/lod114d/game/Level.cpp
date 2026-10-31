@@ -4,7 +4,6 @@
 #include "game/GameLock.h"
 #include "game/Room.h"
 #include "imports/D2Common.h"
-#include "imports/extras/D2DrlgLevelStrc.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-braces"
@@ -17,8 +16,6 @@
 #include <utility>
 
 namespace d2bs::game {
-
-using lod114d::imports::extras::D2DrlgLevelStrc;
 
 static_assert(std::to_underlying(LevelId::RogueEncampment) == LEVEL_ROGUEENCAMPMENT);
 static_assert(std::to_underlying(LevelId::LutGholein) == LEVEL_LUTGHOLEIN);

@@ -11,7 +11,7 @@
 //   P4  0x52AE5A  JMP/5     75 06 33 C0 5D                    OK  -> cond + epilog
 //   P5  0x462D72  CALL/5    E8 99 4C 00 00                    OK  -> GetSelectedUnit
 //   P8  0x44EBFB  byte/1    74                                OK  -> flip JZ->JNZ
-//   P9  0x44EBEF  CALL/5    E8 9C 75 0A 00                    OK  -> CongratsScreen_I
+//   P9  0x44EBEF  CALL/5    E8 9C 75 0A 00                    OK  -> D2GFX_EndScene
 //   P14 0x521B20  CALL/7    8B 55 08 8B CB FF D7              OK  -> ChatPacketRecv
 //   P15 0x448813  CALL/7    81 EC 74 06 00 00 57              OK  -> Whisper_I
 //   P16 0x442A61  CALL/5    E8 6A FE FF FF                    OK  -> ChannelInput_I
@@ -114,7 +114,7 @@ uintptr_t moduleBase = 0;
 uintptr_t inputCall = 0;
 uintptr_t receivePacket = 0;
 uintptr_t sendPacketII = 0;
-uintptr_t congratsScreen = 0;
+uintptr_t endScene = 0;
 uintptr_t channelInput = 0;
 uintptr_t drawSprites = 0;
 uintptr_t d2gameExit0 = 0;
@@ -869,7 +869,7 @@ extern "C" D2UnitStrc* OnGetSelectedUnit() {
     return imports::d2client::UNITS_GetSelectedUnit();
 }
 
-// P9: CongratsScreen. Original CALL/5 at 0x44EBEF -> CongratsScreen_I.
+// P9: CongratsScreen. Original CALL/5 at 0x44EBEF -> D2GFX_EndScene.
 // Bumps the character flags' progression (CharFlag::ProgressionMask, the acts
 // completed across all difficulties; the byte the reference calls nMaxDiff) to
 // 10 - any value high enough to enable the next difficulty selector - after
@@ -890,15 +890,17 @@ extern "C" void SetMaxDiff() {
         if (pData != nullptr) {
             constexpr uint16_t UNLOCKED_PROGRESSION = 10;
             constexpr auto PROGRESSION_SHIFT = std::countr_zero(std::to_underlying(game::CharFlag::ProgressionMask));
-            pData->nCharFlags = (pData->nCharFlags & ~game::CharFlag::ProgressionMask) |
-                                static_cast<game::CharFlag>(UNLOCKED_PROGRESSION << PROGRESSION_SHIFT);
+            const auto flags = static_cast<game::CharFlag>(pData->unpackedCTemp.nCharacterSaveFlags);
+            pData->unpackedCTemp.nCharacterSaveFlags =
+                std::to_underlying((flags & ~game::CharFlag::ProgressionMask) |
+                                   static_cast<game::CharFlag>(UNLOCKED_PROGRESSION << PROGRESSION_SHIFT));
         }
     }
 }
 
 extern "C" __declspec(naked) void CongratsScreenThunk() {
     __asm {
-        call dword ptr [congratsScreen]
+        call dword ptr [endScene]
         pushad
         call SetMaxDiff
         popad
@@ -1138,7 +1140,7 @@ bool Init() {
         {.name = L"D2CLIENT InputCall_I", .resolved = imports::d2client::InputCall_I.IsResolved()},
         {.name = L"D2NET ReceivePacket_I", .resolved = imports::d2net::CLIENT_ReceivePacket_I.IsResolved()},
         {.name = L"D2CLIENT SendPacket_II", .resolved = imports::d2client::SendPacket_II.IsResolved()},
-        {.name = L"D2CLIENT CongratsScreen_I", .resolved = imports::d2client::CongratsScreen_I.IsResolved()},
+        {.name = L"D2GFX D2GFX_EndScene", .resolved = imports::d2gfx::D2GFX_EndScene.IsResolved()},
         {.name = L"D2MULTI ChannelInput_I", .resolved = imports::d2multi::ChannelInput_I.IsResolved()},
         {.name = L"D2WIN DrawSprites", .resolved = imports::d2win::D2WIN_DrawSprites.IsResolved()},
         {.name = L"D2GAME Exit", .resolved = imports::d2game::D2GAME_Exit.IsResolved()},
@@ -1161,7 +1163,7 @@ bool Init() {
     inputCall = imports::d2client::InputCall_I.Addr();
     receivePacket = reinterpret_cast<uintptr_t>(imports::d2net::CLIENT_ReceivePacket_I.Ptr());
     sendPacketII = imports::d2client::SendPacket_II.Addr();
-    congratsScreen = imports::d2client::CongratsScreen_I.Addr();
+    endScene = imports::d2gfx::D2GFX_EndScene.Addr();
     channelInput = imports::d2multi::ChannelInput_I.Addr();
     drawSprites = reinterpret_cast<uintptr_t>(imports::d2win::D2WIN_DrawSprites.Ptr());
     d2gameExit0 = reinterpret_cast<uintptr_t>(imports::d2game::D2GAME_Exit.Ptr());

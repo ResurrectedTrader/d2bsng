@@ -48,8 +48,6 @@
 #include "imports/D2Net.h"
 #include "imports/D2Win.h"
 #include "imports/Storm.h"
-#include "imports/extras/BnetData.h"
-#include "imports/extras/GameStructInfo.h"
 #include "imports/extras/MPQStats.h"
 #include "imports/extras/TransactionDialogs.h"
 #include "imports/extras/WindowHandlers.h"
@@ -57,12 +55,6 @@
 #include "utils/CriticalSection.h"
 #include "utils/Profiling.h"
 #include "utils/utils.h"
-
-#include "imports/extras/D2ActiveRoomStrc.h"
-#include "imports/extras/D2DrlgActStrc.h"
-#include "imports/extras/D2DrlgLevelStrc.h"
-#include "imports/extras/D2DrlgRoomStrc.h"
-#include "imports/extras/D2DrlgStrc.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-braces"
@@ -78,9 +70,6 @@
 namespace d2bs::game {
 
 using namespace d2bs::lod114d::imports;
-using extras::D2ActiveRoomStrc;
-using extras::D2DrlgActStrc;
-using extras::D2DrlgLevelStrc;
 
 namespace {
 
@@ -95,6 +84,13 @@ spdlog::logger& Log() {
 template <size_t N>
 std::string ToString(const std::array<char, N>& buf) {
     return std::string(buf.data(), strnlen(buf.data(), N));
+}
+
+// D2MOO's structs declare their strings as C arrays.
+template <size_t N>
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays, modernize-avoid-c-arrays) - D2MOO struct fields
+std::string ToString(const char (&buf)[N]) {
+    return std::string(buf, strnlen(buf, N));
 }
 
 // Container layout structs. The game zero-initialises these and lazily
@@ -193,11 +189,7 @@ GameState GetGameState() {
     if (player->pUpdateUnit != nullptr) {
         return GameState::Busy;
     }
-    // `D2DynamicPathStrc::pRoom` is typed as `::D2ActiveRoomStrc*` (D2MOO); the
-    // bytes follow the 1.14d allocation modeled by `extras::D2ActiveRoomStrc`,
-    // hence the reinterpret_cast at the unit->path boundary.
-    auto* pathRoom =
-        player->pDynamicPath != nullptr ? reinterpret_cast<D2ActiveRoomStrc*>(player->pDynamicPath->pRoom) : nullptr;
+    auto* pathRoom = player->pDynamicPath != nullptr ? player->pDynamicPath->pRoom : nullptr;
     if (player->pInventory == nullptr || pathRoom == nullptr || pathRoom->pDrlgRoom == nullptr ||
         pathRoom->pDrlgRoom->pLevel == nullptr || pathRoom->pDrlgRoom->pLevel->nLevelId == 0) {
         return GameState::Busy;
@@ -328,7 +320,7 @@ Language GetLocale() {
     return *d2client::gnLang;
 }
 
-// === BnetData Queries ===
+// === Account Queries ===
 
 std::string GetAccountName() {
     auto* data = *d2launch::gpBnetData;
@@ -337,25 +329,25 @@ std::string GetAccountName() {
 
 std::string GetPlayerName() {
     auto* data = *d2launch::gpBnetData;
-    return data != nullptr ? ToString(data->szPlayerName) : std::string{};
+    return data != nullptr ? ToString(data->szName) : std::string{};
 }
 
 std::string GetRealmName() {
     auto* data = *d2launch::gpBnetData;
-    return data != nullptr ? ToString(data->szRealmName) : std::string{};
+    return data != nullptr ? ToString(data->szRealm) : std::string{};
 }
 
 std::string GetRealmShort() {
     auto* data = *d2launch::gpBnetData;
-    return data != nullptr ? ToString(data->szRealmName2) : std::string{};
+    return data != nullptr ? ToString(data->szCharacterRealm) : std::string{};
 }
 
 CharFlag GetCharFlags() {
     auto* data = *d2launch::gpBnetData;
-    return data != nullptr ? data->nCharFlags : CharFlag{};
+    return data != nullptr ? static_cast<CharFlag>(data->unpackedCTemp.nCharacterSaveFlags) : CharFlag{};
 }
 
-// === GameStructInfo Queries ===
+// === Game Session Queries ===
 
 std::string GetGameName() {
     auto* info = *d2client::gpGameInfo;
@@ -369,7 +361,7 @@ std::string GetGamePassword() {
 
 std::string GetGameServerIp() {
     auto* info = *d2client::gpGameInfo;
-    return info != nullptr ? ToString(info->szGameServerIp) : std::string{};
+    return info != nullptr ? ToString(info->szServerIP) : std::string{};
 }
 
 // === Mouse/Screen ===
@@ -819,14 +811,9 @@ bool SubmitItem(const Unit& item) {
         if (player == nullptr) {
             return false;
         }
-        // `D2UnitStrc::pDrlgAct` is typed as D2MOO's `::D2DrlgActStrc*`; the bytes follow
-        // the 1.14d allocation modeled by `extras::D2DrlgActStrc`. Same for the dynamic
-        // path's `pRoom` (modeled by `extras::D2ActiveRoomStrc`).
-        auto* act = reinterpret_cast<D2DrlgActStrc*>(player->pDrlgAct);
+        auto* act = player->pDrlgAct;
         const auto* drlg = (act != nullptr) ? act->pDrlg : nullptr;
-        auto* pathRoom = player->pDynamicPath != nullptr
-                             ? reinterpret_cast<D2ActiveRoomStrc*>(player->pDynamicPath->pRoom)
-                             : nullptr;
+        auto* pathRoom = player->pDynamicPath != nullptr ? player->pDynamicPath->pRoom : nullptr;
         const auto* level =
             (pathRoom != nullptr && pathRoom->pDrlgRoom != nullptr) ? pathRoom->pDrlgRoom->pLevel : nullptr;
         const auto playerArea = (level != nullptr) ? static_cast<uint32_t>(level->nLevelId) : 0U;
@@ -1615,9 +1602,7 @@ bool RevealLevel(LevelId levelNo, bool drawPresets) {
     }
     return GameThread::Execute([levelNo, drawPresets]() -> bool {
         auto* player = d2client::UNITS_GetPlayerUnit();
-        // `D2UnitStrc::pDrlgAct` is typed as D2MOO's `::D2DrlgActStrc*`; the bytes follow
-        // the 1.14d allocation modeled by `extras::D2DrlgActStrc`.
-        auto* act = (player != nullptr) ? reinterpret_cast<D2DrlgActStrc*>(player->pDrlgAct) : nullptr;
+        auto* act = (player != nullptr) ? player->pDrlgAct : nullptr;
         if (act == nullptr || act->pDrlg == nullptr) {
             return false;
         }
@@ -1639,9 +1624,7 @@ bool RevealLevel(LevelId levelNo, bool drawPresets) {
         // the AutomapLayer must be repointed before we draw into it. The
         // saved layer is restored after the reveal loop. Reference Room.cpp:9
         // grabs the player's level via the player's path chain.
-        auto* pathRoom = player->pDynamicPath != nullptr
-                             ? reinterpret_cast<D2ActiveRoomStrc*>(player->pDynamicPath->pRoom)
-                             : nullptr;
+        auto* pathRoom = player->pDynamicPath != nullptr ? player->pDynamicPath->pRoom : nullptr;
         const auto* playerLevel =
             (pathRoom != nullptr && pathRoom->pDrlgRoom != nullptr) ? pathRoom->pDrlgRoom->pLevel : nullptr;
         const uint32_t playerLevelNo = (playerLevel != nullptr) ? static_cast<uint32_t>(playerLevel->nLevelId) : 0U;
@@ -1872,9 +1855,7 @@ void SendKey(uint32_t key) {
 Level FindLevelAt(Position gamePos) {
     GameReadLock guard;
     auto* player = d2client::UNITS_GetPlayerUnit();
-    // `D2UnitStrc::pDrlgAct` is typed as D2MOO's `::D2DrlgActStrc*`; the bytes follow
-    // the 1.14d allocation modeled by `extras::D2DrlgActStrc`.
-    auto* act = (player != nullptr) ? reinterpret_cast<D2DrlgActStrc*>(player->pDrlgAct) : nullptr;
+    auto* act = (player != nullptr) ? player->pDrlgAct : nullptr;
     if (act == nullptr || act->pDrlg == nullptr) {
         return Level();
     }

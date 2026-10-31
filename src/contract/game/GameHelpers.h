@@ -47,14 +47,14 @@ GameType GetGameType();
 uint32_t GetMercReviveCost();
 Language GetLocale();
 
-// === BnetData Queries ===
+// === Account Queries ===
 std::string GetAccountName();
 std::string GetPlayerName();
 std::string GetRealmName();
 std::string GetRealmShort();
 CharFlag GetCharFlags();
 
-// === GameStructInfo Queries ===
+// === Game Session Queries ===
 std::string GetGameName();
 std::string GetGamePassword();
 std::string GetGameServerIp();

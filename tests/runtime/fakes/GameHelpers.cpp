@@ -61,7 +61,7 @@ Language GetLocale() {
     return Language::English;
 }
 
-// === BnetData Queries ===
+// === Account Queries ===
 std::string GetAccountName() {
     return "";
 }
@@ -78,7 +78,7 @@ CharFlag GetCharFlags() {
     return CharFlag{};
 }
 
-// === GameStructInfo Queries ===
+// === Game Session Queries ===
 std::string GetGameName() {
     return "";
 }

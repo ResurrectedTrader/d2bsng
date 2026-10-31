@@ -5,11 +5,6 @@
 #include "ImportTypes.h"
 #include "game/Types.h"
 
-#include "extras/D2ActiveRoomStrc.h"
-#include "extras/D2DrlgActStrc.h"
-#include "extras/D2DrlgLevelStrc.h"
-#include "extras/D2DrlgStrc.h"
-
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-braces"
 #include <D2BitManip.h>            // D2BitBufferStrc
@@ -21,6 +16,7 @@
 #include <DataTbls/ItemsTbls.h>    // D2ItemsTxt
 #include <DataTbls/LevelsTbls.h>   // D2LevelsTxt
 #include <DataTbls/ObjectsTbls.h>  // D2ObjectsTxt
+#include <Drlg/D2DrlgDrlg.h>       // D2ActiveRoomStrc, D2DrlgActStrc, D2DrlgLevelStrc, D2DrlgStrc
 #include <Units/Units.h>           // D2UnitStrc
 #pragma clang diagnostic pop
 
@@ -38,14 +34,6 @@ struct D2GameStrc;
 // NOLINTBEGIN(readability-identifier-naming) - MOO-style names use DOMAIN_PascalCase with embedded underscores
 namespace d2bs::lod114d::imports::d2common {
 
-// 1.14d-correct shadow types live in `imports::extras`. Aliasing them inside
-// this namespace lets call-sites use `d2common::DUNGEON_GetLevelIdFromRoom`
-// etc. with the correct 1.14d layouts without further qualification.
-using extras::D2ActiveRoomStrc;
-using extras::D2DrlgActStrc;
-using extras::D2DrlgLevelStrc;
-using extras::D2DrlgStrc;
-
 // ---- Functions -------------------------------------------------------------
 inline StdcallFunc<void(D2DrlgLevelStrc* /*pLevel*/)> DRLG_InitLevel{0x2424A0};
 inline StdcallFunc<D2ObjectsTxt*(uint32_t /*nObjectId*/)> DATATBLS_GetObjectsTxtRecord{0x240E90};
@@ -53,10 +41,8 @@ inline StdcallFunc<D2ObjectsTxt*(uint32_t /*nObjectId*/)> DATATBLS_GetObjectsTxt
 inline StdcallFunc<D2LevelsTxt*(game::LevelId /*nLevelId*/)> DATATBLS_GetLevelsTxtRecord{0x21DB70};
 inline StdcallFunc<D2ItemsTxt*(uint32_t /*nItemId*/)> DATATBLS_GetItemsTxtRecord{0x2335F0};
 
-// 1.14d-only entry: returns the per-level "misc/layer" structure indexed by
-// nLevelNo. No matching D2MOO ordinal; named under the DRLG_ domain to match
-// the surrounding dungeon-structure helpers.
-inline FastcallFunc<void*(uint32_t /*nLevelId*/)> DRLG_GetLayer{0x21E470};
+inline FastcallFunc<D2LevelDefBin*(uint32_t /*nLevelId*/)> DATATBLS_GetLevelDefRecord{0x21E470};
+
 inline FastcallFunc<D2DrlgLevelStrc*(D2DrlgStrc* /*pDrlg*/, int32_t /*nLevelId*/)> DRLG_GetLevel{0x242AE0};
 
 // MOO: STATLIST_GetStatListFromUnitStateAndFlag(D2UnitStrc* pUnit, int nState, int nFlag).

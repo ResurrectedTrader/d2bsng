@@ -5,9 +5,7 @@
 #include "ImportTypes.h"
 #include "game/Types.h"
 
-#include "extras/D2ActiveRoomStrc.h"
 #include "extras/D2UnitHashTables.h"
-#include "extras/GameStructInfo.h"
 #include "extras/NPCMenu.h"
 #include "extras/TransactionDialogs.h"
 
@@ -21,10 +19,12 @@ struct D2GfxDataStrc;
 // NOLINTNEXTLINE(readability-identifier-naming) - matches D2MOO upstream type name
 struct SMSGHANDLER_PARAMS;
 #include <D2BitManip.h>           // D2BitBufferStrc
+#include <D2Config.h>             // D2ConfigStrc
 #include <D2Inventory.h>          // D2InventoryStrc
 #include <D2Roster.h>             // D2RosterUnitStrc
 #include <D2Structs.OtherDLLs.h>  // D2AutomapCellStrc, D2AutomapLayerStrc
 #include <D2Waypoints.h>          // D2WaypointDataStrc
+#include <Drlg/D2DrlgDrlg.h>      // D2ActiveRoomStrc
 #include <Units/Units.h>          // D2UnitStrc
 #pragma clang diagnostic pop
 
@@ -40,11 +40,6 @@ struct SMSGHANDLER_PARAMS;
 
 // NOLINTBEGIN(readability-identifier-naming) - MOO-style names use DOMAIN_PascalCase with embedded underscores
 namespace d2bs::lod114d::imports::d2client {
-
-// 1.14d-correct shadow types live in `imports::extras`. Aliasing them inside
-// this namespace lets call-sites use `d2client::RevealAutomapRoom` etc. with
-// the correct 1.14d layouts without further qualification.
-using extras::D2ActiveRoomStrc;
 
 // ---- Functions -------------------------------------------------------------
 inline StdcallFunc<D2BitBufferStrc*()> QUESTRECORD_GetQuestInfo{0xB32D0};
@@ -204,7 +199,7 @@ inline GameVar<uint32_t> gnTransactionDialogs{0x3C0E5C};
 inline GameVar<uint32_t> gnTransactionDialogs_2{0x3C0E58};
 inline GameVar<extras::TransactionDialogsInfo*> gpTransactionDialogsInfo{0x3C0E54};
 
-inline GameVar<extras::GameStructInfo*> gpGameInfo{0x3A0438};
+inline GameVar<D2ConfigStrc*> gpGameInfo{0x3A0438};
 
 // Pointer to the player's waypoint-bit-buffer. Passed as `pData` to
 // WAYPOINTS_IsActivated. Reference VARPTRs it as DWORD; we type it as
@@ -272,9 +267,8 @@ inline GameAsmFunc InitAutomapLayer_I{0x58D40};  // __usercall(a1@<edi>)
 // game-side patch site with a JMP into our `__declspec(naked)` thunk. The
 // thunk does its `pushad` + C dispatcher, then either bails (block) or
 // tail-jumps to the original target; these addresses are those targets.
-inline GameAsmFunc InputCall_I{0x787B0};       // CALL site at 0x47C89D
-inline GameAsmFunc CongratsScreen_I{0xF6190};  // CALL site at 0x44EBEF
-inline GameAsmFunc SendPacket_II{0x12AE62};    // tail target for the SendPacket fall-through
+inline GameAsmFunc InputCall_I{0x787B0};     // CALL site at 0x47C89D
+inline GameAsmFunc SendPacket_II{0x12AE62};  // tail target for the SendPacket fall-through
 
 // Directly callable, no thunk: IDA decompile is `__thiscall(this)` (single
 // arg). Reference's 2-arg signature included an unused `type` arg dropped here.
