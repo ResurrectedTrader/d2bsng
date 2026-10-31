@@ -234,12 +234,9 @@ component returns before starting its reporter thread, so a build without the
 define is a no-op. (The source still `#ifndef`-defaults the `D2BS_ANALYTICS_KEY`
 macro to an empty string, which is what makes that the safe fallback.)
 
-The project's own key is committed as the default in `Directory.Build.props`, so
-every build reports - IDE builds included - not just released ones. That is
-deliberate: an Aptabase app key is a client-side, write-only ingest key, and this
-one already ships verbatim inside every published DLL, so it is not a credential.
-The consequence is that a fork or a dev build reports into this project unless it
-overrides the key.
+No key is committed. Released builds get the project's key from the
+`APTABASE_APP_KEY` Actions secret (below); dev and fork builds have analytics
+compiled out unless they set a key themselves.
 
 "Build time only" means the *compiler command line*, not `build.ps1`. The key is
 resolved by `Directory.Build.props` at the repo root, which MSBuild imports into
@@ -256,14 +253,13 @@ every project - so an IDE build (Visual Studio, Rider), which never runs
    variables as properties). Note IDEs snapshot the environment at launch, so a
    newly-set user variable needs an IDE restart - which is why (2) is usually
    less trouble.
-4. The committed default in `Directory.Build.props`.
+
+With none of these set, the key is empty and analytics is compiled out.
 
 `build.ps1` passes `-p:D2bsAnalyticsKey` **only when it has a key**: an empty
 `-p:` would set the global property to empty and silently shadow (2) and (3),
 since a global property wins over `Directory.Build.props`.
 
-To build with analytics compiled out, override the default with an empty value
-(`-p:D2bsAnalyticsKey=`, or an empty `D2bsAnalyticsKey` in `d2bs.local.props`).
 To keep it compiled in but silent, opt out at runtime instead.
 
 `build.ps1` defaults `-AnalyticsKey` to the `D2BS_ANALYTICS_KEY` environment

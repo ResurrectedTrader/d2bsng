@@ -34,23 +34,11 @@
           Condition="Exists('$(MSBuildThisFileDirectory)d2bs.local.props')" />
 
   <PropertyGroup>
-    <D2bsAnalyticsKey Condition="'$(D2bsAnalyticsKey)' == ''">$(D2BS_ANALYTICS_KEY)</D2bsAnalyticsKey>
-    <!-- Aptabase app key baked into the DLL, so every build reports - not just
-         released ones. Committed deliberately: an Aptabase app key is a
-         client-side, write-only ingest key, and this one already ships verbatim
-         inside every published DLL, so it is not a credential.
-
-         Consequences worth knowing: a fork or a dev build reports into *this*
-         project by default. Builds without an explicit -Version carry
-         isDebug=true (D2BS_VERSION falls back to "2.0.0-dev"), which buckets
-         them apart from release traffic but does not separate them.
-
-         To point a build somewhere else, set D2bsAnalyticsKey via (1)-(3)
-         above; to build with analytics compiled out entirely, set it to empty
-         (`-p:D2bsAnalyticsKey=`). To leave it compiled in but silent at
-         runtime, use -noanalytics / D2BS_ANALYTICS_DISABLE. See
+    <!-- Aptabase app key baked into the DLL. There is no default: a build
+         without one has analytics compiled out. Set it via (1)-(3) above;
+         release builds get it from the APTABASE_APP_KEY Actions secret. See
          docs/analytics.md. -->
-    <D2bsAnalyticsKey Condition="'$(D2bsAnalyticsKey)' == ''">A-EU-6718352863</D2bsAnalyticsKey>
+    <D2bsAnalyticsKey Condition="'$(D2bsAnalyticsKey)' == ''">$(D2BS_ANALYTICS_KEY)</D2bsAnalyticsKey>
 
     <!-- The console's Profiling panel and the counters behind it (utils/Profiling.h).
          Set to false (`-p:D2bsProfiling=false`, build.ps1 -NoProfiling, or
