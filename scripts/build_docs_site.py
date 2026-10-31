@@ -29,8 +29,8 @@ resolved ``<tag>.json`` are included. Pure-stdlib apart from optional `gh`.
 A release that also carries a ``sim.json`` asset (the kolbot simulator's
 options, environment variables and guide) gets it as ``<tag>.sim.json`` in
 --data-dir, downloaded like api.json, and its ``data/<tag>.json`` is the api.json
-with that document under ``simulator``; the page renders it as a Simulator
-section. A release without one is published exactly as before.
+with that document under ``simulator``; the page renders it in a Simulator
+tab. A release without one is published exactly as before.
 
 Usage (CI):
     gh api repos/$REPO/releases --paginate > releases.json

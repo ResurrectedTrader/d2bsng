@@ -9,8 +9,10 @@ runs in *bundle* mode: on load it fetches a SAME-ORIGIN ``versions.json``
 manifest and the chosen version's ``data/<tag>.json``, populates a version
 selector, and renders it client-side. A "Changelog" tab shows the selected
 version's release notes (from the manifest) plus an automatic API-surface diff
-(added / removed / changed symbols) against the previous version. The manifest
-and per-version JSON are produced at deploy time by build_docs_site.py, which
+(added / removed / changed symbols) against the previous version. A version whose
+data carries ``simulator`` (a release's sim.json, merged in by build_docs_site.py)
+also has a "Simulator" tab: the simulator's guide, switches and environment
+variables. The manifest and per-version JSON are produced at deploy time by build_docs_site.py, which
 gathers them from the repo's releases server-side.
 
 A baked-in api.json (the positional INPUT) is embedded as the offline/fallback
@@ -118,8 +120,10 @@ def build_page(inline, *, title, version, repo, source_base):
         '<main id="content">'
         '<div id="tabs" class="tabs">'
         '<button class="tab active" data-view="api">API reference</button>'
-        '<button class="tab" data-view="changelog">Changelog</button></div>'
+        '<button class="tab" data-view="changelog">Changelog</button>'
+        '<button class="tab" data-view="sim" id="sim-tab" hidden>Simulator</button></div>'
         '<div id="api-view"></div>'
+        '<div id="sim-view" hidden></div>'
         '<div id="changelog-view" hidden></div>'
         '<div id="status" class="status"></div></main>'
         f'<script id="cfg" type="application/json">{cfg_json}</script>'
@@ -308,6 +312,8 @@ var nav = document.getElementById('nav');
 var search = document.getElementById('search');
 var noRes = document.querySelector('.no-results');
 var apiView = document.getElementById('api-view');
+var simView = document.getElementById('sim-view');
+var simTab = document.getElementById('sim-tab');
 var clView = document.getElementById('changelog-view');
 var statusEl = document.getElementById('status');
 var verSel = document.getElementById('ver');
@@ -628,7 +634,10 @@ function buildApi(data){
   }
 
   // the simulator, from a release that carries a sim.json (build_docs_site.py adds it as data.simulator)
-  if(data.simulator) buildSimulator(data.simulator, body, loNav);
+  var simBody=[];
+  if(data.simulator) buildSimulator(data.simulator, simBody, loNav);
+  simView.innerHTML=simBody.join('');
+  simTab.hidden=!data.simulator;
 
   navHtml.push(navCategory('top','JS API',jsNav));
   if(loNav.length) navHtml.push(navCategory(launch.length?'launch':'simulator','Others',loNav));
@@ -836,7 +845,7 @@ function initInteractions(){
   };
   filter();
   // scrollspy: highlight the section in view; never changes collapse state
-  var spies=apiView.querySelectorAll('.spy[id]'), linkFor={};
+  var spies=document.querySelectorAll('#api-view .spy[id], #sim-view .spy[id]'), linkFor={};
   nav.querySelectorAll('a[href^="#"]').forEach(function(a){ linkFor[a.getAttribute('href').slice(1)]=a; });
   if(window._io) window._io.disconnect();
   window._io=new IntersectionObserver(function(ents){
@@ -871,17 +880,19 @@ document.getElementById('tabs').addEventListener('click',function(e){
   setView(t.dataset.view);
 });
 function setView(v){
+  if(v==='sim'&&simTab.hidden) v='api';
   state.view=v;
   document.querySelectorAll('.tab').forEach(function(t){ t.classList.toggle('active',t.dataset.view===v); });
   apiView.hidden = v!=='api';
+  simView.hidden = v!=='sim';
   clView.hidden = v!=='changelog';
   if(v==='changelog') buildChangelog();
 }
 
 // Internal-anchor navigation, bound once on persistent containers (delegation
 // survives re-renders). Sidebar symbol links and changelog diff links both
-// route through navTo: close the mobile drawer, switch to the API tab if the
-// changelog is showing, and reveal a data-table target. We don't preventDefault,
+// route through navTo: close the mobile drawer, switch to the tab that holds the
+// target (Simulator for its own anchors, API reference otherwise), and reveal a data-table target. We don't preventDefault,
 // so the anchor's own click scrolls + sets :target after the view is visible;
 // the only gap is when the hash already names the target (no re-scroll then), so
 // we nudge that case ourselves.
@@ -889,7 +900,8 @@ function navTo(href){
   if(!href||href.charAt(0)!=='#'||href.length<2) return;
   var id=href.slice(1), tgt=document.getElementById(id);
   document.body.classList.remove('nav-open');
-  if(state.view!=='api') setView('api');
+  var view=(tgt&&simView.contains(tgt))?'sim':'api';
+  if(state.view!==view) setView(view);
   if(tgt && tgt.tagName==='DETAILS') tgt.open=true;
   if(tgt && location.hash==='#'+id) tgt.scrollIntoView({block:'start'});
 }
