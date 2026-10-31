@@ -1,0 +1,104 @@
+name: Set up pinned vcpkg
+description: >
+  Restores vcpkg's binary cache and sets up vcpkg at the commit vcpkg.json's
+  builtin-baseline pins (clone, bootstrap, optionally `integrate install`),
+  exporting VCPKG_ROOT and VCPKG_DEFAULT_BINARY_CACHE. Saving the cache is left
+  to the caller (actions/cache/save with the `cache-primary-key` output), so a
+  job saves after it has built its packages, and on failure too.
+
+inputs:
+  root:
+    description: >
+      Directory holding the vcpkg.json whose builtin-baseline pins vcpkg,
+      relative to the workspace (an embedding repository that checks d2bsng
+      out under a subdirectory passes that subdirectory).
+    required: false
+    default: .
+  hash-files:
+    description: >
+      Newline-separated hashFiles() patterns that key the binary cache: the
+      manifests whose dependencies it holds.
+    required: false
+    default: |
+      vcpkg.json
+      tests/runtime/vcpkg.json
+  key:
+    description: >
+      The cache key to restore. Default: a run-unique key
+      (vcpkg-<os>-<ref>-<manifest hash>-<run id>-<job>), so a fresh run always
+      saves; the prefix restore keys then pick up the most recent cache.
+    required: false
+    default: ''
+  integrate:
+    description: Run `vcpkg integrate install`, which points MSBuild's manifest restore at this vcpkg.
+    required: false
+    default: 'true'
+  binary-cache:
+    description: >
+      The binary cache directory. Default: VCPKG_DEFAULT_BINARY_CACHE when the
+      job sets it, else <workspace>/.vcpkg-cache.
+    required: false
+    default: ''
+
+outputs:
+  ref:
+    description: The pinned vcpkg commit (vcpkg.json's builtin-baseline).
+    value: ${{ steps.pin.outputs.ref }}
+  cache-primary-key:
+    description: The key the cache was restored with; save under it.
+    value: ${{ steps.restore.outputs.cache-primary-key }}
+  cache-path:
+    description: The binary cache directory.
+    value: ${{ steps.pin.outputs.cache }}
+
+runs:
+  using: composite
+  steps:
+    # vcpkg's ABI-keyed binary cache. Caching THIS (not the vcpkg_installed
+    # install tree) is what lets a build reuse prebuilt packages: vcpkg re-runs
+    # `install` on every build and rebuilds from source unless it finds a
+    # matching archive here. The pin is the manifest's builtin-baseline, so
+    # bumping it deliberately invalidates the cache.
+    - name: Resolve the vcpkg pin
+      id: pin
+      shell: pwsh
+      env:
+        MANIFEST_ROOT: ${{ inputs.root }}
+        BINARY_CACHE: ${{ inputs.binary-cache || env.VCPKG_DEFAULT_BINARY_CACHE || format('{0}/.vcpkg-cache', github.workspace) }}
+      run: |
+        $manifest = Join-Path $env:MANIFEST_ROOT 'vcpkg.json'
+        $baseline = (Get-Content $manifest -Raw | ConvertFrom-Json).'builtin-baseline'
+        if (-not $baseline) { throw "builtin-baseline not found in $manifest" }
+        "ref=$baseline" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+        "cache=$env:BINARY_CACHE" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+        "VCPKG_DEFAULT_BINARY_CACHE=$env:BINARY_CACHE" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+    - name: Restore vcpkg binary cache
+      id: restore
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ steps.pin.outputs.cache }}
+        key: ${{ inputs.key || format('vcpkg-{0}-{1}-{2}-{3}-{4}', runner.os, steps.pin.outputs.ref, hashFiles(inputs.hash-files), github.run_id, github.job) }}
+        restore-keys: |
+          vcpkg-${{ runner.os }}-${{ steps.pin.outputs.ref }}-${{ hashFiles(inputs.hash-files) }}-
+          vcpkg-${{ runner.os }}-${{ steps.pin.outputs.ref }}-
+    # Pin vcpkg (tool + builtin registry) to a fixed commit so the runner
+    # image's bundled vcpkg can't drift our ABI hashes / dependency versions
+    # out from under the binary cache; integrate install from this copy points
+    # MSBuild at it.
+    - name: Set up pinned vcpkg
+      shell: pwsh
+      env:
+        VCPKG_REF: ${{ steps.pin.outputs.ref }}
+        INTEGRATE: ${{ inputs.integrate }}
+      run: |
+        New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+        $vcpkgDir = "$env:RUNNER_TEMP\vcpkg"
+        git clone --quiet https://github.com/microsoft/vcpkg.git $vcpkgDir
+        git -C $vcpkgDir checkout --quiet $env:VCPKG_REF
+        & "$vcpkgDir\bootstrap-vcpkg.bat" -disableMetrics
+        if ($LASTEXITCODE -ne 0) { throw "vcpkg bootstrap failed" }
+        if ($env:INTEGRATE -eq 'true') {
+          & "$vcpkgDir\vcpkg.exe" integrate install
+          if ($LASTEXITCODE -ne 0) { throw "vcpkg integrate failed" }
+        }
+        "VCPKG_ROOT=$vcpkgDir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8

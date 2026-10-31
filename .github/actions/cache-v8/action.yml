@@ -1,0 +1,53 @@
+name: Cache V8
+description: >
+  Caches the V8 headers and monolith the build fetches (FetchV8 in
+  Directory.Build.props) under dependencies/v8/<V8Version>, keyed by the
+  version Directory.Build.props declares. The build downloads V8 itself on a
+  miss, so this only saves the download; the key is read out of the build
+  rather than restated, so it cannot drift from what the build wants, and a
+  version bump is a new key and a new directory rather than a stale hit.
+
+inputs:
+  root:
+    description: >
+      The d2bsng checkout, relative to the workspace (an embedding repository
+      that checks d2bsng out under a subdirectory passes that subdirectory).
+    required: false
+    default: .
+
+outputs:
+  version:
+    description: The V8 version (Directory.Build.props' V8Version).
+    value: ${{ steps.v8.outputs.version }}
+  path:
+    description: The cached directory, dependencies/v8/<version> under the checkout.
+    value: ${{ steps.v8.outputs.path }}
+  cache-hit:
+    description: Whether the cache held this version.
+    value: ${{ steps.cache.outputs.cache-hit }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve V8 version
+      id: v8
+      shell: pwsh
+      env:
+        D2BSNG_ROOT: ${{ inputs.root }}
+      run: |
+        $props = [xml](Get-Content (Join-Path $env:D2BSNG_ROOT 'Directory.Build.props') -Raw)
+        $node = $props.SelectSingleNode('//V8Version')
+        if (-not $node) { throw "V8Version not found in Directory.Build.props" }
+        $version = $node.InnerText.Trim()
+        # The bare path for the repository's own checkout: the cache's version hashes the path string, and
+        # release.yml's V8 cache spells it that way.
+        $path = "dependencies/v8/$version"
+        if ($env:D2BSNG_ROOT -ne '.') { $path = "$($env:D2BSNG_ROOT.TrimEnd('/', '\'))/$path" }
+        "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+        "path=$path" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+    - name: Cache V8
+      id: cache
+      uses: actions/cache@v6
+      with:
+        path: ${{ steps.v8.outputs.path }}
+        key: v8-${{ runner.os }}-${{ steps.v8.outputs.version }}
