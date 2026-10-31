@@ -20,6 +20,15 @@
   variable needs an IDE restart, which is the main reason to prefer (2).
 -->
 <Project>
+  <!-- The repository root, with a trailing backslash. The projects name every
+       path into the tree (include directories, the vcpkg manifest) through it
+       rather than $(SolutionDir), so they build the same from any solution
+       that includes them - an embedding host's own solution as well as
+       d2bsng.slnx. Output directories still follow $(SolutionDir). -->
+  <PropertyGroup>
+    <D2bsngRoot>$(MSBuildThisFileDirectory)</D2bsngRoot>
+  </PropertyGroup>
+
   <!-- Copy d2bs.local.props.example to d2bs.local.props to use it. -->
   <Import Project="$(MSBuildThisFileDirectory)d2bs.local.props"
           Condition="Exists('$(MSBuildThisFileDirectory)d2bs.local.props')" />

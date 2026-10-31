@@ -70,7 +70,7 @@
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\runtime;$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\backends\lod114d;$(SolutionDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(D2bsngRoot)src\runtime;$(D2bsngRoot)src\contract;$(D2bsngRoot)src\core;$(D2bsngRoot)src\backends\lod114d;$(D2bsngRoot)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -92,7 +92,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\runtime;$(SolutionDir)src\contract;$(SolutionDir)src\core;$(SolutionDir)src\backends\lod114d;$(SolutionDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(D2bsngRoot)src\runtime;$(D2bsngRoot)src\contract;$(D2bsngRoot)src\core;$(D2bsngRoot)src\backends\lod114d;$(D2bsngRoot)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -139,7 +139,7 @@
     <VcpkgEnableManifest>true</VcpkgEnableManifest>
     <VcpkgUseStatic>true</VcpkgUseStatic>
     <VcpkgUseMD>false</VcpkgUseMD>
-    <VcpkgManifestRoot>$(SolutionDir)</VcpkgManifestRoot>
+    <VcpkgManifestRoot>$(D2bsngRoot)</VcpkgManifestRoot>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

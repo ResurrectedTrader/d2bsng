@@ -89,7 +89,7 @@ class Project:
         for value in re.findall(r"<AdditionalIncludeDirectories>(.*?)</AdditionalIncludeDirectories>", text):
             for item in value.split(";"):
                 item = (item.replace("$(ProjectDir)", str(self.dir) + "\\")
-                        .replace("$(SolutionDir)", str(REPO_ROOT) + "\\")
+                        .replace("$(D2bsngRoot)", str(REPO_ROOT) + "\\")
                         .replace("$(MSBuildThisFileDirectory)", str(self.dir) + "\\"))
                 if "$(" in item or "%(" in item or not item.strip():
                     continue
