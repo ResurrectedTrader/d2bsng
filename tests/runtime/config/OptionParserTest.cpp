@@ -1,16 +1,26 @@
 #include <doctest/doctest.h>
 
 #include <array>
+#include <cstdint>
+#include <initializer_list>
+#include <ostream>
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "config/OptionParser.h"
 
 namespace {
 
 using d2bs::core::config::OptionName;
+using d2bs::core::config::OptionSpec;
+using d2bs::core::config::ParseArguments;
+using d2bs::core::config::ParseError;
+using d2bs::core::config::ParseSettings;
 using d2bs::core::config::RemoveOptions;
+using d2bs::core::config::SpecBuilder;
 
 // RemoveOptions edits in place and reports the length that is left, so a test
 // gives it a mutable copy and reads back exactly that many characters.
@@ -150,4 +160,118 @@ TEST_CASE("RemoveOptions ignores a switch spelled inside the program name") {
 
 TEST_CASE("RemoveOptions separates tokens on tabs") {
     CHECK(Remove(L"game.exe\t-token\tsecret\t-w", TOKEN) == L"game.exe\t-w");
+}
+
+namespace {
+
+// Options shaped like a backend's: a value option, a validated value option and a flag.
+struct TestOptions {
+    std::wstring title;
+    int32_t level = 0;
+    bool isMulti = false;
+    int32_t titleCalls = 0;
+};
+
+std::vector<OptionSpec<TestOptions>> TestSpecs() {
+    SpecBuilder<TestOptions> builder;
+    builder.Add(
+        "-title", "<title>", {.description = "The title.", .category = "Window", .defaultValue = "Diablo II"},
+        +[](TestOptions& o, std::wstring_view v) {
+            o.title = v;
+            ++o.titleCalls;
+        });
+    builder.Add(
+        "-level", "<1-99>", {.description = "The level."}, +[](TestOptions& o, std::wstring_view v) {
+            if (v.size() > 2 || v.find_first_not_of(L"0123456789") != std::wstring_view::npos) {
+                return false;
+            }
+            o.level = std::stoi(std::wstring{v});
+            return o.level >= 1 && o.level <= 99;
+        });
+    builder.Add("-multi", "", +[](TestOptions& o, std::wstring_view) { o.isMulti = true; });
+    return std::move(builder.specs);
+}
+
+std::vector<ParseError> Parse(std::initializer_list<std::wstring_view> args, TestOptions& out,
+                              ParseSettings settings = {}) {
+    const std::vector<std::wstring_view> list{args};
+    return ParseArguments(std::span<const std::wstring_view>{list}, TestSpecs(), out, settings);
+}
+
+}  // namespace
+
+TEST_CASE("OptionSpec carries the builder's help text") {
+    const auto specs = TestSpecs();
+    REQUIRE(specs.size() == 3);
+    CHECK(specs[0].name == "-title");
+    CHECK(specs[0].syntax == "<title>");
+    CHECK(specs[0].description == "The title.");
+    CHECK(specs[0].category == "Window");
+    CHECK(specs[0].defaultValue == "Diablo II");
+    CHECK(specs[0].TakesValue());
+    CHECK(specs[2].description.empty());
+    CHECK_FALSE(specs[2].TakesValue());
+}
+
+TEST_CASE("ParseArguments applies values and flags") {
+    TestOptions o;
+    CHECK(Parse({L"-title", L"Bot 1", L"-multi", L"-level", L"42"}, o).empty());
+    CHECK(o.title == L"Bot 1");
+    CHECK(o.isMulti);
+    CHECK(o.level == 42);
+}
+
+TEST_CASE("ParseArguments ignores unknown switches by default") {
+    TestOptions o;
+    CHECK(Parse({L"-w", L"-title", L"t", L"-ns"}, o).empty());
+    CHECK(o.title == L"t");
+}
+
+TEST_CASE("ParseArguments reports unknown switches when asked") {
+    TestOptions o;
+    const auto errors = Parse({L"-w", L"-multi"}, o, {.isUnknownAnError = true});
+    REQUIRE(errors.size() == 1);
+    CHECK(errors[0].option == "-w");
+    CHECK(errors[0].message == "unknown switch -w");
+    CHECK(o.isMulti);
+}
+
+TEST_CASE("ParseArguments reports a value option with nothing after it") {
+    TestOptions o;
+    const auto errors = Parse({L"-multi", L"-title"}, o);
+    REQUIRE(errors.size() == 1);
+    CHECK(errors[0].option == "-title");
+    CHECK(errors[0].message == "-title needs a value");
+    CHECK(o.titleCalls == 0);
+}
+
+TEST_CASE("ParseArguments reports a rejected value and carries on") {
+    TestOptions o;
+    const auto errors = Parse({L"-level", L"100", L"-multi"}, o);
+    REQUIRE(errors.size() == 1);
+    CHECK(errors[0].option == "-level");
+    CHECK(errors[0].value == "100");
+    CHECK(errors[0].message == "bad -level '100'");
+    CHECK(o.isMulti);
+}
+
+TEST_CASE("ParseArguments skips an empty value without calling the handler") {
+    TestOptions o;
+    CHECK(Parse({L"-title", L"", L"-multi"}, o).empty());
+    CHECK(o.titleCalls == 0);
+    CHECK(o.isMulti);
+}
+
+TEST_CASE("ParseArguments takes a switch-looking value as the value") {
+    TestOptions o;
+    CHECK(Parse({L"-title", L"-multi"}, o).empty());
+    CHECK(o.title == L"-multi");
+    CHECK_FALSE(o.isMulti);
+}
+
+TEST_CASE("ParseArguments reports a non-ASCII value as UTF-8") {
+    TestOptions o;
+    const auto errors = Parse({L"-level", L"\u00e9"}, o);
+    REQUIRE(errors.size() == 1);
+    CHECK(errors[0].value == "\xc3\xa9");
 }

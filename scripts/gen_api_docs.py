@@ -597,7 +597,8 @@ function buildApi(data){
       var a=slug('launch',o.name);
       var title='<span class="sym-name">'+esc(o.name)+'</span>'+(o.syntax?' <span class="lo-syntax">'+esc(o.syntax)+'</span>':'');
       var h=head(3,a,title,(o.category?badge(o.category):''));
-      var body2=(o.description?'<p class="desc">'+esc(o.description)+'</p>':'');
+      var body2=(o.description?'<p class="desc">'+esc(o.description)+'</p>':'')+
+        (o.default?'<p class="desc">Default: <code>'+esc(o.default)+'</code></p>':'');
       body.push('<div class="member" data-hay="'+hay(o.name,o.description,o.syntax)+'">'+h+
         '<div class="member-body">'+body2+'<div class="member-foot">'+sourceLink(o)+'</div></div></div>');
       loLeaves.push([a,o.name,hay(o.name,o.description,o.syntax)]);
