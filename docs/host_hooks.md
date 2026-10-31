@@ -65,6 +65,10 @@ A host gets the rest from outside, with mechanisms d2bs.dll has anyway:
   relative to `GameModuleBase()`, which Bridge::Init sets to the process image unless it was set first),
   `GameThread::HasPending`, `runtime::Host::IsInitialized` and `GameLoop::EndGameSession` (one game after another
   without the menu).
+* **The config store**: `core::config::AppConfig::store`, set before `runtime::Host::Initialize`. The frontend loads
+  its settings and profiles through that `ConfigStore`; d2bs.dll never sets one, and `Host::LoadConfig` makes the
+  `IniConfigStore` over `d2bs.ini` beside the module only when none was installed. A host that knows its whole
+  configuration supplies it from memory instead of writing a `d2bs.ini` for every run.
 
 ## Rules
 

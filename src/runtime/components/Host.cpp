@@ -281,7 +281,10 @@ std::filesystem::path Host::ConfigPath() {
 
 void Host::LoadConfig() {
     auto& appConfig = core::config::GetAppConfig();
-    appConfig.store = std::make_unique<core::config::IniConfigStore>(ConfigPath());
+    // A host that embeds the frontend may have installed a store of its own before Initialize.
+    if (!appConfig.store) {
+        appConfig.store = std::make_unique<core::config::IniConfigStore>(ConfigPath());
+    }
     appConfig.store->LoadSettings(appConfig);
 }
 
