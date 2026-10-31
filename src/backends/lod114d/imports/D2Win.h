@@ -4,14 +4,13 @@
 #include "D2MOOConfig.h"
 #include "ImportTypes.h"
 
-#include <cstdint>
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmissing-braces"
+#include <D2WinControlHeader.h>  // D2WinControlStrc
+#include <D2WinEditBox.h>        // D2WinEditBoxStrc
+#pragma clang diagnostic pop
 
-// D2MOO's D2Win headers pull in Storm.h, whose SMSGHANDLER_PARAMS collides with
-// the one in D2Structs.OtherDLLs.h (reached through imports/D2Client.h), so the
-// controls are only forward-declared here. Code that reads their fields
-// includes the D2Win headers itself.
-struct D2WinControlStrc;
-struct D2WinEditBoxStrc;
+#include <cstdint>
 
 // All offsets below are Game.exe-relative for 1.14d. Calling conventions
 // sourced from reference/d2bs/D2Ptrs.h.

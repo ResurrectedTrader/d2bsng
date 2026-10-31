@@ -6,11 +6,9 @@
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-braces"
-#include <D2Config.h>  // D2ConfigStrc
+#include <D2Config.h>            // D2ConfigStrc
+#include <D2WinControlHeader.h>  // D2WinControlStrc
 #pragma clang diagnostic pop
-
-// See imports/D2Win.h for why the D2Win control is only forward-declared.
-struct D2WinControlStrc;
 
 // All offsets below are Game.exe-relative for 1.14d. Calling conventions
 // sourced from reference/d2bs/D2Ptrs.h.

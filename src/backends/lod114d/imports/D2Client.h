@@ -12,12 +12,10 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-braces"
 // D2Roster.h forward-references D2CellFileStrc without including it; same for
-// D2Structs.OtherDLLs.h's D2MenuItemStrc / D2GfxDataStrc, and SMSGHANDLER_PARAMS.
+// D2Structs.OtherDLLs.h's D2MenuItemStrc / D2GfxDataStrc.
 struct D2CellFileStrc;
 struct D2MenuItemStrc;
 struct D2GfxDataStrc;
-// NOLINTNEXTLINE(readability-identifier-naming) - matches D2MOO upstream type name
-struct SMSGHANDLER_PARAMS;
 #include <D2BitManip.h>           // D2BitBufferStrc
 #include <D2Config.h>             // D2ConfigStrc
 #include <D2Inventory.h>          // D2InventoryStrc
