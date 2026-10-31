@@ -64,6 +64,7 @@
 #include <DataTbls/InvTbls.h>    // D2InventoryGridInfoStrc
 #include <DataTbls/ItemsTbls.h>  // D2ItemsTxt
 #include <Path/Path.h>           // D2DynamicPathStrc
+#include <Storm.h>               // SMSGHANDLER_PARAMS
 #include <Units/Units.h>         // D2UnitStrc
 #pragma clang diagnostic pop
 
@@ -579,8 +580,8 @@ void Say(const std::string& text) {
         static_assert(sizeof(SMSGHANDLER_PARAMS) == 0x20);
         static SMSGHANDLER_PARAMS params;
         params = {};
-        params.hWnd = d2gfx::WINDOW_GetWindow();
-        params.uMessage = WM_CHAR;
+        params.hWindow = d2gfx::WINDOW_GetWindow();
+        params.nMessage = WM_CHAR;
         params.wParam = VK_RETURN;
         lod114d::asm_thunks::Say(&params);
     });
