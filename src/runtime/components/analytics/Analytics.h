@@ -15,6 +15,10 @@ class logger;
 }  // namespace spdlog
 // NOLINTEND(readability-identifier-naming)
 
+namespace d2bs::core::analytics {
+class Client;
+}  // namespace d2bs::core::analytics
+
 namespace d2bs::runtime::analytics {
 
 // Fire-and-forget anonymous usage analytics. On startup it emits a
@@ -83,14 +87,11 @@ class Analytics {
     std::condition_variable_any cv_;  // woken by the stop_token on Stop()
     std::atomic<bool> started_{false};
 
-    // Resolved in Start() (the framework-init thread), then read-only on the
-    // reporter thread - the thread spawn provides the happens-before edge.
-    std::string host_;  // ingest base URL derived from the key's region
-
-    // Derived once on the reporter thread after the settle delay (both are
-    // needed by every event), then only read there.
-    std::string installId_;  // stable anonymous per-install id
-    std::string sessionId_;  // per-process id tying this launch's events together
+    // Created in Start() (the framework-init thread) with the ingest host derived
+    // from the key's region, then used only on the reporter thread - the thread
+    // spawn provides the happens-before edge. Its install and session ids are
+    // derived there after the settle delay.
+    std::unique_ptr<core::analytics::Client> client_;
 
     // Declared last so it is destroyed first - ~jthread requests stop + joins
     // while mutex_/cv_ are still alive for the loop's final wakeup.

@@ -114,6 +114,7 @@
     <!-- Real gameloop component under test -->
     <ClCompile Include="..\..\src\runtime\components\gameloop\GameLoop.cpp" />
     <!-- Real profile code under test -->
+    <ClCompile Include="..\..\src\core\analytics\InstallId.cpp" />
     <ClCompile Include="..\..\src\core\config\AppConfig.cpp" />
     <ClCompile Include="..\..\src\core\config\IniConfigStore.cpp" />
     <ClCompile Include="..\..\src\core\config\OptionParser.cpp" />
@@ -127,8 +128,10 @@
     <ClCompile Include="..\..\src\utils\utils.cpp" />
     <ClCompile Include="..\..\src\utils\Profiling.cpp" />
     <ClCompile Include="..\..\src\utils\EnumNaming.cpp" />
+    <ClCompile Include="..\..\src\utils\crypto.cpp" />
     <ClCompile Include="..\..\src\core\host\DefaultHost.cpp" />
     <!-- Test cases -->
+    <ClCompile Include="analytics\InstallIdTest.cpp" />
     <ClCompile Include="config\OptionParserTest.cpp" />
     <ClCompile Include="utils\EnumNamingTest.cpp" />
     <ClCompile Include="utils\LoggingTest.cpp" />

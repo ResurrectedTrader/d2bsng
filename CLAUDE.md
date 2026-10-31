@@ -225,7 +225,8 @@ d2bsng/
 │   │   ├── host/               DefaultHost.cpp: the in-process host hooks each injectable DLL and js_tests compile (not in core.lib)
 │   │   ├── input/              WH_GETMESSAGE input hook + WM_COPYDATA subclass + injected-input tagging
 │   │   ├── proxy/              SOCKS5 connect hook + bypass scope for script sockets
-│   │   └── http/               WinHTTP request engine (takes the proxy bypass above)
+│   │   ├── http/               WinHTTP request engine (takes the proxy bypass above)
+│   │   └── analytics/          Aptabase client: event envelope + POST, the derived installId (docs/analytics.md)
 │   ├── runtime/            runtime.lib - JavaScript scripting frontend (V8); depends on contract + core
 │   │   ├── api/                V8 bindings: classes/ (game, io, scripting, drawing), globals/, core/
 │   │   ├── components/         Frontend internals, one directory each:
@@ -264,7 +265,7 @@ d2bsng/
 |--------|------|--------|----------|
 | **utils** | Static lib | `Release/utils.lib` | `src/utils/` - crypto, threading, stackwalker |
 | **contract** | Static lib | `Release/contract.lib` | `src/contract/` - game interface headers (`game/*.h`) + framework-owned utilities + shared DTOs (`config/ProfileData.h`, `config/ScriptPaths.h`). The boundary both frontends and backends compile against. Depends on utils. |
-| **core** | Static lib | `Release/core.lib` | `src/core/` - shared infra: config (AppConfig/Ini/CompatibilityFlags/Version/OptionParser), detour, speedhack, input, proxy. Depends on contract + utils. |
+| **core** | Static lib | `Release/core.lib` | `src/core/` - shared infra: config (AppConfig/Ini/CompatibilityFlags/Version/OptionParser), detour, speedhack, input, proxy, http, analytics. Depends on contract + utils. |
 | **runtime** | Static lib | `Release/runtime.lib` | `src/runtime/` - JavaScript scripting frontend (api/, components/ - including navigation and the bot's background services). Depends on contract + core + utils + V8. Has unresolved game:: symbols. |
 | **lod114d** | Static lib | `Release/lod114d.lib` | `src/backends/lod114d/` - 1.14d game backend implementing the contract (Win32 only). Depends on contract + core + utils. No frontend dependency. |
 | **d2bs** | DLL | `Release/js-v8-lod114d/d2bs.dll` | `src/dlls/js-v8-lod114d/` - DllMain + version.rc. Links runtime + lod114d + contract + core + utils, resolves all symbols. |
@@ -394,7 +395,7 @@ These are the intended dependencies. A few deliberate exceptions are noted inlin
 
 - **utils/** depends on: standard library, Windows headers, third-party libs (spdlog, stackwalker).
 - **contract/** (the boundary) depends on: utils + standard library only. NEVER on core, the frontend, V8, or any backend. Holds the game interface (`game/*.h`), the framework-owned utilities (Finders/GameLock/GameThread/HandleCache/Types), the shared DTOs (`config/ProfileData.h`, `config/ScriptPaths.h`) and the host hooks (`host/Host.h`, defined per executable - see docs/host_hooks.md). `game/Menu.h` includes `config/ProfileData.h` (same project) so `Login()` takes the profile struct by const-ref.
-- **core/** (shared infra) depends on: contract + utils. Holds config (AppConfig/Ini/CompatibilityFlags/Version/OptionParser), detour (the Detours slot/batch API every hook in the tree goes through), speedhack, proxy (SOCKS5 hook), http (the WinHTTP request engine, which takes the proxy bypass), input (the game-window input hook). NEVER on the frontend or a backend.
+- **core/** (shared infra) depends on: contract + utils. Holds config (AppConfig/Ini/CompatibilityFlags/Version/OptionParser), detour (the Detours slot/batch API every hook in the tree goes through), speedhack, proxy (SOCKS5 hook), http (the WinHTTP request engine, which takes the proxy bypass), input (the game-window input hook), analytics (the Aptabase client and installId derivation the frontend's analytics and an embedding host share). NEVER on the frontend or a backend.
 - **runtime/** (JavaScript frontend) depends on: contract + core + utils + V8. Reaches the game only through `game::` contract symbols (resolved at the DLL link) and pushes its hooks down through the `GameCallbacks` table; it NEVER references a concrete backend.
   - **runtime/api/** depends on: contract (game/ interface + DTOs), core, components/, utils/, V8.
   - **runtime/components/** depends on: contract, core, utils/, V8. Exception: `components/script/` includes `api/` - the script engine is the JS-API composition root (it owns V8 isolate setup and registers the `api/` ClassRegistry + globals), and a few components reuse `api::convert`.
