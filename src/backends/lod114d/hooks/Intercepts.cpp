@@ -41,6 +41,8 @@
 //   RequiredWork (uncond)  0x11C7AF  CALL/5  E8 4C 53 00 00        -> SID pkt handler
 //   TempPathPerInstance    0x11E4C4  CALL/6  FF 15 44 C3 6C 00     IAT GetTempPathA
 //   UninterruptableHalt    0x5B0E19  byte/1  74 1F                 jz -> jmp
+//   NpcTextHeaderLoad      0x661403  byte/2  8B 45                 -> jmp NpcTextPadding
+//   NpcTextPadding         0x661435  byte/10 CC x 10               -> header null test
 //
 // RequiredWork suppresses SID_REQUIREDWORK (0x4C) so a server can't make the
 // client download and run an extra-work DLL; it is unconditional (reference
@@ -57,6 +59,7 @@
 #include <Windows.h>
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <bit>
@@ -143,6 +146,7 @@ SiteState siteP17, siteP18, siteP19, siteP21, siteP22;
 // d2bsng addition - unconditional SID_REQUIREDWORK (0x4C) suppression.
 SiteState siteRequiredWork;
 SiteState siteUninterruptableHalt;
+SiteState siteNpcTextHeaderLoad, siteNpcTextPadding;
 
 // Conditional[] sites - installed only when their LaunchOptions toggle is set.
 // siteTempPathPerInstance is a d2bsng addition gated on -multi (multiInstance).
@@ -223,6 +227,19 @@ constexpr uint32_t SLEEPY_OOG_RVA = 0xFA66F;
 // Whirlwind. 1.10f D2Game.dll (0x6FCF07ED) only calls FOG_DisplayWarning there and
 // carries on, so flip the `jz` (74 1F) that skips the halt into `jmp` (EB 1F).
 constexpr uint32_t UNINTERRUPTABLE_HALT_RVA = 0x1B0E19;
+
+// d2bsng addition (unconditional): TEXT_GetStringIdOfMenuType1Or2Node (0x661400,
+// __stdcall, text header, node index) reads the header's node list (+0x08) without
+// testing the header. CNPCMENU_FindNextSpeech (0x4B1830) passes it
+// CTEXT_GetNpcTextHeader's (0x49F900), which is null once the NPC's text is gone,
+// when a speech's end callback (CNPCMENU_OnSpeechFinished 0x4B18C0) runs after the
+// interaction closed: an access violation at 0x661406. The guard: a short jmp
+// past the prologue (0x661403) into the int3 padding after the function
+// (0x661435), which tests the header and takes the function's own empty-list exit
+// (0x661426, returns 0xFFFF: no node) when it is null. FindNextSpeech then has no
+// next speech and the speech ends as after the last one.
+constexpr uint32_t NPC_TEXT_HEADER_LOAD_RVA = 0x261403;
+constexpr uint32_t NPC_TEXT_PADDING_RVA = 0x261435;
 
 // Fills in the names a 0x5A event packet leaves to the client, as reference
 // D2NetHandlers.cpp EventMessagesHandler does before firing gameevent.
@@ -1265,6 +1282,28 @@ void InstallAll() {
         }
     }
 
+    if (!siteNpcTextHeaderLoad.installed) {
+        // mov eax, [ebp+8]; mov eax, [eax+8] -> jmp short +0x30, the rest of the pair left unreached.
+        constexpr std::array<uint8_t, 6> LOAD_HEADER = {0x8B, 0x45, 0x08, 0x8B, 0x40, 0x08};
+        constexpr std::array<uint8_t, 2> JMP_TO_PADDING = {0xEB, 0x30};
+        // mov ecx, [ebp+8]; jecxz 0x661426; mov eax, [ecx+8]; jmp short 0x661409 (xor ecx, ecx; test eax, eax ...).
+        constexpr std::array<uint8_t, 10> INT3_PADDING = {0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC};
+        constexpr std::array<uint8_t, 10> TEST_HEADER = {0x8B, 0x4D, 0x08, 0xE3, 0xEC, 0x8B, 0x41, 0x08, 0xEB, 0xCA};
+        const uintptr_t load = moduleBase + NPC_TEXT_HEADER_LOAD_RVA;
+        const uintptr_t padding = moduleBase + NPC_TEXT_PADDING_RVA;
+        if (std::ranges::equal(LOAD_HEADER, std::span(reinterpret_cast<const uint8_t*>(load), LOAD_HEADER.size())) &&
+            std::ranges::equal(INT3_PADDING,
+                               std::span(reinterpret_cast<const uint8_t*>(padding), INT3_PADDING.size()))) {
+            WriteN(padding, TEST_HEADER.data(), TEST_HEADER.size(), siteNpcTextPadding.original.data());
+            siteNpcTextPadding.installed = true;
+            WriteN(load, JMP_TO_PADDING.data(), JMP_TO_PADDING.size(), siteNpcTextHeaderLoad.original.data());
+            siteNpcTextHeaderLoad.installed = true;
+        } else {
+            spdlog::warn("NPC text header sites at {:#x} / {:#x} do not hold the expected bytes - left unpatched", load,
+                         padding);
+        }
+    }
+
     // Conditional[] sites - each gated on its LaunchOptions toggle.
     const auto& opts = game::GetLaunchOptions();
 
@@ -1346,6 +1385,8 @@ void RemoveAll() {
     RestoreSite(siteCreateWindowTitled, CREATE_WINDOW_TITLED_RVA, 6);
     RestoreSite(siteBypassMultiInstance, BYPASS_MULTI_INSTANCE_RVA, 6);
 
+    RestoreSite(siteNpcTextHeaderLoad, NPC_TEXT_HEADER_LOAD_RVA, 2);
+    RestoreSite(siteNpcTextPadding, NPC_TEXT_PADDING_RVA, 10);
     if (siteUninterruptableHalt.installed) {
         RestoreByte(moduleBase + UNINTERRUPTABLE_HALT_RVA, siteUninterruptableHalt.original[0]);
         siteUninterruptableHalt.installed = false;
