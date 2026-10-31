@@ -14,6 +14,8 @@ namespace d2bs::lod114d::hooks {
 void WriteCallN(uintptr_t site, uintptr_t target, size_t len, uint8_t* originalOut);
 void WriteJmpN(uintptr_t site, uintptr_t target, size_t len, uint8_t* originalOut);
 void RestoreN(uintptr_t site, const uint8_t* original, size_t len);
+// Write len raw bytes at site. originalOut must be at least len bytes.
+void WriteN(uintptr_t site, const uint8_t* bytes, size_t len, uint8_t* originalOut);
 
 // Single-byte poke (e.g. 0xC3 RET for the cursor-lock-style "neuter the
 // function" patch). Saves the original byte so callers can restore it.

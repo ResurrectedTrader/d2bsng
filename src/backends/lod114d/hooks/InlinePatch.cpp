@@ -45,6 +45,16 @@ void RestoreN(uintptr_t site, const uint8_t* original, size_t len) {
     FlushInstructionCache(GetCurrentProcess(), p, len);
 }
 
+void WriteN(uintptr_t site, const uint8_t* bytes, size_t len, uint8_t* originalOut) {
+    auto* p = reinterpret_cast<uint8_t*>(site);
+    DWORD oldProtect = 0;
+    VirtualProtect(p, len, PAGE_EXECUTE_READWRITE, &oldProtect);
+    std::memcpy(originalOut, p, len);
+    std::memcpy(p, bytes, len);
+    VirtualProtect(p, len, oldProtect, &oldProtect);
+    FlushInstructionCache(GetCurrentProcess(), p, len);
+}
+
 void WriteByte(uintptr_t site, uint8_t value, uint8_t& originalOut) {
     auto* p = reinterpret_cast<uint8_t*>(site);
     DWORD oldProtect = 0;
