@@ -216,6 +216,14 @@ inline std::string ToString(v8::Isolate* isolate, v8::Local<v8::Value> val) {
     if (val.IsEmpty() || val->IsNullOrUndefined()) {
         return "";
     }
+    // A string is written straight into the result with the flags Utf8Value uses (lone surrogates become U+FFFD),
+    // skipping Utf8Value's intermediate buffer.
+    if (val->IsString()) {
+        const auto str = val.As<v8::String>();
+        std::string out(str->Utf8Length(isolate), '\0');
+        out.resize(str->WriteUtf8(isolate, out.data(), out.size(), v8::String::WriteFlags::kReplaceInvalidUtf8));
+        return out;
+    }
     v8::String::Utf8Value utf8(isolate, val);
     return *utf8 ? std::string(*utf8, utf8.length()) : "";
 }
