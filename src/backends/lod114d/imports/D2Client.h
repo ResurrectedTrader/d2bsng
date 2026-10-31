@@ -199,7 +199,8 @@ inline GameVar<uint32_t> gnTransactionDialogs{0x3C0E5C};
 inline GameVar<uint32_t> gnTransactionDialogs_2{0x3C0E58};
 inline GameVar<extras::TransactionDialogsInfo*> gpTransactionDialogsInfo{0x3C0E54};
 
-inline GameVar<D2ConfigStrc*> gpGameInfo{0x3A0438};
+// The client's copy of the launch config; GetGameName and friends read the joined game from it.
+inline GameVar<D2ConfigStrc*> gpConfig{0x3A0438};
 
 // Pointer to the player's waypoint-bit-buffer. Passed as `pData` to
 // WAYPOINTS_IsActivated. Reference VARPTRs it as DWORD; we type it as

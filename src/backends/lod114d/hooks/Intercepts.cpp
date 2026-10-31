@@ -886,7 +886,7 @@ extern "C" D2UnitStrc* OnGetSelectedUnit() {
 // the same value the game already wrote).
 extern "C" void SetMaxDiff() {
     if (game::GetDifficulty() < game::Difficulty::Hell && *imports::d2client::gbExpCharFlag != 0) {
-        auto* pData = *imports::d2launch::gpBnetData;
+        auto* pData = *imports::d2launch::gpConfig;
         if (pData != nullptr) {
             constexpr uint16_t UNLOCKED_PROGRESSION = 10;
             constexpr auto PROGRESSION_SHIFT = std::countr_zero(std::to_underlying(game::CharFlag::ProgressionMask));

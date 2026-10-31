@@ -78,21 +78,6 @@ spdlog::logger& Log() {
     return *LOGGER;
 }
 
-// Convert a fixed-size NUL-padded char buffer to std::string. The buffer is
-// not guaranteed to be NUL-terminated when full, hence the explicit upper bound
-// passed to strnlen.
-template <size_t N>
-std::string ToString(const std::array<char, N>& buf) {
-    return std::string(buf.data(), strnlen(buf.data(), N));
-}
-
-// D2MOO's structs declare their strings as C arrays.
-template <size_t N>
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays, modernize-avoid-c-arrays) - D2MOO struct fields
-std::string ToString(const char (&buf)[N]) {
-    return std::string(buf, strnlen(buf, N));
-}
-
 // Container layout structs. The game zero-initialises these and lazily
 // populates the cell-size bytes the first time the user opens the relevant
 // panel via the in-game click dispatcher; until then, layout->nGridBoxWidth
@@ -323,45 +308,45 @@ Language GetLocale() {
 // === Account Queries ===
 
 std::string GetAccountName() {
-    auto* data = *d2launch::gpBnetData;
-    return data != nullptr ? ToString(data->szAccountName) : std::string{};
+    auto* data = *d2launch::gpConfig;
+    return data != nullptr ? utils::FromCharBuffer(data->szAccountName) : std::string{};
 }
 
 std::string GetPlayerName() {
-    auto* data = *d2launch::gpBnetData;
-    return data != nullptr ? ToString(data->szName) : std::string{};
+    auto* data = *d2launch::gpConfig;
+    return data != nullptr ? utils::FromCharBuffer(data->szName) : std::string{};
 }
 
 std::string GetRealmName() {
-    auto* data = *d2launch::gpBnetData;
-    return data != nullptr ? ToString(data->szRealm) : std::string{};
+    auto* data = *d2launch::gpConfig;
+    return data != nullptr ? utils::FromCharBuffer(data->szRealm) : std::string{};
 }
 
 std::string GetRealmShort() {
-    auto* data = *d2launch::gpBnetData;
-    return data != nullptr ? ToString(data->szCharacterRealm) : std::string{};
+    auto* data = *d2launch::gpConfig;
+    return data != nullptr ? utils::FromCharBuffer(data->szCharacterRealm) : std::string{};
 }
 
 CharFlag GetCharFlags() {
-    auto* data = *d2launch::gpBnetData;
+    auto* data = *d2launch::gpConfig;
     return data != nullptr ? static_cast<CharFlag>(data->unpackedCTemp.nCharacterSaveFlags) : CharFlag{};
 }
 
 // === Game Session Queries ===
 
 std::string GetGameName() {
-    auto* info = *d2client::gpGameInfo;
-    return info != nullptr ? ToString(info->szGameName) : std::string{};
+    auto* info = *d2client::gpConfig;
+    return info != nullptr ? utils::FromCharBuffer(info->szGameName) : std::string{};
 }
 
 std::string GetGamePassword() {
-    auto* info = *d2client::gpGameInfo;
-    return info != nullptr ? ToString(info->szGamePassword) : std::string{};
+    auto* info = *d2client::gpConfig;
+    return info != nullptr ? utils::FromCharBuffer(info->szGamePassword) : std::string{};
 }
 
 std::string GetGameServerIp() {
-    auto* info = *d2client::gpGameInfo;
-    return info != nullptr ? ToString(info->szServerIP) : std::string{};
+    auto* info = *d2client::gpConfig;
+    return info != nullptr ? utils::FromCharBuffer(info->szServerIP) : std::string{};
 }
 
 // === Mouse/Screen ===

@@ -209,7 +209,7 @@ D2WinControlStrc* LiveCharCreateControl(const lod114d::imports::GameVar<D2WinCon
 
 bool HasCharCreateFlag(CharFlag flag) {
     GameReadLock guard;
-    const auto* data = *lod114d::imports::d2launch::gpBnetData;
+    const auto* data = *lod114d::imports::d2launch::gpConfig;
     return data != nullptr && HasFlag(static_cast<CharFlag>(data->unpackedCTemp.nCharacterSaveFlags), flag);
 }
 

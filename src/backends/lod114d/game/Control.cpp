@@ -185,17 +185,17 @@ void Control::SetCursorPos(uint32_t offset) const {
     AsEditBox(ctrl)->nCaretPosition = static_cast<int32_t>(offset);
 }
 
-// Reference d2bs names 0x58 the selection start and 0x54 its end; the game
-// keeps the anchor (-1 for none) at 0x54 and the caret end at 0x58. Scripts see
-// the reference naming.
+// The selection's anchor; -1 (0xFFFFFFFF here) when nothing is selected.
 uint32_t Control::SelectStart() const {
     const auto ctrl = Resolve<D2WinControlStrc>();
-    return ctrl ? static_cast<uint32_t>(AsEditBox(ctrl)->nSelectionEnd) : 0U;
+    return ctrl ? static_cast<uint32_t>(AsEditBox(ctrl)->nSelectionStart) : 0U;
 }
 
+// The end the selection was extended to, which follows the caret; it may be
+// below the anchor.
 uint32_t Control::SelectEnd() const {
     const auto ctrl = Resolve<D2WinControlStrc>();
-    return ctrl ? static_cast<uint32_t>(AsEditBox(ctrl)->nSelectionStart) : 0U;
+    return ctrl ? static_cast<uint32_t>(AsEditBox(ctrl)->nSelectionEnd) : 0U;
 }
 
 bool Control::HasLocaleText(uint16_t localeId) const {

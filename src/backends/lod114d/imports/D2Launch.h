@@ -19,7 +19,8 @@ struct D2WinControlStrc;
 namespace d2bs::lod114d::imports::d2launch {
 
 // ---- Variables -------------------------------------------------------------
-inline GameVar<D2ConfigStrc*> gpBnetData{0x3795D4};
+// The launcher's config: account, character and the character-create flags.
+inline GameVar<D2ConfigStrc*> gpConfig{0x3795D4};
 
 // How the character list was reached: 0 single player, 1 a Battle.net realm,
 // 2 TCP/IP, 3 Open Battle.net. Written by the main-menu entry points (stores at

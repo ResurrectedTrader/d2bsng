@@ -2,6 +2,7 @@
 
 #include <Windows.h>
 #include <cstdint>
+#include <cstring>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -53,4 +54,12 @@ std::string_view Trim(std::string_view s, std::string_view chars = " \t");
 //
 // If `maxTokens == 0`, no cap.
 std::vector<std::string> Split(std::string_view s, std::string_view separators, size_t maxTokens = 0);
+
+// The string in a fixed-size, NUL-padded char buffer: up to the first NUL, or
+// the whole buffer when it is full and so not NUL-terminated.
+template <size_t N>
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays, modernize-avoid-c-arrays) - game structs' strings are C arrays
+std::string FromCharBuffer(const char (&buf)[N]) {
+    return {buf, strnlen(buf, N)};
+}
 }  // namespace d2bs::utils
