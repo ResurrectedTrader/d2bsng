@@ -14,6 +14,8 @@
 #include <string_view>
 #include <vector>
 
+#include "utils/Strings.h"
+
 namespace d2bs::core::config {
 
 namespace {
@@ -30,20 +32,6 @@ bool EqualsAscii(std::wstring_view token, std::string_view name) {
         }
     }
     return true;
-}
-
-std::string Utf8(std::wstring_view text) {
-    if (text.empty()) {
-        return {};
-    }
-    const std::wstring wide{text};
-    const int32_t length = static_cast<int32_t>(wide.size());
-    const int32_t needed = WideCharToMultiByte(CP_UTF8, 0, wide.c_str(), length, nullptr, 0, nullptr, nullptr);
-    std::string out(needed > 0 ? needed : 0, '\0');
-    if (needed > 0) {
-        WideCharToMultiByte(CP_UTF8, 0, wide.c_str(), length, out.data(), needed, nullptr, nullptr);
-    }
-    return out;
 }
 
 bool IsSeparator(wchar_t c) {
@@ -298,7 +286,8 @@ std::vector<ParseError> ParseArguments(std::span<const std::wstring_view> args, 
             options, [token](const BoundOption& candidate) { return EqualsAscii(token, candidate.name); });
         if (option == options.end()) {
             if (settings.isUnknownAnError) {
-                errors.push_back({.option = Utf8(token), .value = {}, .message = "unknown switch " + Utf8(token)});
+                const std::string name = utils::ToStr(std::wstring{token});
+                errors.push_back({.option = name, .value = {}, .message = "unknown switch " + name});
             }
             continue;
         }
@@ -317,9 +306,10 @@ std::vector<ParseError> ParseArguments(std::span<const std::wstring_view> args, 
         }
         const std::wstring_view value = args[++i];
         if (!value.empty() && !option->apply(value)) {
+            const std::string text = utils::ToStr(std::wstring{value});
             errors.push_back({.option = std::string{option->name},
-                              .value = Utf8(value),
-                              .message = std::format("bad {} '{}'", option->name, Utf8(value))});
+                              .value = text,
+                              .message = std::format("bad {} '{}'", option->name, text)});
         }
     }
     return errors;
@@ -348,6 +338,7 @@ void ParseCommandLine(std::span<const BoundOption> options) {
     // ReSharper disable once CppRedundantCastExpression - clang-tidy needs the explicit void*
     LocalFree(static_cast<void*>(argv));
 }
+
 size_t RemoveOptions(std::span<wchar_t> text, std::span<const OptionName> options) {
     if (text.empty() || options.empty()) {
         return text.size();
