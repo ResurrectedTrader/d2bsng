@@ -8,17 +8,12 @@
 #include "game/Level.h"
 #include "game/Unit.h"
 #include "imports/D2Client.h"
-#include "imports/extras/D2ActiveRoomStrc.h"
-#include "imports/extras/D2DrlgLevelStrc.h"
-#include "imports/extras/D2DrlgRoomStrc.h"
-#include "imports/extras/D2DrlgStrc.h"
-#include "imports/extras/D2PresetUnitStrc.h"
-#include "imports/extras/D2RoomTileStrc.h"
+#include "imports/D2Common.h"  // D2LvlWarpTxt (DataTbls/LevelsTbls.h)
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-braces"
 #include <D2Collision.h>        // D2RoomCollisionGridStrc
-#include <Drlg/D2DrlgPreset.h>  // D2DrlgPresetRoomStrc
+#include <Drlg/D2DrlgPreset.h>  // D2DrlgPresetRoomStrc, D2PresetUnitStrc
 #include <Units/Units.h>        // D2UnitStrc
 #pragma clang diagnostic pop
 
@@ -29,9 +24,6 @@
 #include <vector>
 
 namespace d2bs::game {
-
-using lod114d::imports::extras::D2ActiveRoomStrc;
-using lod114d::imports::extras::D2DrlgRoomStrc;
 
 static_assert(std::to_underlying(CollisionFlag::Wall) == COLLIDE_WALL);
 static_assert(std::to_underlying(CollisionFlag::Visible) == COLLIDE_VISIBLE);
@@ -265,17 +257,17 @@ std::vector<PresetUnitInfo> Room::GetPresetUnits(std::optional<UnitType> type, s
                            .y = static_cast<uint32_t>(drlgRoom->nTileYPos)};
 
     // For UNIT_TILE presets the destination level lives on DrlgRoom::pRoomTiles
-    // - each warp entry has a pointer-to-DWORD tile id that, when matching
-    // a preset's nIndex, names the target DrlgRoom (and via it, the target
-    // level). Walked here so framework callers see the destination as a
-    // populated field on PresetUnitInfo without needing a second boundary
-    // call. Reference: D2Helpers.cpp::GetTileLevelNo.
+    // - each warp entry's LvlWarp.txt row id, when matching a preset's nIndex,
+    // names the target DrlgRoom (and via it, the target level). Walked here so framework callers see the destination as
+    // a populated field on PresetUnitInfo without needing a second boundary call. Reference:
+    // D2Helpers.cpp::GetTileLevelNo.
     auto resolveTileTarget = [&drlgRoom](uint32_t presetTileId) -> game::LevelId {
         for (auto* warp = drlgRoom->pRoomTiles; warp != nullptr; warp = warp->pNext) {
-            if (warp->pPresetTileId == nullptr || warp->pDrlgRoom == nullptr || warp->pDrlgRoom->pLevel == nullptr) {
+            if (warp->pLvlWarpTxtRecord == nullptr || warp->pDrlgRoom == nullptr ||
+                warp->pDrlgRoom->pLevel == nullptr) {
                 continue;
             }
-            if (*warp->pPresetTileId == presetTileId) {
+            if (warp->pLvlWarpTxtRecord->dwLevelId == presetTileId) {
                 return static_cast<game::LevelId>(warp->pDrlgRoom->pLevel->nLevelId);
             }
         }
@@ -284,7 +276,7 @@ std::vector<PresetUnitInfo> Room::GetPresetUnits(std::optional<UnitType> type, s
 
     std::vector<PresetUnitInfo> out;
     for (auto* preset = drlgRoom->pPresetUnits; preset != nullptr; preset = preset->pNext) {
-        const auto presetType = preset->nUnitType;
+        const auto presetType = static_cast<UnitType>(preset->nUnitType);
         const auto presetIndex = static_cast<uint32_t>(preset->nIndex);
         if (type && presetType != *type)
             continue;
@@ -321,13 +313,13 @@ uint32_t Room::GetStat(uint32_t statIndex) const {
         return 0;
     switch (statIndex) {
         case 0:
-            return static_cast<uint32_t>(activeRoom->dwXStart);
+            return static_cast<uint32_t>(activeRoom->tCoords.nSubtileX);
         case 1:
-            return static_cast<uint32_t>(activeRoom->dwYStart);
+            return static_cast<uint32_t>(activeRoom->tCoords.nSubtileY);
         case 2:
-            return static_cast<uint32_t>(activeRoom->dwXSize);
+            return static_cast<uint32_t>(activeRoom->tCoords.nSubtileWidth);
         case 3:
-            return static_cast<uint32_t>(activeRoom->dwYSize);
+            return static_cast<uint32_t>(activeRoom->tCoords.nSubtileHeight);
         default:
             break;
     }
@@ -384,16 +376,11 @@ bool Room::Reveal(bool drawPresets) const {
             return false;
         // If the room being revealed is on a different level than the
         // player's current automap layer, switch layers around the reveal
-        // call. The dynamic-path room pointer is typed as D2MOO's
-        // `::D2ActiveRoomStrc*`, but the bytes follow 1.14d's
-        // `extras::D2ActiveRoomStrc` layout, so we reinterpret at the path
-        // boundary.
+        // call.
         const uint32_t targetLevel = static_cast<uint32_t>(drlgRoom->pLevel->nLevelId);
         uint32_t playerLevelNo = 0U;
         bool switched = false;
-        auto* pathRoom = (player->pDynamicPath != nullptr)
-                             ? reinterpret_cast<D2ActiveRoomStrc*>(player->pDynamicPath->pRoom)
-                             : nullptr;
+        auto* pathRoom = (player->pDynamicPath != nullptr) ? player->pDynamicPath->pRoom : nullptr;
         if (pathRoom != nullptr && pathRoom->pDrlgRoom != nullptr && pathRoom->pDrlgRoom->pLevel != nullptr &&
             static_cast<uint32_t>(pathRoom->pDrlgRoom->pLevel->nLevelId) != targetLevel) {
             playerLevelNo = static_cast<uint32_t>(pathRoom->pDrlgRoom->pLevel->nLevelId);

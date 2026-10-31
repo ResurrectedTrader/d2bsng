@@ -199,7 +199,8 @@ class JSControl : public ClassBase<JSControl, game::Control> {
                 }
                 control.SetCursorPos(convert::To<uint32_t>(info.GetIsolate(), value));
             });
-        /// @description The start character offset of the control's current text selection.
+        /// @description The character offset the edit box's text selection is anchored at, or -1 when
+        /// nothing is selected.
         /// @type {number}
         Property(
             isolate, inst, "selectstart",
@@ -209,7 +210,8 @@ class JSControl : public ClassBase<JSControl, game::Control> {
                     return;
                 info.GetReturnValue().Set(static_cast<int32_t>(data->SelectStart()));
             });
-        /// @description The end character offset of the control's current text selection.
+        /// @description The character offset the edit box's text selection extends to (it follows the
+        /// caret, so it can be below selectstart).
         /// @type {number}
         Property(
             isolate, inst, "selectend",

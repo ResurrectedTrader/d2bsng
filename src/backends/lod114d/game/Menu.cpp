@@ -1,5 +1,6 @@
 #include "game/Menu.h"
 
+#include "ControlHelpers.h"
 #include "config/AppConfig.h"
 #include "game/Control.h"
 #include "game/GameHelpers.h"
@@ -7,7 +8,6 @@
 #include "game/GameThread.h"
 #include "imports/D2Launch.h"
 #include "imports/D2Win.h"
-#include "imports/extras/D2WinControlStrc.h"
 #include "utils/utils.h"
 
 #pragma clang diagnostic push
@@ -67,10 +67,10 @@ enum class StringId : uint16_t {
     RealmRestricted = 11162,   // "Your connection has been temporarily restricted ..."
 };
 
-lod114d::imports::extras::D2WinControlStrc* ResolveCtrlPtr(ControlType type, Rect bounds) {
+D2WinControlStrc* ResolveCtrlPtr(ControlType type, Rect bounds) {
     GameReadLock guard;
     for (auto* p = *lod114d::imports::d2win::gpFirstControl; p != nullptr; p = p->pNext) {
-        if (p->dwType == type && p->rect == bounds) {
+        if (TypeOf(p) == type && BoundsOf(p) == bounds) {
             return p;
         }
     }
@@ -188,17 +188,16 @@ bool IsValidCharacterName(std::string_view name) {
 
 // D2Win control state bits: a control is drawn with 0x04 and takes input with
 // 0x01 (set and cleared by 0xF9740 and 0xF96F0).
-bool IsClickable(const lod114d::imports::extras::D2WinControlStrc* ctrl) {
+bool IsClickable(const D2WinControlStrc* ctrl) {
     constexpr uint32_t SHOWN = 0x04;
     constexpr uint32_t ENABLED = 0x01;
-    return ctrl != nullptr && (std::to_underlying(ctrl->dwState) & (SHOWN | ENABLED)) == (SHOWN | ENABLED);
+    return ctrl != nullptr && (ctrl->dwFlags & (SHOWN | ENABLED)) == (SHOWN | ENABLED);
 }
 
 // The character-create globals keep pointing at freed controls once the screen
 // is torn down, so a pointer is used only while it is still in the control list.
 // Caller holds the game lock.
-lod114d::imports::extras::D2WinControlStrc* LiveCharCreateControl(
-    const lod114d::imports::GameVar<lod114d::imports::extras::D2WinControlStrc*>& slot) {
+D2WinControlStrc* LiveCharCreateControl(const lod114d::imports::GameVar<D2WinControlStrc*>& slot) {
     auto* wanted = *slot;
     for (auto* p = *lod114d::imports::d2win::gpFirstControl; p != nullptr && wanted != nullptr; p = p->pNext) {
         if (p == wanted) {
@@ -210,17 +209,16 @@ lod114d::imports::extras::D2WinControlStrc* LiveCharCreateControl(
 
 bool HasCharCreateFlag(CharFlag flag) {
     GameReadLock guard;
-    const auto* data = *lod114d::imports::d2launch::gpBnetData;
-    return data != nullptr && HasFlag(data->nCharFlags, flag);
+    const auto* data = *lod114d::imports::d2launch::gpConfig;
+    return data != nullptr && HasFlag(static_cast<CharFlag>(data->unpackedCTemp.nCharacterSaveFlags), flag);
 }
 
 // The character-create checkboxes toggle the new character's flag bits in
-// BnetData, which the OK handler reads; click `checkbox` if `flag` is not
+// the launcher's D2ConfigStrc, which the OK handler reads; click `checkbox` if `flag` is not
 // already `isWanted`. Fails when the checkbox is not offered (hardcore not
 // unlocked, ladder off Battle.net, expansion on a classic install or for an
 // expansion-only class).
-bool SetCharCreateFlag(const lod114d::imports::GameVar<lod114d::imports::extras::D2WinControlStrc*>& checkbox,
-                       CharFlag flag, bool isWanted) {
+bool SetCharCreateFlag(const lod114d::imports::GameVar<D2WinControlStrc*>& checkbox, CharFlag flag, bool isWanted) {
     if (HasCharCreateFlag(flag) == isWanted) {
         return true;
     }
@@ -509,7 +507,9 @@ bool SelectGateway(const std::string& gateway) {
             return -1;
         }
         int32_t i = 0;
-        for (auto* line = listBox->pFirstText; line != nullptr; line = line->pNext, ++i) {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) - a text box starts with its control header
+        for (auto* line = reinterpret_cast<D2WinTextBoxStrc*>(listBox)->pFirstLine; line != nullptr;
+             line = line->pNext, ++i) {
             auto* slot = line->pColumns[0];
             if (slot == nullptr) {
                 continue;
@@ -796,16 +796,18 @@ bool CreateCharacter(const std::string& name, CharacterClass charClass, bool isH
         return false;
     }
 
-    // CONTROL_SetText runs the box's change callback, which enables OK when
+    // EDITBOX_SetText runs the box's change callback, which enables OK when
     // the game accepts the name; the name was checked against the same rules
     // above, so a greyed OK here means the screen is not in the state we expect.
     const bool isNameAccepted = GameThread::Execute([&]() -> bool {
         GameReadLock guard;
         auto* edit = LiveCharCreateControl(lod114d::imports::d2launch::gpCharCreateNameEdit);
-        if (edit == nullptr || edit->dwType != ControlType::EditBox) {
+        if (edit == nullptr || TypeOf(edit) != ControlType::EditBox) {
             return false;
         }
-        lod114d::imports::d2win::CONTROL_SetText(edit, utils::ToWStr(name).c_str());
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) - checked to be an edit box above
+        lod114d::imports::d2win::EDITBOX_SetText(reinterpret_cast<D2WinEditBoxStrc*>(edit),
+                                                 utils::ToWStr(name).c_str());
         return IsClickable(LiveCharCreateControl(lod114d::imports::d2launch::gpCharCreateOkButton));
     });
     if (!isNameAccepted) {

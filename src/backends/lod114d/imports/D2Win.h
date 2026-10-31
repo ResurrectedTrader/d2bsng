@@ -4,9 +4,14 @@
 #include "D2MOOConfig.h"
 #include "ImportTypes.h"
 
-#include "extras/D2WinControlStrc.h"
-
 #include <cstdint>
+
+// D2MOO's D2Win headers pull in Storm.h, whose SMSGHANDLER_PARAMS collides with
+// the one in D2Structs.OtherDLLs.h (reached through imports/D2Client.h), so the
+// controls are only forward-declared here. Code that reads their fields
+// includes the D2Win headers itself.
+struct D2WinControlStrc;
+struct D2WinEditBoxStrc;
 
 // All offsets below are Game.exe-relative for 1.14d. Calling conventions
 // sourced from reference/d2bs/D2Ptrs.h.
@@ -15,7 +20,8 @@
 namespace d2bs::lod114d::imports::d2win {
 
 // ---- Functions -------------------------------------------------------------
-inline FastcallFunc<void*(extras::D2WinControlStrc* /*pControl*/, const wchar_t* /*wText*/)> CONTROL_SetText{0xFF5A0};
+// MOO: int __fastcall EDITBOX_SetText(D2WinEditBoxStrc* pEditBox, const Unicode* pText).
+inline FastcallFunc<int32_t(D2WinEditBoxStrc* /*pEditBox*/, const wchar_t* /*wText*/)> EDITBOX_SetText{0xFF5A0};
 inline FastcallFunc<void()> D2WIN_DrawSprites{0xF9870};
 inline FastcallFunc<void*(const char* /*szFile*/, int32_t /*nType*/)> ARCHIVE_LoadCellFile{0xFA9B0};
 inline FastcallFunc<void()> D2WIN_TakeScreenshot{0xFA7A0};
@@ -38,7 +44,7 @@ inline FastcallFunc<uint32_t(const char* /*szMpqFile*/, const char* /*szMpqName*
     ARCHIVE_InitMPQ{0x117332};
 
 // ---- Variables -------------------------------------------------------------
-inline GameVar<extras::D2WinControlStrc*> gpFirstControl{0x3D55BC};
+inline GameVar<D2WinControlStrc*> gpFirstControl{0x3D55BC};
 
 }  // namespace d2bs::lod114d::imports::d2win
 // NOLINTEND(readability-identifier-naming)

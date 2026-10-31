@@ -7,19 +7,8 @@
 
 #include "game/GameLock.h"
 #include "imports/D2Common.h"
-#include "imports/extras/D2ActiveRoomStrc.h"
-#include "imports/extras/D2DrlgActStrc.h"
-#include "imports/extras/D2DrlgLevelStrc.h"
-#include "imports/extras/D2DrlgRoomStrc.h"
-#include "imports/extras/D2DrlgStrc.h"
 
 namespace d2bs::game {
-
-using lod114d::imports::extras::D2ActiveRoomStrc;
-using lod114d::imports::extras::D2DrlgActStrc;
-using lod114d::imports::extras::D2DrlgLevelStrc;
-using lod114d::imports::extras::D2DrlgRoomStrc;
-using lod114d::imports::extras::D2DrlgStrc;
 
 // RAII helper that keeps a room's data (its D2ActiveRoomStrc, `pRoom`) loaded
 // for the guard's lifetime, through D2COMMON_AddRoomData / RemoveRoomData

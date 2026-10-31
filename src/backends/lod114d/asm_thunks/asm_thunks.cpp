@@ -37,22 +37,6 @@ namespace d2bs::lod114d::asm_thunks {
 
 namespace {
 
-// 1.14d D2COMMON_GetLayer (@ 0x21E470) returns a pointer to an
-// AutomapLayer2 record (reference d2bs D2Structs.h:106). D2MOO models
-// the standard D2AutomapLayerStrc whose nLayerNo is at offset 0x00 -
-// AutomapLayer2 is a separate, smaller structure that is not in D2MOO.
-// The only field we need is nLayerNo at offset 0x08, so the struct is
-// declared here at the single point of use rather than synthesised as
-// a shared shadow type.
-// NOLINTBEGIN(readability-identifier-naming) - opaque padding fields match imports/extras/ shadow-struct convention
-struct AutomapLayer2 {
-    uint32_t _0;        // 0x00 - opaque
-    uint32_t _4;        // 0x04 - opaque
-    uint32_t nLayerNo;  // 0x08
-};
-// NOLINTEND(readability-identifier-naming)
-static_assert(offsetof(AutomapLayer2, nLayerNo) == 0x08, "AutomapLayer2::nLayerNo offset drift");
-
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables) - asm thunks need module-level pointers
 uintptr_t takeWaypoint = 0;
 uintptr_t clickBelt = 0;
@@ -236,8 +220,8 @@ __declspec(naked) D2AutomapLayerStrc* __fastcall InitAutomapLayer(uint32_t /*nLa
 }
 
 D2AutomapLayerStrc* InitAutomapLayerForLevel(uint32_t levelNo) {
-    const auto* layerInfo = static_cast<const AutomapLayer2*>(imports::d2common::DRLG_GetLayer(levelNo));
-    const uint32_t layerNo = (layerInfo != nullptr) ? layerInfo->nLayerNo : 0;
+    const auto* levelDef = imports::d2common::DATATBLS_GetLevelDefRecord(levelNo);
+    const uint32_t layerNo = (levelDef != nullptr) ? levelDef->dwLayer : 0;
     return InitAutomapLayer(layerNo);
 }
 

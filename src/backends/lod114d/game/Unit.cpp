@@ -14,9 +14,6 @@
 #include "imports/D2Client.h"
 #include "imports/D2Common.h"
 #include "imports/D2Net.h"
-#include "imports/extras/D2ActiveRoomStrc.h"
-#include "imports/extras/D2DrlgLevelStrc.h"
-#include "imports/extras/D2DrlgRoomStrc.h"
 #include "utils/utils.h"
 
 #pragma clang diagnostic push
