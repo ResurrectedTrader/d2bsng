@@ -25,6 +25,8 @@ Usage:
     python scripts/extract_api.py -o api.json
     # offline single-version page (renders the embedded dataset):
     python scripts/gen_api_docs.py api.json -o api.html --version 1.2.3
+    # ... with a release's sim.json as its Simulator section:
+    python scripts/gen_api_docs.py api.json --sim sim.json -o api.html --version 1.2.3
     # versioned site shell (build_docs_site.py wraps this for the Pages deploy):
     python scripts/gen_api_docs.py api.json -o site/index.html \\
         --version 1.2.3 --repo OWNER/REPO
@@ -50,12 +52,22 @@ def main():
         help="base URL for 'source' links in offline mode, e.g. "
         "https://github.com/OWNER/REPO/blob/TAG/ (dynamic mode derives this per version)",
     )
+    ap.add_argument(
+        "--sim",
+        default="",
+        help="a release's sim.json (the kolbot simulator's options and guide), rendered as a Simulator section",
+    )
     args = ap.parse_args()
 
     inline = None
     if args.input:
         with open(args.input, encoding="utf-8") as f:
             inline = json.load(f)
+    if args.sim:
+        if inline is None:
+            sys.exit("--sim needs an api.json input")
+        with open(args.sim, encoding="utf-8") as f:
+            inline["simulator"] = json.load(f)
 
     page = build_page(
         inline,
@@ -247,6 +259,15 @@ ul.cols{list-style:none;margin:10px 0 2px;padding:0;display:flex;flex-wrap:wrap;
 ul.cols>li{display:flex;align-items:baseline;gap:7px;font-size:12px;min-width:190px}
 .ci{color:var(--muted);font-family:ui-monospace,monospace;font-variant-numeric:tabular-nums;min-width:2.4em;text-align:right}
 ul.cols code{background:var(--code-bg);padding:1px 5px;border-radius:4px}
+
+/* simulator guide */
+.sim-guide{scroll-margin-top:60px}
+.sim-guide h3{font-size:19px;margin:26px 0 6px}
+.sim-guide h4{font-size:16px;margin:20px 0 4px}
+.sim-guide pre{background:var(--code-bg);border:1px solid var(--border);border-radius:6px;padding:10px;overflow-x:auto;font-size:13px}
+.sim-guide code{background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.sim-guide pre code{background:none;padding:0}
+table.doc-tbl th{border:1px solid var(--border);padding:4px 9px;text-align:left;background:var(--code-bg)}
 
 /* changelog */
 .cl-notes{margin:10px 0 26px}
@@ -606,11 +627,58 @@ function buildApi(data){
     loNav.push(navGroup('launch','Command line options',loLeaves));
   }
 
+  // the simulator, from a release that carries a sim.json (build_docs_site.py adds it as data.simulator)
+  if(data.simulator) buildSimulator(data.simulator, body, loNav);
+
   navHtml.push(navCategory('top','JS API',jsNav));
-  if(loNav.length) navHtml.push(navCategory('launch','Others',loNav));
+  if(loNav.length) navHtml.push(navCategory(launch.length?'launch':'simulator','Others',loNav));
   nav.innerHTML=navHtml.join('');
   apiView.innerHTML=body.join('');
   initInteractions();
+}
+// sim.json: {version, options:[{name,syntax,category,default,description,commands}], environment:[{name,syntax,description}], usage}
+function buildSimulator(sim, body, navOut){
+  var opts=sim.options||[], envs=sim.environment||[], leaves=[];
+  body.push('<section class="area"><h2 id="simulator" class="spy">Simulator</h2>'+
+    '<p class="area-intro">The kolbot simulator, <code>d2bs-sim.exe</code>'+(sim.version?' '+esc(sim.version):'')+
+    ': the 1.14d game driven by the d2bsng runtime in a console process, faster than real time. Its guide, its switches and the environment variables it reads.</p>');
+  if(sim.usage){
+    var ga=slug('sim','guide');
+    body.push('<div id="'+esc(ga)+'" class="sim-guide spy">'+mdDoc(sim.usage)+'</div>');
+    leaves.push([ga,'Guide',hay('guide usage simulator')]);
+  }
+  if(opts.length){
+    var oa=slug('sim','switches'), cats=[], byCat={};
+    body.push('<h3 id="'+esc(oa)+'" class="cat-head">Switches</h3>');
+    leaves.push([oa,'Switches',hay('switches options simulator')]);
+    opts.forEach(function(o){ var c=o.category||'Other'; if(!byCat[c]){ byCat[c]=[]; cats.push(c); } byCat[c].push(o); });
+    cats.forEach(function(c){
+      body.push('<h4 class="bucket">'+esc(c)+'</h4>');
+      byCat[c].forEach(function(o){
+        var a=slug('sim','opt',o.name), cmds=o.commands||[];
+        var title='<span class="sym-name">'+esc(o.name)+'</span>'+(o.syntax?' <span class="lo-syntax">'+esc(o.syntax)+'</span>':'');
+        var badges=cmds.map(function(cm){ return badge(cm); }).join('');
+        var meta=o['default']?'<p class="lo-meta">Default: <code>'+esc(o['default'])+'</code></p>':'';
+        body.push('<div class="member" data-hay="'+hay(o.name,o.description,o.syntax)+'">'+head(4,a,title,badges)+
+          '<div class="member-body">'+(o.description?'<p class="desc">'+esc(o.description)+'</p>':'')+meta+'</div></div>');
+        leaves.push([a,o.name,hay(o.name,o.description,o.syntax)]);
+      });
+    });
+  }
+  if(envs.length){
+    var ea=slug('sim','environment');
+    body.push('<h3 id="'+esc(ea)+'" class="cat-head">Environment variables</h3>');
+    leaves.push([ea,'Environment variables',hay('environment variables simulator')]);
+    envs.forEach(function(v){
+      var a=slug('sim','env',v.name);
+      var title='<span class="sym-name">'+esc(v.name)+'</span>'+(v.syntax?' <span class="lo-syntax">'+esc(v.syntax)+'</span>':'');
+      body.push('<div class="member" data-hay="'+hay(v.name,v.description)+'">'+head(4,a,title,'')+
+        '<div class="member-body">'+(v.description?'<p class="desc">'+esc(v.description)+'</p>':'')+'</div></div>');
+      leaves.push([a,v.name,hay(v.name,v.description)]);
+    });
+  }
+  body.push('</section>');
+  navOut.push(navGroup('simulator','Simulator',leaves));
 }
 function byName(a,b){ return a.name.toLowerCase()<b.name.toLowerCase()?-1:1; }
 function ci(a,b){ return a.toLowerCase()<b.toLowerCase()?-1:1; }
@@ -640,6 +708,11 @@ function flatten(data){
   });
   (data.events||[]).forEach(function(e){ out['event '+e.name]={label:'event '+e.name, fp:(e.signature||'')+'|'+!!e.blockable, anchor:slug('event',e.name)}; });
   (data.launch_options||[]).forEach(function(o){ out['option '+o.name]={label:'option '+o.name, fp:(o.syntax||'')+'|'+(o.description||''), anchor:slug('launch',o.name)}; });
+  var sim=data.simulator;
+  if(sim){
+    (sim.options||[]).forEach(function(o){ out['simulator '+o.name]={label:'simulator '+o.name, fp:(o.syntax||'')+'|'+(o['default']||'')+'|'+(o.description||''), anchor:slug('sim','opt',o.name)}; });
+    (sim.environment||[]).forEach(function(v){ out['simulator env '+v.name]={label:'simulator env '+v.name, fp:(v.syntax||'')+'|'+(v.description||''), anchor:slug('sim','env',v.name)}; });
+  }
   return out;
 }
 function diffData(curr,prev){
@@ -665,18 +738,20 @@ function diffGroup(title,cls,items){
     }).join('')+'</div>';
 }
 
+// markdown inline spans: code, bold, links, bare-URL autolinks
+function mdInline(t){
+  t=esc(t);
+  t=t.replace(/`([^`]+)`/g,'<code>$1</code>');
+  t=t.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+  t=t.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
+  t=t.replace(/(^|[\s(])(https?:\/\/[^\s)]+)/g,'$1<a href="$2" target="_blank" rel="noopener">$2</a>');
+  return t;
+}
 // minimal markdown (headings, lists, code, links, bold, inline code)
 function md(src){
   if(!src) return '<p class="diff-none">No release notes.</p>';
   var lines=String(src).replace(/\r\n/g,'\n').split('\n'), out=[], inList=false, inCode=false, code=[];
-  function inline(t){
-    t=esc(t);
-    t=t.replace(/`([^`]+)`/g,'<code>$1</code>');
-    t=t.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
-    t=t.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
-    t=t.replace(/(^|[\s(])(https?:\/\/[^\s)]+)/g,'$1<a href="$2" target="_blank" rel="noopener">$2</a>');
-    return t;
-  }
+  var inline=mdInline;
   for(var i=0;i<lines.length;i++){
     var ln=lines[i];
     if(/^```/.test(ln)){ if(inCode){ out.push('<pre><code>'+esc(code.join('\n'))+'</code></pre>'); code=[]; inCode=false; } else inCode=true; continue; }
@@ -691,6 +766,45 @@ function md(src){
   }
   if(inList) out.push('</ul>');
   if(inCode) out.push('<pre><code>'+esc(code.join('\n'))+'</code></pre>');
+  return out.join('\n');
+}
+
+// Markdown for a document (a guide), beyond md(): paragraphs and list items that span lines, and tables.
+// Headings start at <h3>, below the section's own <h2>.
+function mdDoc(src){
+  var lines=String(src||'').replace(/\r\n/g,'\n').split('\n'), out=[], i=0;
+  function cells(ln){ return ln.trim().replace(/^\|/,'').replace(/\|$/,'').split('|').map(function(c){ return c.trim(); }); }
+  function isBreak(ln){ return /^\s*$/.test(ln)||/^```/.test(ln)||/^#{1,6}\s/.test(ln)||/^\s*[-*]\s+/.test(ln)||/^\s*\|/.test(ln); }
+  while(i<lines.length){
+    var ln=lines[i], m;
+    if(/^\s*$/.test(ln)){ i++; continue; }
+    if(/^```/.test(ln)){
+      var code=[]; i++;
+      while(i<lines.length&&!/^```/.test(lines[i])) code.push(lines[i++]);
+      i++; out.push('<pre><code>'+esc(code.join('\n'))+'</code></pre>'); continue;
+    }
+    if((m=ln.match(/^(#{1,6})\s+(.*)$/))){ var lvl=Math.min(m[1].length+2,6); out.push('<h'+lvl+'>'+mdInline(m[2])+'</h'+lvl+'>'); i++; continue; }
+    if(/^\s*\|/.test(ln)&&i+1<lines.length&&/^\s*\|?\s*:?-{3,}/.test(lines[i+1])){
+      var hd=cells(ln), rows=[]; i+=2;
+      while(i<lines.length&&/^\s*\|/.test(lines[i])) rows.push(cells(lines[i++]));
+      out.push('<table class="opt-tbl doc-tbl"><thead><tr>'+hd.map(function(c){ return '<th>'+mdInline(c)+'</th>'; }).join('')+'</tr></thead><tbody>'+
+        rows.map(function(r){ return '<tr>'+r.map(function(c){ return '<td>'+mdInline(c)+'</td>'; }).join('')+'</tr>'; }).join('')+'</tbody></table>');
+      continue;
+    }
+    if(/^\s*[-*]\s+/.test(ln)){
+      var items=[];
+      while(i<lines.length){
+        var li=lines[i].match(/^\s*[-*]\s+(.*)$/);
+        if(li){ items.push(li[1]); i++; continue; }
+        if(/^\s+\S/.test(lines[i])&&items.length){ items[items.length-1]+=' '+lines[i].trim(); i++; continue; }
+        break;
+      }
+      out.push('<ul>'+items.map(function(t){ return '<li>'+mdInline(t)+'</li>'; }).join('')+'</ul>'); continue;
+    }
+    var para=[ln.trim()]; i++;
+    while(i<lines.length&&!isBreak(lines[i])) para.push(lines[i++].trim());
+    out.push('<p>'+mdInline(para.join(' '))+'</p>');
+  }
   return out.join('\n');
 }
 
