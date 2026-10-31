@@ -11,10 +11,8 @@
 -->
 <Project>
   <PropertyGroup>
-    <!-- Aptabase app key to bake into the DLL. Directory.Build.props already
-         defaults this to the project's key, so you only need this to send your
-         events somewhere else - a dev/self-hosted Aptabase project - or to
-         build with analytics compiled out entirely (set it to empty).
+    <!-- Aptabase app key to bake into the DLL, e.g. a dev or self-hosted
+         Aptabase project. Without a key analytics is compiled out.
 
          An "A-SH-" (self-hosted) or "A-DEV-" key also needs the
          D2BS_ANALYTICS_HOST environment variable; "A-US-" / "A-EU-" route
