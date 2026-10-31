@@ -306,17 +306,17 @@ To add support for a different game version: create a new backend lib (a sibling
 
 ### Include Path Strategy
 
-Each project has specific include directories that make cross-project includes work:
+Each project has specific include directories that make cross-project includes work. `$(D2bsngRoot)` is the repository root (defined in `Directory.Build.props`), so the projects build from any solution that includes them, not only `d2bsng.slnx`:
 
 | Project | Include Directories |
 |---------|-------------------|
-| **utils** | `$(ProjectDir)` ; `$(SolutionDir)src` |
-| **contract** | `$(ProjectDir)` ; `$(SolutionDir)src` |
-| **core** | `$(ProjectDir)` ; `$(SolutionDir)src\contract` ; `$(SolutionDir)src` |
-| **runtime** | `$(ProjectDir)` ; `$(SolutionDir)src\contract` ; `$(SolutionDir)src\core` ; `$(SolutionDir)src` ; V8 include |
-| **lod114d** (backend) | `$(SolutionDir)src\contract` ; `$(SolutionDir)src\core` ; `$(SolutionDir)src` ; `$(ProjectDir)` ; `$(ProjectDir)game` ; D2MOO include roots ; V8 include |
-| **d2bs** (DLL) | `$(SolutionDir)src\runtime` ; `$(SolutionDir)src\contract` ; `$(SolutionDir)src\core` ; `$(SolutionDir)src\backends\lod114d` ; `$(SolutionDir)src` |
-| **js_tests** | `$(ProjectDir)fakes\shims` ; `$(SolutionDir)src\contract` ; `$(SolutionDir)src\core` ; `$(SolutionDir)src\runtime` ; `$(SolutionDir)src` ; `$(ProjectDir)` |
+| **utils** | `$(ProjectDir)` ; `$(D2bsngRoot)src` |
+| **contract** | `$(ProjectDir)` ; `$(D2bsngRoot)src` |
+| **core** | `$(ProjectDir)` ; `$(D2bsngRoot)src\contract` ; `$(D2bsngRoot)src` |
+| **runtime** | `$(ProjectDir)` ; `$(D2bsngRoot)src\contract` ; `$(D2bsngRoot)src\core` ; `$(D2bsngRoot)src` ; V8 include |
+| **lod114d** (backend) | `$(D2bsngRoot)src\contract` ; `$(D2bsngRoot)src\core` ; `$(D2bsngRoot)src` ; `$(ProjectDir)` ; `$(ProjectDir)game` ; D2MOO include roots ; V8 include |
+| **d2bs** (DLL) | `$(D2bsngRoot)src\runtime` ; `$(D2bsngRoot)src\contract` ; `$(D2bsngRoot)src\core` ; `$(D2bsngRoot)src\backends\lod114d` ; `$(D2bsngRoot)src` |
+| **js_tests** | `$(ProjectDir)fakes\shims` ; `$(D2bsngRoot)src\contract` ; `$(D2bsngRoot)src\core` ; `$(D2bsngRoot)src\runtime` ; `$(D2bsngRoot)src` ; `$(ProjectDir)` |
 
 All includes use project-root-relative paths - never use relative paths like `../`:
 ```cpp
