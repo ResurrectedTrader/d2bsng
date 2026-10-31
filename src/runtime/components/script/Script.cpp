@@ -169,7 +169,13 @@ void Script::RemoveSelfFromEngine() {
 }
 
 std::string Script::GetName() const {
-    return core::config::GetAppConfig().GetScriptPaths().RelativeScriptPath(path_);
+    const config::ScriptPaths paths = core::config::GetAppConfig().GetScriptPaths();
+    const std::scoped_lock lock(nameMutex_);
+    if (name_.empty() || nameBase_ != paths.basePath) {
+        name_ = paths.RelativeScriptPath(path_);
+        nameBase_ = paths.basePath;
+    }
+    return name_;
 }
 
 std::thread::id Script::GetThreadId() const {

@@ -6,7 +6,9 @@
 #include <chrono>
 #include <filesystem>
 #include <memory>
+#include <mutex>
 #include <random>
+#include <set>
 #include <string>
 #include <system_error>
 #include <thread>
@@ -103,12 +105,27 @@ static bool BuildPacketFromArgs(const v8::FunctionCallbackInfo<v8::Value>& args,
     return true;
 }
 
-// Resolve an include path: looks in libs/ subdirectory only
+// Resolve an include path: looks in libs/ subdirectory only. A library found once is not looked up on disk again,
+// since scripts include() their dependencies over and over.
 static std::filesystem::path FindIncludePath(const std::string& relativePath) {
     auto resolved = core::config::GetPathRelScript("libs/" + relativePath);
-    if (!resolved.empty() && std::filesystem::exists(resolved))
-        return resolved;
-    return {};
+    if (resolved.empty()) {
+        return {};
+    }
+    static std::mutex foundMutex;
+    static std::set<std::filesystem::path> found;
+    {
+        const std::scoped_lock lock(foundMutex);
+        if (found.contains(resolved)) {
+            return resolved;
+        }
+    }
+    if (!std::filesystem::exists(resolved)) {
+        return {};
+    }
+    const std::scoped_lock lock(foundMutex);
+    found.insert(resolved);
+    return resolved;
 }
 
 // Resolve a script path: direct path only (matching d2bs reference behavior)

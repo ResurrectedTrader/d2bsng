@@ -248,6 +248,11 @@ class Script : public std::enable_shared_from_this<Script> {
 
     std::filesystem::path path_;
     std::filesystem::path normalizedPath_;  // Lowercase for case-insensitive comparison
+    // GetName for the base path it was made against: std::filesystem::relative asks the filesystem, and print() names
+    // its script on every call.
+    mutable std::mutex nameMutex_;
+    mutable std::filesystem::path nameBase_;
+    mutable std::string name_;
     // Where this thread's time goes inside delay(), for the Profiling panel. Script-thread-only.
     utils::profiling::Timeline idle_;
     ScriptMode mode_;
