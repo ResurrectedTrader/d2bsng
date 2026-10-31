@@ -86,7 +86,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="analytics\Aptabase.cpp" />
-    <ClCompile Include="analytics\InstallId.cpp" />
     <ClCompile Include="config\AppConfig.cpp" />
     <ClCompile Include="config\CompatibilityFlags.cpp" />
     <ClCompile Include="config\IniConfigStore.cpp" />
@@ -101,7 +100,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="analytics\Aptabase.h" />
-    <ClInclude Include="analytics\InstallId.h" />
     <ClInclude Include="config\AppConfig.h" />
     <ClInclude Include="config\CompatibilityFlags.h" />
     <ClInclude Include="config\ConfigStore.h" />

@@ -11,12 +11,9 @@ and stays entirely anonymous - the only identity an event carries is a derived
 profile it runs. There is no per-action tracking, no keystroke/screen capture,
 and no game data of any kind.
 
-- Component: `src/runtime/components/analytics/Analytics.h` / `.cpp` - what is
-  reported, and when
-- Client: `src/core/analytics/` (`d2bs::core::analytics`) - `InstallId.h` (the
-  `installId` derivation, the session id, the opt-out environment reads) and
-  `Aptabase.h` (the event envelope and the POST); see
-  [Reusing the client](#reusing-the-client)
+- Component: `src/runtime/components/analytics/Analytics.h` / `.cpp`
+- The event post and the derived ids, shared with our other programs:
+  `src/core/analytics/Aptabase.h` / `.cpp`
 - Launch switches: `src/backends/lod114d/game/LaunchOptions.cpp`
   (`-noanalytics`)
 - Contract surface: `game::GetAnalyticsLaunchOptions()`,
@@ -166,10 +163,6 @@ has to match it byte for byte:
   15 chars), not the DNS hostname, which can differ on a domain-joined machine;
 - a fact that can't be read contributes an **empty** field, with its `|`
   separators still in place - the material never collapses to fewer fields.
-
-`core::analytics::DeriveInstallId()` is that derivation; `ReadMachineFacts()` and
-`HashInstallId()` are its two halves, for a caller that needs the facts or a
-test that feeds its own.
 
 If `HashString` itself fails, the id falls back to a freshly generated GUID for
 that launch. It is then 36 chars with dashes rather than 64 hex chars, and is not
@@ -348,9 +341,8 @@ app key configured also leaves it permanently off.
 All work - resolving the install id (a registry read plus
 `GetVolumeInformationW` / `GetComputerNameW`; no file I/O), building the JSON,
 and the HTTPS POST - runs on a dedicated `std::jthread`, never the game thread or
-a V8 isolate. The request goes through `core::analytics::Client::Send`, which
-posts with the WinHTTP engine `core::http::Perform` and so bypasses the game's
-SOCKS5 proxy detour, exactly like the update checker. The send is best-effort: a failed
+a V8 isolate. The request goes through `core::http::Perform` (WinHTTP), which bypasses the game's SOCKS5
+proxy detour, exactly like the update checker. The send is best-effort: a failed
 POST (e.g. the network isn't up yet at inject time) is retried a few times at a
 fixed 30s interval, then abandoned. A failure never blocks or crashes the
 framework - the reporter loop is wrapped in a catch-all, since it is the top
@@ -358,31 +350,3 @@ frame of its thread and an escaping exception would terminate the process.
 
 `Stop()` joins that thread, and a POST already in flight is not cancellable, so
 shutdown can block for up to the 15s request timeout on an unreachable network.
-
-## Reusing the client
-
-`src/core/analytics/` holds everything about an event that does not depend on
-what is being reported, so another program of ours - an embedding host such as
-the simulator - reports with the same envelope and the same `installId` under
-its own Aptabase app key, instead of a copy of this code:
-
-- `DeriveInstallId()`, `NewRandomId()`, `ID_SALT` - the identities, derived as
-  [The `installId`](#the-installid) describes, so the same machine gets the same
-  `installId` in every program's data.
-- `GetEnv()` / `IsTruthy()` - the opt-out reads (`D2BS_ANALYTICS_DISABLE` and
-  any program-specific variable).
-- `ResolveHost(appKey, overrideVariable)` - the ingest host from the key's
-  region, or the given override variable (`D2BS_ANALYTICS_HOST` for d2bs.dll).
-- `Client` - built from `ClientSettings` (app key, host, the `sdkVersion` name,
-  the User-Agent name and the timeouts). `BeginSession()` derives the
-  `installId` and a new `sessionId`; `Send(eventName, props)` builds the event
-  (`BuildEvent`: the system properties above, `props` with `installId` added)
-  and POSTs it, logging one debug line per event.
-
-The frontend's `Analytics` keeps what is d2bs.dll's own: the app key compiled in
-as `D2BS_ANALYTICS_KEY`, the opt-out, the settle delay and retries, the
-`session_start` / `profile_active` properties and the `profileHash`. Its
-`ClientSettings` are `sdkName = "d2bsng"`, `userAgentName = "d2bsng-analytics"`
-and 10s / 15s timeouts. A program reusing the client sends whatever events it
-wants; it should not send d2bs.dll's app key, or its events count as d2bs.dll
-sessions.

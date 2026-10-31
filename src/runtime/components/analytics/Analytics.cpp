@@ -2,14 +2,12 @@
 
 #include <Windows.h>
 
-#include <bcrypt.h>
-
 #include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <exception>
-#include <memory>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -20,11 +18,9 @@
 #include <nlohmann/json.hpp>
 
 #include "analytics/Aptabase.h"
-#include "analytics/InstallId.h"
 #include "config/AppConfig.h"
 #include "config/CompatibilityFlags.h"
 #include "game/GameHelpers.h"
-#include "utils/crypto.h"
 #include "utils/threadutils.h"
 #include "utils/utils.h"
 
@@ -33,9 +29,6 @@ namespace d2bs::runtime::analytics {
 namespace {
 
 using json = nlohmann::json;  // NOLINT(readability-identifier-naming) - nlohmann's conventional alias spelling
-using core::analytics::GetEnv;
-using core::analytics::ID_SALT;
-using core::analytics::IsTruthy;
 
 constexpr int32_t MAX_ATTEMPTS = 3;
 
@@ -57,28 +50,28 @@ constexpr std::string_view ARCH = "x86";
 // NOLINTNEXTLINE(readability-redundant-string-init)
 constexpr std::string_view EMBEDDED_APP_KEY = D2BS_ANALYTICS_KEY;
 
-// Identifies the active profile without revealing it: only the digest is sent,
-// and mixing the install id into the material scopes it to this install, so the
-// same profile name on two machines hashes differently. That keeps profile names
-// uncorrelatable across users and un-recoverable by hashing likely names, while
-// still letting one install's profiles be counted apart. The name is lowercased
-// first: d2bs.ini profile lookup goes through GetPrivateProfileString, which is
-// case-insensitive, so "Sorc1" and "sorc1" are one profile and must not hash
-// into two.
-// Empty when hashing fails, which the caller treats as "profile still unknown".
-std::string HashProfileName(std::string_view installId, std::string_view profileName) {
-    std::string material(ID_SALT);
-    material += "|profile|";
-    material += installId;
-    material += '|';
-    material += utils::ToLower(std::string(profileName));
+constexpr std::string_view SDK_NAME = "d2bsng";
 
-    const std::string digest = utils::HashString(BCRYPT_SHA256_ALGORITHM, material);
-    // Length of the profile digest we report. 64 bits is far more than enough to
-    // tell one install's handful of profiles apart, and a short value keeps the
-    // dashboard readable.
-    constexpr size_t PROFILE_HASH_CHARS = 16;
-    return digest.size() > PROFILE_HASH_CHARS ? digest.substr(0, PROFILE_HASH_CHARS) : digest;
+// Read an environment variable as UTF-8; empty string when unset or empty.
+std::string GetEnv(const wchar_t* name) {
+    const DWORD needed = GetEnvironmentVariableW(name, nullptr, 0);
+    if (needed == 0) {
+        return {};
+    }
+    std::wstring buffer(needed, L'\0');
+    const DWORD written = GetEnvironmentVariableW(name, buffer.data(), needed);
+    buffer.resize(written);
+    return utils::ToStr(buffer, CP_UTF8);
+}
+
+// A launcher-supplied flag counts as "on" for any value except a clear falsey
+// one, so both `D2BS_ANALYTICS_DISABLE=1` and `=true` opt out.
+bool IsTruthy(std::string_view value) {
+    if (value.empty()) {
+        return false;
+    }
+    const char first = static_cast<char>(std::tolower(static_cast<unsigned char>(value.front())));
+    return first != '0' && first != 'f' && first != 'n';
 }
 
 // Wine version string when running under Wine (very common for D2 bots on
@@ -138,6 +131,37 @@ std::string Join(const std::vector<std::string>& items, char sep) {
     return out;
 }
 
+// Map an Aptabase app key ("A-<REGION>-<digits>") to its ingest base URL. A
+// D2BS_ANALYTICS_HOST override wins (needed for self-hosted "A-SH-" / dev
+// "A-DEV-" keys); otherwise US / EU are derived. Empty => can't route.
+std::string ResolveHost(std::string_view key) {
+    if (std::string hostOverride = GetEnv(L"D2BS_ANALYTICS_HOST"); !hostOverride.empty()) {
+        // Drop a trailing slash so the event path joins cleanly.
+        while (!hostOverride.empty() && hostOverride.back() == '/') {
+            hostOverride.pop_back();
+        }
+        return hostOverride;
+    }
+
+    // Region is the token between the first two dashes: A-EU-123 -> "EU".
+    const size_t firstDash = key.find('-');
+    if (firstDash == std::string_view::npos) {
+        return {};
+    }
+    const size_t secondDash = key.find('-', firstDash + 1);
+    if (secondDash == std::string_view::npos) {
+        return {};
+    }
+    const std::string_view region = key.substr(firstDash + 1, secondDash - firstDash - 1);
+    if (region == "US") {
+        return "https://us.aptabase.com";
+    }
+    if (region == "EU") {
+        return "https://eu.aptabase.com";
+    }
+    return {};
+}
+
 }  // namespace
 
 Analytics& Analytics::Instance() {
@@ -168,7 +192,7 @@ void Analytics::Start() {
         return;
     }
 
-    std::string host = core::analytics::ResolveHost(EMBEDDED_APP_KEY, L"D2BS_ANALYTICS_HOST");
+    std::string host = ResolveHost(EMBEDDED_APP_KEY);
     if (host.empty()) {
         logger_->warn("analytics disabled - can't derive ingest host from app key (set D2BS_ANALYTICS_HOST)");
         return;
@@ -181,12 +205,7 @@ void Analytics::Start() {
 
     // Published only once the CAS is won, so a losing caller can't race the
     // running reporter thread's read of it.
-    client_ = std::make_unique<core::analytics::Client>(
-        core::analytics::ClientSettings{.appKey = std::string(EMBEDDED_APP_KEY),
-                                        .host = std::move(host),
-                                        .sdkName = "d2bsng",
-                                        .userAgentName = "d2bsng-analytics"},
-        logger_);
+    host_ = std::move(host);
     thread_ = std::jthread([this](const std::stop_token& stopToken) { Run(stopToken); });
 }
 
@@ -222,7 +241,8 @@ void Analytics::Run(const std::stop_token& stopToken) {
             return;
         }
 
-        client_->BeginSession();
+        installId_ = core::analytics::DeriveInstallId();
+        sessionId_ = core::analytics::NewRandomId();
 
         for (int32_t attempt = 0; attempt < MAX_ATTEMPTS && !stopToken.stop_requested(); ++attempt) {
             lock.unlock();
@@ -275,7 +295,7 @@ void Analytics::WatchProfiles(std::unique_lock<std::mutex>& lock, const std::sto
             if (name.empty()) {
                 continue;  // no profile yet - a script hasn't logged in
             }
-            std::string hash = HashProfileName(client_->InstallId(), name);
+            std::string hash = core::analytics::HashProfileName(installId_, name);
             if (hash.empty() || reported.contains(hash)) {
                 continue;
             }
@@ -345,13 +365,23 @@ bool Analytics::SendStartupEvent() {
 
     props["compatOverrides"] = Join(CompatibilityOverrides(), ',');
 
-    return client_->Send("session_start", std::move(props));
+    return core::analytics::PostEvent({.host = host_,
+                                       .appKey = EMBEDDED_APP_KEY,
+                                       .sdkName = SDK_NAME,
+                                       .sessionId = sessionId_,
+                                       .installId = installId_},
+                                      logger_, "session_start", std::move(props));
 }
 
 bool Analytics::SendProfileEvent(const std::string& profileHash) {
     json props;
     props["profileHash"] = profileHash;
-    return client_->Send("profile_active", std::move(props));
+    return core::analytics::PostEvent({.host = host_,
+                                       .appKey = EMBEDDED_APP_KEY,
+                                       .sdkName = SDK_NAME,
+                                       .sessionId = sessionId_,
+                                       .installId = installId_},
+                                      logger_, "profile_active", std::move(props));
 }
 
 }  // namespace d2bs::runtime::analytics
