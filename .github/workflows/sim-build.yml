@@ -1,0 +1,126 @@
+name: Simulator build
+
+# Builds the simulator (d2bs-sim.exe, from a private repository) against a d2bsng
+# commit: dispatches the private repository's sim.yml, finds that run by its
+# display title (the `id` it is given), waits for it, and fails when it fails or
+# does not finish in time. With `publish` set, the private run publishes release
+# v<version> there, and this downloads its d2bs-sim.exe and sim.json into the
+# caller's run as the `d2bs-sim` artifact; the simulator's symbols stay private.
+#
+# Called by release.yml and ci-build.yml. The dispatch token is a secret of the
+# `release` environment and is only ever used by this job.
+on:
+  workflow_call:
+    inputs:
+      sha:
+        description: The d2bsng commit to build the simulator against (full hash)
+        required: true
+        type: string
+      version:
+        description: Version baked into the simulator; a -dev version never publishes
+        required: false
+        default: 0.0.0-dev
+        type: string
+      publish:
+        description: Publish the private release v<version> and download its assets as the d2bs-sim artifact
+        required: false
+        default: false
+        type: boolean
+      timeout-minutes:
+        description: How long to wait for the simulator build before failing (and cancelling it)
+        required: false
+        default: 120
+        type: number
+
+permissions:
+  contents: read
+
+jobs:
+  sim:
+    name: Simulator
+    runs-on: ubuntu-26.04
+    environment: release
+    env:
+      GH_TOKEN: ${{ secrets.SIM_DISPATCH_TOKEN }}
+      SIM_REPO: ResurrectedTrader/d2bsng-sim
+      SHA: ${{ inputs.sha }}
+      VERSION: ${{ inputs.version }}
+      PUBLISH: ${{ inputs.publish }}
+      # Unique per run attempt, so a re-run never finds an earlier attempt's run.
+      RUN_TITLE: d2bsng-${{ inputs.version }}-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Dispatch the simulator build
+        run: |
+          set -euo pipefail
+          [ -n "$GH_TOKEN" ] || { echo "::error::SIM_DISPATCH_TOKEN is not set in the release environment"; exit 1; }
+          # overwrite: the caller's version is always one d2bsng has not released, so a simulator
+          # release of that version is left over from a failed earlier attempt and is replaced.
+          gh workflow run sim.yml -R "$SIM_REPO" \
+            -f sha="$SHA" -f version="$VERSION" -f id="$RUN_TITLE" \
+            -f release="$PUBLISH" -f overwrite="$PUBLISH"
+      - name: Find the run
+        run: |
+          set -euo pipefail
+          for _ in $(seq 60); do
+            run=$(gh run list -R "$SIM_REPO" --workflow sim.yml --event workflow_dispatch --limit 50 \
+                    --json databaseId,displayTitle |
+                  jq -r --arg t "$RUN_TITLE" 'map(select(.displayTitle == $t)) | first | .databaseId // empty') || run=""
+            if [ -n "$run" ]; then
+              echo "SIM_RUN_ID=$run" >> "$GITHUB_ENV"
+              echo "simulator build: run $run"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::the dispatched simulator build ($RUN_TITLE) did not appear within 5 minutes"
+          exit 1
+      - name: Wait for the simulator build
+        id: wait
+        timeout-minutes: ${{ inputs.timeout-minutes }}
+        run: |
+          set -euo pipefail
+          while :; do
+            # A failed query (a transient API error) is retried; the step's timeout bounds the loop.
+            state=$(gh run view "$SIM_RUN_ID" -R "$SIM_REPO" --json status,conclusion --jq '.status + " " + .conclusion') ||
+              { sleep 30; continue; }
+            read -r status conclusion <<< "$state"
+            [ "$status" = "completed" ] && break
+            sleep 30
+          done
+          if [ "$conclusion" != "success" ]; then
+            echo "::error::the simulator build ($RUN_TITLE) finished with '$conclusion'"
+            exit 1
+          fi
+          echo "the simulator build succeeded"
+      # A timeout, a failed step above or a cancelled caller must not leave the private build running.
+      - name: Cancel the simulator build
+        if: always() && env.SIM_RUN_ID != '' && steps.wait.outcome != 'success'
+        run: |
+          status=$(gh run view "$SIM_RUN_ID" -R "$SIM_REPO" --json status --jq .status || true)
+          if [ -n "$status" ] && [ "$status" != "completed" ]; then
+            gh run cancel "$SIM_RUN_ID" -R "$SIM_REPO" && echo "cancelled the simulator build"
+          fi
+      - name: Download the simulator release
+        if: inputs.publish
+        run: |
+          set -euo pipefail
+          tag="v$VERSION"
+          # The release notes name the d2bsng commit it was built against; a release of this version
+          # built from anything else is not this build.
+          body=$(gh release view "$tag" -R "$SIM_REPO" --json body --jq .body)
+          if [[ "$body" != *"$SHA"* ]]; then
+            echo "::error::simulator release $tag was not built against $SHA"
+            exit 1
+          fi
+          gh release download "$tag" -R "$SIM_REPO" -p d2bs-sim.exe -p sim.json -D sim
+          ls -l sim
+      - name: Upload the simulator
+        if: inputs.publish
+        uses: actions/upload-artifact@v7
+        with:
+          name: d2bs-sim
+          path: |
+            sim/d2bs-sim.exe
+            sim/sim.json
+          retention-days: 1
+          if-no-files-found: error

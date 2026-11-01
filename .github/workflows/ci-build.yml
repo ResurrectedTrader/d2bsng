@@ -1,6 +1,7 @@
 name: CI Build
 
-# The expensive (~10-minute) build + tests. Gated so it runs ONLY on a
+# The expensive (~10-minute) build + tests, plus a check that the simulator still
+# builds against the commit (sim-build.yml). Gated so it runs ONLY on a
 # maintainer's `/ci` comment on a PR, or a manual dispatch - never on a plain
 # pull_request push. Keeping it out of ci.yml (which runs the cheap format check
 # on every PR) is what stops a normal PR from showing skipped Build/Tests/Report
@@ -37,6 +38,7 @@ jobs:
     outputs:
       ref: ${{ steps.r.outputs.ref }}
       sha: ${{ steps.r.outputs.sha }}
+      sim: ${{ steps.r.outputs.sim }}
     steps:
       - name: Resolve target + acknowledge
         id: r
@@ -44,15 +46,25 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if [ "${{ github.event_name }}" = "issue_comment" ]; then
-            sha=$(gh api "repos/${{ github.repository }}/pulls/${{ github.event.issue.number }}" --jq .head.sha)
+            pr=$(gh api "repos/${{ github.repository }}/pulls/${{ github.event.issue.number }}")
+            sha=$(jq -r .head.sha <<< "$pr")
             echo "ref=$sha" >> "$GITHUB_OUTPUT"
             echo "sha=$sha" >> "$GITHUB_OUTPUT"
+            # The simulator is built from a private repository at this commit; a fork's
+            # code is never built there (and a fork could not reach it otherwise).
+            if [ "$(jq -r .head.repo.full_name <<< "$pr")" = "${{ github.repository }}" ]; then
+              echo "sim=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "sim=false" >> "$GITHUB_OUTPUT"
+              echo "::notice::pull request from a fork: the simulator build is skipped"
+            fi
             url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
             gh api --silent -X POST "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" -f content=rocket || true
             gh api --silent -X POST "repos/${{ github.repository }}/statuses/$sha" -f state=pending -f context="CI / build" -f description="Build + tests running" -f target_url="$url" || true
           else
             echo "ref=${{ github.ref }}" >> "$GITHUB_OUTPUT"
             echo "sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            echo "sim=true" >> "$GITHUB_OUTPUT"
           fi
 
   build:
@@ -136,10 +148,21 @@ jobs:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           key: ${{ steps.vcpkg.outputs.cache-primary-key }}
 
+  # Checks the simulator still builds against this commit (sim-build.yml: a
+  # private build, a -dev version, so nothing is published). Skipped for a pull
+  # request from a fork - see `prepare`.
+  sim:
+    needs: prepare
+    if: needs.prepare.outputs.sim == 'true'
+    name: Simulator
+    uses: ./.github/workflows/sim-build.yml
+    with:
+      sha: ${{ needs.prepare.outputs.sha }}
+
   # Post the final build+tests result back onto the PR (comment-triggered runs
   # don't auto-appear as PR checks, so we set a commit status explicitly).
   report:
-    needs: [prepare, build, tests]
+    needs: [prepare, build, tests, sim]
     if: always() && github.event_name == 'issue_comment'
     name: Report
     runs-on: ubuntu-26.04
@@ -148,10 +171,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ "${{ needs.build.result }}" = "success" ] && [ "${{ needs.tests.result }}" = "success" ]; then
+          # A skipped simulator build (a fork's pull request) does not fail the status.
+          sim="${{ needs.sim.result }}"
+          if [ "${{ needs.build.result }}" = "success" ] && [ "${{ needs.tests.result }}" = "success" ] &&
+             { [ "$sim" = "success" ] || [ "$sim" = "skipped" ]; }; then
             state=success; desc="Build + tests passed"
           else
             state=failure; desc="Build + tests failed"
           fi
+          [ "$sim" = "skipped" ] && desc="$desc (simulator skipped)"
           url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           gh api --silent -X POST "repos/${{ github.repository }}/statuses/${{ needs.prepare.outputs.sha }}" -f state=$state -f context="CI / build" -f description="$desc" -f target_url="$url" || true
