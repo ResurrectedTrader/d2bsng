@@ -161,7 +161,7 @@ json BuildWearerSection(json&& unitDoc, bool unitChanged, json&& stats, bool sta
 // Compact kill-counter block (a delta since the last send - see the OnTick emit).
 // byClass entries are {id, spec, count} bucketed by (class id, SpecType), so each
 // rarity of a class is counted separately - spec is the same bitfield as JS
-// unit.spectype (0x02 champion, 0x04 unique pack, 0x08 minion, 0 normal).
+// unit.spectype (0x06 champion, which also carries the unique bit, 0x04 unique pack, 0x08 minion, 0 normal).
 // bySuperUnique entries are {id, count} keyed by SuperUniques.txt index. Same flat
 // array-of-objects shape as stats/skills, ids numeric. The two buckets are disjoint
 // (a super-unique is counted only under bySuperUnique, never under byClass), and the
