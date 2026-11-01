@@ -176,12 +176,6 @@ class GameThread {
         }
     }
 
-    // Whether a task waits for the next Drain. Only used by the simulator; d2bs.dll never calls it.
-    static bool HasPending() {
-        const std::lock_guard lock(queueMutex_);
-        return !queue_.empty();
-    }
-
     // Drain the task queue on the game thread each frame. GameReadLock is a no-op under GameWriteLock, so tasks can
     // resolve handles without self-deadlock.
     static void Drain() {
