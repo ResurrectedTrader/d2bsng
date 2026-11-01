@@ -208,6 +208,94 @@ size_t StashHash(const std::vector<StashPage>& pages, game::Size dims) {
     return hash;
 }
 
+// Container bucket indices. Two slot-based containers (equipped, merc) carry the
+// equip-location in each item's `x` (y = 0); the rest are grids, except stash
+// which is sent as one page per stash tab.
+constexpr size_t BUCKET_EQUIPPED = 0;
+constexpr size_t BUCKET_MERC = 1;
+constexpr size_t BUCKET_INVENTORY = 2;
+constexpr size_t BUCKET_CUBE = 3;
+constexpr size_t BUCKET_BELT = 4;
+constexpr size_t BUCKET_STASH = 5;
+constexpr size_t BUCKET_COUNT = 6;
+
+// The player's (and merc's) items, bucketed by container, with each container's grid size.
+struct Collected {
+    std::vector<game::Unit> equipped;
+    std::vector<game::Unit> merc;
+    std::vector<game::Unit> inventory;
+    std::vector<game::Unit> cube;
+    std::vector<game::Unit> belt;
+    std::vector<StashPage> stashPages;
+    std::optional<game::Unit> mercUnit;
+    std::array<game::Size, BUCKET_COUNT> containerDims;
+};
+
+Collected Collect(const game::Unit& player) {
+    Collected out;
+    // Bucket every owned item once (cheap reads only); the costly per-item build is
+    // deferred to BuildContainer for the containers that actually changed.
+    for (const auto& item : player.GetItems()) {
+        std::vector<game::Unit>* bucket = nullptr;
+        switch (item.ItemLocation()) {
+            case game::ItemLocation::Equip:
+                bucket = &out.equipped;
+                break;
+            case game::ItemLocation::Inventory:
+                bucket = &out.inventory;
+                break;
+            case game::ItemLocation::Cube:
+                bucket = &out.cube;
+                break;
+            case game::ItemLocation::Belt:
+                bucket = &out.belt;
+                break;
+            default:
+                continue;  // stash items are gathered per tab below
+        }
+        bucket->push_back(item);
+    }
+    // Every tab, not just the one the inventory walk can see; on vanilla this is the
+    // single personal tab with the same items the walk would have found.
+    out.stashPages = CollectStashPages();
+
+    // FindMerc walks the monster table; cheap at the ~1s cadence. Merc carries only
+    // equipped items.
+    out.mercUnit = player.FindMerc();
+    if (out.mercUnit) {
+        for (const auto& item : out.mercUnit->GetItems()) {
+            if (item.ItemLocation() == game::ItemLocation::Equip) {
+                out.merc.push_back(item);
+            }
+        }
+    }
+    // Zero for a grid the game has not populated its layout for yet: unknown, so draw no grid.
+    // Deliberately not a vanilla constant, which would assert a size a mod can have changed.
+    const auto equipSize = game::GetGridSize(game::ItemLocation::Equip).value_or(game::Size::Zero);
+    out.containerDims = {equipSize,
+                         equipSize,
+                         game::GetGridSize(game::ItemLocation::Inventory).value_or(game::Size::Zero),
+                         game::GetGridSize(game::ItemLocation::Cube).value_or(game::Size::Zero),
+                         game::GetGridSize(game::ItemLocation::Belt).value_or(game::Size::Zero),
+                         game::GetGridSize(game::ItemLocation::Stash).value_or(game::Size::Zero)};
+    return out;
+}
+
+// The keys every snapshot carries besides its sections.
+void AddHeader(json& snapshot, const std::string& gameId, bool keyframe, std::chrono::system_clock::time_point now) {
+    // schemaVersion of the wire contract (owned by the manager plan).
+    constexpr int32_t SCHEMA_VERSION = 2;
+    snapshot["schemaVersion"] = SCHEMA_VERSION;
+    // gameType alone does not say which data the ids index: the same game type has different
+    // stat ids and tables on different backends.
+    snapshot["backend"] = game::GetBackendVersion();
+    snapshot["gameId"] = gameId;
+    snapshot["keyframe"] = keyframe;
+    // Wall-clock time the snapshot was assembled (Unix epoch ms) so the manager
+    // can show "last updated" from the game side rather than its receive time.
+    snapshot["updatedAt"] = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+}
+
 }  // namespace
 
 CharacterState& CharacterState::Instance() {
@@ -216,16 +304,6 @@ CharacterState& CharacterState::Instance() {
 }
 
 void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
-    // Container bucket indices. Two slot-based containers (equipped, merc) carry the
-    // equip-location in each item's `x` (y = 0); the rest are grids, except stash
-    // which is sent as one page per stash tab.
-    constexpr size_t BUCKET_EQUIPPED = 0;
-    constexpr size_t BUCKET_MERC = 1;
-    constexpr size_t BUCKET_INVENTORY = 2;
-    constexpr size_t BUCKET_CUBE = 3;
-    constexpr size_t BUCKET_BELT = 4;
-    constexpr size_t BUCKET_STASH = 5;
-    constexpr size_t BUCKET_COUNT = 6;
     static_assert(BUCKET_COUNT == CONTAINER_COUNT);
 
     // Every flag-gated read below answers the game's own data. Nothing in here waits on
@@ -281,48 +359,7 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
         }
     }
 
-    // Bucket every owned item once (cheap reads only); the costly per-item build is
-    // deferred to BuildContainer for the containers that actually changed.
-    std::vector<game::Unit> equipped;
-    std::vector<game::Unit> merc;
-    std::vector<game::Unit> inventory;
-    std::vector<game::Unit> cube;
-    std::vector<game::Unit> belt;
-    for (const auto& item : player.GetItems()) {
-        const auto loc = item.ItemLocation();
-        std::vector<game::Unit>* bucket = nullptr;
-        switch (loc) {
-            case game::ItemLocation::Equip:
-                bucket = &equipped;
-                break;
-            case game::ItemLocation::Inventory:
-                bucket = &inventory;
-                break;
-            case game::ItemLocation::Cube:
-                bucket = &cube;
-                break;
-            case game::ItemLocation::Belt:
-                bucket = &belt;
-                break;
-            default:
-                continue;  // stash items are gathered per tab below
-        }
-        bucket->push_back(item);
-    }
-    // Every tab, not just the one the inventory walk can see; on vanilla this is the
-    // single personal tab with the same items the walk would have found.
-    const std::vector<StashPage> stashPages = CollectStashPages();
-
-    // FindMerc walks the monster table; cheap at the ~1s cadence. Merc carries only
-    // equipped items.
-    const auto mercUnit = player.FindMerc();
-    if (mercUnit) {
-        for (const auto& item : mercUnit->GetItems()) {
-            if (item.ItemLocation() == game::ItemLocation::Equip) {
-                merc.push_back(item);
-            }
-        }
-    }
+    auto [equipped, merc, inventory, cube, belt, stashPages, mercUnit, containerDims] = Collect(player);
 
     // Hash every section for change detection; the wire json documents below are built only
     // for the sections that moved. Identity and progression are tiny, so they are built here
@@ -339,16 +376,6 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
     const size_t mercHash = mercUnit ? UnitHash(*mercUnit) : EmptyUnitHash();
     json mercStats = mercUnit ? WearerStats(*mercUnit) : json();
     const size_t mercStatsHash = HashOf(mercStats);
-    // Zero for a grid the game has not populated its layout for yet: unknown, so draw no grid.
-    // Deliberately not a vanilla constant, which would assert a size a mod can have changed.
-    const auto equipSize = game::GetGridSize(game::ItemLocation::Equip).value_or(game::Size::Zero);
-    const std::array<game::Size, BUCKET_COUNT> containerDims = {
-        equipSize,
-        equipSize,
-        game::GetGridSize(game::ItemLocation::Inventory).value_or(game::Size::Zero),
-        game::GetGridSize(game::ItemLocation::Cube).value_or(game::Size::Zero),
-        game::GetGridSize(game::ItemLocation::Belt).value_or(game::Size::Zero),
-        game::GetGridSize(game::ItemLocation::Stash).value_or(game::Size::Zero)};
     const std::array containerHashes = {
         ContainerHash(equipped, containerDims[BUCKET_EQUIPPED]),   ContainerHash(merc, containerDims[BUCKET_MERC]),
         ContainerHash(inventory, containerDims[BUCKET_INVENTORY]), ContainerHash(cube, containerDims[BUCKET_CUBE]),
@@ -466,17 +493,7 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
         return;  // nothing moved - a header-only message tells the manager nothing
     }
 
-    // schemaVersion of the wire contract (owned by the manager plan).
-    constexpr int32_t SCHEMA_VERSION = 2;
-    snapshot["schemaVersion"] = SCHEMA_VERSION;
-    // gameType alone does not say which data the ids index: the same game type has different
-    // stat ids and tables on different backends.
-    snapshot["backend"] = game::GetBackendVersion();
-    snapshot["gameId"] = gameId_;
-    snapshot["keyframe"] = keyframe;
-    // Wall-clock time the snapshot was assembled (Unix epoch ms) so the manager
-    // can show "last updated" from the game side rather than its receive time.
-    snapshot["updatedAt"] = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+    AddHeader(snapshot, gameId_, keyframe, now);
 
     json envelope = json::object();
     envelope["profile"] = core::config::GetAppConfig().GetProfileName();
@@ -484,6 +501,39 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
     envelope["args"] = json::array({snapshot.dump(-1, ' ', false, json::error_handler_t::replace)});
 
     game::SendIPC(0, envelope.dump(-1, ' ', false, json::error_handler_t::replace), managerHandle);
+}
+
+std::optional<std::string> CharacterState::BuildSnapshot() const {
+    const core::config::CompatibilityFlags::BypassScope rawGameData;
+    if (game::GetGameState() != game::GameState::InGame) {
+        return std::nullopt;
+    }
+    auto player = game::Unit::Player();
+    if (!player) {
+        return std::nullopt;
+    }
+    const Collected collected = Collect(player);
+    json snapshot = json::object();
+    snapshot["identity"] = BuildIdentity();
+    snapshot["progression"] = BuildProgression();
+    json playerContainers = json::object();
+    playerContainers["equipped"] = BuildContainer(collected.equipped, collected.containerDims[BUCKET_EQUIPPED]);
+    playerContainers["inventory"] = BuildContainer(collected.inventory, collected.containerDims[BUCKET_INVENTORY]);
+    playerContainers["cube"] = BuildContainer(collected.cube, collected.containerDims[BUCKET_CUBE]);
+    playerContainers["belt"] = BuildContainer(collected.belt, collected.containerDims[BUCKET_BELT]);
+    playerContainers["stash"] = BuildStashContainer(collected.stashPages, collected.containerDims[BUCKET_STASH]);
+    snapshot["player"] =
+        BuildWearerSection(UnitToJson(player), true, WearerStats(player), true, std::move(playerContainers));
+    if (collected.mercUnit) {
+        json mercContainers = json::object();
+        mercContainers["equipped"] = BuildContainer(collected.merc, collected.containerDims[BUCKET_MERC]);
+        snapshot["merc"] = BuildWearerSection(UnitToJson(*collected.mercUnit), true, WearerStats(*collected.mercUnit),
+                                              true, std::move(mercContainers));
+    } else {
+        snapshot["merc"] = json();
+    }
+    AddHeader(snapshot, gameId_, true, std::chrono::system_clock::now());
+    return snapshot.dump(-1, ' ', false, json::error_handler_t::replace);
 }
 
 void CharacterState::RecordKill(uint32_t unitId) {

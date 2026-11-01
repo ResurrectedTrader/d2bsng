@@ -43,6 +43,11 @@ class CharacterState {
     // game ends rides the next game's first send. No-op if the unit can't be resolved.
     void RecordKill(uint32_t unitId);
 
+    // The full character state as a keyframe snapshot's JSON (the sections OnTick sends, without kills), built from
+    // the current player unit; nullopt when not in game. Sends nothing and leaves OnTick's state alone, so a host can
+    // build the snapshot without sending it. Game thread, like OnTick.
+    [[nodiscard]] std::optional<std::string> BuildSnapshot() const;
+
     CharacterState(const CharacterState&) = delete;
     CharacterState& operator=(const CharacterState&) = delete;
     CharacterState(CharacterState&&) = delete;
