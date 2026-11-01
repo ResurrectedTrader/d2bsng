@@ -157,7 +157,7 @@ v8::Local<v8::Object> CreateMeObject(v8::Isolate* isolate, v8::Local<v8::Context
 
     // unitId=0, type=0 sentinel: ResolvePtr() returns GetPlayerUnit().
     auto playerHandle = game::Unit::Player();
-    auto me = JSUnit::CreateInstance(isolate, context, std::make_unique<game::Unit>(playerHandle));
+    auto me = JSUnit::CreateInstance(isolate, context, playerHandle);
     if (me.IsEmpty())
         return {};
 

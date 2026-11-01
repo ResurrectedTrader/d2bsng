@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cppgc/allocation.h>
+#include <v8-cppgc.h>
 #include <v8.h>
 #include <cstdint>
 #include <memory>
@@ -28,6 +30,18 @@ constexpr uint32_t Fnv1a(std::string_view text) {
     return hash;
 }
 
+// What every game-handle cell shares, so a receiver's class is told from its cell alone.
+class HandleCellBase : public v8::Object::Wrappable {
+   public:
+    explicit HandleCellBase(const uint32_t* classTag) : classTag_(classTag) {}
+    [[nodiscard]] const uint32_t* ClassTag() const { return classTag_; }
+
+   private:
+    const uint32_t* classTag_;
+};
+
+inline constexpr v8::CppHeapPointerTag HANDLE_CELL_TAG = v8::CppHeapPointerTag::kFirstObjectWrappableTag;
+
 }  // namespace detail
 
 // CRTP base template for V8 class bindings
@@ -48,8 +62,9 @@ class ClassBase {
         return cache;
     }
 
-    // Address-only marker, one per Derived. Stored in internal field 1 so Unwrap identifies its
-    // own instances with a pointer compare rather than a template-chain check.
+    // Address-only marker, one per Derived. Stored in internal field 1 (in its cell, for a game
+    // handle) so Unwrap identifies its own instances with a pointer compare rather than a
+    // template-chain check.
     //
     // Its value is seeded from the class name, which is what keeps the tags at distinct
     // addresses: the DLL links with /OPT:ICF (EnableCOMDATFolding in d2bs.vcxproj), which folds
@@ -111,6 +126,42 @@ class ClassBase {
             obj->GetAlignedPointerFromInternalField(NATIVE_PTR_FIELD, v8::kEmbedderDataTypeTagDefault));
     }
 
+    // A game handle lives in a cell on the isolate's C++ heap (cppgc) that its wrapper owns: no malloc and no weak
+    // handle per wrapper, and the GC frees the cell with the wrapper. The internal fields stay unset.
+    class HandleCell final : public detail::HandleCellBase {
+       public:
+        HandleCell(NativeType handle, InstanceTracker::Row& row)
+            : HandleCellBase(&typeTag_), handle_(std::move(handle)), row_(&row) {}
+        HandleCell(const HandleCell&) = delete;
+        HandleCell& operator=(const HandleCell&) = delete;
+        HandleCell(HandleCell&&) = delete;
+        HandleCell& operator=(HandleCell&&) = delete;
+        ~HandleCell() override { InstanceTracker::Instance().Decrement(*row_, InstanceClassId()); }
+
+        NativeType& Handle() { return handle_; }
+
+       private:
+        NativeType handle_;
+        InstanceTracker::Row* row_;
+    };
+
+    // IsApiWrapper first: only an API wrapper has the slot Unwrap reads. An API wrapper never wrapped (another class's
+    // instance) unwraps to null.
+    static NativeType* HandleOf(v8::Local<v8::Object> obj)
+        requires GameHandle<NativeType>
+    {
+        if (obj.IsEmpty() || !obj->IsApiWrapper()) {
+            return nullptr;
+        }
+        auto* cell =
+            v8::Object::Unwrap<detail::HANDLE_CELL_TAG, detail::HandleCellBase>(v8::Isolate::GetCurrent(), obj);
+        if (cell == nullptr || cell->ClassTag() != &typeTag_) {
+            return nullptr;
+        }
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast) - the type tag identifies the cell's class
+        return &static_cast<HandleCell*>(cell)->Handle();
+    }
+
    public:
     // Instance-tracker row for this class, resolved once. ClassId takes a lock and scans the name
     // table, which must not happen per object - this is on the construction path of every wrapper.
@@ -142,12 +193,17 @@ class ClassBase {
     }
 
     // Check if a value is an instance of this class, by the type tag Wrap stamps on every instance (CreateInstance and
-    // the constructors) - the same test Unwrap applies to its receiver, without the template cache's lock.
+    // the constructors) or a game handle's cell carries - the same test Unwrap applies to its receiver, without the
+    // template cache's lock.
     static bool IsInstance(v8::Local<v8::Value> value) {
         if (value.IsEmpty() || !value->IsObject()) {
             return false;
         }
-        return HasTypeTag(value.As<v8::Object>());
+        if constexpr (GameHandle<NativeType>) {
+            return HandleOf(value.As<v8::Object>()) != nullptr;
+        } else {
+            return HasTypeTag(value.As<v8::Object>());
+        }
     }
 
     // Unwrap native pointer from V8 object.
@@ -162,7 +218,7 @@ class ClassBase {
     //
     // A game handle (GameHandle) comes back inside a LockedHandle instead, so the binding's
     // validity test and its reads run under one read lock; see LockedHandle for the rules
-    // while it is held.
+    // while it is held. Its class is told by the tag in its cell (HandleOf), not by field 1.
     static NativeType* Unwrap(v8::Local<v8::Object> obj)
         requires(!GameHandle<NativeType>)
     {
@@ -172,7 +228,7 @@ class ClassBase {
     static LockedHandle<NativeType> Unwrap(v8::Local<v8::Object> obj)
         requires GameHandle<NativeType>
     {
-        return LockedHandle<NativeType>(NativeOf(obj));
+        return LockedHandle<NativeType>(HandleOf(obj));
     }
 
     // Wrap native pointer into V8 object's internal fields. Stamping the tag here (rather
@@ -184,7 +240,9 @@ class ClassBase {
     }
 
     // Initialize a V8 object with native data and weak GC callback (constructor path).
-    static void InitInstance(v8::Isolate* isolate, v8::Local<v8::Object> obj, std::unique_ptr<NativeType> data) {
+    static void InitInstance(v8::Isolate* isolate, v8::Local<v8::Object> obj, std::unique_ptr<NativeType> data)
+        requires(!GameHandle<NativeType>)
+    {
         auto& row = InstanceTracker::Instance().Increment(InstanceClassId());
         auto* raw = data.release();
         Wrap(obj, raw);
@@ -193,7 +251,9 @@ class ClassBase {
 
     // Create a new instance from heap-allocated data; on failure, data is freed automatically.
     static v8::Local<v8::Object> CreateInstance(v8::Isolate* isolate, v8::Local<v8::Context> context,
-                                                std::unique_ptr<NativeType> data) {
+                                                std::unique_ptr<NativeType> data)
+        requires(!GameHandle<NativeType>)
+    {
         v8::EscapableHandleScope scope(isolate);
         auto tpl = GetTemplate(isolate);
         auto maybeInstance = tpl->InstanceTemplate()->NewInstance(context);
@@ -201,6 +261,22 @@ class ClassBase {
             return {};
         auto obj = maybeInstance.ToLocalChecked();
         InitInstance(isolate, obj, std::move(data));
+        return scope.Escape(obj);
+    }
+
+    static v8::Local<v8::Object> CreateInstance(v8::Isolate* isolate, v8::Local<v8::Context> context, NativeType handle)
+        requires GameHandle<NativeType>
+    {
+        v8::EscapableHandleScope scope(isolate);
+        auto tpl = GetTemplate(isolate);
+        auto maybeInstance = tpl->InstanceTemplate()->NewInstance(context);
+        if (maybeInstance.IsEmpty())
+            return {};
+        auto obj = maybeInstance.ToLocalChecked();
+        auto& row = InstanceTracker::Instance().Increment(InstanceClassId());
+        auto* cell = cppgc::MakeGarbageCollected<HandleCell>(isolate->GetCppHeap()->GetAllocationHandle(),
+                                                             std::move(handle), row);
+        v8::Object::Wrap<detail::HANDLE_CELL_TAG>(isolate, obj, cell);
         return scope.Escape(obj);
     }
 
