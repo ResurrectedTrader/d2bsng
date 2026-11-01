@@ -3,7 +3,6 @@
 #include <Windows.h>
 
 #include <algorithm>
-#include <cctype>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -62,16 +61,6 @@ std::string GetEnv(const wchar_t* name) {
     const DWORD written = GetEnvironmentVariableW(name, buffer.data(), needed);
     buffer.resize(written);
     return utils::ToStr(buffer, CP_UTF8);
-}
-
-// A launcher-supplied flag counts as "on" for any value except a clear falsey
-// one, so both `D2BS_ANALYTICS_DISABLE=1` and `=true` opt out.
-bool IsTruthy(std::string_view value) {
-    if (value.empty()) {
-        return false;
-    }
-    const char first = static_cast<char>(std::tolower(static_cast<unsigned char>(value.front())));
-    return first != '0' && first != 'f' && first != 'n';
 }
 
 // Wine version string when running under Wine (very common for D2 bots on
@@ -178,7 +167,7 @@ Analytics::~Analytics() {
 }
 
 void Analytics::Start() {
-    if (game::GetFrontendLaunchOptions().disableAnalytics || IsTruthy(GetEnv(L"D2BS_ANALYTICS_DISABLE"))) {
+    if (game::GetFrontendLaunchOptions().disableAnalytics) {
         logger_->debug("analytics disabled by opt-out");
         return;
     }

@@ -19,7 +19,7 @@
          themselves. See docs/analytics.md.
 
          Note this only controls where events go. To keep the key but stay
-         silent at runtime, use -noanalytics or D2BS_ANALYTICS_DISABLE. -->
+         silent at runtime, use -noanalytics. -->
     <D2bsAnalyticsKey>A-DEV-0000000000</D2bsAnalyticsKey>
 
     <!-- Compile the profiling counters and the console's Profiling panel out. -->

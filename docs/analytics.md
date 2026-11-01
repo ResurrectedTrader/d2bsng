@@ -5,7 +5,7 @@ d2bsng can report **anonymous usage analytics** to [Aptabase](https://aptabase.c
 maintainer-visible count of active installs and the version / OS / game-version
 distribution, so support and release decisions rest on data instead of guesses.
 
-It is **on by default and opt-out** (`-noanalytics` / `D2BS_ANALYTICS_DISABLE`),
+It is **on by default and opt-out** (`-noanalytics`),
 and stays entirely anonymous - the only identity an event carries is a derived
 `installId`. A launch produces one startup event plus one event per distinct
 profile it runs. There is no per-action tracking, no keystroke/screen capture,
@@ -289,17 +289,10 @@ casually, not because leaking it compromises anything.
 
 ### Per-launch settings
 
-The opt-out is per-launch and can come from an environment variable or a
-command-line switch. It is an OR - either source forces analytics off, and there
-is no switch that re-enables it against `D2BS_ANALYTICS_DISABLE`. Environment
-variables keep values off the visible command line (Task Manager), and a manager
-that spawns the game (e.g. D2BotNG) can set either.
-
-| Purpose | Environment variable | Command-line switch |
-|---------|----------------------|---------------------|
-| Force off | `D2BS_ANALYTICS_DISABLE` (any truthy value) | `-noanalytics` |
-| Ingest host override | `D2BS_ANALYTICS_HOST` | *(none)* |
-| Bot-manager version | `D2BOTNG_VERSION` | *(none)* |
+| Purpose | Environment variable |
+|---------|----------------------|
+| Ingest host override | `D2BS_ANALYTICS_HOST` |
+| Bot-manager version | `D2BOTNG_VERSION` |
 
 `D2BOTNG_VERSION` is the one variable d2bsng only *reads* - the manager sets it
 on the game process it spawns, and it is reported verbatim as `managerVersion`.
@@ -328,7 +321,7 @@ event is anonymous: the only identity it carries is the derived `installId`.
 
 ## Opting out
 
-Pass `-noanalytics`, or set `D2BS_ANALYTICS_DISABLE=1`. Either forces analytics
+Pass `-noanalytics`. It forces analytics
 off for that launch even when an app key is configured. Shipping a build with no
 app key configured also leaves it permanently off.
 
