@@ -76,12 +76,6 @@ class GameLoop {
     // left held on exit so the next frame body starts under the write lock.
     void OnSleep(std::chrono::milliseconds duration);
 
-    // Only used by the simulator, which plays games back to back without the menu; d2bs.dll never calls it. On the
-    // game thread between games, it does what the game's exit to the menu does: the InGame scripts stop (and are
-    // waited for) and the session latch clears, so the next game's entry starts the game script afresh. The frame
-    // write lock is handed back; the next OnSleep takes it again.
-    void EndGameSession();
-
     // Called from the game's render function. Counts the frame for the script
     // "render" event, then flushes drawables for the most recently observed game state.
     void OnDraw() const;
