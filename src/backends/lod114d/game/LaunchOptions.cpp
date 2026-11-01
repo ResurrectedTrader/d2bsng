@@ -92,6 +92,11 @@ std::vector<core::config::OptionSpec<LaunchOptions>> BuildSpecs() {
     /// @category Analytics
     builder.Add("-noanalytics", "", +[](LaunchOptions& o, std::wstring_view) { o.disableAnalytics = true; });
 
+    /// @description Turn off the update check for this launch: no request to GitHub's releases API, and the version
+    /// banner never shows an available update. Pre-release builds never check regardless.
+    /// @category Network
+    builder.Add("-noupdatecheck", "", +[](LaunchOptions& o, std::wstring_view) { o.disableUpdateCheck = true; });
+
     return std::move(builder.specs);
 }
 

@@ -30,7 +30,7 @@ namespace d2bs::runtime::analytics {
 //
 // Analytics is off unless the build baked in an Aptabase app key (the
 // D2BS_ANALYTICS_KEY compile-time macro, empty by default) and the opt-out
-// (-noanalytics or D2BS_ANALYTICS_DISABLE) is absent. With no key it never
+// (-noanalytics) is absent. With no key it never
 // starts a thread or touches the network. See docs/analytics.md.
 class Analytics {
    public:
