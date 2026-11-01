@@ -39,11 +39,7 @@ void InspectorTarget::Push(EventKind kind, std::string payload) {
 }
 
 std::deque<InspectorTarget::Event> InspectorTarget::DrainAll() {
-    // Fast path: skip the lock when nothing was queued since the last drain (the
-    // common per-tick case). Push sets interruptScheduled_ after each enqueue
-    // while a consumer exists, so false means empty; a racing push is taken on
-    // the next drain (and has already scheduled an interrupt).
-    if (!interruptScheduled_.load()) {
+    if (!HasPending()) {
         return {};
     }
     std::scoped_lock lock(mutex_);
