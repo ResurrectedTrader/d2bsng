@@ -33,6 +33,8 @@ struct LaunchOptions {
     std::vector<std::string> realms;  // -realm name:host (repeatable); raw specs, parsed into RealmRegistry
 
     bool disableAnalytics = false;  // -noanalytics
+
+    bool disableUpdateCheck = false;  // -noupdatecheck
 };
 
 // Parse GetCommandLineW() once and return a stable reference. Safe to call

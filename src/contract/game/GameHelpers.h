@@ -243,16 +243,16 @@ std::optional<std::string> GetLaunchProfile();
 // `backend`, which the D2BotNG manager keys on: keep the format stable.
 std::string GetBackendVersion();
 
-// === Analytics ===
-// Analytics-related launch switches, surfaced to the frontend analytics
-// component (which lives in the js frontend and can't see the backend's
-// LaunchOptions). These carry only the command-line values; the frontend
-// applies environment-variable fallbacks and derives the ingest endpoint. See
+// === Frontend launch switches ===
+// Launch switches the frontend's own components act on (it can't see the
+// backend's LaunchOptions). These carry only the command-line values; the
+// analytics component applies its environment-variable fallback. See
 // docs/analytics.md.
-struct AnalyticsLaunchOptions {
-    bool disabled = false;  // -noanalytics
+struct FrontendLaunchOptions {
+    bool disableAnalytics = false;    // -noanalytics
+    bool disableUpdateCheck = false;  // -noupdatecheck
 };
-AnalyticsLaunchOptions GetAnalyticsLaunchOptions();
+FrontendLaunchOptions GetFrontendLaunchOptions();
 
 // Backend-agnostic feature tags active this session (e.g. "multiInstance",
 // "proxy", "realm"), which the framework folds into the analytics feature list.

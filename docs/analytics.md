@@ -16,7 +16,7 @@ and no game data of any kind.
   `src/core/analytics/Aptabase.h` / `.cpp`
 - Launch switches: `src/backends/lod114d/game/LaunchOptions.cpp`
   (`-noanalytics`)
-- Contract surface: `game::GetAnalyticsLaunchOptions()`,
+- Contract surface: `game::GetFrontendLaunchOptions()`,
   `game::GetActiveFeatures()` and `game::GetBackendVersion()` in
   `src/contract/game/GameHelpers.h`
 - Lifecycle: started in `Host::DoInitialize`, stopped in `Host::Shutdown`,

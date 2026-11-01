@@ -178,9 +178,7 @@ Analytics::~Analytics() {
 }
 
 void Analytics::Start() {
-    const auto launch = game::GetAnalyticsLaunchOptions();
-
-    if (launch.disabled || IsTruthy(GetEnv(L"D2BS_ANALYTICS_DISABLE"))) {
+    if (game::GetFrontendLaunchOptions().disableAnalytics || IsTruthy(GetEnv(L"D2BS_ANALYTICS_DISABLE"))) {
         logger_->debug("analytics disabled by opt-out");
         return;
     }

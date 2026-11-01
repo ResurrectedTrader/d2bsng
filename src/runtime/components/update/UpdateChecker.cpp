@@ -13,6 +13,7 @@
 #include <nlohmann/json.hpp>
 
 #include "config/Version.h"
+#include "game/GameHelpers.h"
 #include "http/Client.h"
 #include "utils/threadutils.h"
 #include "utils/utils.h"
@@ -112,6 +113,10 @@ void UpdateChecker::Start() {
     // update checking entirely - no poll thread, no network traffic.
     if (HasVersionSuffix(D2BS_VERSION)) {
         logger_->debug("update check disabled for non-release version {}", D2BS_VERSION);
+        return;
+    }
+    if (game::GetFrontendLaunchOptions().disableUpdateCheck) {
+        logger_->debug("update check disabled by opt-out");
         return;
     }
     bool expected = false;
