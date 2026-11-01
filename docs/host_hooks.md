@@ -62,8 +62,7 @@ A host gets the rest from outside, with mechanisms d2bs.dll has anyway:
   backend's install, V8 flags through `v8::V8::SetFlagsFromString` before `runtime::Host::Initialize`, and the ini's
   `EngineSingleThreaded`.
 * **Plain APIs** only the simulator calls (d2bs.dll never does): `lod114d::imports::SetGameModuleBase` (every import, patch and hook offset is
-  relative to `GameModuleBase()`, which Bridge::Init sets to the process image unless it was set first),
-  `GameThread::HasPending` and `runtime::Host::IsInitialized`.
+  relative to `GameModuleBase()`, which Bridge::Init sets to the process image unless it was set first).
 * **The config store**: `core::config::AppConfig::store`, set before `runtime::Host::Initialize`. The frontend loads
   its settings and profiles through that `ConfigStore`; d2bs.dll never sets one, and `Host::LoadConfig` makes the
   `IniConfigStore` over `d2bs.ini` beside the module only when none was installed. A host that knows its whole
