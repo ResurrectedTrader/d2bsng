@@ -49,6 +49,12 @@ class InspectorTarget {
     // soon instead of only at its next delay().
     void Push(EventKind kind, std::string payload = {});
 
+    // Consumer side (isolate thread). False when nothing was queued since the last
+    // drain - always, while no DevTools client is attached. Push sets the flag
+    // after each enqueue while a consumer exists; a push racing this read is taken
+    // on the next drain (and has already scheduled an interrupt).
+    [[nodiscard]] bool HasPending() const { return interruptScheduled_.load(); }
+
     // Consumer side (isolate thread). Atomically takes the whole pending queue
     // and re-arms the interrupt.
     [[nodiscard]] std::deque<Event> DrainAll();

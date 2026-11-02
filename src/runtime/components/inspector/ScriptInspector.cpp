@@ -136,7 +136,7 @@ ScriptInspector::~ScriptInspector() {
     inspector_.reset();
 }
 
-void ScriptInspector::DrainIncoming() {
+void ScriptInspector::DrainQueued() {
     for (const auto& event : target_->DrainAll()) {
         ProcessEvent(event);
     }
