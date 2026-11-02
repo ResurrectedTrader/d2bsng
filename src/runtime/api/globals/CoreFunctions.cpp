@@ -848,8 +848,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto data = std::make_unique<classes::DirectoryData>(std::filesystem::path(path));
-            auto dirObj = classes::JSDirectory::CreateInstance(isolate, context, std::move(data));
+            auto dirObj = classes::JSDirectory::CreateInstance(isolate, context, std::filesystem::path(path));
             if (dirObj.IsEmpty())
                 return;
             args.GetReturnValue().Set(dirObj);

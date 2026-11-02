@@ -231,16 +231,13 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
 
             freeaddrinfo(result);
 
-            // Create Socket object with proper initialization and weak reference
             auto context = isolate->GetCurrentContext();
-            auto data = std::make_unique<SocketData>();
-            data->handle = sock;
-            data->isConnected = true;
-            data->isWsaInitialized = true;
-
-            auto obj = CreateInstance(isolate, context, std::move(data));
-            if (obj.IsEmpty())
+            auto obj = CreateInstance(isolate, context, sock);
+            if (obj.IsEmpty()) {
+                closesocket(sock);
+                WSACleanup();
                 return;
+            }
             args.GetReturnValue().Set(obj);
         });
 }

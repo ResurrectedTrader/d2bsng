@@ -20,14 +20,10 @@ static v8::Local<v8::Object> GetInnerGlobal(v8::Isolate* isolate, SandboxData* d
 void JSSandbox::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     V8_CLASS_CTOR_PROLOGUE;
 
-    auto data = std::make_unique<SandboxData>();
-
     // Create a new context - its global object IS the sandbox scope
     // (matching d2bs reference where innerObj = JS_NewObject(box->context, &global_obj))
     auto context = v8::Context::New(isolate);
-    data->context.Reset(isolate, context);
-
-    InitInstance(isolate, args.This(), std::move(data));
+    Attach(isolate, args.This())->context.Reset(isolate, context);
     args.GetReturnValue().Set(args.This());
 }
 

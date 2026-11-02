@@ -57,7 +57,7 @@ class JSLine : public JSDrawableBase<JSLine, LineDrawable> {
         SetupInstanceTracking(rawDrawable);
         script->AddDrawable(std::move(drawable));
 
-        Wrap(args.This(), rawDrawable);
+        Borrow(isolate, args.This(), rawDrawable);
         args.GetReturnValue().Set(args.This());
     }
 

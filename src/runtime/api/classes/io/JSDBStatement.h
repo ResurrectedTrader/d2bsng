@@ -13,21 +13,36 @@ namespace d2bs::runtime::api::classes {
 struct SQLiteData;
 
 // Internal data structure for DBStatement
-// Defined in header so SQLite.cpp can allocate instances
+// Defined in header so SQLite.cpp can allocate instances. Owns handle from construction and registers with
+// parent, which finalizes the statement if it is closed first.
 struct DBStatementData {
-    sqlite3_stmt* handle = nullptr;    // prepared statement handle
-    SQLiteData* parent = nullptr;      // parent database (for error messages)
-    std::string sql;                   // the SQL string (for debugging)
-    bool isOpen = false;               // whether statement is open
-    bool hasRow = false;               // whether a row is ready to read
-    v8::Global<v8::Object> cachedRow;  // cached current row object
-    // The wrapper that owns this native, held weakly: empty once the GC has found it dead, before
-    // the weak callback frees this. SQLite.statements views keep it alive through a private.
-    v8::Global<v8::Object> owner;
+    sqlite3_stmt* handle = nullptr;             // prepared statement handle
+    SQLiteData* parent = nullptr;               // parent database (for error messages)
+    std::string sql;                            // the SQL string (for debugging)
+    bool isOpen = false;                        // whether statement is open
+    bool hasRow = false;                        // whether a row is ready to read
+    v8::TracedReference<v8::Object> cachedRow;  // cached current row object, read only while hasRow
+    // The wrapper that owns this native. SQLite.statements views keep it alive through a private.
+    v8::TracedReference<v8::Object> owner;
 
-    // Idempotent cleanup - finalizes statement and removes from parent
+    DBStatementData(sqlite3_stmt* stmt, SQLiteData* db, std::string text);
+    DBStatementData(const DBStatementData&) = delete;
+    DBStatementData& operator=(const DBStatementData&) = delete;
+    DBStatementData(DBStatementData&&) = delete;
+    DBStatementData& operator=(DBStatementData&&) = delete;
+
+    // Idempotent cleanup - finalizes statement and removes from parent. Runs from destructors too, so it leaves
+    // cachedRow to the GC rather than touching V8.
     void Finalize();
     ~DBStatementData() { Finalize(); }
+    // Leaves the parent's list as soon as the GC finds the wrapper dead, so SQLite.statements never views a
+    // statement whose wrapper is gone but not yet swept.
+    void PreFinalize() { Finalize(); }
+
+    void Trace(cppgc::Visitor* visitor) const {
+        visitor->Trace(cachedRow);
+        visitor->Trace(owner);
+    }
 };
 
 // DBStatement class - represents a prepared SQLite statement

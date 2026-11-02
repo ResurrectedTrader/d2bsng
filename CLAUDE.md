@@ -815,12 +815,16 @@ Property(isolate, inst, "propName", +[](v8::Local<v8::Name>, const v8::PropertyC
 
 ### Class Ownership Model
 
-| Category | Classes | Uses MakeWeak | Constructor |
-|----------|---------|---------------|-------------|
-| Game Data | Room, Party, Unit, Area, Exit, PresetUnit, Control, StashTab | YES | NOT_CONSTRUCTABLE |
-| Script-Owned | File, FileTools, Directory, SQLite, DBStatement, Profile, Socket, HttpClient, Sandbox | YES | Factory/CONSTRUCTABLE |
-| External Managed | Script | NO | NOT_CONSTRUCTABLE |
-| Screen Hooks | Frame, Box, Line, Text, Image | Owned by DrawableRegistry | CONSTRUCTABLE |
+Every wrapper's native lives in a cell on the isolate's C++ heap (cppgc), attached with `v8::Object::Wrap`; `Unwrap` finds it by the cell's class tag. There are no internal fields and no weak handles.
+
+| Category | Classes | Cell | Constructor |
+|----------|---------|------|-------------|
+| Game Data | Room, Party, Unit, Area, Exit, PresetUnit, Control, StashTab | Owns the handle / value (`CreateInstance`) | NOT_CONSTRUCTABLE |
+| Script-Owned | File, Directory, SQLite, DBStatement, Profile, Socket, Sandbox, Script | Owns the native (`CreateInstance`, or `Attach` in a constructor) | Factory/CONSTRUCTABLE |
+| Static namespaces | FileTools, HttpClient, Compatibility, TxtTables | None (never instantiated) | NOT_CONSTRUCTABLE |
+| Screen Hooks | Frame, Box, Line, Text, Image | Borrowed (`Borrow`; owned by the script's DrawableRegistry, `Detach` on remove) | CONSTRUCTABLE |
+
+An owned cell's native is destroyed when the GC finalizes the cell: after a full GC, inside an allocation that sweeps, or when isolate disposal terminates the C++ heap (which finalizes everything left). So a native's destructor must not touch V8 or game state, and reaches another native only through a registration that native's own destructor removes (DBStatement / SQLite); one that holds V8 values keeps them in `v8::TracedReference` members and defines `void Trace(cppgc::Visitor*) const`. A native that owns a resource is constructed in place from it and is neither copyable nor movable.
 
 ### Game Thread Safety
 

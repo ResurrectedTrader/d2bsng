@@ -107,8 +107,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     if (!unit) {
                         return;
                     }
-                    args.GetReturnValue().Set(
-                        JSUnit::CreateInstance(isolate, context, std::make_unique<game::Unit>(*unit)));
+                    args.GetReturnValue().Set(JSUnit::CreateInstance(isolate, context, *unit));
                     return;
                 }
                 if (type == game::ITEM_LOCATION_MODE_OFFSET + 1) {
@@ -120,8 +119,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     if (!unit) {
                         return;
                     }
-                    args.GetReturnValue().Set(
-                        JSUnit::CreateInstance(isolate, context, std::make_unique<game::Unit>(*unit)));
+                    args.GetReturnValue().Set(JSUnit::CreateInstance(isolate, context, *unit));
                     return;
                 }
             }
@@ -162,7 +160,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             // Reference line 624: getUnit always uses PRIVATE_UNIT
             // Reference line 625: store search params, not live unit values (FindFirst already stamps).
-            args.GetReturnValue().Set(JSUnit::CreateInstance(isolate, context, std::make_unique<game::Unit>(*unit)));
+            args.GetReturnValue().Set(JSUnit::CreateInstance(isolate, context, *unit));
         });
 
     /// @description Compute an A* path between two world coordinates on a level.
@@ -713,7 +711,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto obj = JSRoom::CreateInstance(isolate, context, std::make_unique<game::Room>(room));
+            auto obj = JSRoom::CreateInstance(isolate, context, room);
             if (obj.IsEmpty())
                 return;
             args.GetReturnValue().Set(obj);
@@ -744,7 +742,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 if (!firstOpt) {
                     return;
                 }
-                auto obj = JSParty::CreateInstance(isolate, context, std::make_unique<game::Party>(*firstOpt));
+                auto obj = JSParty::CreateInstance(isolate, context, *firstOpt);
                 if (obj.IsEmpty())
                     return;
                 args.GetReturnValue().Set(obj);
@@ -776,7 +774,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             if (!found) {
                 return;
             }
-            auto obj = JSParty::CreateInstance(isolate, context, std::make_unique<game::Party>(*found));
+            auto obj = JSParty::CreateInstance(isolate, context, *found);
             if (obj.IsEmpty())
                 return;
             args.GetReturnValue().Set(obj);
@@ -832,8 +830,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto data = std::make_unique<game::PresetUnitInfo>(*match);
-            auto obj = JSPresetUnit::CreateInstance(isolate, context, std::move(data));
+            auto obj = JSPresetUnit::CreateInstance(isolate, context, *match);
             if (obj.IsEmpty()) {
                 error::ThrowError(isolate, "Failed to create PresetUnit object");
                 return;
@@ -889,8 +886,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             auto array = v8::Array::New(isolate, static_cast<int32_t>(allPresets.size()));
             for (size_t i = 0; i < allPresets.size(); ++i) {
-                auto data = std::make_unique<game::PresetUnitInfo>(allPresets[i]);
-                auto obj = JSPresetUnit::CreateInstance(isolate, context, std::move(data));
+                auto obj = JSPresetUnit::CreateInstance(isolate, context, allPresets[i]);
                 if (obj.IsEmpty()) {
                     error::ThrowError(isolate, "Failed to build preset unit object");
                     return;
@@ -945,7 +941,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto obj = JSArea::CreateInstance(isolate, context, std::make_unique<game::Level>(areaId));
+            auto obj = JSArea::CreateInstance(isolate, context, game::Level(areaId));
             if (obj.IsEmpty())
                 return;
             args.GetReturnValue().Set(obj);
@@ -992,7 +988,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             auto arr = v8::Array::New(isolate, static_cast<int32_t>(tabs.size()));
             uint32_t i = 0;
             for (const auto& tab : tabs) {
-                auto obj = JSStashTab::CreateInstance(isolate, context, std::make_unique<game::StashTab>(tab));
+                auto obj = JSStashTab::CreateInstance(isolate, context, tab);
                 if (obj.IsEmpty()) {
                     error::ThrowError(isolate, "Failed to build stash tab array");
                     return;
@@ -1047,7 +1043,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto obj = JSControl::CreateInstance(isolate, context, std::make_unique<game::Control>(*ctrl));
+            auto obj = JSControl::CreateInstance(isolate, context, *ctrl);
             if (obj.IsEmpty())
                 return;
             args.GetReturnValue().Set(obj);
@@ -1082,7 +1078,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             auto context = isolate->GetCurrentContext();
             uint32_t idx = 0;
             for (const auto& ctrl : controls) {
-                auto obj = JSControl::CreateInstance(isolate, context, std::make_unique<game::Control>(ctrl));
+                auto obj = JSControl::CreateInstance(isolate, context, ctrl);
                 if (obj.IsEmpty())
                     continue;
                 array->Set(context, idx++, obj).Check();
@@ -1141,7 +1137,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            args.GetReturnValue().Set(JSUnit::CreateInstance(isolate, context, std::make_unique<game::Unit>(*npc)));
+            args.GetReturnValue().Set(JSUnit::CreateInstance(isolate, context, *npc));
         });
 
     /// @description Check whether NPC dialog text is currently scrolling/displaying.
@@ -2183,7 +2179,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
 
             const game::Unit copy = *JSUnit::Unwrap(unitObj);
-            args.GetReturnValue().Set(JSUnit::CreateInstance(isolate, context, std::make_unique<game::Unit>(copy)));
+            args.GetReturnValue().Set(JSUnit::CreateInstance(isolate, context, copy));
         });
 
     /// @description Accept a trade, or query trade state by mode.

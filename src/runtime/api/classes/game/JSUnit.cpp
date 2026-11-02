@@ -604,8 +604,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             auto* isolate = info.GetIsolate();
-            auto obj = JSStashTab::CreateInstance(isolate, isolate->GetCurrentContext(),
-                                                  std::make_unique<game::StashTab>(*tab));
+            auto obj = JSStashTab::CreateInstance(isolate, isolate->GetCurrentContext(), *tab);
             if (!obj.IsEmpty()) {
                 info.GetReturnValue().Set(obj);
             }
@@ -1019,7 +1018,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             }
             if (invItem) {
                 auto context = isolate->GetCurrentContext();
-                auto result = CreateInstance(isolate, context, std::make_unique<game::Unit>(*invItem));
+                auto result = CreateInstance(isolate, context, *invItem);
                 args.GetReturnValue().Set(result);
             }
         });
@@ -1051,7 +1050,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             auto arr = v8::Array::New(isolate, static_cast<int32_t>(items.size()));
             for (uint32_t i = 0; i < items.size(); ++i) {
                 auto& item = items.at(i);
-                auto obj = CreateInstance(isolate, context, std::make_unique<game::Unit>(item));
+                auto obj = CreateInstance(isolate, context, item);
                 if (obj.IsEmpty()) {
                     error::ThrowError(isolate, "Failed to build item array");
                     return;
@@ -1187,7 +1186,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             auto context = isolate->GetCurrentContext();
-            args.GetReturnValue().Set(CreateInstance(isolate, context, std::make_unique<game::Unit>(*owner)));
+            args.GetReturnValue().Set(CreateInstance(isolate, context, *owner));
         });
 
     /// @description Returns this player's hired mercenary as a Unit (Player units only).
@@ -1217,7 +1216,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             }
             auto* isolate = args.GetIsolate();
             auto context = isolate->GetCurrentContext();
-            args.GetReturnValue().Set(CreateInstance(isolate, context, std::make_unique<game::Unit>(merc.value())));
+            args.GetReturnValue().Set(CreateInstance(isolate, context, merc.value()));
         });
 
     // Reference line 1697: lpUnit ? FindUnit(lpUnit) : GetPlayerUnit(), then GetMercUnit + HP%
