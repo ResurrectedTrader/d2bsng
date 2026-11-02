@@ -48,4 +48,8 @@ void WaitForTask(const std::atomic<TaskState>& state) {
     }
 }
 
+bool RetainReadLock() {
+    return false;
+}
+
 }  // namespace d2bs::host

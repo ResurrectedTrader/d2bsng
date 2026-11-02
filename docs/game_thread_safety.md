@@ -21,6 +21,8 @@ Scripts and the game thread run concurrently. Game memory can be modified by the
 
 Multiple scripts hold shared locks concurrently - scripts never block each other. Recursive via thread-local counter: nested acquisitions (a callback's `GameReadLock`, then each accessor it calls) are free (~1ns counter increment).
 
+A host that runs the scripts one at a time, with the game thread parked while one runs, can keep the shared lock past a thread's last level (`host::RetainReadLock`, `docs/host_hooks.md`): the read locks between two waits then cost only the counter. The thread's next `GameReadLockReleaser` drops the retained lock (and does not re-take it), so `GameThread::Execute`, `PollUntil` and the pause loop still hand the lock to the game thread; the host releases it the same way at its own hand-offs. d2bs.dll never retains: its scripts run beside the game thread.
+
 A resolved game pointer is only good while a read lock is held. The moment the lock drops, the game thread can take the write lock and free or relink the structure. So the lock is taken by whoever dereferences, not by the resolve: `ResolvePtr()` takes none of its own, and asserts (debug builds) that the calling thread already holds the game lock (`IsGameLockHeld()`: a read lock, or the game thread's write lock).
 
 **Rule: a backend accessor reads through `Resolved<T>`.** `Resolved<T>` (`HandleCache.h`) is a move-only RAII value that takes a `GameReadLock`, then resolves the handle through the unchanged `ResolvePtr()` / `HandleCache` path, and holds the lock for its lifetime - so the resolve and every dereference happen under one lock. Handles produce it with the private `Resolve<T>()`, where `T` is the backend's own struct type; the contract never names it:
