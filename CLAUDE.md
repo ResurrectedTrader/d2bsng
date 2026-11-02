@@ -813,7 +813,8 @@ Property(isolate, inst, "propName", +[](v8::Local<v8::Name>, const v8::PropertyC
 
 | Category | Classes | Uses MakeWeak | Constructor |
 |----------|---------|---------------|-------------|
-| Game Data | Room, Party, Unit, Area, Exit, PresetUnit, Control, StashTab | YES | NOT_CONSTRUCTABLE |
+| Game Handles | Room, Party, Unit, Area, Control, StashTab | NO - held in a cppgc cell the wrapper owns (`ClassBase::HandleCell`) | NOT_CONSTRUCTABLE |
+| Game Data | Exit, PresetUnit | YES | NOT_CONSTRUCTABLE |
 | Script-Owned | File, FileTools, Directory, SQLite, DBStatement, Profile, Socket, HttpClient, Sandbox | YES | Factory/CONSTRUCTABLE |
 | External Managed | Script | NO | NOT_CONSTRUCTABLE |
 | Screen Hooks | Frame, Box, Line, Text, Image | Owned by DrawableRegistry | CONSTRUCTABLE |

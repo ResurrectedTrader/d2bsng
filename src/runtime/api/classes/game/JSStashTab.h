@@ -90,7 +90,7 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
                 auto arr = v8::Array::New(isolate, static_cast<int32_t>(items.size()));
                 uint32_t i = 0;
                 for (const auto& item : items) {
-                    auto obj = JSUnit::CreateInstance(isolate, context, std::make_unique<game::Unit>(item));
+                    auto obj = JSUnit::CreateInstance(isolate, context, item);
                     if (obj.IsEmpty()) {
                         error::ThrowError(isolate, "Failed to build item array");
                         return;
