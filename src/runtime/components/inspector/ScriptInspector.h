@@ -59,12 +59,18 @@ class ScriptInspector {
     ScriptInspector& operator=(const ScriptInspector&) = delete;
 
     // Drain and dispatch all queued inbound CDP events. Isolate thread only.
-    void DrainIncoming();
+    // Inline so the delay() pump costs one atomic load while no client is attached.
+    void DrainIncoming() {
+        if (target_->HasPending() || sessionTeardownPending_) {
+            DrainQueued();
+        }
+    }
 
    private:
     friend class InspectorChannel;
     friend class InspectorClient;
 
+    void DrainQueued();
     void ProcessEvent(const InspectorTarget::Event& event);
     void RunPauseLoop();
     void QuitPauseLoop();

@@ -103,7 +103,9 @@ Inbound CDP is drained and dispatched on the isolate thread from three places,
 all calling `ScriptInspector::DrainIncoming` / the shared pause loop:
 
 1. **Normal execution** - `Script::ExecuteEvents` (the `delay()` pump) drains the
-   queue each iteration alongside `v8::platform::PumpMessageLoop`.
+   queue each iteration alongside `v8::platform::PumpMessageLoop`. While
+   nothing is queued - always, with no DevTools client attached - that is one
+   inline atomic load (`InspectorTarget::HasPending`), no call.
 2. **Busy scripts** - a script in a tight loop never reaches `delay()`, so a
    queue push schedules `v8::Isolate::RequestInterrupt` (coalesced via an atomic
    flag, isolate kept alive via `weak_ptr` like the GC interrupt). The interrupt
