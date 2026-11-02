@@ -36,6 +36,9 @@ struct DBStatementData {
     // Idempotent cleanup - finalizes statement and removes from parent. Runs from destructors too, so it leaves
     // cachedRow to the GC rather than touching V8.
     void Finalize();
+    // Finalize from a binding: also lets go of the cached row and the database, which a finalized statement no
+    // longer reads.
+    void Close();
     ~DBStatementData() { Finalize(); }
     // Leaves the parent's list as soon as the GC finds the wrapper dead, so SQLite.statements never views a
     // statement whose wrapper is gone but not yet swept.

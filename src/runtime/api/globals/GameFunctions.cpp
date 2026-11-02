@@ -760,8 +760,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             } else if (args[0]->IsObject()) {
                 // If a unit object is passed, match by its unit ID
                 auto unitObj = args[0].As<v8::Object>();
-                if (JSUnit::IsInstance(unitObj)) {
-                    const auto unitData = JSUnit::Unwrap(unitObj);
+                if (JSUnit::IsInstance(isolate, unitObj)) {
+                    const auto unitData = JSUnit::Unwrap(isolate, unitObj);
                     if (unitData && *unitData) {
                         found = game::Party::FindById(unitData->Id());
                     } else {
@@ -1242,11 +1242,11 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             // Unit object overload: clickMap(clickType, shift, unitObj)
             if (args.Length() == 3 && args[2]->IsObject()) {
                 auto unitObj = args[2].As<v8::Object>();
-                if (JSUnit::IsInstance(unitObj)) {
+                if (JSUnit::IsInstance(isolate, unitObj)) {
                     // ClickMapAt waits on the game thread, so it runs on a copy after the lock is dropped.
                     game::Unit unit;
                     {
-                        const auto unitData = JSUnit::Unwrap(unitObj);
+                        const auto unitData = JSUnit::Unwrap(isolate, unitObj);
                         if (!unitData || !*unitData) {
                             args.GetReturnValue().SetFalse();
                             return;
@@ -1361,14 +1361,14 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             switch (shape) {
                 case Shape::PlayerBodySlotByItem: {
                     auto obj = args[0].As<v8::Object>();
-                    if (!JSUnit::IsInstance(obj)) {
+                    if (!JSUnit::IsInstance(isolate, obj)) {
                         args.GetReturnValue().SetNull();  // ref case A returns null here.
                         return;
                     }
                     // EquipItem waits on the game thread, so it runs on a copy after the lock is dropped.
                     game::Unit item;
                     {
-                        const auto data = JSUnit::Unwrap(obj);
+                        const auto data = JSUnit::Unwrap(isolate, obj);
                         if (!data || !*data) {
                             args.GetReturnValue().SetNull();  // ref case A returns null here too.
                             return;
@@ -1390,7 +1390,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 }
                 case Shape::ItemByHandle: {
                     auto obj = args[1].As<v8::Object>();
-                    if (!JSUnit::IsInstance(obj)) {
+                    if (!JSUnit::IsInstance(isolate, obj)) {
                         // Ref case C line 458-461: private-type fail returns null (no throw).
                         args.GetReturnValue().SetNull();
                         return;
@@ -1398,7 +1398,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     // ClickItem waits on the game thread, so it runs on a copy after the lock is dropped.
                     game::Unit item;
                     {
-                        const auto data = JSUnit::Unwrap(obj);
+                        const auto data = JSUnit::Unwrap(isolate, obj);
                         if (!data || !*data) {
                             // Ref case C line 467-470: findUnit-fail / dwType-mismatch throws.
                             error::ThrowError(isolate, "Object is not an item!");
@@ -1488,7 +1488,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
 
             auto partyObj = args[0].As<v8::Object>();
-            if (!JSParty::IsInstance(partyObj)) {
+            if (!JSParty::IsInstance(isolate, partyObj)) {
                 args.GetReturnValue().SetFalse();
                 return;
             }
@@ -1498,7 +1498,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             // dropped.
             game::Party party;
             {
-                const auto partyData = JSParty::Unwrap(partyObj);
+                const auto partyData = JSParty::Unwrap(isolate, partyObj);
                 if (!partyData || !*partyData) {
                     args.GetReturnValue().SetFalse();
                     return;
@@ -2010,8 +2010,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             // Helper: extract a Point from an object -- either JSUnit or plain {x, y}
             auto getObjectPoint = [&](v8::Local<v8::Object> obj) -> std::optional<game::Point> {
-                if (JSUnit::IsInstance(obj)) {
-                    const auto unitData = JSUnit::Unwrap(obj);
+                if (JSUnit::IsInstance(isolate, obj)) {
+                    const auto unitData = JSUnit::Unwrap(isolate, obj);
                     if (!unitData || !*unitData) {
                         return std::nullopt;
                     }
@@ -2174,11 +2174,11 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
 
             auto unitObj = args[0].As<v8::Object>();
-            if (!JSUnit::IsInstance(unitObj)) {
+            if (!JSUnit::IsInstance(isolate, unitObj)) {
                 return;
             }
 
-            const game::Unit copy = *JSUnit::Unwrap(unitObj);
+            const game::Unit copy = *JSUnit::Unwrap(isolate, unitObj);
             args.GetReturnValue().Set(JSUnit::CreateInstance(isolate, context, copy));
         });
 
@@ -2261,13 +2261,13 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             auto unitObj1 = args[0].As<v8::Object>();
             auto unitObj2 = args[1].As<v8::Object>();
 
-            if (!JSUnit::IsInstance(unitObj1) || !JSUnit::IsInstance(unitObj2)) {
+            if (!JSUnit::IsInstance(isolate, unitObj1) || !JSUnit::IsInstance(isolate, unitObj2)) {
                 return;
             }
 
             const auto mask = convert::To<game::CollisionFlag>(isolate, args[2]);
-            const auto unitData1 = JSUnit::Unwrap(unitObj1);
-            const auto unitData2 = JSUnit::Unwrap(unitObj2);
+            const auto unitData1 = JSUnit::Unwrap(isolate, unitObj1);
+            const auto unitData2 = JSUnit::Unwrap(isolate, unitObj2);
             if (!unitData1 || !*unitData1 || !unitData2 || !*unitData2) {
                 return;
             }
@@ -2306,7 +2306,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
 
             auto unitObj = args[0].As<v8::Object>();
-            if (!JSUnit::IsInstance(unitObj)) {
+            if (!JSUnit::IsInstance(isolate, unitObj)) {
                 error::ThrowError(isolate, "moveNPC requires a unit object as first argument");
                 return;
             }
@@ -2319,7 +2319,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             // MoveNPC waits on the game thread, so it runs after the lock is dropped.
             uint32_t unitId = 0;
             {
-                const auto unitData = JSUnit::Unwrap(unitObj);
+                const auto unitData = JSUnit::Unwrap(isolate, unitObj);
                 if (!unitData || !*unitData) {
                     return;
                 }

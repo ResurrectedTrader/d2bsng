@@ -36,7 +36,7 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
         isolate, inst, "readable", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
             auto* isolate = info.GetIsolate();
 
-            auto data = Unwrap(info.Holder());
+            auto data = Unwrap(info.GetIsolate(), info.Holder());
             if (!data || data->handle == INVALID_SOCKET) {
                 info.GetReturnValue().Set(0);
                 return;
@@ -61,7 +61,7 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
         isolate, inst, "writeable", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
             auto* isolate = info.GetIsolate();
 
-            auto data = Unwrap(info.Holder());
+            auto data = Unwrap(info.GetIsolate(), info.Holder());
             if (!data || data->handle == INVALID_SOCKET) {
                 info.GetReturnValue().Set(0);
                 return;
@@ -89,7 +89,7 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
         isolate, proto, "read", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
-            auto data = Unwrap(args.This());
+            auto data = Unwrap(args.GetIsolate(), args.This());
             if (!data || data->handle == INVALID_SOCKET) {
                 error::ThrowError(isolate, "Socket is not connected");
                 return;
@@ -123,7 +123,7 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 return;
             }
 
-            auto data = Unwrap(args.This());
+            auto data = Unwrap(args.GetIsolate(), args.This());
             if (!data || data->handle == INVALID_SOCKET) {
                 error::ThrowError(isolate, "Socket is not connected");
                 return;
@@ -139,7 +139,7 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
     /// @returns {undefined} - Nothing.
     Method(
         isolate, proto, "close", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto data = Unwrap(args.This());
+            auto data = Unwrap(args.GetIsolate(), args.This());
             if (!data) {
                 return;
             }

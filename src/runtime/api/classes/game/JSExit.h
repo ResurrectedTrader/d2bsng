@@ -24,7 +24,7 @@ class JSExit : public ClassBase<JSExit, navigation::ExitInfo> {
         /// @type {number}
         Property(
             isolate, inst, "x", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+                auto* data = Unwrap(info.GetIsolate(), info.Holder());
                 info.GetReturnValue().Set(data->pos.x);
             });
 
@@ -32,7 +32,7 @@ class JSExit : public ClassBase<JSExit, navigation::ExitInfo> {
         /// @type {number}
         Property(
             isolate, inst, "y", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+                auto* data = Unwrap(info.GetIsolate(), info.Holder());
                 info.GetReturnValue().Set(data->pos.y);
             });
 
@@ -40,7 +40,7 @@ class JSExit : public ClassBase<JSExit, navigation::ExitInfo> {
         /// @type {LevelId}
         Property(
             isolate, inst, "target", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+                auto* data = Unwrap(info.GetIsolate(), info.Holder());
                 info.GetReturnValue().Set(std::to_underlying(data->target));
             });
 
@@ -48,7 +48,7 @@ class JSExit : public ClassBase<JSExit, navigation::ExitInfo> {
         /// @type {number}
         Property(
             isolate, inst, "type", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+                auto* data = Unwrap(info.GetIsolate(), info.Holder());
                 info.GetReturnValue().Set(static_cast<uint32_t>(data->type));
             });
 
@@ -56,7 +56,7 @@ class JSExit : public ClassBase<JSExit, navigation::ExitInfo> {
         /// @type {number}
         Property(
             isolate, inst, "tileid", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+                auto* data = Unwrap(info.GetIsolate(), info.Holder());
                 info.GetReturnValue().Set(data->tileId);
             });
 
@@ -64,7 +64,7 @@ class JSExit : public ClassBase<JSExit, navigation::ExitInfo> {
         /// @type {LevelId}
         Property(
             isolate, inst, "level", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+                auto* data = Unwrap(info.GetIsolate(), info.Holder());
                 info.GetReturnValue().Set(std::to_underlying(data->level));
             });
     }

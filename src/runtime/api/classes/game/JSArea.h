@@ -32,7 +32,7 @@ class JSArea : public ClassBase<JSArea, game::Level> {
 
                 std::vector<navigation::ExitInfo> exits;
                 {
-                    const auto data = Unwrap(info.Holder());
+                    const auto data = Unwrap(info.GetIsolate(), info.Holder());
                     if (data && *data) {
                         exits = navigation::GetExits(*data);
                     }
@@ -56,7 +56,7 @@ class JSArea : public ClassBase<JSArea, game::Level> {
         /// @type {LevelId}
         Property(
             isolate, inst, "id", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                const auto data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.GetIsolate(), info.Holder());
                 if (!data || !*data) {
                     info.GetReturnValue().Set(0);
                     return;
@@ -68,7 +68,7 @@ class JSArea : public ClassBase<JSArea, game::Level> {
         /// @type {string}
         Property(
             isolate, inst, "name", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                const auto data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.GetIsolate(), info.Holder());
                 auto* isolate = info.GetIsolate();
                 if (!data || !*data) {
                     info.GetReturnValue().SetEmptyString();
@@ -83,7 +83,7 @@ class JSArea : public ClassBase<JSArea, game::Level> {
         /// @type {number}
         Property(
             isolate, inst, "x", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                const auto data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.GetIsolate(), info.Holder());
                 if (!data || !*data) {
                     info.GetReturnValue().Set(0);
                     return;
@@ -95,7 +95,7 @@ class JSArea : public ClassBase<JSArea, game::Level> {
         /// @type {number}
         Property(
             isolate, inst, "y", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                const auto data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.GetIsolate(), info.Holder());
                 if (!data || !*data) {
                     info.GetReturnValue().Set(0);
                     return;
@@ -107,7 +107,7 @@ class JSArea : public ClassBase<JSArea, game::Level> {
         /// @type {number}
         Property(
             isolate, inst, "xsize", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                const auto data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.GetIsolate(), info.Holder());
                 if (!data || !*data) {
                     info.GetReturnValue().Set(0);
                     return;
@@ -119,7 +119,7 @@ class JSArea : public ClassBase<JSArea, game::Level> {
         /// @type {number}
         Property(
             isolate, inst, "ysize", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                const auto data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.GetIsolate(), info.Holder());
                 if (!data || !*data) {
                     info.GetReturnValue().Set(0);
                     return;

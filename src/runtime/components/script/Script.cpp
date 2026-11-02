@@ -361,6 +361,10 @@ void Script::SetupIsolate() {
                                 utils::threads::GetThreadStacktrace());
         utils::threads::CrashAndExit(dump, 0xD2B50002);
     });
+    // Every wrapper's native lives on the C++ heap V8 creates with the isolate (api/core/Class.h).
+    if (iso->GetCppHeap() == nullptr) {
+        utils::threads::CrashAndExit("V8 isolate created without a C++ heap\n", 0xD2B50007);
+    }
 
     // Wrap in shared_ptr with a custom deleter that captures the allocator,
     // guaranteeing it outlives Dispose().  The raw pointer `iso` remains valid

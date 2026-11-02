@@ -142,16 +142,16 @@ class ClassBase {
 
     // Unwrap reads the slot only on an API wrapper, the only kind that has one. An API wrapper never wrapped (a plain
     // instance of another template) has no cell.
-    static detail::CellBase* CellOf(v8::Local<v8::Object> obj) {
+    static detail::CellBase* CellOf(v8::Isolate* isolate, v8::Local<v8::Object> obj) {
         if (obj.IsEmpty() || !obj->IsApiWrapper()) {
             return nullptr;
         }
-        auto* cell = v8::Object::Unwrap<detail::CELL_TAG, detail::CellBase>(v8::Isolate::GetCurrent(), obj);
+        auto* cell = v8::Object::Unwrap<detail::CELL_TAG, detail::CellBase>(isolate, obj);
         return cell != nullptr && cell->ClassTag() == &typeTag_ ? cell : nullptr;
     }
 
-    static NativeType* NativeOf(v8::Local<v8::Object> obj) {
-        auto* cell = CellOf(obj);
+    static NativeType* NativeOf(v8::Isolate* isolate, v8::Local<v8::Object> obj) {
+        auto* cell = CellOf(isolate, obj);
         return cell != nullptr ? static_cast<NativeType*>(cell->Native()) : nullptr;
     }
 
@@ -186,8 +186,8 @@ class ClassBase {
 
     // Check if a value is an instance of this class, by the class tag its cell carries - the same test Unwrap applies
     // to its receiver, without the template cache's lock.
-    static bool IsInstance(v8::Local<v8::Value> value) {
-        return !value.IsEmpty() && value->IsObject() && CellOf(value.As<v8::Object>()) != nullptr;
+    static bool IsInstance(v8::Isolate* isolate, v8::Local<v8::Value> value) {
+        return !value.IsEmpty() && value->IsObject() && CellOf(isolate, value.As<v8::Object>()) != nullptr;
     }
 
     // Unwrap native pointer from V8 object.
@@ -201,16 +201,16 @@ class ClassBase {
     // A game handle (GameHandle) comes back inside a LockedHandle instead, so the binding's
     // validity test and its reads run under one read lock; see LockedHandle for the rules
     // while it is held.
-    static NativeType* Unwrap(v8::Local<v8::Object> obj)
+    static NativeType* Unwrap(v8::Isolate* isolate, v8::Local<v8::Object> obj)
         requires(!GameHandle<NativeType>)
     {
-        return NativeOf(obj);
+        return NativeOf(isolate, obj);
     }
 
-    static LockedHandle<NativeType> Unwrap(v8::Local<v8::Object> obj)
+    static LockedHandle<NativeType> Unwrap(v8::Isolate* isolate, v8::Local<v8::Object> obj)
         requires GameHandle<NativeType>
     {
-        return LockedHandle<NativeType>(NativeOf(obj));
+        return LockedHandle<NativeType>(NativeOf(isolate, obj));
     }
 
     // Constructor path: gives `obj` (the construct call's receiver) a cell owning a native built from args, and
@@ -224,16 +224,12 @@ class ClassBase {
         return static_cast<NativeType*>(cell->Native());
     }
 
-    // Gives `obj` a cell over a native it does not own; Detach clears it once the owner drops the native.
-    static void Borrow(v8::Isolate* isolate, v8::Local<v8::Object> obj, NativeType* native) {
+    // Gives `obj` a cell over a native it does not own. The owner clears the returned cell once it drops the
+    // native, unless the cell keeps the owner alive.
+    static detail::CellBase* Borrow(v8::Isolate* isolate, v8::Local<v8::Object> obj, NativeType* native) {
         auto* cell = cppgc::MakeGarbageCollected<BorrowedCell>(isolate->GetCppHeap()->GetAllocationHandle(), native);
         v8::Object::Wrap<detail::CELL_TAG>(isolate, obj, cell);
-    }
-
-    static void Detach(v8::Local<v8::Object> obj) {
-        if (auto* cell = CellOf(obj)) {
-            cell->Clear();
-        }
+        return cell;
     }
 
     // A new instance owning a native built from args. On failure no native is built, so a caller that passed a

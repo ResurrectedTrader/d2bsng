@@ -32,8 +32,8 @@ struct Drawable : std::enable_shared_from_this<Drawable> {
     std::atomic<bool> isHovered = false;
 
     // Optional cleanup hook invoked from ~Drawable. Populated by the JS wrapper
-    // layer (JSDrawableBase::SetupInstanceTracking) to decrement the per-thread
-    // V8 instance count without pulling an api/ dependency into components/.
+    // layer (JSDrawableBase::BorrowTracked) to clear the wrapper's cell and decrement the
+    // per-thread V8 instance count without pulling an api/ dependency into components/.
     std::function<void()> onDestroy;
 
     // Whether the owning Script holds a click / hover callback for this
