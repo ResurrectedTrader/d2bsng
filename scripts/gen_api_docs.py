@@ -128,6 +128,7 @@ def build_page(inline, *, title, version, repo, source_base):
         "<!DOCTYPE html>\n"
         '<html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        '<meta http-equiv="Cache-Control" content="no-cache">'
         f"<title>{esc(title)}</title>\n<style>{CSS}</style></head><body>"
         '<button id="menu" aria-label="menu">&#9776;</button>'
         '<nav id="sidebar">'
@@ -204,8 +205,7 @@ a.grp-link{color:var(--fg)}
 .leaf>a.active{color:var(--accent);background:var(--accent-soft);font-weight:600}
 .no-results{color:var(--muted);font-size:13px;padding:8px 10px}
 
-#content{margin-left:var(--sidew);padding:0 48px 120px}
-#content>*{max-width:1100px;margin-left:auto;margin-right:auto}
+#content{margin-left:var(--sidew);padding:0 40px 120px}
 .tabs{position:sticky;top:0;background:var(--bg);display:flex;gap:4px;padding:14px 0 0;z-index:10;
   border-bottom:1px solid var(--border);margin-bottom:8px}
 .tab{border:0;background:none;font:600 14px/1 inherit;color:var(--muted);padding:10px 14px;cursor:pointer;
@@ -1105,10 +1105,12 @@ function selectVersion(tag){
     if(prevRel){ fetchJson(dataUrl(prevRel.tag)).then(function(pd){ state.prev=pd; if(state.view==='changelog') buildChangelog(); }).catch(function(){}); }
   }).catch(function(err){ setStatus('Could not load '+tag+': '+err.message+'.',true); });
 }
-// a link to a Simulator anchor opens that tab (once, on the first render that has it)
+// #changelog, or a link to a Simulator anchor, opens that tab (once, on the first render that has it)
 var hashFollowed=false;
 function followHash(){
-  var id=location.hash.slice(1), tgt=!hashFollowed&&id&&document.getElementById(id);
+  var id=location.hash.slice(1);
+  if(!hashFollowed&&id==='changelog'){ hashFollowed=true; setView('changelog'); return; }
+  var tgt=!hashFollowed&&id&&document.getElementById(id);
   if(!tgt||!simView.contains(tgt)) return;
   hashFollowed=true; setView('sim'); tgt.scrollIntoView({block:'start'});
 }
