@@ -7,6 +7,7 @@
 #include <shared_mutex>
 #include <thread>
 
+#include "host/Host.h"
 #include "utils/Profiling.h"
 
 namespace d2bs::game {
@@ -16,6 +17,8 @@ namespace d2bs::game {
 // Nested acquisitions (e.g., a walk under one GameReadLock whose accessors each
 // hold a Resolved<T>) just increment a thread-local counter (~1ns).
 // Multiple script threads hold shared locks concurrently - scripts don't block each other.
+// A host that runs the scripts one at a time may keep the shared lock past the last level
+// (host::RetainReadLock); the thread's next GameReadLockReleaser drops it.
 // When the current thread already holds the GameWriteLock, construction is a
 // no-op: the writer has exclusive access on this thread, so a shared_lock on
 // the same mutex would self-deadlock.
@@ -126,7 +129,7 @@ inline GameReadLock::GameReadLock() {
     if (GameWriteLock::active_ != nullptr) {
         return;
     }
-    if (depth_ == 0) {
+    if (depth_ == 0 && !(host::RetainReadLock() && lock_.owns_lock())) {
         // This runs twice per property read, so the uncontended path pays nothing extra. A script
         // reading mid-frame parks here until the game thread drops the write lock; that is a wait,
         // not the calling binding's cost, and only then is the clock read.
@@ -147,7 +150,7 @@ inline GameReadLock::~GameReadLock() noexcept {
     if (GameWriteLock::active_ != nullptr) {
         return;
     }
-    if (--depth_ == 0) {
+    if (--depth_ == 0 && !host::RetainReadLock()) {
         lock_.unlock();
     }
 }
@@ -195,6 +198,7 @@ class GameWriteLockReleaser {
 // RAII releaser: fully releases all recursive GameReadLock levels, re-acquires on destruction.
 // Used when a script thread needs the game thread to proceed (e.g., GameThread::Execute).
 // Saves the current recursion depth, releases the shared lock, and restores both on destruction.
+// A lock retained past the last level (host::RetainReadLock) is dropped and not re-taken.
 class GameReadLockReleaser {
     int32_t savedDepth_;
 
@@ -204,6 +208,8 @@ class GameReadLockReleaser {
             GameReadLock::depth_ = 0;
             GameReadLock::lock_.unlock();
             ++GameReadLock::releaseEpoch_;
+        } else if (host::RetainReadLock() && GameReadLock::lock_.owns_lock()) {
+            GameReadLock::lock_.unlock();
         }
     }
 
