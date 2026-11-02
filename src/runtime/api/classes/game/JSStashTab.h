@@ -4,6 +4,7 @@
 
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include "api/classes/game/JSUnit.h"
 #include "api/core/Class.h"
@@ -32,21 +33,33 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
         /// @type {StashTabKind}
         Property(
             isolate, inst, "kind", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                info.GetReturnValue().Set(static_cast<uint32_t>(Unwrap(info.Holder())->Kind()));
+                const auto data = Unwrap(info.Holder());
+                if (!data) {
+                    return;
+                }
+                info.GetReturnValue().Set(static_cast<uint32_t>(data->Kind()));
             });
 
         /// @description 0-based position of the tab within its kind.
         /// @type {number}
         Property(
             isolate, inst, "index", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                info.GetReturnValue().Set(Unwrap(info.Holder())->Index());
+                const auto data = Unwrap(info.Holder());
+                if (!data) {
+                    return;
+                }
+                info.GetReturnValue().Set(data->Index());
             });
 
         /// @description What the tab holds; every LoD tab is StashTabType.normal.
         /// @type {StashTabType}
         Property(
             isolate, inst, "type", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                info.GetReturnValue().Set(static_cast<uint32_t>(Unwrap(info.Holder())->Type()));
+                const auto data = Unwrap(info.Holder());
+                if (!data) {
+                    return;
+                }
+                info.GetReturnValue().Set(static_cast<uint32_t>(data->Type()));
             });
 
         /// @description True for a tab items can only be taken off, never put on (shared tabs from a previous
@@ -54,21 +67,33 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
         /// @type {boolean}
         Property(
             isolate, inst, "removeOnly", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                info.GetReturnValue().Set(Unwrap(info.Holder())->RemoveOnly());
+                const auto data = Unwrap(info.Holder());
+                if (!data) {
+                    return;
+                }
+                info.GetReturnValue().Set(data->RemoveOnly());
             });
 
         /// @description The season a shared tab belongs to, as the game numbers it. Always 0 on 1.14d.
         /// @type {number}
         Property(
             isolate, inst, "season", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                info.GetReturnValue().Set(Unwrap(info.Holder())->Season());
+                const auto data = Unwrap(info.Holder());
+                if (!data) {
+                    return;
+                }
+                info.GetReturnValue().Set(data->Season());
             });
 
         /// @description User-given tab name; empty when unnamed or when the tab is gone.
         /// @type {string}
         Property(
             isolate, inst, "name", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), Unwrap(info.Holder())->Name()));
+                const auto data = Unwrap(info.Holder());
+                if (!data) {
+                    return;
+                }
+                info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), data->Name()));
             });
 
         /// @description Gold stored on the tab. Where the game keeps one gold figure per stash rather than per tab,
@@ -76,7 +101,11 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
         /// @type {number}
         Property(
             isolate, inst, "gold", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                info.GetReturnValue().Set(Unwrap(info.Holder())->Gold());
+                const auto data = Unwrap(info.Holder());
+                if (!data) {
+                    return;
+                }
+                info.GetReturnValue().Set(data->Gold());
             });
 
         /// @description The tab's items, whether or not the tab is the one shown. Items on tabs that are not shown
@@ -86,7 +115,14 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
             isolate, inst, "items", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 auto* isolate = info.GetIsolate();
                 auto context = isolate->GetCurrentContext();
-                const auto items = Unwrap(info.Holder())->GetItems();
+                std::vector<game::Unit> items;
+                {
+                    const auto data = Unwrap(info.Holder());
+                    if (!data) {
+                        return;
+                    }
+                    items = data->GetItems();
+                }
                 auto arr = v8::Array::New(isolate, static_cast<int32_t>(items.size()));
                 uint32_t i = 0;
                 for (const auto& item : items) {
@@ -129,7 +165,11 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
                     return;
                 }
                 // Click can block while the tab is brought in, so it runs on a copy with no lock held.
-                const game::StashTab tab = *Unwrap(args.This());
+                const auto tab = TabOf(args.This());
+                if (!tab) {
+                    args.GetReturnValue().SetFalse();
+                    return;
+                }
                 game::Position cell;
                 if (byItem) {
                     game::Unit item;
@@ -142,7 +182,7 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
                         item = *data;
                     }
                     const auto onTab = item.StashTab();
-                    if (!onTab || onTab->Kind() != tab.Kind() || onTab->Index() != tab.Index()) {
+                    if (!onTab || onTab->Kind() != tab->Kind() || onTab->Index() != tab->Index()) {
                         args.GetReturnValue().SetFalse();
                         return;
                     }
@@ -150,7 +190,7 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
                 } else {
                     cell = {.x = convert::To<uint32_t>(isolate, args[0]), .y = convert::To<uint32_t>(isolate, args[1])};
                 }
-                args.GetReturnValue().Set(tab.Click(cell) == game::ClickResult::Dispatched);
+                args.GetReturnValue().Set(tab->Click(cell) == game::ClickResult::Dispatched);
             });
 
         /// @description Takes items off this tab. On an advanced stash tab `item` is a stack: any count goes to any
@@ -209,8 +249,12 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
                     }
                     item = *data;
                 }
-                const game::StashTab tab = *Unwrap(args.This());
-                args.GetReturnValue().Set(tab.Withdraw(item, count, target));
+                const auto tab = TabOf(args.This());
+                if (!tab) {
+                    args.GetReturnValue().SetFalse();
+                    return;
+                }
+                args.GetReturnValue().Set(tab->Withdraw(item, count, target));
             });
 
         /// @description Puts an item on this tab's stack of its kind (advanced stash tabs only), the same as
@@ -239,8 +283,12 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
                     }
                     item = *data;
                 }
-                const game::StashTab tab = *Unwrap(args.This());
-                args.GetReturnValue().Set(tab.Deposit(item));
+                const auto tab = TabOf(args.This());
+                if (!tab) {
+                    args.GetReturnValue().SetFalse();
+                    return;
+                }
+                args.GetReturnValue().Set(tab->Deposit(item));
             });
 
         /// @description Deposits carried gold into this tab. The stash panel must be open. Fire and forget like
@@ -254,8 +302,12 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
             isolate, proto, "depositGold", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 if (const auto amount = GoldAmount(args)) {
                     // MoveGold waits on the game thread, so it runs on a copy with no lock held.
-                    const game::StashTab tab = *Unwrap(args.This());
-                    args.GetReturnValue().Set(tab.MoveGold(game::GoldActionMode::Deposit, *amount));
+                    const auto tab = TabOf(args.This());
+                    if (!tab) {
+                        args.GetReturnValue().SetFalse();
+                        return;
+                    }
+                    args.GetReturnValue().Set(tab->MoveGold(game::GoldActionMode::Deposit, *amount));
                 }
             });
 
@@ -270,13 +322,27 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
             isolate, proto, "withdrawGold", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 if (const auto amount = GoldAmount(args)) {
                     // MoveGold waits on the game thread, so it runs on a copy with no lock held.
-                    const game::StashTab tab = *Unwrap(args.This());
-                    args.GetReturnValue().Set(tab.MoveGold(game::GoldActionMode::Withdraw, *amount));
+                    const auto tab = TabOf(args.This());
+                    if (!tab) {
+                        args.GetReturnValue().SetFalse();
+                        return;
+                    }
+                    args.GetReturnValue().Set(tab->MoveGold(game::GoldActionMode::Withdraw, *amount));
                 }
             });
     }
 
    private:
+    // The receiver's tab, copied out so a call that blocks runs with no lock held; nullopt for a receiver that is not a
+    // StashTab (a method lifted onto another object).
+    static std::optional<game::StashTab> TabOf(v8::Local<v8::Object> obj) {
+        const auto data = Unwrap(obj);
+        if (!data) {
+            return std::nullopt;
+        }
+        return *data;
+    }
+
     // The single amount argument of the gold moves; nullopt (with the error or warning already
     // raised) when the call cannot proceed.
     static std::optional<uint32_t> GoldAmount(const v8::FunctionCallbackInfo<v8::Value>& args) {

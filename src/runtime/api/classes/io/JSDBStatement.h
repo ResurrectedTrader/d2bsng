@@ -21,6 +21,9 @@ struct DBStatementData {
     bool isOpen = false;               // whether statement is open
     bool hasRow = false;               // whether a row is ready to read
     v8::Global<v8::Object> cachedRow;  // cached current row object
+    // The wrapper that owns this native, held weakly: empty once the GC has found it dead, before
+    // the weak callback frees this. SQLite.statements views keep it alive through a private.
+    v8::Global<v8::Object> owner;
 
     // Idempotent cleanup - finalizes statement and removes from parent
     void Finalize();

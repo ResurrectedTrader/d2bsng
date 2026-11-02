@@ -146,17 +146,17 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 return;
             }
 
-            // Wrap as real DBStatement objects (non-owning). The native DBStatementData
-            // is owned by the parent SQLiteData, not by GC. We use Wrap() without MakeWeak
-            // so GC collection of a wrapper doesn't free the native data. A SetPrivate
-            // reference from each wrapper to the parent SQLite JS object prevents the parent
-            // from being GC'd while any statement wrapper is still reachable.
+            // Wrap as real DBStatement objects over natives they do not own: each DBStatementData
+            // belongs to the wrapper query() returned and is freed with it. A SetPrivate reference
+            // from each view to that owner keeps the native alive while the view is reachable, and
+            // one to the parent SQLite JS object keeps the parent alive.
             auto array = v8::Array::New(isolate, static_cast<int32_t>(data->statements.size()));
             auto stmtTpl = JSDBStatement::GetTemplate(isolate);
             auto parentKey = v8::Private::ForApi(isolate, convert::ToJS(isolate, "d2bs::DBStatement#parentDb"));
+            auto ownerKey = v8::Private::ForApi(isolate, convert::ToJS(isolate, "d2bs::DBStatement#owner"));
             uint32_t idx = 0;
             for (auto* stmt : data->statements) {
-                if (!stmt->isOpen) {
+                if (!stmt->isOpen || stmt->owner.IsEmpty()) {
                     continue;
                 }
                 auto maybeObj = stmtTpl->InstanceTemplate()->NewInstance(context);
@@ -166,6 +166,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 auto obj = maybeObj.ToLocalChecked();
                 JSDBStatement::Wrap(obj, stmt);
                 obj->SetPrivate(context, parentKey, self).Check();
+                obj->SetPrivate(context, ownerKey, stmt->owner.Get(isolate)).Check();
                 array->Set(context, idx++, obj).Check();
             }
 
@@ -344,6 +345,8 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 data->statements.erase(stmtRaw);
                 return;
             }
+            stmtRaw->owner.Reset(isolate, stmtObj);
+            stmtRaw->owner.SetWeak();
             args.GetReturnValue().Set(stmtObj);
         });
 
