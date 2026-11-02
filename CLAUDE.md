@@ -844,14 +844,14 @@ When implementing stubs: read through `const auto u = Resolve<D2UnitStrc>();` (n
 **JS API -> Game Layer delegation:**
 ```cpp
 // Property getter pattern: the LockedHandle keeps the test and the read in one lock
-const auto data = Unwrap(info.Holder());
+const auto data = Unwrap(info.GetIsolate(), info.Holder());
 if (!data || !*data) return;
 info.GetReturnValue().Set(data->Pos().x);
 
 // Method that allocates or waits: copy out under the guard, then work outside it
 game::Unit unit;
 {
-    const auto data = Unwrap(args.This());
+    const auto data = Unwrap(args.GetIsolate(), args.This());
     if (!data || !*data) return;
     unit = *data;
 }

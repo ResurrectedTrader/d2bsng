@@ -31,7 +31,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @type {number}
         Property(
             isolate, inst, "number", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                const auto data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.GetIsolate(), info.Holder());
                 if (!data || !*data) {
                     return;
                 }
@@ -42,7 +42,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @type {number}
         Property(
             isolate, inst, "x", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                const auto data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.GetIsolate(), info.Holder());
                 if (!data || !*data) {
                     return;
                 }
@@ -55,7 +55,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @type {number}
         Property(
             isolate, inst, "y", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                const auto data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.GetIsolate(), info.Holder());
                 if (!data || !*data) {
                     return;
                 }
@@ -68,7 +68,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @type {number}
         Property(
             isolate, inst, "xsize", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                const auto data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.GetIsolate(), info.Holder());
                 if (!data || !*data) {
                     return;
                 }
@@ -79,7 +79,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @type {number}
         Property(
             isolate, inst, "ysize", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                const auto data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.GetIsolate(), info.Holder());
                 if (!data || !*data) {
                     return;
                 }
@@ -90,7 +90,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @type {number}
         Property(
             isolate, inst, "subnumber", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                const auto data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.GetIsolate(), info.Holder());
                 if (!data || !*data) {
                     return;
                 }
@@ -101,7 +101,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @type {LevelId}
         Property(
             isolate, inst, "area", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                const auto data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.GetIsolate(), info.Holder());
                 if (!data || !*data) {
                     info.GetReturnValue().Set(0);
                     return;
@@ -114,7 +114,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @type {LevelId}
         Property(
             isolate, inst, "level", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                const auto data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.GetIsolate(), info.Holder());
                 if (!data || !*data) {
                     info.GetReturnValue().Set(0);
                     return;
@@ -126,7 +126,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @type {LevelId}
         Property(
             isolate, inst, "correcttomb", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                const auto data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.GetIsolate(), info.Holder());
                 if (!data || !*data) {
                     info.GetReturnValue().Set(0);
                     return;
@@ -140,7 +140,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
         /// @returns {boolean} - true if advanced; false at end of chain or when unresolved.
         Method(
             isolate, proto, "getNext", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                const auto data = Unwrap(args.This());
+                const auto data = Unwrap(args.GetIsolate(), args.This());
                 if (!data || !*data) {
                     args.GetReturnValue().SetFalse();
                     return;
@@ -171,7 +171,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 // Reveal waits on the game thread, so the room is copied out rather than revealed under the lock.
                 game::Room room;
                 {
-                    const auto data = Unwrap(args.This());
+                    const auto data = Unwrap(args.GetIsolate(), args.This());
                     if (!data || !*data) {
                         return;
                     }
@@ -208,7 +208,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
 
                 std::vector<game::PresetUnitInfo> presets;
                 {
-                    const auto data = Unwrap(args.This());
+                    const auto data = Unwrap(args.GetIsolate(), args.This());
                     if (!data || !*data) {
                         return;  // Returns undefined - reference returns undefined when room is null
                     }
@@ -241,7 +241,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 auto context = isolate->GetCurrentContext();
                 std::vector<std::vector<game::CollisionFlag>> collision;
                 {
-                    const auto data = Unwrap(args.This());
+                    const auto data = Unwrap(args.GetIsolate(), args.This());
                     if (!data || !*data) {
                         return;  // Returns undefined - reference returns undefined when room is null
                     }
@@ -275,7 +275,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 }
                 std::vector<game::CollisionFlag> flat;
                 {
-                    const auto data = Unwrap(args.This());
+                    const auto data = Unwrap(args.GetIsolate(), args.This());
                     if (!data || !*data) {
                         return;  // Returns undefined - reference returns undefined when room is null
                     }
@@ -300,7 +300,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 auto context = isolate->GetCurrentContext();
                 std::vector<game::Room> nearby;
                 {
-                    const auto data = Unwrap(args.This());
+                    const auto data = Unwrap(args.GetIsolate(), args.This());
                     if (data && *data) {
                         nearby = data->GetNearby();
                     }
@@ -338,7 +338,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 if (args.Length() < 1 || !args[0]->IsNumber()) {
                     return;
                 }
-                const auto data = Unwrap(args.This());
+                const auto data = Unwrap(args.GetIsolate(), args.This());
                 if (!data || !*data) {
                     return;
                 }
@@ -356,7 +356,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 auto context = isolate->GetCurrentContext();
                 game::Room first;
                 {
-                    const auto data = Unwrap(args.This());
+                    const auto data = Unwrap(args.GetIsolate(), args.This());
                     if (!data || !*data) {
                         return;
                     }
@@ -381,17 +381,17 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 if (args.Length() < 1 || !args[0]->IsObject()) {
                     return;  // Returns undefined, matching reference early-return
                 }
-                const auto data = Unwrap(args.This());
+                const auto data = Unwrap(args.GetIsolate(), args.This());
                 if (!data || !*data) {
                     return;  // undefined, matching reference
                 }
 
                 // Extract game::Unit* from the passed Unit JS object
                 auto unitObj = args[0].As<v8::Object>();
-                if (!JSUnit::IsInstance(unitObj)) {
+                if (!JSUnit::IsInstance(args.GetIsolate(), unitObj)) {
                     return;  // undefined, matching reference
                 }
-                const auto unitData = JSUnit::Unwrap(unitObj);
+                const auto unitData = JSUnit::Unwrap(args.GetIsolate(), unitObj);
                 if (!unitData || !*unitData) {
                     return;  // undefined, matching reference
                 }

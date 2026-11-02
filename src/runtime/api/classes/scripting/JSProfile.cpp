@@ -168,7 +168,7 @@ void JSProfile::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
         isolate, inst, "type", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
             auto* isolate = info.GetIsolate();
             auto self = info.Holder();
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data) {
                 return;
             }
@@ -180,7 +180,7 @@ void JSProfile::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
         isolate, inst, "ip", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
             auto* isolate = info.GetIsolate();
             auto self = info.Holder();
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data) {
                 return;
             }
@@ -192,7 +192,7 @@ void JSProfile::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
         isolate, inst, "username", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
             auto* isolate = info.GetIsolate();
             auto self = info.Holder();
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data) {
                 return;
             }
@@ -204,7 +204,7 @@ void JSProfile::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
         isolate, inst, "gateway", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
             auto* isolate = info.GetIsolate();
             auto self = info.Holder();
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data) {
                 return;
             }
@@ -216,7 +216,7 @@ void JSProfile::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
         isolate, inst, "character", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
             auto* isolate = info.GetIsolate();
             auto self = info.Holder();
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data) {
                 return;
             }
@@ -229,7 +229,7 @@ void JSProfile::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
         +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
             auto* isolate = info.GetIsolate();
             auto self = info.Holder();
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data) {
                 return;
             }
@@ -242,7 +242,7 @@ void JSProfile::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
         +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
             auto* isolate = info.GetIsolate();
             auto self = info.Holder();
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data) {
                 return;
             }
@@ -256,7 +256,7 @@ void JSProfile::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
         +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
             auto* isolate = info.GetIsolate();
             auto self = info.Holder();
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data) {
                 return;
             }
@@ -271,7 +271,7 @@ void JSProfile::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTe
     Method(
         isolate, proto, "login", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            auto data = Unwrap(args.This());
+            auto data = Unwrap(args.GetIsolate(), args.This());
             if (!data) {
                 error::ThrowError(isolate, "Invalid profile object");
                 return;

@@ -35,7 +35,7 @@ class JSControl : public ClassBase<JSControl, game::Control> {
     // setters (PropertyCallbackInfo<Boolean>).
     template <typename InfoT>
     static LockedHandle<game::Control> MenuOnly(const InfoT& info) {
-        auto data = Unwrap(info.Holder());
+        auto data = Unwrap(info.GetIsolate(), info.Holder());
         if (game::GetGameState() != game::GameState::Menu || !data || !*data) {
             return LockedHandle<game::Control>(nullptr);
         }
@@ -254,7 +254,7 @@ class JSControl : public ClassBase<JSControl, game::Control> {
         /// handle is stale
         Method(
             isolate, proto, "getNext", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                const auto data = Unwrap(args.This());
+                const auto data = Unwrap(args.GetIsolate(), args.This());
                 if (game::GetGameState() != game::GameState::Menu) {
                     return;
                 }
@@ -281,7 +281,7 @@ class JSControl : public ClassBase<JSControl, game::Control> {
                 // Click waits on the game thread, so it runs on a copy after the lock is dropped.
                 game::Control control;
                 {
-                    const auto data = Unwrap(args.This());
+                    const auto data = Unwrap(args.GetIsolate(), args.This());
                     if (game::GetGameState() != game::GameState::Menu) {
                         return;
                     }
@@ -315,7 +315,7 @@ class JSControl : public ClassBase<JSControl, game::Control> {
                 // SetText waits on the game thread, so it runs on a copy after the lock is dropped.
                 game::Control control;
                 {
-                    const auto data = Unwrap(args.This());
+                    const auto data = Unwrap(args.GetIsolate(), args.This());
                     if (game::GetGameState() != game::GameState::Menu) {
                         return;
                     }
@@ -339,7 +339,7 @@ class JSControl : public ClassBase<JSControl, game::Control> {
                 // TextLines can wait on the game thread, so it is read from a copy after the lock is dropped.
                 game::Control control;
                 {
-                    const auto data = Unwrap(args.This());
+                    const auto data = Unwrap(args.GetIsolate(), args.This());
                     if (game::GetGameState() != game::GameState::Menu) {
                         return;
                     }

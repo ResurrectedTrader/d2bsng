@@ -14,9 +14,9 @@ static std::shared_ptr<script::Script> GetScriptFromHandle(ScriptHandle* handle)
 template <typename InfoT>
 static std::shared_ptr<script::Script> GetScript(const InfoT& info) {
     if constexpr (std::is_same_v<InfoT, v8::FunctionCallbackInfo<v8::Value>>) {
-        return GetScriptFromHandle(JSScript::Unwrap(info.This()));
+        return GetScriptFromHandle(JSScript::Unwrap(info.GetIsolate(), info.This()));
     } else {
-        return GetScriptFromHandle(JSScript::Unwrap(info.Holder()));
+        return GetScriptFromHandle(JSScript::Unwrap(info.GetIsolate(), info.Holder()));
     }
 }
 
@@ -70,7 +70,7 @@ void JSScript::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
     /// @type {number}
     Property(
         isolate, inst, "memory", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            auto* handle = Unwrap(info.Holder());
+            auto* handle = Unwrap(info.GetIsolate(), info.Holder());
             auto script = GetScriptFromHandle(handle);
             if (!script) {
                 return;
@@ -93,7 +93,7 @@ void JSScript::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
     /// @returns {boolean|undefined} - true if advanced; undefined when no further script exists.
     Method(
         isolate, proto, "getNext", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* handle = Unwrap(args.This());
+            auto* handle = Unwrap(args.GetIsolate(), args.This());
             if (!handle) {
                 return;
             }

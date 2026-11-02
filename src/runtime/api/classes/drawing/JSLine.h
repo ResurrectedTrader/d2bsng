@@ -69,13 +69,13 @@ class JSLine : public JSDrawableBase<JSLine, LineDrawable> {
         Property(
             isolate, inst, "x2",
             +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Unwrap(info.Holder());
+                auto* drawable = Unwrap(info.GetIsolate(), info.Holder());
                 if (!drawable)
                     return;
                 info.GetReturnValue().Set(drawable->p2.load().x);
             },
             +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Unwrap(info.Holder());
+                auto* drawable = Unwrap(info.GetIsolate(), info.Holder());
                 if (!drawable)
                     return;
                 if (!value->IsNumber())
@@ -90,13 +90,13 @@ class JSLine : public JSDrawableBase<JSLine, LineDrawable> {
         Property(
             isolate, inst, "y2",
             +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Unwrap(info.Holder());
+                auto* drawable = Unwrap(info.GetIsolate(), info.Holder());
                 if (!drawable)
                     return;
                 info.GetReturnValue().Set(drawable->p2.load().y);
             },
             +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Unwrap(info.Holder());
+                auto* drawable = Unwrap(info.GetIsolate(), info.Holder());
                 if (!drawable)
                     return;
                 if (!value->IsNumber())
@@ -111,13 +111,13 @@ class JSLine : public JSDrawableBase<JSLine, LineDrawable> {
         Property(
             isolate, inst, "color",
             +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Unwrap(info.Holder());
+                auto* drawable = Unwrap(info.GetIsolate(), info.Holder());
                 if (!drawable)
                     return;
                 info.GetReturnValue().Set(drawable->color.load());
             },
             +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Unwrap(info.Holder());
+                auto* drawable = Unwrap(info.GetIsolate(), info.Holder());
                 if (!drawable)
                     return;
                 if (!value->IsNumber())

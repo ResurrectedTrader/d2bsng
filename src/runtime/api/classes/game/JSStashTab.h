@@ -33,7 +33,7 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
         /// @type {StashTabKind}
         Property(
             isolate, inst, "kind", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                const auto data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.GetIsolate(), info.Holder());
                 if (!data) {
                     return;
                 }
@@ -44,7 +44,7 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
         /// @type {number}
         Property(
             isolate, inst, "index", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                const auto data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.GetIsolate(), info.Holder());
                 if (!data) {
                     return;
                 }
@@ -55,7 +55,7 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
         /// @type {StashTabType}
         Property(
             isolate, inst, "type", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                const auto data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.GetIsolate(), info.Holder());
                 if (!data) {
                     return;
                 }
@@ -67,7 +67,7 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
         /// @type {boolean}
         Property(
             isolate, inst, "removeOnly", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                const auto data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.GetIsolate(), info.Holder());
                 if (!data) {
                     return;
                 }
@@ -78,7 +78,7 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
         /// @type {number}
         Property(
             isolate, inst, "season", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                const auto data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.GetIsolate(), info.Holder());
                 if (!data) {
                     return;
                 }
@@ -89,7 +89,7 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
         /// @type {string}
         Property(
             isolate, inst, "name", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                const auto data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.GetIsolate(), info.Holder());
                 if (!data) {
                     return;
                 }
@@ -101,7 +101,7 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
         /// @type {number}
         Property(
             isolate, inst, "gold", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                const auto data = Unwrap(info.Holder());
+                const auto data = Unwrap(info.GetIsolate(), info.Holder());
                 if (!data) {
                     return;
                 }
@@ -117,7 +117,7 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
                 auto context = isolate->GetCurrentContext();
                 std::vector<game::Unit> items;
                 {
-                    const auto data = Unwrap(info.Holder());
+                    const auto data = Unwrap(info.GetIsolate(), info.Holder());
                     if (!data) {
                         return;
                     }
@@ -155,7 +155,7 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
         Method(
             isolate, proto, "click", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
-                const bool byItem = args.Length() >= 1 && JSUnit::IsInstance(args[0]);
+                const bool byItem = args.Length() >= 1 && JSUnit::IsInstance(isolate, args[0]);
                 if (!byItem && (args.Length() < 2 || !args[0]->IsNumber() || !args[1]->IsNumber())) {
                     error::ThrowTypeError(isolate, "StashTab.click expects (x, y) or an item");
                     return;
@@ -165,7 +165,7 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
                     return;
                 }
                 // Click can block while the tab is brought in, so it runs on a copy with no lock held.
-                const auto tab = TabOf(args.This());
+                const auto tab = TabOf(args.GetIsolate(), args.This());
                 if (!tab) {
                     args.GetReturnValue().SetFalse();
                     return;
@@ -174,7 +174,7 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
                 if (byItem) {
                     game::Unit item;
                     {
-                        const auto data = JSUnit::Unwrap(args[0].As<v8::Object>());
+                        const auto data = JSUnit::Unwrap(isolate, args[0].As<v8::Object>());
                         if (!data || !*data) {
                             args.GetReturnValue().SetFalse();
                             return;
@@ -208,7 +208,7 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
         Method(
             isolate, proto, "withdraw", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
-                if (args.Length() < 1 || !JSUnit::IsInstance(args[0])) {
+                if (args.Length() < 1 || !JSUnit::IsInstance(isolate, args[0])) {
                     error::ThrowTypeError(isolate, "StashTab.withdraw expects an item");
                     return;
                 }
@@ -242,14 +242,14 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
                 }
                 game::Unit item;
                 {
-                    const auto data = JSUnit::Unwrap(args[0].As<v8::Object>());
+                    const auto data = JSUnit::Unwrap(isolate, args[0].As<v8::Object>());
                     if (!data || !*data) {
                         args.GetReturnValue().SetFalse();
                         return;
                     }
                     item = *data;
                 }
-                const auto tab = TabOf(args.This());
+                const auto tab = TabOf(args.GetIsolate(), args.This());
                 if (!tab) {
                     args.GetReturnValue().SetFalse();
                     return;
@@ -266,7 +266,7 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
         /// does not stack or you do not hold, a closed stash panel, or not being in a game
         Method(
             isolate, proto, "deposit", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-                if (args.Length() < 1 || !JSUnit::IsInstance(args[0])) {
+                if (args.Length() < 1 || !JSUnit::IsInstance(args.GetIsolate(), args[0])) {
                     error::ThrowTypeError(args.GetIsolate(), "StashTab.deposit expects an item");
                     return;
                 }
@@ -276,14 +276,14 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
                 }
                 game::Unit item;
                 {
-                    const auto data = JSUnit::Unwrap(args[0].As<v8::Object>());
+                    const auto data = JSUnit::Unwrap(args.GetIsolate(), args[0].As<v8::Object>());
                     if (!data || !*data) {
                         args.GetReturnValue().SetFalse();
                         return;
                     }
                     item = *data;
                 }
-                const auto tab = TabOf(args.This());
+                const auto tab = TabOf(args.GetIsolate(), args.This());
                 if (!tab) {
                     args.GetReturnValue().SetFalse();
                     return;
@@ -302,7 +302,7 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
             isolate, proto, "depositGold", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 if (const auto amount = GoldAmount(args)) {
                     // MoveGold waits on the game thread, so it runs on a copy with no lock held.
-                    const auto tab = TabOf(args.This());
+                    const auto tab = TabOf(args.GetIsolate(), args.This());
                     if (!tab) {
                         args.GetReturnValue().SetFalse();
                         return;
@@ -322,7 +322,7 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
             isolate, proto, "withdrawGold", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 if (const auto amount = GoldAmount(args)) {
                     // MoveGold waits on the game thread, so it runs on a copy with no lock held.
-                    const auto tab = TabOf(args.This());
+                    const auto tab = TabOf(args.GetIsolate(), args.This());
                     if (!tab) {
                         args.GetReturnValue().SetFalse();
                         return;
@@ -335,8 +335,8 @@ class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
    private:
     // The receiver's tab, copied out so a call that blocks runs with no lock held; nullopt for a receiver that is not a
     // StashTab (a method lifted onto another object).
-    static std::optional<game::StashTab> TabOf(v8::Local<v8::Object> obj) {
-        const auto data = Unwrap(obj);
+    static std::optional<game::StashTab> TabOf(v8::Isolate* isolate, v8::Local<v8::Object> obj) {
+        const auto data = Unwrap(isolate, obj);
         if (!data) {
             return std::nullopt;
         }

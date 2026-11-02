@@ -73,13 +73,13 @@ class JSFrame : public JSDrawableBase<JSFrame, FrameDrawable> {
         Property(
             isolate, inst, "xsize",
             +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Unwrap(info.Holder());
+                auto* drawable = Unwrap(info.GetIsolate(), info.Holder());
                 if (!drawable)
                     return;
                 info.GetReturnValue().Set(drawable->size.load().width);
             },
             +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Unwrap(info.Holder());
+                auto* drawable = Unwrap(info.GetIsolate(), info.Holder());
                 if (!drawable)
                     return;
                 if (!value->IsNumber())
@@ -96,13 +96,13 @@ class JSFrame : public JSDrawableBase<JSFrame, FrameDrawable> {
         Property(
             isolate, inst, "ysize",
             +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Unwrap(info.Holder());
+                auto* drawable = Unwrap(info.GetIsolate(), info.Holder());
                 if (!drawable)
                     return;
                 info.GetReturnValue().Set(drawable->size.load().height);
             },
             +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Unwrap(info.Holder());
+                auto* drawable = Unwrap(info.GetIsolate(), info.Holder());
                 if (!drawable)
                     return;
                 if (!value->IsNumber())
