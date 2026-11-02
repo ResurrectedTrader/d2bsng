@@ -59,6 +59,13 @@ class GameReadLock {
     // that released the write lock). Every game pointer this thread resolved before
     // the count moved may since have been freed or relinked by the game thread.
     static uint64_t ReleaseEpoch() { return releaseEpoch_; }
+
+    // Drops a lock this thread kept past its last level (host::RetainReadLock); a no-op while a level is held.
+    static void DropRetained() {
+        if (host::RetainReadLock() && depth_ == 0 && lock_.owns_lock()) {
+            lock_.unlock();
+        }
+    }
 };
 
 // Exclusive (write) lock for the game thread.
@@ -208,8 +215,8 @@ class GameReadLockReleaser {
             GameReadLock::depth_ = 0;
             GameReadLock::lock_.unlock();
             ++GameReadLock::releaseEpoch_;
-        } else if (host::RetainReadLock() && GameReadLock::lock_.owns_lock()) {
-            GameReadLock::lock_.unlock();
+        } else {
+            GameReadLock::DropRetained();
         }
     }
 
