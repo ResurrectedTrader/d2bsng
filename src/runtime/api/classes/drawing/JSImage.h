@@ -72,13 +72,13 @@ class JSImage : public JSDrawableBase<JSImage, ImageDrawable> {
         Property(
             isolate, inst, "location",
             +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* drawable = Unwrap(info.Holder());
+                auto* drawable = Unwrap(info.GetIsolate(), info.Holder());
                 if (!drawable)
                     return;
                 info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), drawable->GetPath()));
             },
             +[](v8::Local<v8::Name>, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
-                auto* drawable = Unwrap(info.Holder());
+                auto* drawable = Unwrap(info.GetIsolate(), info.Holder());
                 if (!drawable)
                     return;
                 if (!value->IsString())

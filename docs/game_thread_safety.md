@@ -110,7 +110,7 @@ So for the game handle natives - `game::Unit`, `Room`, `Level`, `Party`, `Contro
 
 ```cpp
 Property(isolate, inst, "hp", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-    const auto data = Unwrap(info.Holder());  // lock taken here ...
+    const auto data = Unwrap(info.GetIsolate(), info.Holder());  // lock taken here ...
     if (!data || !*data) {
         return;                               // undefined: the unit is gone
     }
@@ -130,7 +130,7 @@ Method(isolate, proto, "getItems", +[](const v8::FunctionCallbackInfo<v8::Value>
     // WaitForGameReady first: it sleeps and must not hold the lock.
     std::vector<game::Unit> items;
     {
-        const auto data = Unwrap(args.This());
+        const auto data = Unwrap(args.GetIsolate(), args.This());
         if (!data || !*data) {
             return;
         }
@@ -142,7 +142,7 @@ Method(isolate, proto, "getItems", +[](const v8::FunctionCallbackInfo<v8::Value>
 Method(isolate, proto, "move", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
     game::Unit unit;
     {
-        const auto data = Unwrap(args.This());
+        const auto data = Unwrap(args.GetIsolate(), args.This());
         if (!data || !*data) {
             return;
         }
@@ -152,9 +152,9 @@ Method(isolate, proto, "move", +[](const v8::FunctionCallbackInfo<v8::Value>& ar
 });
 ```
 
-`const game::StashTab tab = *Unwrap(args.This());` is the one-line form of that copy: the temporary guard ends with the statement.
+`const game::StashTab tab = *Unwrap(args.GetIsolate(), args.This());` is the one-line form of that copy: the temporary guard ends with the statement.
 
-The same guard covers a handle taken from an argument after `IsInstance` (`clickItem(unit)`, `getDistance(unit)`, `room.unitInRoom(unit)`): `const auto unitData = JSUnit::Unwrap(obj); if (!unitData || !*unitData) ...`. Two guards at once (`checkCollision`) are two re-entries of the same lock.
+The same guard covers a handle taken from an argument after `IsInstance` (`clickItem(unit)`, `getDistance(unit)`, `room.unitInRoom(unit)`): `const auto unitData = JSUnit::Unwrap(isolate, obj); if (!unitData || !*unitData) ...`. Two guards at once (`checkCollision`) are two re-entries of the same lock.
 
 One exception to "one game state per guard": the first resolve of a room or level the game has not built yet runs the level's init on the game thread, and hands the lock back while it does. The reads after it can then see a later frame than the ones before it. That is safe, because a guard holds identity handles, not raw pointers - every read re-resolves - but a binding cannot rely on its reads agreeing across such a resolve.
 

@@ -94,7 +94,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
             +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 auto* isolate = info.GetIsolate();
                 auto self = info.Holder();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (!data) {
                     info.GetReturnValue().Set(convert::ToJS(isolate, false));
@@ -112,7 +112,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
             +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 auto* isolate = info.GetIsolate();
                 auto self = info.Holder();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (!data) {
                     info.GetReturnValue().Set(convert::ToJS(isolate, false));
@@ -131,7 +131,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
             +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 auto* isolate = info.GetIsolate();
                 auto self = info.Holder();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (!data) {
                     info.GetReturnValue().Set(convert::ToJS(isolate, false));
@@ -148,7 +148,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
             isolate, inst, "mode", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 auto* isolate = info.GetIsolate();
                 auto self = info.Holder();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (!data) {
                     info.GetReturnValue().Set(convert::ToJS(isolate, 0));
@@ -166,7 +166,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
             +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 auto* isolate = info.GetIsolate();
                 auto self = info.Holder();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (!data) {
                     info.GetReturnValue().Set(convert::ToJS(isolate, false));
@@ -183,7 +183,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
             +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 auto* isolate = info.GetIsolate();
                 auto self = info.Holder();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (!data || !data->handle) {
                     info.GetReturnValue().Set(convert::ToJS(isolate, 0));
@@ -200,7 +200,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
             isolate, inst, "path", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 auto* isolate = info.GetIsolate();
                 auto self = info.Holder();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (!data) {
                     info.GetReturnValue().SetEmptyString();
@@ -216,7 +216,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
             +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 auto* isolate = info.GetIsolate();
                 auto self = info.Holder();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (!data || !data->handle) {
                     info.GetReturnValue().Set(convert::ToJS(isolate, 0));
@@ -232,7 +232,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
             isolate, inst, "eof", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 auto* isolate = info.GetIsolate();
                 auto self = info.Holder();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (!data || !data->handle) {
                     info.GetReturnValue().Set(convert::ToJS(isolate, true));
@@ -248,7 +248,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
             +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 auto* isolate = info.GetIsolate();
                 auto self = info.Holder();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (!data || !data->handle) {
                     info.GetReturnValue().Set(convert::ToJS(isolate, 0.0));
@@ -266,7 +266,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
             +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 auto* isolate = info.GetIsolate();
                 auto self = info.Holder();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (!data || !data->handle) {
                     info.GetReturnValue().Set(convert::ToJS(isolate, 0.0));
@@ -284,7 +284,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
             +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 auto* isolate = info.GetIsolate();
                 auto self = info.Holder();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (!data || !data->handle) {
                     info.GetReturnValue().Set(convert::ToJS(isolate, 0.0));
@@ -303,7 +303,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
             +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 auto* isolate = info.GetIsolate();
                 auto self = info.Holder();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (!data) {
                     info.GetReturnValue().Set(convert::ToJS(isolate, false));
@@ -316,7 +316,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
                 const v8::PropertyCallbackInfo<v8::Boolean>& info) {
                 auto* isolate = info.GetIsolate();
                 auto self = info.Holder();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (data) {
                     data->autoflush = value->BooleanValue(isolate);
@@ -332,7 +332,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
             isolate, proto, "close", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
                 auto self = args.This();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (!data) {
                     error::ThrowError(isolate, "Couldn't get file object");
@@ -367,7 +367,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
             isolate, proto, "reopen", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
                 auto self = args.This();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (!data) {
                     error::ThrowError(isolate, "Couldn't get file object");
@@ -409,7 +409,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
                 auto* isolate = args.GetIsolate();
                 auto context = isolate->GetCurrentContext();
                 auto self = args.This();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (!data || !data->handle) {
                     return;  // Return undefined
@@ -478,7 +478,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
             isolate, proto, "readLine", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
                 auto self = args.This();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (!data || !data->handle) {
                     return;  // Return undefined
@@ -513,7 +513,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
                 auto* isolate = args.GetIsolate();
                 auto context = isolate->GetCurrentContext();
                 auto self = args.This();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (!data || !data->handle) {
                     return;  // Return undefined
@@ -563,7 +563,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
             isolate, proto, "readAll", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
                 auto self = args.This();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (!data || !data->handle) {
                     return;  // Return undefined
@@ -607,7 +607,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
             isolate, proto, "write", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
                 auto self = args.This();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 // Reference silently returns this when file is not open
                 if (data && data->handle) {
@@ -645,7 +645,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
             isolate, proto, "seek", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
                 auto self = args.This();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (!data || !data->handle) {
                     error::ThrowError(isolate, "File is not open");
@@ -686,7 +686,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
         Method(
             isolate, proto, "flush", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto self = args.This();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(args.GetIsolate(), self);
 
                 if (data && data->handle) {
                     fflush(data->handle);
@@ -702,7 +702,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
             isolate, proto, "reset", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
                 auto self = args.This();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (data && data->handle) {
                     if (fseek(data->handle, 0L, SEEK_SET) != 0) {
@@ -721,7 +721,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
             isolate, proto, "end", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
                 auto self = args.This();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (data && data->handle) {
                     if (fseek(data->handle, 0L, SEEK_END) != 0) {

@@ -63,7 +63,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
             auto* isolate = info.GetIsolate();
             auto self = info.Holder();
 
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data || !data->handle) {
                 return;
             }
@@ -84,7 +84,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
             auto* isolate = info.GetIsolate();
             auto self = info.Holder();
 
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data) {
                 info.GetReturnValue().SetFalse();
                 return;
@@ -106,7 +106,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
 
             args.GetReturnValue().SetNull();
 
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data) {
                 return;
             }
@@ -171,7 +171,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
             auto* isolate = args.GetIsolate();
             auto self = args.This();
 
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data || !data->hasRow) {
                 error::ThrowError(isolate, "Statement is not ready");
                 return;
@@ -200,7 +200,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
                 return;
             }
 
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data || !data->hasRow) {
                 error::ThrowError(isolate, "Statement is not ready");
                 return;
@@ -237,7 +237,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
                 return;
             }
 
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data || !data->hasRow) {
                 error::ThrowError(isolate, "Statement is not ready");
                 return;
@@ -281,7 +281,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
             auto* isolate = args.GetIsolate();
             auto self = args.This();
 
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data || !data->handle) {
                 error::ThrowError(isolate, "Invalid or finalized statement object");
                 return;
@@ -313,7 +313,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
             auto* isolate = args.GetIsolate();
             auto self = args.This();
 
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data || !data->handle) {
                 error::ThrowError(isolate, "Invalid or finalized statement object");
                 return;
@@ -357,7 +357,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
                 return;
             }
 
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data || !data->handle) {
                 error::ThrowError(isolate, "Invalid or finalized statement object");
                 return;
@@ -399,7 +399,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
             auto* isolate = args.GetIsolate();
             auto self = args.This();
 
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data || !data->handle) {
                 error::ThrowError(isolate, "Invalid or finalized statement object");
                 return;
@@ -425,7 +425,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
     /// @returns {boolean} - Always true.
     Method(
         isolate, proto, "close", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto data = Unwrap(args.This());
+            auto data = Unwrap(args.GetIsolate(), args.This());
             if (!data) {
                 return;
             }
@@ -458,7 +458,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
                 return;
             }
 
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data || !data->handle) {
                 error::ThrowError(isolate, "Invalid statement object");
                 return;

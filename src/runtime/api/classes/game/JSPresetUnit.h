@@ -25,7 +25,7 @@ class JSPresetUnit : public ClassBase<JSPresetUnit, game::PresetUnitInfo> {
         /// @type {UnitType}
         Property(
             isolate, inst, "type", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+                auto* data = Unwrap(info.GetIsolate(), info.Holder());
                 info.GetReturnValue().Set(std::to_underlying(data->type));
             });
 
@@ -33,7 +33,7 @@ class JSPresetUnit : public ClassBase<JSPresetUnit, game::PresetUnitInfo> {
         /// @type {number}
         Property(
             isolate, inst, "roomx", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+                auto* data = Unwrap(info.GetIsolate(), info.Holder());
                 info.GetReturnValue().Set(data->roomPos.x);
             });
 
@@ -41,7 +41,7 @@ class JSPresetUnit : public ClassBase<JSPresetUnit, game::PresetUnitInfo> {
         /// @type {number}
         Property(
             isolate, inst, "roomy", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+                auto* data = Unwrap(info.GetIsolate(), info.Holder());
                 info.GetReturnValue().Set(data->roomPos.y);
             });
 
@@ -49,7 +49,7 @@ class JSPresetUnit : public ClassBase<JSPresetUnit, game::PresetUnitInfo> {
         /// @type {number}
         Property(
             isolate, inst, "x", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+                auto* data = Unwrap(info.GetIsolate(), info.Holder());
                 info.GetReturnValue().Set(data->posInRoom.x);
             });
 
@@ -57,7 +57,7 @@ class JSPresetUnit : public ClassBase<JSPresetUnit, game::PresetUnitInfo> {
         /// @type {number}
         Property(
             isolate, inst, "y", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+                auto* data = Unwrap(info.GetIsolate(), info.Holder());
                 info.GetReturnValue().Set(data->posInRoom.y);
             });
 
@@ -65,7 +65,7 @@ class JSPresetUnit : public ClassBase<JSPresetUnit, game::PresetUnitInfo> {
         /// @type {number}
         Property(
             isolate, inst, "id", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+                auto* data = Unwrap(info.GetIsolate(), info.Holder());
                 info.GetReturnValue().Set(data->id);
             });
 
@@ -73,7 +73,7 @@ class JSPresetUnit : public ClassBase<JSPresetUnit, game::PresetUnitInfo> {
         /// @type {LevelId}
         Property(
             isolate, inst, "level", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-                auto* data = Unwrap(info.Holder());
+                auto* data = Unwrap(info.GetIsolate(), info.Holder());
                 info.GetReturnValue().Set(std::to_underlying(data->level));
             });
     }

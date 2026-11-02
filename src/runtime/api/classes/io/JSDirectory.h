@@ -45,7 +45,7 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
             isolate, inst, "name", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 auto* isolate = info.GetIsolate();
                 auto self = info.Holder();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (!data) {
                     info.GetReturnValue().SetEmptyString();
@@ -67,7 +67,7 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
                 auto* isolate = args.GetIsolate();
                 auto context = isolate->GetCurrentContext();
                 auto self = args.This();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (!data) {
                     error::ThrowError(isolate, "Invalid directory object");
@@ -124,7 +124,7 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
             isolate, proto, "remove", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
                 auto self = args.This();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (!data) {
                     error::ThrowError(isolate, "Invalid directory object");
@@ -167,7 +167,7 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
                 auto* isolate = args.GetIsolate();
                 auto context = isolate->GetCurrentContext();
                 auto self = args.This();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (!data) {
                     args.GetReturnValue().Set(v8::Array::New(isolate, 0));
@@ -208,7 +208,7 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
                 auto* isolate = args.GetIsolate();
                 auto context = isolate->GetCurrentContext();
                 auto self = args.This();
-                auto* data = Unwrap(self);
+                auto* data = Unwrap(isolate, self);
 
                 if (!data) {
                     args.GetReturnValue().Set(v8::Array::New(isolate, 0));

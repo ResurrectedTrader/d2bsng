@@ -125,7 +125,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             auto* isolate = info.GetIsolate();
             auto self = info.Holder();
 
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data) {
                 return;
             }
@@ -142,7 +142,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             auto self = info.Holder();
             auto context = isolate->GetCurrentContext();
 
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data) {
                 info.GetReturnValue().Set(v8::Array::New(isolate, 0));
                 return;
@@ -172,7 +172,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                     continue;
                 }
                 auto obj = maybeObj.ToLocalChecked();
-                JSDBStatement::Borrow(isolate, obj, JSDBStatement::Unwrap(owner));
+                JSDBStatement::Borrow(isolate, obj, JSDBStatement::Unwrap(isolate, owner));
                 obj->SetPrivate(context, ownerKey, owner).Check();
                 array->Set(context, idx++, obj).Check();
             }
@@ -187,7 +187,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             auto* isolate = info.GetIsolate();
             auto self = info.Holder();
 
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data) {
                 info.GetReturnValue().SetFalse();
                 return;
@@ -203,7 +203,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             auto* isolate = info.GetIsolate();
             auto self = info.Holder();
 
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data || !data->handle) {
                 info.GetReturnValue().Set(0);
                 return;
@@ -220,7 +220,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             auto* isolate = info.GetIsolate();
             auto self = info.Holder();
 
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data || !data->handle) {
                 info.GetReturnValue().Set(0);
                 return;
@@ -250,7 +250,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 return;
             }
 
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data) {
                 error::ThrowError(isolate, "Invalid SQLite object");
                 return;
@@ -298,7 +298,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 return;
             }
 
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data) {
                 error::ThrowError(isolate, "Invalid SQLite object");
                 return;
@@ -340,7 +340,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 sqlite3_finalize(stmtHandle);
                 return;
             }
-            auto* stmt = JSDBStatement::Unwrap(stmtObj);
+            auto* stmt = JSDBStatement::Unwrap(isolate, stmtObj);
             stmt->owner.Reset(isolate, stmtObj);
             stmt->parentObject.Reset(isolate, self);
             args.GetReturnValue().Set(stmtObj);
@@ -355,7 +355,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             auto* isolate = args.GetIsolate();
             auto self = args.This();
 
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data) {
                 error::ThrowError(isolate, "Invalid SQLite object");
                 return;
@@ -386,7 +386,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             auto* isolate = args.GetIsolate();
             auto self = args.This();
 
-            auto data = Unwrap(self);
+            auto data = Unwrap(isolate, self);
             if (!data) {
                 error::ThrowError(isolate, "Invalid SQLite object");
                 return;
