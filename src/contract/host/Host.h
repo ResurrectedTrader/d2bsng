@@ -76,9 +76,9 @@ void WaitForTask(const std::atomic<TaskState>& state);
 // True: the calling thread keeps the game read lock when its last GameReadLock ends, until its next
 // GameReadLockReleaser, so the read locks between two waits cost a counter instead of the shared mutex. For a host
 // that runs the scripts one at a time with the game thread parked meanwhile: it answers true on the script threads
-// and puts a GameReadLockReleaser around every hand-off of its own (ScriptWait, WaitForTask, JoinScriptThread, its
-// wait detours) - GameThread::Execute, PollUntil and the other releasers already drop the lock. A thread's answer may
-// only change while it holds no retained lock. In process: false, as scripts run beside the game thread.
+// and calls game::GameReadLock::DropRetained() at every hand-off of its own (ScriptWait, WaitForTask, JoinScriptThread,
+// its wait detours) - GameThread::Execute, PollUntil and the other releasers already drop the lock. A thread's answer
+// may only change while it holds no retained lock. In process: false, as scripts run beside the game thread.
 [[nodiscard]] bool RetainReadLock();
 
 }  // namespace d2bs::host
