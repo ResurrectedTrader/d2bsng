@@ -33,8 +33,8 @@ struct DBStatementData {
     DBStatementData(DBStatementData&&) = delete;
     DBStatementData& operator=(DBStatementData&&) = delete;
 
-    // Idempotent cleanup - finalizes statement and removes from parent. Runs from destructors too, so it leaves
-    // cachedRow to the GC rather than touching V8.
+    // Idempotent cleanup - finalizes statement and removes from parent. Runs from the destructor and PreFinalize too,
+    // so it touches no V8 value; the GC reclaims cachedRow.
     void Finalize();
     // Finalize from a binding: also lets go of the cached row and the database, which a finalized statement no
     // longer reads.
