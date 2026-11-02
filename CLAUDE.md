@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 d2bsng (D2 Botting System Next Generation) is a Windows DLL that exposes JavaScript scripting capabilities via Google's V8 engine for Diablo II automation. The JS API is implemented against Diablo II 1.14d (LoD): the game layer reads live game state through a typed imports layer built on D2MOO. Versions start at 2.x (legacy d2bs topped out at 1.6.x) so scripts can tell the two apart.
 
+## Simulator
+
+`d2bs-sim.exe` is a kolbot simulator built from a separate, private repository: it links this repo's `runtime` and `lod114d` backend and runs the 1.14d `Game.exe` in a console process on a virtual clock. Nothing of it is built or kept here; `src/contract/host/` (`docs/host_hooks.md`) is the extension point it hosts the frontend and backend through. Release assets: `d2bs.dll` (+ `.pdb`), `api.json`, `d2bsng.d.ts`, and the simulator's `d2bs-sim.exe` and `sim.json` (its switches, environment variables and guide, which the docs site renders in a Simulator tab).
+
 ## Documentation
 
 Design docs live in `docs/`. Read the one(s) covering whatever you are about to touch before changing it, and update them in the same change rather than duplicating their content here:

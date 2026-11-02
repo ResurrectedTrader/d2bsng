@@ -204,7 +204,8 @@ a.grp-link{color:var(--fg)}
 .leaf>a.active{color:var(--accent);background:var(--accent-soft);font-weight:600}
 .no-results{color:var(--muted);font-size:13px;padding:8px 10px}
 
-#content{margin-left:var(--sidew);max-width:920px;padding:0 40px 120px}
+#content{margin-left:var(--sidew);padding:0 48px 120px}
+#content p,#content li{max-width:110ch}
 .tabs{position:sticky;top:0;background:var(--bg);display:flex;gap:4px;padding:14px 0 0;z-index:10;
   border-bottom:1px solid var(--border);margin-bottom:8px}
 .tab{border:0;background:none;font:600 14px/1 inherit;color:var(--muted);padding:10px 14px;cursor:pointer;
@@ -293,6 +294,12 @@ ul.cols code{background:var(--code-bg);padding:1px 5px;border-radius:4px}
 .sim-guide li{margin:3px 0}
 .sim-guide li>p{margin:.4em 0}
 .sim-guide pre{background:var(--code-bg);border:1px solid var(--border);border-radius:6px;padding:10px;overflow-x:auto;font-size:13px;line-height:1.25}
+.sim-guide pre code{white-space:pre}
+.sim-guide :not(pre)>code{white-space:nowrap}
+.code-wrap{position:relative}
+.code-wrap pre{padding-right:64px}
+.copy{position:absolute;top:6px;right:6px;font-family:inherit;font-size:11px;font-weight:600;line-height:1.4;border:1px solid var(--border);background:var(--bg);color:var(--muted);border-radius:5px;padding:2px 8px;cursor:pointer}
+.copy:hover{color:var(--fg);border-color:var(--accent)}
 .tbl-wrap{overflow-x:auto;margin:8px 0}
 .chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:12px 0 4px}
 .chips-label{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700;margin-right:4px}
@@ -784,7 +791,15 @@ function simFilter(cmd){
   simView.querySelectorAll('.member[data-cmds]').forEach(function(m){ m.hidden=!!cmd&&(' '+m.dataset.cmds+' ').indexOf(' '+cmd+' ')<0; });
   simView.querySelectorAll('.sim-cat').forEach(function(s){ s.hidden=!s.querySelector('.member:not([hidden])'); });
 }
+function copyCode(btn){
+  var text=btn.nextElementSibling.textContent;
+  function done(){ btn.textContent='Copied'; setTimeout(function(){ btn.textContent='Copy'; },1200); }
+  if(navigator.clipboard&&window.isSecureContext){ navigator.clipboard.writeText(text).then(done,function(){}); return; }
+  var ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.select(); try{ if(document.execCommand('copy')) done(); }catch(err){} ta.remove();
+}
 simView.addEventListener('click',function(e){
+  var c=e.target.closest('.copy'); if(c){ copyCode(c); return; }
   var b=e.target.closest('.chip'); if(b){ simFilter(b.dataset.cmd||''); return; }
   var a=e.target.closest('a[href^="#"]'); if(a) navTo(a.getAttribute('href'));
 });
@@ -929,7 +944,7 @@ function mdDoc(src,opts){
     if(/^\s*```/.test(ln)){
       var code=[]; i++;
       while(i<lines.length&&!/^\s*```/.test(lines[i])) code.push(lines[i++]);
-      i++; out.push('<pre><code>'+esc(code.join('\n'))+'</code></pre>'); continue;
+      i++; out.push('<div class="code-wrap"><button class="copy" type="button">Copy</button><pre><code>'+esc(code.join('\n'))+'</code></pre></div>'); continue;
     }
     if((m=ln.match(/^(#{1,6})\s+(.*)$/))){
       var lvl=Math.min(m[1].length+shift,6), id='';
