@@ -205,7 +205,7 @@ a.grp-link{color:var(--fg)}
 .no-results{color:var(--muted);font-size:13px;padding:8px 10px}
 
 #content{margin-left:var(--sidew);padding:0 48px 120px}
-#content p,#content li{max-width:110ch}
+#content>*{max-width:1100px;margin-left:auto;margin-right:auto}
 .tabs{position:sticky;top:0;background:var(--bg);display:flex;gap:4px;padding:14px 0 0;z-index:10;
   border-bottom:1px solid var(--border);margin-bottom:8px}
 .tab{border:0;background:none;font:600 14px/1 inherit;color:var(--muted);padding:10px 14px;cursor:pointer;
