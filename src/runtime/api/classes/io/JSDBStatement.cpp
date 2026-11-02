@@ -45,6 +45,12 @@ void DBStatementData::Finalize() {
     hasRow = false;
 }
 
+void DBStatementData::Close() {
+    Finalize();
+    cachedRow.Reset();
+    parentObject.Reset();
+}
+
 void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
     auto inst = tpl->InstanceTemplate();
     auto proto = tpl->PrototypeTemplate();
@@ -293,7 +299,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
             }
 
             // go() is for non-SELECT statements - finalize after execution
-            data->Finalize();
+            data->Close();
 
             args.GetReturnValue().Set(res == SQLITE_DONE);
         });
@@ -419,14 +425,12 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
     /// @returns {boolean} - Always true.
     Method(
         isolate, proto, "close", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto self = args.This();
-
-            auto data = Unwrap(self);
+            auto data = Unwrap(args.This());
             if (!data) {
                 return;
             }
 
-            data->Finalize();
+            data->Close();
             args.GetReturnValue().Set(true);
         });
 

@@ -61,11 +61,8 @@ class JSText : public JSDrawableBase<JSText, TextDrawable> {
             script->SetDrawableHandler(*drawable, script::DrawableHandler::Hover, args[8].As<v8::Function>());
         }
 
-        auto* rawDrawable = drawable.get();
-        SetupInstanceTracking(rawDrawable);
-        script->AddDrawable(std::move(drawable));
+        Adopt(isolate, args.This(), *script, std::move(drawable));
 
-        Borrow(isolate, args.This(), rawDrawable);
         args.GetReturnValue().Set(args.This());
     }
 

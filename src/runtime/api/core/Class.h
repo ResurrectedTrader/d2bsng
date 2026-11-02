@@ -37,9 +37,11 @@ constexpr uint32_t Fnv1a(std::string_view text) {
 // JS object, so the two are collected together. Unwrap tells the wrapper's class from the tag and finds the native
 // through the pointer, both plain reads - no virtual call.
 //
-// Destructors of cells (and so of the natives they own) run inside cppgc sweeping, possibly within an allocation,
-// and at isolate disposal after V8 has detached the heap. They must not touch V8 or game state, and reach another
-// cell's native only through a registration whose own destructor removes it (DBStatement / SQLite).
+// Destructors of cells (and so of the natives they own) run during cppgc sweeping: inside a V8 garbage collection,
+// inside any wrapper allocation, or at isolate disposal after V8 has detached the heap, on whichever thread disposes
+// the isolate. So they must not call into V8 (TracedReference members need no Reset) or take a game lock, and reach
+// another cell's native only through a link both destructors clear, in either order (DBStatement / SQLite). CLAUDE.md,
+// Class Ownership Model, has the reasons.
 class CellBase : public v8::Object::Wrappable {
    public:
     CellBase(const uint32_t* classTag, void* native) : classTag_(classTag), native_(native) {}
@@ -68,7 +70,8 @@ inline constexpr v8::CppHeapPointerTag CELL_TAG = v8::CppHeapPointerTag::kFirstO
 //
 // A native that exposes `void PreFinalize()` gets it called in the GC pause that finds its cell dead, before any
 // sweeping, so it can leave a list another native keeps (DBStatement / SQLite) before anything reads it there dead.
-// The same rules as for destructors apply.
+// It runs in the GC's atomic pause before any destructor, so it may read other cells, but must not allocate or call
+// into V8.
 
 template <typename Derived, typename NativeType>
 class ClassBase {
@@ -224,16 +227,12 @@ class ClassBase {
         return static_cast<NativeType*>(cell->Native());
     }
 
-    // Gives `obj` a cell over a native it does not own; Detach clears it once the owner drops the native.
-    static void Borrow(v8::Isolate* isolate, v8::Local<v8::Object> obj, NativeType* native) {
+    // Gives `obj` a cell over a native it does not own. The owner clears the returned cell once it drops the
+    // native, unless the wrapper keeps the owner alive.
+    static detail::CellBase* Borrow(v8::Isolate* isolate, v8::Local<v8::Object> obj, NativeType* native) {
         auto* cell = cppgc::MakeGarbageCollected<BorrowedCell>(isolate->GetCppHeap()->GetAllocationHandle(), native);
         v8::Object::Wrap<detail::CELL_TAG>(isolate, obj, cell);
-    }
-
-    static void Detach(v8::Local<v8::Object> obj) {
-        if (auto* cell = CellOf(obj)) {
-            cell->Clear();
-        }
+        return cell;
     }
 
     // A new instance owning a native built from args. On failure no native is built, so a caller that passed a

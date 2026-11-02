@@ -4,7 +4,6 @@
 #include "api/core/Class.h"
 #include "api/core/Convert.h"
 #include "api/core/Extract.h"
-#include "api/core/InstanceTracker.h"
 #include "components/drawing/Drawable.h"
 #include "components/script/Script.h"
 #include "components/script/ScriptEngine.h"
@@ -29,18 +28,12 @@ class JSDrawableBase : public ClassBase<Derived, DrawableType> {
    protected:
     using Base = ClassBase<Derived, DrawableType>;
 
-    // Set up instance tracking for a drawable before Borrow().
-    // Increments the per-thread count now and installs an onDestroy hook that
-    // decrements when the owning Script destroys the drawable.
-    static void SetupInstanceTracking(DrawableType* drawable) {
-        const int32_t classId = Base::InstanceClassId();
-        // Carries the row rather than re-resolving one in the hook: ~Drawable runs the hook and
-        // can itself run on the game thread, which only RemoveDrawable clearing onDestroy first
-        // keeps it from reaching.
-        auto* row = &InstanceTracker::Instance().Increment(classId);
-        drawable->onDestroy = [classId, row] {
-            InstanceTracker::Instance().Decrement(*row, classId);
-        };
+    // Hands the drawable to the script and gives `obj` a cell over it. The script clears the cell when it drops the
+    // drawable (remove() or isolate teardown), so the wrapper never reaches a freed drawable.
+    static void Adopt(v8::Isolate* isolate, v8::Local<v8::Object> obj, script::Script& script,
+                      std::shared_ptr<DrawableType> drawable) {
+        auto* cell = Base::Borrow(isolate, obj, drawable.get());
+        script.AddDrawable(std::move(drawable), cell, Base::InstanceClassId());
     }
 
     // The click / hover callbacks are owned by the script, not the drawable -
@@ -240,7 +233,6 @@ class JSDrawableBase : public ClassBase<Derived, DrawableType> {
                 if (!script)
                     return;
                 script->RemoveDrawable(drawable->shared_from_this());
-                Base::Detach(args.This());
             });
     }
 };

@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "api/classes/ClassRegistry.h"
+#include "api/core/Class.h"
 #include "api/core/Convert.h"
 #include "api/core/InstanceTracker.h"
 #include "api/globals/Constants.h"
@@ -361,6 +362,10 @@ void Script::SetupIsolate() {
                                 utils::threads::GetThreadStacktrace());
         utils::threads::CrashAndExit(dump, 0xD2B50002);
     });
+    // Every wrapper's native lives on the C++ heap V8 creates with the isolate (api/core/Class.h).
+    if (iso->GetCppHeap() == nullptr) {
+        utils::threads::CrashAndExit("V8 isolate created without a C++ heap\n", 0xD2B50007);
+    }
 
     // Wrap in shared_ptr with a custom deleter that captures the allocator,
     // guaranteeing it outlives Dispose().  The raw pointer `iso` remains valid
@@ -457,8 +462,8 @@ void Script::SetupIsolate() {
 }
 
 void Script::TeardownIsolate() {
-    // RemoveDrawable handles per-drawable cleanup (drop the handlers, run
-    // onDestroy on this thread). fireLeaveEvent=false skips the synchronous
+    // RemoveDrawable handles per-drawable cleanup (drop the handlers, clear
+    // the wrapper cell on this thread). fireLeaveEvent=false skips the synchronous
     // hover-leave dispatch - the script's event loop has exited and a same-
     // thread ExecuteEvent would run user JS that's about to be torn down.
     for (const auto& drawable : GetDrawables()) {
@@ -1113,11 +1118,16 @@ bool Script::Include(const std::filesystem::path& absolutePath) {
 // Drawables (screen hooks)
 // ============================================================================
 
-void Script::AddDrawable(std::shared_ptr<drawing::Drawable> drawable) {
+void Script::AddDrawable(std::shared_ptr<drawing::Drawable> drawable, api::detail::CellBase* wrapperCell,
+                         int32_t classId) {
     if (!drawable) {
         return;
     }
     std::unique_lock lock(drawablesMutex_);
+    auto& entry = drawableEntries_[drawable.get()];
+    entry.wrapperCell = wrapperCell;
+    entry.row = &api::InstanceTracker::Instance().Increment(classId);
+    entry.classId = classId;
     drawables_.push_back(std::move(drawable));
 }
 
@@ -1126,13 +1136,12 @@ void Script::RemoveDrawable(const std::shared_ptr<drawing::Drawable>& drawable, 
         return;
     }
 
-    // Run onDestroy on the script thread - that keeps the InstanceTracker
-    // bucket aligned with the Increment thread. Dispatch the leave event after
-    // releasing the lock so a JS callback can safely re-enter
-    // Add/RemoveDrawable without self-deadlock, and drop the handler entry only
-    // once that dispatch has resolved it: the event looks the handler up when it
-    // runs rather than carrying it. This is always the script's own thread, so
-    // ExecuteEvent runs the leave handler synchronously here.
+    // Dispatch the leave event after releasing the lock so a JS callback can
+    // safely re-enter Add/RemoveDrawable without self-deadlock, and drop the
+    // entry only once that dispatch has resolved the handler: the event looks
+    // it up when it runs rather than carrying it, and the handler still reads
+    // the drawable through its wrapper. This is always the script's own
+    // thread, so ExecuteEvent runs the leave handler synchronously here.
     bool fireLeave = false;
     {
         std::unique_lock lock(drawablesMutex_);
@@ -1142,21 +1151,27 @@ void Script::RemoveDrawable(const std::shared_ptr<drawing::Drawable>& drawable, 
         }
         drawables_.erase(it);
 
-        auto handlers = drawableHandlers_.find(drawable.get());
+        auto entry = drawableEntries_.find(drawable.get());
         fireLeave = fireLeaveEvent && drawable->isHovered.load() && isolate_.load() &&
-                    handlers != drawableHandlers_.end() && !handlers->second.hover.IsEmpty();
+                    entry != drawableEntries_.end() && !entry->second.hover.IsEmpty();
         drawable->hasClick.store(false);
         drawable->hasHover.store(false);
-        if (drawable->onDestroy) {
-            drawable->onDestroy();
-            drawable->onDestroy = nullptr;
-        }
     }
     if (fireLeave) {
         ExecuteEvent(std::make_shared<events::ScreenHookHoverEvent>(drawable, game::Point::Zero, false));
     }
     std::unique_lock lock(drawablesMutex_);
-    drawableHandlers_.erase(drawable.get());
+    auto entry = drawableEntries_.find(drawable.get());
+    if (entry == drawableEntries_.end()) {
+        return;
+    }
+    if (entry->second.wrapperCell) {
+        entry->second.wrapperCell->Clear();
+    }
+    if (entry->second.row != nullptr) {
+        api::InstanceTracker::Instance().Decrement(*entry->second.row, entry->second.classId);
+    }
+    drawableEntries_.erase(entry);
 }
 
 std::vector<std::shared_ptr<drawing::Drawable>> Script::GetDrawables() {
@@ -1169,9 +1184,9 @@ void Script::SetDrawableHandler(drawing::Drawable& drawable, DrawableHandler whi
     auto iso = isolate_.load();
     const bool isInstalled = !handler.IsEmpty() && iso;
     if (isInstalled) {
-        auto& slot = drawableHandlers_[&drawable];
+        auto& slot = drawableEntries_[&drawable];
         (which == DrawableHandler::Click ? slot.click : slot.hover).Reset(iso.get(), handler);
-    } else if (auto it = drawableHandlers_.find(&drawable); it != drawableHandlers_.end()) {
+    } else if (auto it = drawableEntries_.find(&drawable); it != drawableEntries_.end()) {
         (which == DrawableHandler::Click ? it->second.click : it->second.hover).Reset();
     }
     (which == DrawableHandler::Click ? drawable.hasClick : drawable.hasHover).store(isInstalled);
@@ -1179,9 +1194,9 @@ void Script::SetDrawableHandler(drawing::Drawable& drawable, DrawableHandler whi
 
 v8::MaybeLocal<v8::Function> Script::GetDrawableHandler(const drawing::Drawable& drawable, DrawableHandler which) {
     std::shared_lock lock(drawablesMutex_);
-    auto it = drawableHandlers_.find(&drawable);
+    auto it = drawableEntries_.find(&drawable);
     auto iso = isolate_.load();
-    if (it == drawableHandlers_.end() || !iso) {
+    if (it == drawableEntries_.end() || !iso) {
         return {};
     }
     const auto& slot = (which == DrawableHandler::Click) ? it->second.click : it->second.hover;
