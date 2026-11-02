@@ -3,8 +3,11 @@ name: Release
 # Manual only (Actions -> Release -> Run workflow). Computes the next version
 # ONCE, fetches the dependencies once (the `deps` job), bakes the version into
 # the DLL, builds + tests (the `build` job) while the API surface is extracted
-# in parallel (the `api` job), then - if both pass - tags that version and
-# publishes d2bs.dll + .pdb + d2bsng.d.ts + api.json, then deploys the docs.
+# in parallel (the `api` job) and the simulator is built against the same commit
+# (the `sim` job, sim-build.yml), then - if all three pass - tags that version and
+# publishes d2bs.dll + .pdb + d2bsng.d.ts + api.json + d2bs-sim.exe + sim.json,
+# then deploys the docs. A failed simulator build fails the release: it is never
+# published without the simulator.
 #
 # The version is decided up front (the `version` job) and reused for both the
 # baked-in D2BS_VERSION and the git tag, so they can never drift. The release
@@ -253,6 +256,20 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+  sim:
+    name: Simulator
+    # Dispatches the private simulator build at this commit and version, waits for
+    # it, and uploads its d2bs-sim.exe + sim.json as the d2bs-sim artifact (picked
+    # up by `release`'s d2bs-* download). Its symbols are not published. The
+    # dispatch token is a `release` environment secret, read by sim-build.yml's
+    # job itself, so nothing is passed down here.
+    needs: [version]
+    uses: ./.github/workflows/sim-build.yml
+    with:
+      sha: ${{ github.sha }}
+      version: ${{ needs.version.outputs.version }}
+      publish: true
+
   deploy-docs:
     name: Deploy docs
     # Runs after release so the just-published version's api.json asset exists.
@@ -287,14 +304,15 @@ jobs:
 
   release:
     name: Release
-    needs: [version, build, api]
+    needs: [version, build, api, sim]
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       # d2bs-binaries (dll + pdb) from `build`, d2bs-api (api.json + d.ts)
-      # from `api`, flattened into one dist/.
+      # from `api`, d2bs-sim (d2bs-sim.exe + sim.json) from `sim`, flattened
+      # into one dist/.
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -353,7 +371,9 @@ jobs:
             "dist/d2bs.dll#d2bs.dll" \
             "dist/d2bs.pdb#d2bs.pdb" \
             "dist/d2bsng.d.ts#d2bsng.d.ts" \
-            "dist/api.json#api.json"
+            "dist/api.json#api.json" \
+            "dist/d2bs-sim.exe#d2bs-sim.exe" \
+            "dist/sim.json#sim.json"
 
       - name: Announce on Discord
         # The release is already published by the time this runs, so a Discord
@@ -373,7 +393,7 @@ jobs:
           # UTF-8 sequence that jq would reject.
           {
             head -c 3500 notes.md | iconv -c -f UTF-8 -t UTF-8
-            printf '\n\n**Download:** [d2bs.dll](%s/d2bs.dll) | [d2bsng.d.ts](%s/d2bsng.d.ts) (TypeScript definitions)\n' "$dl" "$dl"
+            printf '\n\n**Download:** [d2bs.dll](%s/d2bs.dll) | [d2bs-sim.exe](%s/d2bs-sim.exe) (simulator) | [d2bsng.d.ts](%s/d2bsng.d.ts) (TypeScript definitions)\n' "$dl" "$dl" "$dl"
             printf '**API reference:** https://resurrectedtrader.github.io/d2bsng/\n'
           } > body.md
           # -Rs slurps the file as one JSON string, so no escaping by hand.
