@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 d2bsng (D2 Botting System Next Generation) is a Windows DLL that exposes JavaScript scripting capabilities via Google's V8 engine for Diablo II automation. The JS API is implemented against Diablo II 1.14d (LoD): the game layer reads live game state through a typed imports layer built on D2MOO. Versions start at 2.x (legacy d2bs topped out at 1.6.x) so scripts can tell the two apart.
 
+## Simulator
+
+`d2bs-sim.exe` is a kolbot simulator built from a separate, private repository: it links this repo's `runtime` and `lod114d` backend and runs the 1.14d `Game.exe` in a console process on a virtual clock. Nothing of it is built or kept here; `src/contract/host/` (`docs/host_hooks.md`) is the extension point it hosts the frontend and backend through. Release assets: `d2bs.dll` (+ `.pdb`), `api.json`, `d2bsng.d.ts`, and the simulator's `d2bs-sim.exe` and `sim.json` (its switches, environment variables and guide, which the docs site renders in a Simulator tab).
+
 ## Documentation
 
 Design docs live in `docs/`. Read the one(s) covering whatever you are about to touch before changing it, and update them in the same change rather than duplicating their content here:
@@ -97,7 +101,7 @@ The script-visible JS API is documented by a generator pipeline under `scripts/`
 | `extract_api.py` | `src/runtime/api/**` -> `api.json` | Walks the V8 bindings with **libclang**, emitting the full surface (classes, globals, constants, the `me` object, events, enums). Needs the same vcpkg + V8 + MSVC/SDK include set the build uses. The only script that needs libclang. |
 | `gen_dts.py` | `api.json` -> `d2bsng.d.ts` | Ambient TypeScript declarations (JSDoc on every member, typed `addEventListener` overloads) for editor completion. Pure-stdlib. |
 | `gen_api_docs.py` | (`api.json`) -> `index.html` | Emits the static docs **shell**: an embedded JS renderer + CSS, no CDN. An optional baked-in `api.json` is the offline / instant-paint dataset. Pure-stdlib. |
-| `build_docs_site.py` | releases -> `site/` | Deploy-time assembler: pulls every release's `api.json` server-side (via `gh`) into `data/<tag>.json` + a `versions.json` manifest, then wraps the shell. Pure-stdlib + `gh`. |
+| `build_docs_site.py` | releases -> `site/` | Deploy-time assembler: pulls every release's `api.json` server-side (via `gh`) into `data/<tag>.json` + a `versions.json` manifest, then wraps the shell. A release that also carries a `sim.json` asset (the kolbot simulator's options, environment variables and guide) gets its public part (entries marked `internal` dropped) under `simulator` in its `data/<tag>.json`, rendered in a Simulator tab of that version (guide, switches by category with a command filter, environment variables); a release without one has no Simulator tab. `--sim <tag>=<path>` attaches a local `sim.json` for an offline build. Pure-stdlib + `gh`. |
 
 ```bash
 python scripts/extract_api.py -o api.json

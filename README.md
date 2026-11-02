@@ -24,6 +24,10 @@ a browsable, versioned reference for the full script-visible API (classes, globa
 events, the `me` object, and the Diablo II `.txt` data tables), with a per-version changelog.
 TypeScript declarations (`d2bsng.d.ts`) for editor completion ship as a release asset.
 
+**Simulator.** `d2bs-sim.exe` runs d2bs scripts (kolbot by default) on the 1.14d game in a console process, faster
+than real time, for testing bots. It ships as a release asset; its guide and switches are on the docs site's
+[Simulator tab](https://resurrectedtrader.github.io/d2bsng/#sim).
+
 ## Disclaimer
 
 This is an unofficial, fan-made tool for the 1.14d patch of a game owned by Blizzard

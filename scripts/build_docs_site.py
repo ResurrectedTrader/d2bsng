@@ -26,6 +26,14 @@ Inputs:
 Only releases that are not drafts, expose an ``api.json`` asset, AND have a
 resolved ``<tag>.json`` are included. Pure-stdlib apart from optional `gh`.
 
+A release that also carries a ``sim.json`` asset (the kolbot simulator's
+options, environment variables and guide) gets it as ``<tag>.sim.json`` in
+--data-dir, downloaded like api.json, and its ``data/<tag>.json`` is the api.json
+with its public part (``gen_api_docs.sim_public``) under ``simulator``; the page
+renders it in a Simulator tab. A release without one is published exactly as
+before. ``--sim <tag>=<path>`` attaches a local sim.json to a release instead
+(offline builds and previews).
+
 Usage (CI):
     gh api repos/$REPO/releases --paginate > releases.json
     python scripts/build_docs_site.py --releases releases.json --data-dir data \\
@@ -50,15 +58,19 @@ def semver_key(tag):
     return tuple(int(x) for x in m.groups()) if m else (0, 0, 0)
 
 
+def has_asset(rel, name):
+    return any(a.get("name") == name for a in rel.get("assets", []))
+
+
 def has_api_asset(rel):
-    return any(a.get("name") == "api.json" for a in rel.get("assets", []))
+    return has_asset(rel, "api.json")
 
 
-def download_asset(repo, tag, dest):
-    """`gh release download <tag> -p api.json` -> dest. Returns True on success."""
+def download_asset(repo, tag, dest, name="api.json"):
+    """`gh release download <tag> -p <name>` -> dest. Returns True on success."""
     try:
         subprocess.run(
-            ["gh", "release", "download", tag, "--repo", repo, "-p", "api.json", "-O", str(dest), "--clobber"],
+            ["gh", "release", "download", tag, "--repo", repo, "-p", name, "-O", str(dest), "--clobber"],
             check=True,
             capture_output=True,
             text=True,
@@ -66,8 +78,28 @@ def download_asset(repo, tag, dest):
         return dest.exists()
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         msg = getattr(e, "stderr", "") or str(e)
-        print(f"  ! download {tag}: {msg.strip()}", file=sys.stderr)
+        print(f"  ! download {tag} {name}: {msg.strip()}", file=sys.stderr)
         return False
+
+
+def load_sim(rel, data_dir, repo, download, overrides):
+    """The release's sim.json, or None when it has none (or it cannot be read)."""
+    tag = rel["tag_name"]
+    local = overrides.get(tag)
+    if local is None:
+        if not has_asset(rel, "sim.json"):
+            return None
+        local = data_dir / f"{tag}.sim.json"
+        if not local.exists() and download:
+            download_asset(repo, tag, local, "sim.json")
+    if not local.exists():
+        print(f"  - {tag}: no sim.json available locally", file=sys.stderr)
+        return None
+    try:
+        return gen_api_docs.sim_public(json.loads(local.read_text(encoding="utf-8")))
+    except json.JSONDecodeError as e:
+        print(f"  ! {tag}: invalid sim.json ({e})", file=sys.stderr)
+        return None
 
 
 def main():
@@ -78,7 +110,20 @@ def main():
     ap.add_argument("--repo", default="", help="OWNER/REPO")
     ap.add_argument("--title", default="d2bsng API", help="page title")
     ap.add_argument("--download", action="store_true", help="gh release download missing api.json assets")
+    ap.add_argument(
+        "--sim",
+        action="append",
+        default=[],
+        metavar="TAG=PATH",
+        help="attach a local sim.json to that release (instead of its sim.json asset); repeatable",
+    )
     args = ap.parse_args()
+    sim_overrides = {}
+    for spec in args.sim:
+        tag, sep, path = spec.partition("=")
+        if not sep or not tag or not path:
+            sys.exit(f"--sim expects TAG=PATH, got {spec!r}")
+        sim_overrides[tag] = Path(path)
 
     releases = json.loads(Path(args.releases).read_text(encoding="utf-8"))
     data_dir = Path(args.data_dir)
@@ -105,7 +150,14 @@ def main():
         except json.JSONDecodeError as e:
             print(f"  ! skip {tag}: invalid JSON ({e})", file=sys.stderr)
             continue
-        shutil.copyfile(local, out / "data" / f"{tag}.json")
+        sim = load_sim(rel, data_dir, args.repo, args.download, sim_overrides)
+        if sim is None:
+            shutil.copyfile(local, out / "data" / f"{tag}.json")
+        else:
+            data["simulator"] = sim
+            (out / "data" / f"{tag}.json").write_text(
+                json.dumps(data, separators=(",", ":"), ensure_ascii=False), encoding="utf-8"
+            )
         versions.append(
             {
                 "tag": tag,
