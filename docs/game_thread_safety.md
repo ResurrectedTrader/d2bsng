@@ -282,8 +282,8 @@ accessor holds the read lock across its own resolve and read. A property getter 
 on a game handle wrapper gets one from `Unwrap` (see "Bindings" above) and needs no other.
 
 Don't hold the lock across V8 allocation or other script-facing work: an allocation can
-trigger a GC whose weak callbacks run native destructors (`closesocket`,
-`sqlite3_close_v2`, `fclose`), and reading a script object's properties can run its getters,
+trigger a GC or C++-heap sweeping that finalizes dead wrappers' cells, running native
+destructors (`closesocket`, `sqlite3_close_v2`, `fclose`), and reading a script object's properties can run its getters,
 while the game thread waits on the write lock for the duration. Copy the game data out
 under the lock, then build the JS values after it (as `getControls()`, `getPresetUnits()`
 and `getRoom()` do). A number or a single string is cheap enough to build under it, as the

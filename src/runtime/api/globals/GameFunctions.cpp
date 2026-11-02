@@ -830,8 +830,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 return;
             }
 
-            auto data = std::make_unique<game::PresetUnitInfo>(*match);
-            auto obj = JSPresetUnit::CreateInstance(isolate, context, std::move(data));
+            auto obj = JSPresetUnit::CreateInstance(isolate, context, *match);
             if (obj.IsEmpty()) {
                 error::ThrowError(isolate, "Failed to create PresetUnit object");
                 return;
@@ -887,8 +886,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             auto array = v8::Array::New(isolate, static_cast<int32_t>(allPresets.size()));
             for (size_t i = 0; i < allPresets.size(); ++i) {
-                auto data = std::make_unique<game::PresetUnitInfo>(allPresets[i]);
-                auto obj = JSPresetUnit::CreateInstance(isolate, context, std::move(data));
+                auto obj = JSPresetUnit::CreateInstance(isolate, context, allPresets[i]);
                 if (obj.IsEmpty()) {
                     error::ThrowError(isolate, "Failed to build preset unit object");
                     return;

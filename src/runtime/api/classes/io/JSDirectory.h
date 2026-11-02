@@ -107,8 +107,7 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
 
                 // Create and return new Directory object for the subdirectory
                 // Store just the subdirectory name (not full relative path) matching reference behavior
-                auto newData = std::make_unique<DirectoryData>(name);
-                auto newDir = CreateInstance(isolate, context, std::move(newData));
+                auto newDir = CreateInstance(isolate, context, name);
                 if (newDir.IsEmpty())
                     return;
                 args.GetReturnValue().Set(newDir);

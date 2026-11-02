@@ -505,10 +505,11 @@ void Script::TeardownIsolate() {
         // be more aggressive about reclaiming the context.
         raw->ContextDisposedNotification(v8::ContextDependants::kNoDependants);
 
-        // Encourage V8 to run weak callbacks before Dispose - anything
-        // freed here saves work; anything still pinned (V8 compilation
-        // cache, queued tasks) is released by Dispose and reported by the
-        // post-Dispose leak check installed in SetupIsolate's deleter.
+        // Collect the wrappers while the isolate is whole - a forced GC sweeps
+        // atomically, so their cells' destructors run here. Anything still
+        // pinned (V8 compilation cache, queued tasks) is finalized when Dispose
+        // terminates the C++ heap, before the post-Dispose leak check installed
+        // in SetupIsolate's deleter.
         RequestGarbageCollection();
         raw->LowMemoryNotification();
     }

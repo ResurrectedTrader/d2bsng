@@ -60,7 +60,7 @@ class JSImage : public JSDrawableBase<JSImage, ImageDrawable> {
         SetupInstanceTracking(rawDrawable);
         script->AddDrawable(std::move(drawable));
 
-        Wrap(args.This(), rawDrawable);
+        Borrow(isolate, args.This(), rawDrawable);
         args.GetReturnValue().Set(args.This());
     }
 

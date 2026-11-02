@@ -91,23 +91,23 @@ void JSSQLite::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
         }
     }
 
-    auto data = std::make_unique<SQLiteData>();
-    data->path = path;
-
+    sqlite3* handle = nullptr;
     if (autoOpen) {
         // Open database - use sqlite3_open for UTF-8 paths
         auto pathStr = PathToUtf8(path);
-        if (SQLITE_OK != sqlite3_open(pathStr.c_str(), &data->handle)) {
+        if (SQLITE_OK != sqlite3_open(pathStr.c_str(), &handle)) {
             std::string msg = "Could not open database: ";
-            msg += sqlite3_errmsg(data->handle);
-            sqlite3_close(data->handle);
+            msg += sqlite3_errmsg(handle);
+            sqlite3_close(handle);
             error::ThrowError(isolate, msg);
             return;
         }
-        data->isOpen = true;
     }
 
-    InitInstance(isolate, args.This(), std::move(data));
+    auto* data = Attach(isolate, args.This());
+    data->path = path;
+    data->handle = handle;
+    data->isOpen = autoOpen;
     args.GetReturnValue().Set(args.This());
 }
 
@@ -146,11 +146,10 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 return;
             }
 
-            // Wrap as real DBStatement objects (non-owning). The native DBStatementData
-            // is owned by the parent SQLiteData, not by GC. We use Wrap() without MakeWeak
-            // so GC collection of a wrapper doesn't free the native data. A SetPrivate
-            // reference from each wrapper to the parent SQLite JS object prevents the parent
-            // from being GC'd while any statement wrapper is still reachable.
+            // Wrap as real DBStatement objects over borrowed natives: each statement is owned
+            // by the wrapper query() returned, so collecting one of these frees nothing. A
+            // SetPrivate reference from each wrapper to the parent SQLite JS object prevents the
+            // parent from being GC'd while any statement wrapper is still reachable.
             auto array = v8::Array::New(isolate, static_cast<int32_t>(data->statements.size()));
             auto stmtTpl = JSDBStatement::GetTemplate(isolate);
             auto parentKey = v8::Private::ForApi(isolate, convert::ToJS(isolate, "d2bs::DBStatement#parentDb"));
@@ -164,7 +163,7 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                     continue;
                 }
                 auto obj = maybeObj.ToLocalChecked();
-                JSDBStatement::Wrap(obj, stmt);
+                JSDBStatement::Borrow(isolate, obj, stmt);
                 obj->SetPrivate(context, parentKey, self).Check();
                 array->Set(context, idx++, obj).Check();
             }
@@ -327,21 +326,9 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 }
             }
 
-            // Create DBStatementData
-            auto stmtData = std::make_unique<DBStatementData>();
-            stmtData->handle = stmtHandle;
-            stmtData->parent = data;
-            stmtData->sql = sql;
-            stmtData->isOpen = true;
-
-            // Track statement in parent database
-            auto* stmtRaw = stmtData.get();
-            data->statements.insert(stmtRaw);
-
-            // Create and return DBStatement object
-            auto stmtObj = JSDBStatement::CreateInstance(isolate, context, std::move(stmtData));
+            auto stmtObj = JSDBStatement::CreateInstance(isolate, context, stmtHandle, data, sql);
             if (stmtObj.IsEmpty()) {
-                data->statements.erase(stmtRaw);
+                sqlite3_finalize(stmtHandle);
                 return;
             }
             args.GetReturnValue().Set(stmtObj);

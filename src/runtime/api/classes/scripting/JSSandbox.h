@@ -11,8 +11,10 @@ namespace d2bs::runtime::api::classes {
 
 // Sandbox native data - the sandbox context's global IS the inner object (matching d2bs reference)
 struct SandboxData {
-    v8::Global<v8::Context> context;
+    v8::TracedReference<v8::Context> context;
     std::unordered_set<std::string> includedFiles;
+
+    void Trace(cppgc::Visitor* visitor) const { visitor->Trace(context); }
 };
 
 // Sandbox class - provides an isolated JavaScript execution environment

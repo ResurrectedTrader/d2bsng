@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <io.h>
@@ -33,13 +34,20 @@ bool WriteValue(FILE* fptr, v8::Isolate* isolate, v8::Local<v8::Value> value, bo
 size_t SkipBom(const char* data, size_t size);
 }  // namespace file_detail
 
-// Internal file data structure
+// Internal file data structure. Owns handle from construction.
 struct FileData {
     int32_t mode = 0;            // File mode (read/write/append) + binary flag (mode > 2 means binary)
     std::filesystem::path path;  // File path relative to scripts folder
     bool autoflush = false;      // Automatically flush after each write
     bool isLocked = false;       // Whether file is locked for exclusive access
     FILE* handle = nullptr;      // File pointer
+
+    FileData(int32_t fileMode, std::filesystem::path filePath, bool flush, bool locked, FILE* file)
+        : mode(fileMode), path(std::move(filePath)), autoflush(flush), isLocked(locked), handle(file) {}
+    FileData(const FileData&) = delete;
+    FileData& operator=(const FileData&) = delete;
+    FileData(FileData&&) = delete;
+    FileData& operator=(FileData&&) = delete;
 
     ~FileData() {
         if (handle) {
@@ -787,18 +795,15 @@ class JSFile : public ClassBase<JSFile, FileData> {
                     _lock_file(fp);
                 }
 
-                // Create and attach FileData
-                auto data = std::make_unique<FileData>();
-                data->mode = mode;
-                data->path = path;
-                data->autoflush = autoflush;
-                data->isLocked = lockFile;
-                data->handle = fp;
-
                 // Create File object via CreateInstance (bypasses NOT_CONSTRUCTABLE guard)
-                auto obj = CreateInstance(isolate, context, std::move(data));
-                if (obj.IsEmpty())
+                auto obj = CreateInstance(isolate, context, mode, std::filesystem::path(path), autoflush, lockFile, fp);
+                if (obj.IsEmpty()) {
+                    if (lockFile) {
+                        _unlock_file(fp);
+                    }
+                    fclose(fp);
                     return;
+                }
 
                 args.GetReturnValue().Set(obj);
             });

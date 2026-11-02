@@ -62,7 +62,7 @@ void JSProfile::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
 
     auto argc = args.Length();
 
-    auto data = std::make_unique<ProfileData>();
+    ProfileData data;
 
     // Profile() - get the active profile.
     // Two distinct failure modes vs reference which conflates them:
@@ -83,7 +83,7 @@ void JSProfile::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
             error::ThrowError(isolate, "Profile does not exist");
             return;
         }
-        *data = std::move(*loaded);
+        data = std::move(*loaded);
     }
     // Profile(name) - get the named profile.
     // Same divergence from reference as above: we throw on missing instead
@@ -95,7 +95,7 @@ void JSProfile::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
             error::ThrowError(isolate, "Profile does not exist");
             return;
         }
-        *data = std::move(*loaded);
+        data = std::move(*loaded);
     }
     // Profile(ProfileType.singlePlayer, charname, diff)
     else if (argc == 3 && args[0]->IsInt32()) {
@@ -104,26 +104,26 @@ void JSProfile::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
             std::string charname = convert::ToString(isolate, args[1]);
             // 0=Normal, 1=Nightmare, 2=Hell, 3=hardest available
             int32_t diff = std::clamp(args[2]->Int32Value(context).FromMaybe(0), 0, 3);
-            data->type = ProfileType::SinglePlayer;
-            data->character = charname;
-            data->difficulty = static_cast<game::Difficulty>(diff);
+            data.type = ProfileType::SinglePlayer;
+            data.character = charname;
+            data.difficulty = static_cast<game::Difficulty>(diff);
         }
         // Profile(ProfileType.tcpIpHost, charname, diff)
         else if (type == static_cast<int32_t>(ProfileType::TcpIpHost)) {
             std::string charname = convert::ToString(isolate, args[1]);
             // 0=Normal, 1=Nightmare, 2=Hell, 3=hardest available
             int32_t diff = std::clamp(args[2]->Int32Value(context).FromMaybe(0), 0, 3);
-            data->type = ProfileType::TcpIpHost;
-            data->character = charname;
-            data->difficulty = static_cast<game::Difficulty>(diff);
+            data.type = ProfileType::TcpIpHost;
+            data.character = charname;
+            data.difficulty = static_cast<game::Difficulty>(diff);
         }
         // Profile(ProfileType.tcpIpJoin, charname, ip)
         else if (type == static_cast<int32_t>(ProfileType::TcpIpJoin)) {
             std::string charname = convert::ToString(isolate, args[1]);
             std::string ip = convert::ToString(isolate, args[2]);
-            data->type = ProfileType::TcpIpJoin;
-            data->character = charname;
-            data->ip = ip;
+            data.type = ProfileType::TcpIpJoin;
+            data.character = charname;
+            data.ip = ip;
         } else {
             error::ThrowError(isolate, "Invalid parameters.");
             return;
@@ -139,11 +139,11 @@ void JSProfile::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
             std::string pass = convert::ToString(isolate, args[2]);
             std::string charname = convert::ToString(isolate, args[3]);
             std::string gateway = convert::ToString(isolate, args[4]);
-            data->type = static_cast<ProfileType>(type);
-            data->username = account;
-            data->password = pass;
-            data->character = charname;
-            data->gateway = gateway;
+            data.type = static_cast<ProfileType>(type);
+            data.username = account;
+            data.password = pass;
+            data.character = charname;
+            data.gateway = gateway;
         } else {
             error::ThrowError(isolate, "Invalid parameters.");
             return;
@@ -153,7 +153,7 @@ void JSProfile::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
         return;
     }
 
-    InitInstance(isolate, args.This(), std::move(data));
+    Attach(isolate, args.This(), std::move(data));
     args.GetReturnValue().Set(args.This());
 }
 

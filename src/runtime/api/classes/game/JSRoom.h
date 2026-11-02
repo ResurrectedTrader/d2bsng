@@ -217,8 +217,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 auto array = v8::Array::New(isolate, static_cast<int32_t>(presets.size()));
 
                 for (uint32_t i = 0; i < presets.size(); ++i) {
-                    auto puData = std::make_unique<game::PresetUnitInfo>(presets[i]);
-                    auto obj = JSPresetUnit::CreateInstance(isolate, context, std::move(puData));
+                    auto obj = JSPresetUnit::CreateInstance(isolate, context, presets[i]);
                     if (obj.IsEmpty()) {
                         error::ThrowError(isolate, "Failed to build preset unit array");
                         return;
