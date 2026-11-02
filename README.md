@@ -26,7 +26,8 @@ TypeScript declarations (`d2bsng.d.ts`) for editor completion ship as a release 
 
 **Simulator.** `d2bs-sim.exe` runs d2bs scripts (kolbot by default) on the 1.14d game in a console process, faster
 than real time, for testing bots. It ships as a release asset; its guide and switches are on the docs site's
-[Simulator tab](https://resurrectedtrader.github.io/d2bsng/#sim).
+[Simulator tab](https://resurrectedtrader.github.io/d2bsng/#sim). Runs can be submitted to the
+[leaderboard](https://d2bs-leaderboard.resurrected.trade/).
 
 ## Disclaimer
 
