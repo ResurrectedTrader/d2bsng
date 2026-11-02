@@ -95,12 +95,6 @@ Hit FindTopHit(game::Point pos, game::GameState state, Wants wants) {
 
 }  // namespace
 
-Drawable::~Drawable() {
-    if (onDestroy) {
-        onDestroy();
-    }
-}
-
 void Drawable::DrawAll(game::GameState state) {
     std::vector<std::pair<int32_t, std::shared_ptr<Drawable>>> toDraw;
     for (auto& script : script::ScriptEngine::Instance().GetAllScripts()) {

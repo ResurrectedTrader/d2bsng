@@ -224,16 +224,12 @@ class ClassBase {
         return static_cast<NativeType*>(cell->Native());
     }
 
-    // Gives `obj` a cell over a native it does not own; Detach clears it once the owner drops the native.
-    static void Borrow(v8::Isolate* isolate, v8::Local<v8::Object> obj, NativeType* native) {
+    // Gives `obj` a cell over a native it does not own. The owner clears the returned cell once it drops the
+    // native, unless the wrapper keeps the owner alive.
+    static detail::CellBase* Borrow(v8::Isolate* isolate, v8::Local<v8::Object> obj, NativeType* native) {
         auto* cell = cppgc::MakeGarbageCollected<BorrowedCell>(isolate->GetCppHeap()->GetAllocationHandle(), native);
         v8::Object::Wrap<detail::CELL_TAG>(isolate, obj, cell);
-    }
-
-    static void Detach(v8::Local<v8::Object> obj) {
-        if (auto* cell = CellOf(obj)) {
-            cell->Clear();
-        }
+        return cell;
     }
 
     // A new instance owning a native built from args. On failure no native is built, so a caller that passed a

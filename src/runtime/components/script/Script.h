@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cppgc/persistent.h>
 #include <spdlog/logger.h>
 #include <v8.h>
 #include <atomic>
@@ -15,6 +16,7 @@
 #include <unordered_map>
 #include <vector>
 #include "ScriptTypes.h"
+#include "api/core/InstanceTracker.h"
 #include "game/Types.h"
 #include "host/Host.h"
 #include "utils/Profiling.h"
@@ -24,6 +26,10 @@
 namespace d2bs::runtime::drawing {
 struct Drawable;
 }  // namespace d2bs::runtime::drawing
+
+namespace d2bs::runtime::api::detail {
+class CellBase;
+}  // namespace d2bs::runtime::api::detail
 
 namespace d2bs::runtime::inspector {
 class ScriptInspector;
@@ -193,9 +199,11 @@ class Script : public std::enable_shared_from_this<Script> {
     // this script. Added and removed from V8 callbacks on the script's own
     // thread; iterated by the game thread via GetDrawables() for draw / hit
     // testing across all scripts.
-    void AddDrawable(std::shared_ptr<drawing::Drawable> drawable);
-    // Remove a drawable, drop its handlers, and run its onDestroy hook on the
-    // script thread. If `fireLeaveEvent` is true and the drawable was hovered,
+    // `wrapperCell` is the JS wrapper's cell over the drawable, which RemoveDrawable clears; the drawable counts in
+    // the instance tracker under `classId` until then.
+    void AddDrawable(std::shared_ptr<drawing::Drawable> drawable, api::detail::CellBase* wrapperCell, int32_t classId);
+    // Remove a drawable, drop its handlers, clear its wrapper's cell and stop
+    // counting it. If `fireLeaveEvent` is true and the drawable was hovered,
     // dispatches a hover-leave ScreenHookHoverEvent after releasing the lock.
     // TeardownIsolate passes false - the script's event loop has exited and a
     // same-thread ExecuteEvent would synchronously run user JS that's about to
@@ -295,16 +303,21 @@ class Script : public std::enable_shared_from_this<Script> {
     std::set<std::filesystem::path> includes_;
     std::set<std::filesystem::path> inProgressIncludes_;
 
-    struct DrawableHandlers {
+    // Script-thread state of one drawable: everything here is created and destroyed on this thread.
+    struct DrawableEntry {
         v8::Global<v8::Function> click;
         v8::Global<v8::Function> hover;
+        // Null once the wrapper was collected.
+        cppgc::WeakPersistent<api::detail::CellBase> wrapperCell;
+        api::InstanceTracker::Row* row = nullptr;
+        int32_t classId = -1;
     };
 
     std::shared_mutex drawablesMutex_;
     std::vector<std::shared_ptr<drawing::Drawable>> drawables_;
     // Keyed by drawable identity; the entry is erased in RemoveDrawable before
     // the script's own shared_ptr drops, so a key never outlives its drawable.
-    std::unordered_map<const drawing::Drawable*, DrawableHandlers> drawableHandlers_;
+    std::unordered_map<const drawing::Drawable*, DrawableEntry> drawableEntries_;
 
     // V8 inspector (Chrome DevTools) attachment for this isolate. Created by
     // AttachInspector in SetupIsolate and destroyed in TeardownIsolate, both on

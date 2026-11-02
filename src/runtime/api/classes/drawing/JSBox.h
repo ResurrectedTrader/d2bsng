@@ -60,13 +60,8 @@ class JSBox : public JSDrawableBase<JSBox, BoxDrawable> {
             script->SetDrawableHandler(*drawable, script::DrawableHandler::Hover, args[9].As<v8::Function>());
         }
 
-        auto* rawDrawable = drawable.get();
-        SetupInstanceTracking(rawDrawable);
-        script->AddDrawable(std::move(drawable));
+        Adopt(isolate, args.This(), *script, std::move(drawable));
 
-        Borrow(isolate, args.This(), rawDrawable);
-        // The owning Script holds the shared_ptr. rawDrawable stays valid
-        // until remove() or TeardownIsolate drops that ref.
         args.GetReturnValue().Set(args.This());
     }
 
