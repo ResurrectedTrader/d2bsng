@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -41,6 +42,8 @@ struct FileData {
     bool autoflush = false;      // Automatically flush after each write
     bool isLocked = false;       // Whether file is locked for exclusive access
     FILE* handle = nullptr;      // File pointer
+    // The thread holding the CRT stream lock of a locked handle (open() and reopen() take it on the script thread).
+    std::thread::id lockThread = std::this_thread::get_id();
 
     FileData(int32_t fileMode, std::filesystem::path filePath, bool flush, bool locked, FILE* file)
         : mode(fileMode), path(std::move(filePath)), autoflush(flush), isLocked(locked), handle(file) {}
@@ -52,6 +55,12 @@ struct FileData {
     ~FileData() {
         if (handle) {
             if (isLocked) {
+                // An isolate disposed on another thread finalizes its cells there. The stream lock belongs to
+                // the script thread, and fclose would wait on it, so the handle is left open.
+                if (std::this_thread::get_id() != lockThread) {
+                    file_detail::Log().warn("Locked file left open at teardown: {}", path.string());
+                    return;
+                }
                 _unlock_file(handle);
             }
             if (fclose(handle) != 0) {
@@ -379,6 +388,7 @@ class JSFile : public ClassBase<JSFile, FileData> {
 
                 if (data->isLocked) {
                     _lock_file(data->handle);
+                    data->lockThread = std::this_thread::get_id();
                 }
 
                 args.GetReturnValue().Set(self);

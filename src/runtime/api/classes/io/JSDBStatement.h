@@ -24,6 +24,8 @@ struct DBStatementData {
     v8::TracedReference<v8::Object> cachedRow;  // cached current row object, read only while hasRow
     // The wrapper that owns this native. SQLite.statements views keep it alive through a private.
     v8::TracedReference<v8::Object> owner;
+    // The parent's SQLite wrapper, so the database outlives every reachable statement and `parent` stays valid.
+    v8::TracedReference<v8::Object> parentObject;
 
     DBStatementData(sqlite3_stmt* stmt, SQLiteData* db, std::string text);
     DBStatementData(const DBStatementData&) = delete;
@@ -42,6 +44,7 @@ struct DBStatementData {
     void Trace(cppgc::Visitor* visitor) const {
         visitor->Trace(cachedRow);
         visitor->Trace(owner);
+        visitor->Trace(parentObject);
     }
 };
 

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cppgc/allocation.h>
-#include <cppgc/member.h>
 #include <cppgc/prefinalizer.h>
 #include <cppgc/visitor.h>
 #include <v8-cppgc.h>

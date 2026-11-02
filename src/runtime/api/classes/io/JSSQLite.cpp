@@ -150,21 +150,20 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
 
             // Wrap as real DBStatement objects over natives they do not own: each DBStatementData
             // belongs to the wrapper query() returned and is freed with it. A SetPrivate reference
-            // from each view to that owner keeps the native alive while the view is reachable, and
-            // one to the parent SQLite JS object keeps the parent alive.
+            // from each view to that owner keeps the native alive while the view is reachable, and the
+            // owner keeps the parent alive.
             //
             // The owners are taken as locals before anything allocates: an allocation can run a GC,
             // whose pre-finalizers take dead statements out of the list.
             std::vector<v8::Local<v8::Object>> owners;
             owners.reserve(data->statements.size());
             for (auto* stmt : data->statements) {
-                if (stmt->isOpen) {
+                if (stmt->isOpen && !stmt->owner.IsEmpty()) {
                     owners.push_back(stmt->owner.Get(isolate));
                 }
             }
             auto array = v8::Array::New(isolate, static_cast<int32_t>(owners.size()));
             auto stmtTpl = JSDBStatement::GetTemplate(isolate);
-            auto parentKey = v8::Private::ForApi(isolate, convert::ToJS(isolate, "d2bs::DBStatement#parentDb"));
             auto ownerKey = v8::Private::ForApi(isolate, convert::ToJS(isolate, "d2bs::DBStatement#owner"));
             uint32_t idx = 0;
             for (const auto owner : owners) {
@@ -174,7 +173,6 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 }
                 auto obj = maybeObj.ToLocalChecked();
                 JSDBStatement::Borrow(isolate, obj, JSDBStatement::Unwrap(owner));
-                obj->SetPrivate(context, parentKey, self).Check();
                 obj->SetPrivate(context, ownerKey, owner).Check();
                 array->Set(context, idx++, obj).Check();
             }
@@ -342,7 +340,9 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 sqlite3_finalize(stmtHandle);
                 return;
             }
-            JSDBStatement::Unwrap(stmtObj)->owner.Reset(isolate, stmtObj);
+            auto* stmt = JSDBStatement::Unwrap(stmtObj);
+            stmt->owner.Reset(isolate, stmtObj);
+            stmt->parentObject.Reset(isolate, self);
             args.GetReturnValue().Set(stmtObj);
         });
 
