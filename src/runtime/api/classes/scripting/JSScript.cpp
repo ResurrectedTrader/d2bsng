@@ -206,9 +206,7 @@ v8::Local<v8::Object> JSScript::Create(v8::Isolate* isolate, script::Script* scr
 
     auto context = isolate->GetCurrentContext();
 
-    // Create handle with thread ID for safe lookup
-    auto handle = std::make_unique<ScriptHandle>(script->GetThreadId());
-    return CreateInstance(isolate, context, std::move(handle));
+    return CreateInstance(isolate, context, script->GetThreadId());
 }
 
 }  // namespace d2bs::runtime::api::classes

@@ -29,7 +29,7 @@ class JSDrawableBase : public ClassBase<Derived, DrawableType> {
    protected:
     using Base = ClassBase<Derived, DrawableType>;
 
-    // Set up instance tracking for a drawable before Wrap().
+    // Set up instance tracking for a drawable before Borrow().
     // Increments the per-thread count now and installs an onDestroy hook that
     // decrements when the owning Script destroys the drawable.
     static void SetupInstanceTracking(DrawableType* drawable) {
@@ -240,7 +240,7 @@ class JSDrawableBase : public ClassBase<Derived, DrawableType> {
                 if (!script)
                     return;
                 script->RemoveDrawable(drawable->shared_from_this());
-                Base::Wrap(args.This(), nullptr);
+                Base::Detach(args.This());
             });
     }
 };

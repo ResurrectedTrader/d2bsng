@@ -217,8 +217,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 auto array = v8::Array::New(isolate, static_cast<int32_t>(presets.size()));
 
                 for (uint32_t i = 0; i < presets.size(); ++i) {
-                    auto puData = std::make_unique<game::PresetUnitInfo>(presets[i]);
-                    auto obj = JSPresetUnit::CreateInstance(isolate, context, std::move(puData));
+                    auto obj = JSPresetUnit::CreateInstance(isolate, context, presets[i]);
                     if (obj.IsEmpty()) {
                         error::ThrowError(isolate, "Failed to build preset unit array");
                         return;
@@ -309,7 +308,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                 auto array = v8::Array::New(isolate, static_cast<int32_t>(nearby.size()));
 
                 for (uint32_t i = 0; i < nearby.size(); ++i) {
-                    auto obj = CreateInstance(isolate, context, std::make_unique<game::Room>(nearby[i]));
+                    auto obj = CreateInstance(isolate, context, nearby[i]);
                     if (obj.IsEmpty()) {
                         error::ThrowError(isolate, "Failed to build nearby room array");
                         return;
@@ -366,7 +365,7 @@ class JSRoom : public ClassBase<JSRoom, game::Room> {
                         return;
                     }
                 }
-                auto obj = CreateInstance(isolate, context, std::make_unique<game::Room>(first));
+                auto obj = CreateInstance(isolate, context, first);
                 if (obj.IsEmpty())
                     return;
                 args.GetReturnValue().Set(obj);

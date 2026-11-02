@@ -1,12 +1,17 @@
 #pragma once
 
+#include <cppgc/allocation.h>
+#include <cppgc/prefinalizer.h>
+#include <cppgc/visitor.h>
+#include <v8-cppgc.h>
 #include <v8.h>
 #include <cstdint>
-#include <memory>
 #include <mutex>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <unordered_map>
+#include <utility>
 #include "Convert.h"
 #include "Error.h"
 #include "InstanceTracker.h"
@@ -28,6 +33,28 @@ constexpr uint32_t Fnv1a(std::string_view text) {
     return hash;
 }
 
+// The C++ side of every wrapper: an object on the isolate's C++ heap (cppgc) that v8::Object::Wrap attaches to the
+// JS object, so the two are collected together. Unwrap tells the wrapper's class from the tag and finds the native
+// through the pointer, both plain reads - no virtual call.
+//
+// Destructors of cells (and so of the natives they own) run inside cppgc sweeping, possibly within an allocation,
+// and at isolate disposal after V8 has detached the heap. They must not touch V8 or game state, and reach another
+// cell's native only through a registration whose own destructor removes it (DBStatement / SQLite).
+class CellBase : public v8::Object::Wrappable {
+   public:
+    CellBase(const uint32_t* classTag, void* native) : classTag_(classTag), native_(native) {}
+
+    [[nodiscard]] const uint32_t* ClassTag() const { return classTag_; }
+    [[nodiscard]] void* Native() const { return native_; }
+    void Clear() { native_ = nullptr; }
+
+   private:
+    const uint32_t* classTag_;
+    void* native_;
+};
+
+inline constexpr v8::CppHeapPointerTag CELL_TAG = v8::CppHeapPointerTag::kFirstObjectWrappableTag;
+
 }  // namespace detail
 
 // CRTP base template for V8 class bindings
@@ -35,6 +62,13 @@ constexpr uint32_t Fnv1a(std::string_view text) {
 //   - static constexpr std::string_view ClassName
 //   - static void New(const v8::FunctionCallbackInfo<v8::Value>& args)
 //   - static void ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl)
+//
+// A native that holds V8 values keeps them in v8::TracedReference members and exposes
+// `void Trace(cppgc::Visitor*) const` tracing them; its cell forwards to it.
+//
+// A native that exposes `void PreFinalize()` gets it called in the GC pause that finds its cell dead, before any
+// sweeping, so it can leave a list another native keeps (DBStatement / SQLite) before anything reads it there dead.
+// The same rules as for destructors apply.
 
 template <typename Derived, typename NativeType>
 class ClassBase {
@@ -48,8 +82,8 @@ class ClassBase {
         return cache;
     }
 
-    // Address-only marker, one per Derived. Stored in internal field 1 so Unwrap identifies its
-    // own instances with a pointer compare rather than a template-chain check.
+    // Address-only marker, one per Derived, carried by every cell of this class so Unwrap
+    // identifies its own instances with a pointer compare.
     //
     // Its value is seeded from the class name, which is what keeps the tags at distinct
     // addresses: the DLL links with /OPT:ICF (EnableCOMDATFolding in d2bs.vcxproj), which folds
@@ -59,56 +93,66 @@ class ClassBase {
     // NOLINTNEXTLINE(cert-err58-cpp) - constinit makes this compile-time; the check misses that
     inline static constinit uint32_t typeTag_ = detail::Fnv1a(Derived::ClassName);
 
-    // V8 weak callbacks require a two-pass mechanism:
-    // - First pass: Reset handle and schedule second pass (no other V8 API calls allowed)
-    // - Second pass: Actual cleanup - delete native struct and callback data
-    // TeardownIsolate calls LowMemoryNotification() before disposal to ensure
-    // all weak callbacks fire and native data is properly freed.
-    //
-    // The tracker row rides along so the count returns to the row that took it whichever thread
-    // runs the callback. Today that is always the script thread, but only because V8 posts second
-    // pass callbacks to the foreground task runner and TeardownIsolate forces a synchronous drain
-    // before disposal - Isolate::Dispose itself drains nothing, so a callback still queued there
-    // is dropped rather than run late. Recording the row keeps none of that load-bearing.
-    static void MakeWeak(v8::Isolate* isolate, v8::Local<v8::Object> obj, NativeType* ptr, InstanceTracker::Row& row) {
-        struct WeakCallbackData {
-            v8::Global<v8::Object> handle;
-            NativeType* native;
-            InstanceTracker::Row* row;
-        };
+    // A cell that owns its native, counted in the instance tracker from construction to finalization. The tracker
+    // row rides along so the count returns to the row that took it, whichever thread finalizes the cell (isolate
+    // disposal can run on another thread).
+    class OwnedCell : public detail::CellBase {
+       public:
+        template <typename... Args>
+        explicit OwnedCell(InstanceTracker::Row& row, Args&&... args)
+            : CellBase(&typeTag_, &value_), value_(std::forward<Args>(args)...), row_(&row) {}
+        OwnedCell(const OwnedCell&) = delete;
+        OwnedCell& operator=(const OwnedCell&) = delete;
+        OwnedCell(OwnedCell&&) = delete;
+        OwnedCell& operator=(OwnedCell&&) = delete;
+        ~OwnedCell() override { InstanceTracker::Instance().Decrement(*row_, InstanceClassId()); }
 
-        auto* data = new WeakCallbackData{v8::Global<v8::Object>(isolate, obj), ptr, &row};
+        void Trace(cppgc::Visitor* visitor) const override {
+            if constexpr (requires(const NativeType& native) { native.Trace(visitor); }) {
+                value_.Trace(visitor);
+            }
+        }
 
-        data->handle.SetWeak(
-            data,
-            [](const v8::WeakCallbackInfo<WeakCallbackData>& info) {
-                info.GetParameter()->handle.Reset();
-                info.SetSecondPassCallback([](const v8::WeakCallbackInfo<WeakCallbackData>& callbackInfo) {
-                    auto* d = callbackInfo.GetParameter();
-                    auto& owningRow = *d->row;
-                    delete d->native;
-                    delete d;
-                    InstanceTracker::Instance().Decrement(owningRow, InstanceClassId());
-                });
-            },
-            v8::WeakCallbackType::kParameter);
-    }
+       protected:
+        NativeType value_;
 
-    static constexpr int32_t NATIVE_PTR_FIELD = 0;
-    static constexpr int32_t TYPE_TAG_FIELD = 1;
-    static constexpr int32_t INTERNAL_FIELD_COUNT = 2;
+       private:
+        InstanceTracker::Row* row_;
+    };
 
-    static bool HasTypeTag(v8::Local<v8::Object> obj) {
-        return !obj.IsEmpty() && obj->InternalFieldCount() >= INTERNAL_FIELD_COUNT &&
-               obj->GetAlignedPointerFromInternalField(TYPE_TAG_FIELD, v8::kEmbedderDataTypeTagDefault) == &typeTag_;
+    // Registers a pre-finalizer, which costs every allocation of the class, hence only for natives that ask.
+    class PreFinalizedCell final : public OwnedCell {
+        CPPGC_USING_PRE_FINALIZER(PreFinalizedCell, PreFinalize);
+
+       public:
+        using OwnedCell::OwnedCell;
+
+        void PreFinalize() { this->value_.PreFinalize(); }
+    };
+
+    using Cell =
+        std::conditional_t<requires(NativeType& native) { native.PreFinalize(); }, PreFinalizedCell, OwnedCell>;
+
+    // A cell over a native something else owns (a drawable the script's registry holds, a statement its database
+    // holds). Not counted: the owner counts the native.
+    class BorrowedCell final : public detail::CellBase {
+       public:
+        explicit BorrowedCell(NativeType* native) : CellBase(&typeTag_, native) {}
+    };
+
+    // Unwrap reads the slot only on an API wrapper, the only kind that has one. An API wrapper never wrapped (a plain
+    // instance of another template) has no cell.
+    static detail::CellBase* CellOf(v8::Local<v8::Object> obj) {
+        if (obj.IsEmpty() || !obj->IsApiWrapper()) {
+            return nullptr;
+        }
+        auto* cell = v8::Object::Unwrap<detail::CELL_TAG, detail::CellBase>(v8::Isolate::GetCurrent(), obj);
+        return cell != nullptr && cell->ClassTag() == &typeTag_ ? cell : nullptr;
     }
 
     static NativeType* NativeOf(v8::Local<v8::Object> obj) {
-        if (!HasTypeTag(obj)) {
-            return nullptr;
-        }
-        return static_cast<NativeType*>(
-            obj->GetAlignedPointerFromInternalField(NATIVE_PTR_FIELD, v8::kEmbedderDataTypeTagDefault));
+        auto* cell = CellOf(obj);
+        return cell != nullptr ? static_cast<NativeType*>(cell->Native()) : nullptr;
     }
 
    public:
@@ -127,7 +171,6 @@ class ClassBase {
         if (it == cache.templates.end()) {
             auto tpl = v8::FunctionTemplate::New(isolate, Derived::New);
             tpl->SetClassName(convert::ToJS(isolate, Derived::ClassName));
-            tpl->InstanceTemplate()->SetInternalFieldCount(INTERNAL_FIELD_COUNT);
             Derived::ConfigureTemplate(isolate, tpl);
             it = cache.templates.emplace(isolate, v8::Global<v8::FunctionTemplate>(isolate, tpl)).first;
         }
@@ -141,21 +184,16 @@ class ClassBase {
         cache.templates.erase(isolate);
     }
 
-    // Check if a value is an instance of this class, by the type tag Wrap stamps on every instance (CreateInstance and
-    // the constructors) - the same test Unwrap applies to its receiver, without the template cache's lock.
+    // Check if a value is an instance of this class, by the class tag its cell carries - the same test Unwrap applies
+    // to its receiver, without the template cache's lock.
     static bool IsInstance(v8::Local<v8::Value> value) {
-        if (value.IsEmpty() || !value->IsObject()) {
-            return false;
-        }
-        return HasTypeTag(value.As<v8::Object>());
+        return !value.IsEmpty() && value->IsObject() && CellOf(value.As<v8::Object>()) != nullptr;
     }
 
     // Unwrap native pointer from V8 object.
     //
-    // Runs on every property read and method call, so it identifies the receiver by the
-    // type tag in field 1 rather than by IsInstance's template-chain walk. The count check
-    // has to come first - V8's inline field accessor does no bounds check, so probing field
-    // 1 on a plain object would read out of bounds.
+    // Runs on every property read and method call, so it identifies the receiver by its
+    // cell's class tag rather than by IsInstance's template-chain walk.
     //
     // V8 14 removed AccessorSignature, so a script that lifts a getter onto a foreign
     // receiver reaches the binding with it, and this returns nullptr.
@@ -175,32 +213,40 @@ class ClassBase {
         return LockedHandle<NativeType>(NativeOf(obj));
     }
 
-    // Wrap native pointer into V8 object's internal fields. Stamping the tag here (rather
-    // than in InitInstance) covers the direct Wrap() callers too, so no instance of this
-    // class can exist without one.
-    static void Wrap(v8::Local<v8::Object> obj, NativeType* ptr) {
-        obj->SetAlignedPointerInInternalField(NATIVE_PTR_FIELD, ptr, v8::kEmbedderDataTypeTagDefault);
-        obj->SetAlignedPointerInInternalField(TYPE_TAG_FIELD, &typeTag_, v8::kEmbedderDataTypeTagDefault);
-    }
-
-    // Initialize a V8 object with native data and weak GC callback (constructor path).
-    static void InitInstance(v8::Isolate* isolate, v8::Local<v8::Object> obj, std::unique_ptr<NativeType> data) {
+    // Constructor path: gives `obj` (the construct call's receiver) a cell owning a native built from args, and
+    // returns the native.
+    template <typename... Args>
+    static NativeType* Attach(v8::Isolate* isolate, v8::Local<v8::Object> obj, Args&&... args) {
         auto& row = InstanceTracker::Instance().Increment(InstanceClassId());
-        auto* raw = data.release();
-        Wrap(obj, raw);
-        MakeWeak(isolate, obj, raw, row);
+        auto* cell = cppgc::MakeGarbageCollected<Cell>(isolate->GetCppHeap()->GetAllocationHandle(), row,
+                                                       std::forward<Args>(args)...);
+        v8::Object::Wrap<detail::CELL_TAG>(isolate, obj, cell);
+        return static_cast<NativeType*>(cell->Native());
     }
 
-    // Create a new instance from heap-allocated data; on failure, data is freed automatically.
-    static v8::Local<v8::Object> CreateInstance(v8::Isolate* isolate, v8::Local<v8::Context> context,
-                                                std::unique_ptr<NativeType> data) {
+    // Gives `obj` a cell over a native it does not own; Detach clears it once the owner drops the native.
+    static void Borrow(v8::Isolate* isolate, v8::Local<v8::Object> obj, NativeType* native) {
+        auto* cell = cppgc::MakeGarbageCollected<BorrowedCell>(isolate->GetCppHeap()->GetAllocationHandle(), native);
+        v8::Object::Wrap<detail::CELL_TAG>(isolate, obj, cell);
+    }
+
+    static void Detach(v8::Local<v8::Object> obj) {
+        if (auto* cell = CellOf(obj)) {
+            cell->Clear();
+        }
+    }
+
+    // A new instance owning a native built from args. On failure no native is built, so a caller that passed a
+    // resource in args still owns it.
+    template <typename... Args>
+    static v8::Local<v8::Object> CreateInstance(v8::Isolate* isolate, v8::Local<v8::Context> context, Args&&... args) {
         v8::EscapableHandleScope scope(isolate);
         auto tpl = GetTemplate(isolate);
-        auto maybeInstance = tpl->InstanceTemplate()->NewInstance(context);
-        if (maybeInstance.IsEmpty())
+        v8::Local<v8::Object> obj;
+        if (!tpl->InstanceTemplate()->NewInstance(context).ToLocal(&obj)) {
             return {};
-        auto obj = maybeInstance.ToLocalChecked();
-        InitInstance(isolate, obj, std::move(data));
+        }
+        Attach(isolate, obj, std::forward<Args>(args)...);
         return scope.Escape(obj);
     }
 

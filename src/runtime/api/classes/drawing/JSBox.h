@@ -64,7 +64,7 @@ class JSBox : public JSDrawableBase<JSBox, BoxDrawable> {
         SetupInstanceTracking(rawDrawable);
         script->AddDrawable(std::move(drawable));
 
-        Wrap(args.This(), rawDrawable);
+        Borrow(isolate, args.This(), rawDrawable);
         // The owning Script holds the shared_ptr. rawDrawable stays valid
         // until remove() or TeardownIsolate drops that ref.
         args.GetReturnValue().Set(args.This());

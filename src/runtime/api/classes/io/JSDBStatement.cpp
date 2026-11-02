@@ -3,6 +3,7 @@
 #include "SQLiteBind.h"
 
 #include <cstring>
+#include <utility>
 
 namespace d2bs::runtime::api::classes {
 
@@ -22,6 +23,11 @@ v8::Local<v8::ArrayBuffer> ColumnBlob(v8::Isolate* isolate, sqlite3_stmt* handle
 
 }  // namespace
 
+DBStatementData::DBStatementData(sqlite3_stmt* stmt, SQLiteData* db, std::string text)
+    : handle(stmt), parent(db), sql(std::move(text)), isOpen(true) {
+    parent->statements.insert(this);
+}
+
 void DBStatementData::Finalize() {
     if (handle && isOpen) {
         sqlite3_finalize(handle);
@@ -36,7 +42,6 @@ void DBStatementData::Finalize() {
         parent = nullptr;
     }
 
-    cachedRow.Reset();
     hasRow = false;
 }
 

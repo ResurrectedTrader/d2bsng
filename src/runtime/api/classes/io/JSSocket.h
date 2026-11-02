@@ -8,13 +8,18 @@
 
 namespace d2bs::runtime::api::classes {
 
-// Internal data structure for Socket
+// Internal data structure for Socket. Owns a connected socket and one WSAStartup reference from construction.
 // Note: SOCKET is a Windows handle type (UINT_PTR)
 struct SocketData {
     uintptr_t handle = ~static_cast<uintptr_t>(0);  // INVALID_SOCKET equivalent without winsock2.h
     bool isConnected = false;
     bool isWsaInitialized = false;
 
+    explicit SocketData(uintptr_t connected) : handle(connected), isConnected(true), isWsaInitialized(true) {}
+    SocketData(const SocketData&) = delete;
+    SocketData& operator=(const SocketData&) = delete;
+    SocketData(SocketData&&) = delete;
+    SocketData& operator=(SocketData&&) = delete;
     ~SocketData();  // Defined in JSSocket.cpp (needs winsock2.h for closesocket/WSACleanup)
 };
 

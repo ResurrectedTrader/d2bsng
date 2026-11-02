@@ -41,8 +41,7 @@ class JSArea : public ClassBase<JSArea, game::Level> {
                 auto array = v8::Array::New(isolate, static_cast<int32_t>(exits.size()));
 
                 for (uint32_t i = 0; i < exits.size(); ++i) {
-                    auto exitObj =
-                        JSExit::CreateInstance(isolate, context, std::make_unique<navigation::ExitInfo>(exits[i]));
+                    auto exitObj = JSExit::CreateInstance(isolate, context, exits[i]);
                     if (exitObj.IsEmpty()) {
                         error::ThrowError(isolate, "Failed to build exit array");
                         return;
