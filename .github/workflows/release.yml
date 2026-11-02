@@ -261,14 +261,15 @@ jobs:
     # Dispatches the private simulator build at this commit and version, waits for
     # it, and uploads its d2bs-sim.exe + sim.json as the d2bs-sim artifact (picked
     # up by `release`'s d2bs-* download). Its symbols are not published. The
-    # dispatch token is a `release` environment secret, read by sim-build.yml's
-    # job itself, so nothing is passed down here.
+    # dispatch token is a `release` environment secret; a called workflow only sees
+    # the secrets its caller passes, hence `secrets: inherit`.
     needs: [version]
     uses: ./.github/workflows/sim-build.yml
     with:
       sha: ${{ github.sha }}
       version: ${{ needs.version.outputs.version }}
       publish: true
+    secrets: inherit
 
   deploy-docs:
     name: Deploy docs

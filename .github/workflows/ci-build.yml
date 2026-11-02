@@ -158,6 +158,7 @@ jobs:
     uses: ./.github/workflows/sim-build.yml
     with:
       sha: ${{ needs.prepare.outputs.sha }}
+    secrets: inherit
 
   # Post the final build+tests result back onto the PR (comment-triggered runs
   # don't auto-appear as PR checks, so we set a commit status explicitly).
