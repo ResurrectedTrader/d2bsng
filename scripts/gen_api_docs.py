@@ -27,7 +27,7 @@ Usage:
     python scripts/extract_api.py -o api.json
     # offline single-version page (renders the embedded dataset):
     python scripts/gen_api_docs.py api.json -o api.html --version 1.2.3
-    # ... with a release's sim.json as its Simulator section:
+    # ... with a release's sim.json in a Simulator tab:
     python scripts/gen_api_docs.py api.json --sim sim.json -o api.html --version 1.2.3
     # versioned site shell (build_docs_site.py wraps this for the Pages deploy):
     python scripts/gen_api_docs.py api.json -o site/index.html \\
@@ -37,6 +37,7 @@ Usage:
 import argparse
 import html
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -57,7 +58,7 @@ def main():
     ap.add_argument(
         "--sim",
         default="",
-        help="a release's sim.json (the kolbot simulator's options and guide), rendered as a Simulator section",
+        help="a release's sim.json (the kolbot simulator's options and guide), rendered in a Simulator tab",
     )
     args = ap.parse_args()
 
@@ -69,7 +70,7 @@ def main():
         if inline is None:
             sys.exit("--sim needs an api.json input")
         with open(args.sim, encoding="utf-8") as f:
-            inline["simulator"] = json.load(f)
+            inline["simulator"] = sim_public(json.load(f))
 
     page = build_page(
         inline,
@@ -86,6 +87,26 @@ def main():
         print(f"Wrote {out} ({len(page):,} bytes)", file=sys.stderr)
     else:
         sys.stdout.write(page)
+
+
+SIM_KEYS = ("schema", "version", "commands", "options", "environment", "usage")
+
+
+def sim_public(doc):
+    """The parts of a sim.json the page renders: no entry marked internal or for investigation only."""
+
+    def public(entry):
+        return (
+            isinstance(entry, dict)
+            and not entry.get("internal")
+            and not re.search(r"\bfor investigation only\b", entry.get("description") or "", re.I)
+        )
+
+    out = {k: doc[k] for k in SIM_KEYS if k in doc}
+    for k in ("commands", "options", "environment"):
+        if isinstance(out.get(k), list):
+            out[k] = [{f: v for f, v in e.items() if f != "internal"} for e in out[k] if public(e)]
+    return out
 
 
 def _json_for_script(obj):
@@ -264,11 +285,23 @@ ul.cols>li{display:flex;align-items:baseline;gap:7px;font-size:12px;min-width:19
 .ci{color:var(--muted);font-family:ui-monospace,monospace;font-variant-numeric:tabular-nums;min-width:2.4em;text-align:right}
 ul.cols code{background:var(--code-bg);padding:1px 5px;border-radius:4px}
 
-/* simulator guide */
-.sim-guide{scroll-margin-top:60px}
-.sim-guide h3{font-size:19px;margin:26px 0 6px}
-.sim-guide h4{font-size:16px;margin:20px 0 4px}
-.sim-guide pre{background:var(--code-bg);border:1px solid var(--border);border-radius:6px;padding:10px;overflow-x:auto;font-size:13px}
+/* simulator */
+#sim-view [id]{scroll-margin-top:60px}
+.sim-guide h3{font-size:19px;margin:30px 0 6px}
+.sim-guide h4{font-size:16px;margin:22px 0 4px}
+.sim-guide h5{font-size:14px;margin:18px 0 4px}
+.sim-guide li{margin:3px 0}
+.sim-guide li>p{margin:.4em 0}
+.sim-guide pre{background:var(--code-bg);border:1px solid var(--border);border-radius:6px;padding:10px;overflow-x:auto;font-size:13px;line-height:1.25}
+.tbl-wrap{overflow-x:auto;margin:8px 0}
+.chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:12px 0 4px}
+.chips-label{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700;margin-right:4px}
+.chip{font:600 12px/1.4 ui-monospace,monospace;border:1px solid var(--border);background:var(--code-bg);color:var(--muted);border-radius:20px;padding:3px 10px;cursor:pointer}
+.chip:hover{color:var(--fg)}
+.chip .n{font-weight:400;opacity:.75}
+.chip.active{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+.badge-cmd{color:var(--accent)}
+.lo-meta .r-label{margin-right:8px}
 .sim-guide code{background:var(--code-bg);padding:1px 5px;border-radius:4px}
 .sim-guide pre code{background:none;padding:0}
 table.doc-tbl th{border:1px solid var(--border);padding:4px 9px;text-align:left;background:var(--code-bg)}
@@ -634,61 +667,127 @@ function buildApi(data){
   }
 
   // the simulator, from a release that carries a sim.json (build_docs_site.py adds it as data.simulator)
-  var simBody=[];
-  if(data.simulator) buildSimulator(data.simulator, simBody, loNav);
-  simView.innerHTML=simBody.join('');
-  simTab.hidden=!data.simulator;
+  var sim=data.simulator?simPublic(data.simulator):null;
+  var simNav=sim?buildSimulator(sim):'';
+  if(!sim) simView.innerHTML='';
+  simTab.hidden=!sim;
 
   navHtml.push(navCategory('top','JS API',jsNav));
-  if(loNav.length) navHtml.push(navCategory(launch.length?'launch':'simulator','Others',loNav));
+  if(loNav.length) navHtml.push(navCategory('launch','Others',loNav));
+  if(simNav) navHtml.push(simNav);
   nav.innerHTML=navHtml.join('');
   apiView.innerHTML=body.join('');
   initInteractions();
 }
-// sim.json: {version, options:[{name,syntax,category,default,description,commands}], environment:[{name,syntax,description}], usage}
-function buildSimulator(sim, body, navOut){
-  var opts=sim.options||[], envs=sim.environment||[], leaves=[];
-  body.push('<section class="area"><h2 id="simulator" class="spy">Simulator</h2>'+
-    '<p class="area-intro">The kolbot simulator, <code>d2bs-sim.exe</code>'+(sim.version?' '+esc(sim.version):'')+
-    ': the 1.14d game driven by the d2bsng runtime in a console process, faster than real time. Its guide, its switches and the environment variables it reads.</p>');
+
+// ---- simulator (a release's sim.json) ----
+// {version, commands?:[{name,syntax,description}], options:[{name,syntax,category,default,description,commands}],
+//  environment:[{name,syntax,description}], usage}; an entry marked internal (or for investigation only) is not shown.
+function simPublic(sim){
+  function pub(e){ return e && !e.internal && !/\bfor investigation only\b/i.test(e.description||''); }
+  var out={}; Object.keys(sim).forEach(function(k){ out[k]=sim[k]; });
+  ['commands','options','environment'].forEach(function(k){ if(Array.isArray(out[k])) out[k]=out[k].filter(pub); });
+  return out;
+}
+var SIM_LINKS={};
+// escaped text with the simulator's own switches linked
+function simText(t){
+  return esc(t).replace(/(^|[^\w-])(--[a-z][a-z0-9-]*)/g,function(m,p,n){ return SIM_LINKS[n]?p+'<a href="#'+esc(SIM_LINKS[n])+'">'+n+'</a>':m; });
+}
+function simLinkCode(h){
+  return h.replace(/(?<!<pre>)<code>(--[a-z][a-z0-9-]*)((?:\s[^<]*)?)<\/code>/g,function(m,n,rest){ return SIM_LINKS[n]?'<a href="#'+esc(SIM_LINKS[n])+'">'+m+'</a>':m; });
+}
+function buildSimulator(sim){
+  var opts=sim.options||[], envs=sim.environment||[], body=[], groups=[];
+  SIM_LINKS={}; opts.forEach(function(o){ SIM_LINKS[o.name]=slug('sim','opt',o.name); });
+  var cmdNames=[], cmdCount={};
+  (sim.commands||[]).forEach(function(c){ if(c.name&&!(c.name in cmdCount)){ cmdNames.push(c.name); cmdCount[c.name]=0; } });
+  opts.forEach(function(o){ (o.commands||[]).forEach(function(c){ if(!(c in cmdCount)){ cmdNames.push(c); cmdCount[c]=0; } cmdCount[c]++; }); });
+
+  var stats=[];
+  if(opts.length) stats.push(opts.length+' switches');
+  if(cmdNames.length) stats.push(cmdNames.length+' commands');
+  if(envs.length) stats.push(envs.length+' environment variables');
+  body.push('<section class="area intro-area"><h1 id="sim">Simulator</h1><p class="lead"><code>d2bs-sim</code>'+
+    (sim.version?' '+esc(sim.version):'')+(stats.length?' &middot; '+stats.join(' &middot; '):'')+'</p></section>');
+
   if(sim.usage){
+    var usage=String(sim.usage).replace(/\r\n/g,'\n'), title='Guide', m=usage.match(/^\s*#\s+(.+)\n/), toc=[];
+    if(m){ title=m[1].trim(); usage=usage.slice(m[0].length); }
     var ga=slug('sim','guide');
-    body.push('<div id="'+esc(ga)+'" class="sim-guide spy">'+mdDoc(sim.usage)+'</div>');
-    leaves.push([ga,'Guide',hay('guide usage simulator')]);
+    body.push('<section class="area"><h2 id="'+esc(ga)+'" class="spy">'+mdInline(title)+'</h2><div class="sim-guide">'+
+      simLinkCode(mdDoc(usage,{shift:1,prefix:ga,toc:toc}))+'</div></section>');
+    groups.push(navGroup(ga,'Guide',toc));
   }
+
+  if(sim.commands&&sim.commands.length){
+    var ca=slug('sim','commands'), cl=[];
+    body.push('<section class="area"><h2 id="'+esc(ca)+'" class="spy">Commands</h2>');
+    sim.commands.forEach(function(c){
+      var a=slug('sim','cmd',c.name);
+      var title='<span class="sym-name">d2bs-sim '+esc(c.name)+'</span>'+(c.syntax?' <span class="lo-syntax">'+esc(c.syntax)+'</span>':'');
+      body.push('<div class="member" data-hay="'+hay(c.name,c.description)+'">'+head(3,a,title,'')+
+        '<div class="member-body">'+(c.description?'<p class="desc">'+simText(c.description)+'</p>':'')+'</div></div>');
+      cl.push([a,c.name,hay(c.name,c.description)]);
+    });
+    body.push('</section>');
+    groups.push(navGroup(ca,'Commands',cl));
+  }
+
   if(opts.length){
-    var oa=slug('sim','switches'), cats=[], byCat={};
-    body.push('<h3 id="'+esc(oa)+'" class="cat-head">Switches</h3>');
-    leaves.push([oa,'Switches',hay('switches options simulator')]);
+    var oa=slug('sim','switches'), cats=[], byCat={}, sub=[];
     opts.forEach(function(o){ var c=o.category||'Other'; if(!byCat[c]){ byCat[c]=[]; cats.push(c); } byCat[c].push(o); });
+    body.push('<section class="area"><h2 id="'+esc(oa)+'" class="spy">Switches</h2>');
+    if(cmdNames.length>1){
+      body.push('<div class="chips"><span class="chips-label">Command</span>'+
+        '<button class="chip active" data-cmd="">all <span class="n">'+opts.length+'</span></button>'+
+        cmdNames.map(function(c){ return '<button class="chip" data-cmd="'+esc(c)+'">'+esc(c)+' <span class="n">'+cmdCount[c]+'</span></button>'; }).join('')+'</div>');
+    }
     cats.forEach(function(c){
-      body.push('<h4 class="bucket">'+esc(c)+'</h4>');
+      var ka=slug('sim','cat',c), leaves=[];
+      body.push('<div class="sim-cat"><h3 id="'+esc(ka)+'" class="cat-head">'+esc(c)+'</h3>');
       byCat[c].forEach(function(o){
-        var a=slug('sim','opt',o.name), cmds=o.commands||[];
+        var a=SIM_LINKS[o.name], cmds=o.commands||[], d=o['default'];
         var title='<span class="sym-name">'+esc(o.name)+'</span>'+(o.syntax?' <span class="lo-syntax">'+esc(o.syntax)+'</span>':'');
-        var badges=cmds.map(function(cm){ return badge(cm); }).join('');
-        var meta=o['default']?'<p class="lo-meta">Default: <code>'+esc(o['default'])+'</code></p>':'';
-        body.push('<div class="member" data-hay="'+hay(o.name,o.description,o.syntax)+'">'+head(4,a,title,badges)+
-          '<div class="member-body">'+(o.description?'<p class="desc">'+esc(o.description)+'</p>':'')+meta+'</div></div>');
+        var badges=cmds.map(function(cm){ return badge(cm,'cmd'); }).join('');
+        var meta=d?'<p class="lo-meta"><span class="r-label">Default</span>'+(/^\S+$/.test(d)?'<code>'+esc(d)+'</code>':simText(d))+'</p>':'';
+        body.push('<div class="member" data-cmds="'+esc(cmds.join(' '))+'" data-hay="'+hay(o.name,o.description,o.syntax)+'">'+head(4,a,title,badges)+
+          '<div class="member-body">'+(o.description?'<p class="desc">'+simText(o.description)+'</p>':'')+meta+'</div></div>');
         leaves.push([a,o.name,hay(o.name,o.description,o.syntax)]);
       });
+      body.push('</div>');
+      sub.push(navSubgroup(ka,c,leaves));
     });
+    body.push('</section>');
+    groups.push('<li class="group collapsed"><div class="grp-row"><button class="tw" aria-label="toggle"></button>'+
+      '<a class="grp-label grp-link" href="#'+esc(oa)+'">Switches <span class="n">'+opts.length+'</span></a></div><ul class="kids">'+sub.join('')+'</ul></li>');
   }
+
   if(envs.length){
-    var ea=slug('sim','environment');
-    body.push('<h3 id="'+esc(ea)+'" class="cat-head">Environment variables</h3>');
-    leaves.push([ea,'Environment variables',hay('environment variables simulator')]);
+    var ea=slug('sim','environment'), el=[];
+    body.push('<section class="area"><h2 id="'+esc(ea)+'" class="spy">Environment variables</h2>');
     envs.forEach(function(v){
       var a=slug('sim','env',v.name);
       var title='<span class="sym-name">'+esc(v.name)+'</span>'+(v.syntax?' <span class="lo-syntax">'+esc(v.syntax)+'</span>':'');
-      body.push('<div class="member" data-hay="'+hay(v.name,v.description)+'">'+head(4,a,title,'')+
-        '<div class="member-body">'+(v.description?'<p class="desc">'+esc(v.description)+'</p>':'')+'</div></div>');
-      leaves.push([a,v.name,hay(v.name,v.description)]);
+      body.push('<div class="member" data-hay="'+hay(v.name,v.description)+'">'+head(3,a,title,'')+
+        '<div class="member-body">'+(v.description?'<p class="desc">'+simText(v.description)+'</p>':'')+'</div></div>');
+      el.push([a,v.name,hay(v.name,v.description)]);
     });
+    body.push('</section>');
+    groups.push(navGroup(ea,'Environment variables',el));
   }
-  body.push('</section>');
-  navOut.push(navGroup('simulator','Simulator',leaves));
+  simView.innerHTML=body.join('');
+  return navCategory('sim','Simulator',groups);
 }
+function simFilter(cmd){
+  simView.querySelectorAll('.chip').forEach(function(x){ x.classList.toggle('active',(x.dataset.cmd||'')===cmd); });
+  simView.querySelectorAll('.member[data-cmds]').forEach(function(m){ m.hidden=!!cmd&&(' '+m.dataset.cmds+' ').indexOf(' '+cmd+' ')<0; });
+  simView.querySelectorAll('.sim-cat').forEach(function(s){ s.hidden=!s.querySelector('.member:not([hidden])'); });
+}
+simView.addEventListener('click',function(e){
+  var b=e.target.closest('.chip'); if(b){ simFilter(b.dataset.cmd||''); return; }
+  var a=e.target.closest('a[href^="#"]'); if(a) navTo(a.getAttribute('href'));
+});
 function byName(a,b){ return a.name.toLowerCase()<b.name.toLowerCase()?-1:1; }
 function ci(a,b){ return a.toLowerCase()<b.toLowerCase()?-1:1; }
 
@@ -717,7 +816,7 @@ function flatten(data){
   });
   (data.events||[]).forEach(function(e){ out['event '+e.name]={label:'event '+e.name, fp:(e.signature||'')+'|'+!!e.blockable, anchor:slug('event',e.name)}; });
   (data.launch_options||[]).forEach(function(o){ out['option '+o.name]={label:'option '+o.name, fp:(o.syntax||'')+'|'+(o.description||''), anchor:slug('launch',o.name)}; });
-  var sim=data.simulator;
+  var sim=data.simulator&&simPublic(data.simulator);
   if(sim){
     (sim.options||[]).forEach(function(o){ out['simulator '+o.name]={label:'simulator '+o.name, fp:(o.syntax||'')+'|'+(o['default']||'')+'|'+(o.description||''), anchor:slug('sim','opt',o.name)}; });
     (sim.environment||[]).forEach(function(v){ out['simulator env '+v.name]={label:'simulator env '+v.name, fp:(v.syntax||'')+'|'+(v.description||''), anchor:slug('sim','env',v.name)}; });
@@ -778,41 +877,79 @@ function md(src){
   return out.join('\n');
 }
 
-// Markdown for a document (a guide), beyond md(): paragraphs and list items that span lines, and tables.
-// Headings start at <h3>, below the section's own <h2>.
-function mdDoc(src){
-  var lines=String(src||'').replace(/\r\n/g,'\n').split('\n'), out=[], i=0;
-  function cells(ln){ return ln.trim().replace(/^\|/,'').replace(/\|$/,'').split('|').map(function(c){ return c.trim(); }); }
-  function isBreak(ln){ return /^\s*$/.test(ln)||/^```/.test(ln)||/^#{1,6}\s/.test(ln)||/^\s*[-*]\s+/.test(ln)||/^\s*\|/.test(ln); }
+// Markdown for a document (a guide), beyond md(): paragraphs and list items that span lines, nested lists,
+// tables (with \| escapes) and *emphasis*. A heading of level n becomes <h(n+shift)>; with a prefix, each
+// level-2 heading gets an id and, with toc, a [anchor,label,hay] entry for the sidebar.
+function mdDoc(src,opts){
+  opts=opts||{};
+  var shift=opts.shift==null?2:opts.shift, lines=String(src||'').replace(/\r\n/g,'\n').split('\n'), out=[], i=0;
+  function inl(t){ return mdInline(t).split(/(<code>[\s\S]*?<\/code>)/).map(function(s,n){ return n%2?s:s.replace(/(^|[^\w*])\*([^*\s][^*]*?)\*(?![\w*])/g,'$1<em>$2</em>'); }).join(''); }
+  function cells(ln){
+    return ln.trim().replace(/^\|/,'').replace(/(^|[^\\])\|$/,'$1').split(/(?<!\\)\|/).map(function(c){ return c.trim().replace(/\\\|/g,'|'); });
+  }
+  function isBreak(ln){ return /^\s*$/.test(ln)||/^\s*```/.test(ln)||/^#{1,6}\s/.test(ln)||/^\s*[-*]\s+/.test(ln)||/^\s*\|/.test(ln); }
+  function indentOf(ln){ return ln.match(/^\s*/)[0].length; }
+  function list(){
+    var root={kids:[]}, stack=[{ind:-1,node:root}], gap=false;
+    while(i<lines.length){
+      var ln=lines[i], li=ln.match(/^(\s*)[-*]\s+(.*)$/);
+      if(li){
+        var ind=li[1].length;
+        while(stack.length>1&&stack[stack.length-1].ind>=ind) stack.pop();
+        var it={paras:[li[2]],kids:[]};
+        stack[stack.length-1].node.kids.push(it); stack.push({ind:ind,node:it}); gap=false; i++; continue;
+      }
+      if(/^\s*$/.test(ln)){
+        var j=i+1; while(j<lines.length&&/^\s*$/.test(lines[j])) j++;
+        if(j<lines.length&&/^\s+\S/.test(lines[j])&&!/^\s*```/.test(lines[j])){ gap=true; i=j; continue; }
+        break;
+      }
+      if(/^\s+\S/.test(ln)&&!/^\s*```/.test(ln)&&stack.length>1){
+        var k=indentOf(ln);
+        while(stack.length>2&&stack[stack.length-1].ind>=k) stack.pop();
+        var node=stack[stack.length-1].node, t=ln.trim();
+        if(gap||node.kids.length) node.paras.push(t); else node.paras[node.paras.length-1]+=' '+t;
+        if(node.kids.length) node.tail=(node.tail||0)+1;
+        gap=false; i++; continue;
+      }
+      break;
+    }
+    function render(items){
+      return '<ul>'+items.map(function(it){
+        var tail=it.tail||0, head=it.paras.slice(0,it.paras.length-tail), after=it.paras.slice(it.paras.length-tail);
+        return '<li>'+head.map(function(p,n){ return n?'<p>'+inl(p)+'</p>':inl(p); }).join('')+
+          (it.kids.length?render(it.kids):'')+after.map(function(p){ return '<p>'+inl(p)+'</p>'; }).join('')+'</li>';
+      }).join('')+'</ul>';
+    }
+    return render(root.kids);
+  }
   while(i<lines.length){
     var ln=lines[i], m;
     if(/^\s*$/.test(ln)){ i++; continue; }
-    if(/^```/.test(ln)){
+    if(/^\s*```/.test(ln)){
       var code=[]; i++;
-      while(i<lines.length&&!/^```/.test(lines[i])) code.push(lines[i++]);
+      while(i<lines.length&&!/^\s*```/.test(lines[i])) code.push(lines[i++]);
       i++; out.push('<pre><code>'+esc(code.join('\n'))+'</code></pre>'); continue;
     }
-    if((m=ln.match(/^(#{1,6})\s+(.*)$/))){ var lvl=Math.min(m[1].length+2,6); out.push('<h'+lvl+'>'+mdInline(m[2])+'</h'+lvl+'>'); i++; continue; }
+    if((m=ln.match(/^(#{1,6})\s+(.*)$/))){
+      var lvl=Math.min(m[1].length+shift,6), id='';
+      if(opts.prefix&&m[1].length===2){
+        id=slug(opts.prefix,m[2].replace(/[`*]/g,'').trim());
+        if(opts.toc) opts.toc.push([id,m[2].replace(/[`*]/g,''),hay(m[2])]);
+      }
+      out.push('<h'+lvl+(id?' id="'+esc(id)+'" class="spy"':'')+'>'+inl(m[2])+'</h'+lvl+'>'); i++; continue;
+    }
     if(/^\s*\|/.test(ln)&&i+1<lines.length&&/^\s*\|?\s*:?-{3,}/.test(lines[i+1])){
       var hd=cells(ln), rows=[]; i+=2;
       while(i<lines.length&&/^\s*\|/.test(lines[i])) rows.push(cells(lines[i++]));
-      out.push('<table class="opt-tbl doc-tbl"><thead><tr>'+hd.map(function(c){ return '<th>'+mdInline(c)+'</th>'; }).join('')+'</tr></thead><tbody>'+
-        rows.map(function(r){ return '<tr>'+r.map(function(c){ return '<td>'+mdInline(c)+'</td>'; }).join('')+'</tr>'; }).join('')+'</tbody></table>');
+      out.push('<div class="tbl-wrap"><table class="opt-tbl doc-tbl"><thead><tr>'+hd.map(function(c){ return '<th>'+inl(c)+'</th>'; }).join('')+'</tr></thead><tbody>'+
+        rows.map(function(r){ return '<tr>'+r.map(function(c){ return '<td>'+inl(c)+'</td>'; }).join('')+'</tr>'; }).join('')+'</tbody></table></div>');
       continue;
     }
-    if(/^\s*[-*]\s+/.test(ln)){
-      var items=[];
-      while(i<lines.length){
-        var li=lines[i].match(/^\s*[-*]\s+(.*)$/);
-        if(li){ items.push(li[1]); i++; continue; }
-        if(/^\s+\S/.test(lines[i])&&items.length){ items[items.length-1]+=' '+lines[i].trim(); i++; continue; }
-        break;
-      }
-      out.push('<ul>'+items.map(function(t){ return '<li>'+mdInline(t)+'</li>'; }).join('')+'</ul>'); continue;
-    }
+    if(/^\s*[-*]\s+/.test(ln)){ out.push(list()); continue; }
     var para=[ln.trim()]; i++;
     while(i<lines.length&&!isBreak(lines[i])) para.push(lines[i++].trim());
-    out.push('<p>'+mdInline(para.join(' '))+'</p>');
+    out.push('<p>'+inl(para.join(' '))+'</p>');
   }
   return out.join('\n');
 }
@@ -902,6 +1039,7 @@ function navTo(href){
   document.body.classList.remove('nav-open');
   var view=(tgt&&simView.contains(tgt))?'sim':'api';
   if(state.view!==view) setView(view);
+  if(tgt&&view==='sim'&&tgt.closest('.member[hidden]')) simFilter('');
   if(tgt && tgt.tagName==='DETAILS') tgt.open=true;
   if(tgt && location.hash==='#'+id) tgt.scrollIntoView({block:'start'});
 }
@@ -922,7 +1060,7 @@ function setStatus(msg,isErr){ statusEl.textContent=msg||''; statusEl.className=
 function renderInline(){
   if(!INLINE){ setStatus('No API data available.',true); return; }
   state.tag=CFG.version?('v'+CFG.version):null; state.data=INLINE; state.prev=null; state.prevTag=null; state.body='';
-  buildApi(INLINE); setStatus('');
+  buildApi(INLINE); setStatus(''); followHash();
   verSel.innerHTML='<option>'+esc(CFG.version||'local')+'</option>'; verSel.disabled=true;
 }
 
@@ -947,10 +1085,17 @@ function selectVersion(tag){
   state.tag=tag; state.body=rel.body||'';
   return fetchJson(dataUrl(tag)).then(function(data){
     state.data=data;
-    buildApi(data); setStatus(''); setView(state.view);
+    buildApi(data); setStatus(''); setView(state.view); followHash();
     state.prev=null; state.prevTag=prevRel?prevRel.tag:null;
     if(prevRel){ fetchJson(dataUrl(prevRel.tag)).then(function(pd){ state.prev=pd; if(state.view==='changelog') buildChangelog(); }).catch(function(){}); }
   }).catch(function(err){ setStatus('Could not load '+tag+': '+err.message+'.',true); });
+}
+// a link to a Simulator anchor opens that tab (once, on the first render that has it)
+var hashFollowed=false;
+function followHash(){
+  var id=location.hash.slice(1), tgt=!hashFollowed&&id&&document.getElementById(id);
+  if(!tgt||!simView.contains(tgt)) return;
+  hashFollowed=true; setView('sim'); tgt.scrollIntoView({block:'start'});
 }
 verSel.addEventListener('change',function(){ if(!verSel.disabled) selectVersion(verSel.value); });
 

@@ -29,8 +29,10 @@ resolved ``<tag>.json`` are included. Pure-stdlib apart from optional `gh`.
 A release that also carries a ``sim.json`` asset (the kolbot simulator's
 options, environment variables and guide) gets it as ``<tag>.sim.json`` in
 --data-dir, downloaded like api.json, and its ``data/<tag>.json`` is the api.json
-with that document under ``simulator``; the page renders it in a Simulator
-tab. A release without one is published exactly as before.
+with its public part (``gen_api_docs.sim_public``) under ``simulator``; the page
+renders it in a Simulator tab. A release without one is published exactly as
+before. ``--sim <tag>=<path>`` attaches a local sim.json to a release instead
+(offline builds and previews).
 
 Usage (CI):
     gh api repos/$REPO/releases --paginate > releases.json
@@ -80,19 +82,21 @@ def download_asset(repo, tag, dest, name="api.json"):
         return False
 
 
-def load_sim(rel, data_dir, repo, download):
+def load_sim(rel, data_dir, repo, download, overrides):
     """The release's sim.json, or None when it has none (or it cannot be read)."""
-    if not has_asset(rel, "sim.json"):
-        return None
     tag = rel["tag_name"]
-    local = data_dir / f"{tag}.sim.json"
-    if not local.exists() and download:
-        download_asset(repo, tag, local, "sim.json")
+    local = overrides.get(tag)
+    if local is None:
+        if not has_asset(rel, "sim.json"):
+            return None
+        local = data_dir / f"{tag}.sim.json"
+        if not local.exists() and download:
+            download_asset(repo, tag, local, "sim.json")
     if not local.exists():
         print(f"  - {tag}: no sim.json available locally", file=sys.stderr)
         return None
     try:
-        return json.loads(local.read_text(encoding="utf-8"))
+        return gen_api_docs.sim_public(json.loads(local.read_text(encoding="utf-8")))
     except json.JSONDecodeError as e:
         print(f"  ! {tag}: invalid sim.json ({e})", file=sys.stderr)
         return None
@@ -106,7 +110,20 @@ def main():
     ap.add_argument("--repo", default="", help="OWNER/REPO")
     ap.add_argument("--title", default="d2bsng API", help="page title")
     ap.add_argument("--download", action="store_true", help="gh release download missing api.json assets")
+    ap.add_argument(
+        "--sim",
+        action="append",
+        default=[],
+        metavar="TAG=PATH",
+        help="attach a local sim.json to that release (instead of its sim.json asset); repeatable",
+    )
     args = ap.parse_args()
+    sim_overrides = {}
+    for spec in args.sim:
+        tag, sep, path = spec.partition("=")
+        if not sep or not tag or not path:
+            sys.exit(f"--sim expects TAG=PATH, got {spec!r}")
+        sim_overrides[tag] = Path(path)
 
     releases = json.loads(Path(args.releases).read_text(encoding="utf-8"))
     data_dir = Path(args.data_dir)
@@ -133,7 +150,7 @@ def main():
         except json.JSONDecodeError as e:
             print(f"  ! skip {tag}: invalid JSON ({e})", file=sys.stderr)
             continue
-        sim = load_sim(rel, data_dir, args.repo, args.download)
+        sim = load_sim(rel, data_dir, args.repo, args.download, sim_overrides)
         if sim is None:
             shutil.copyfile(local, out / "data" / f"{tag}.json")
         else:
