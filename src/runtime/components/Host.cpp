@@ -33,6 +33,7 @@
 #include "game/Console.h"
 #include "game/GameCallbacks.h"
 #include "game/GameHelpers.h"
+#include "host/Host.h"
 #include "utils/DeferGuard.h"
 #include "utils/threadutils.h"
 #include "utils/utils.h"
@@ -348,10 +349,12 @@ game::GameCallbacks Host::BuildCallbacks() {
     // Observed monster deaths feed the character-state kill counter. Runs on the
     // game thread (death packet hook) where the frame write lock is held, so the
     // Unit::Find inside RecordKill resolves lock-free (see game/GameLock.h).
-    callbacks.onMonsterDeath = +[](uint32_t unitId) {
-        const auto phase = GameLoop::Instance().InPhase(FramePhase::Events);
-        characterstate::CharacterState::Instance().RecordKill(unitId);
-    };
+    if (host::AllowsCharacterState()) {
+        callbacks.onMonsterDeath = +[](uint32_t unitId) {
+            const auto phase = GameLoop::Instance().InPhase(FramePhase::Events);
+            characterstate::CharacterState::Instance().RecordKill(unitId);
+        };
+    }
 
     // --- IPC ---
     // Reference D2Handlers.cpp:184-196 intercepts two reserved WM_COPYDATA

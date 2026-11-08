@@ -32,7 +32,9 @@ v8::MaybeLocal<v8::Script> CompileSource(v8::Isolate* isolate, v8::Local<v8::Con
     // kolbot-era `const X = new Runnable` -> `var X` rewrite (flag:
     // constRunnableRewrite). const declarations don't bind to the global object
     // in V8; kolbot relies on the global binding for cross-script lookup.
-    if (compat.IsEnabled("constRunnableRewrite")) {
+    // The pattern needs the literal "Runnable", so a source without it is left as is without running the regex
+    // (std::regex is slow, and every include of every script goes through here).
+    if (compat.IsEnabled("constRunnableRewrite") && source.find("Runnable") != std::string::npos) {
         static const std::regex CONST_RUNNABLE(R"(\bconst\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*new\s+Runnable\b)");
         source = std::regex_replace(source, CONST_RUNNABLE, "var $1 = new Runnable");
     }

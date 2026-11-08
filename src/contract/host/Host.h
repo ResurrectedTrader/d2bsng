@@ -18,8 +18,9 @@
 // on the frontend or backend side defines them, and nothing here may name a host.
 //
 // Only the points a host cannot reach from outside belong here: the script threads' lifecycle and the hand-offs
-// between them and the game thread. Taps on the backend's traffic and settings go through the backend's callback
-// table, its launch options, the ini and V8's flags instead.
+// between them and the game thread, and the features a host must keep out before they start. Taps on the
+// backend's traffic and settings go through the backend's callback table, its launch options, the ini and V8's flags
+// instead.
 namespace d2bs::host {
 
 // --- Scripts ---------------------------------------------------------------------------------------------------
@@ -38,6 +39,13 @@ void OnScriptWake(const std::jthread& thread, uint32_t delayMs);
 // frame).
 void ScriptWait(std::chrono::milliseconds remaining, std::chrono::milliseconds slice,
                 bool (*mustWakeEachSlice)(void* context), void* context);
+
+// --- Features --------------------------------------------------------------------------------------------------
+
+// Whether the frontend takes the character-state snapshots it sends the manager (components/characterstate: each
+// frame's read of the player's state, items and kills). In process: true. A host with no manager to show them (a
+// simulator) answers false, and no snapshot is taken.
+[[nodiscard]] bool AllowsCharacterState();
 
 // --- Native calls ----------------------------------------------------------------------------------------------
 

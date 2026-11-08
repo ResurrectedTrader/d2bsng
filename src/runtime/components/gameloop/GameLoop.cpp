@@ -158,7 +158,7 @@ void GameLoop::OnSleep(std::chrono::milliseconds duration) {
     EmitStateEvents(previous_, cur);
     // Live character state to the manager. Runs here (game thread, write lock
     // held) so reads are consistent; self-throttles and diffs internally.
-    {
+    if (host::AllowsCharacterState()) {
         const auto phase = frame_.Nest(FramePhase::CharacterState);
         characterstate::CharacterState::Instance().OnTick(cur.state, !previous_.inSession && cur.inSession);
     }
