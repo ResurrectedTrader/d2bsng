@@ -8,10 +8,10 @@
 #include <memory>
 #include <mutex>
 #include <random>
-#include <set>
 #include <string>
 #include <system_error>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 #include <sqlite3.h>
@@ -107,24 +107,30 @@ static bool BuildPacketFromArgs(const v8::FunctionCallbackInfo<v8::Value>& args,
 
 // Resolve an include path: looks in libs/ subdirectory only. A library found once is not looked up on disk again,
 // since scripts include() their dependencies over and over.
+// Kept by the name the script passed, for the script base it was found under: a hit skips resolving the name again.
 static std::filesystem::path FindIncludePath(const std::string& relativePath) {
-    auto resolved = core::config::GetPathRelScript("libs/" + relativePath);
-    if (resolved.empty()) {
-        return {};
-    }
     static std::mutex foundMutex;
-    static std::set<std::filesystem::path> found;
+    static std::wstring foundBase;
+    static std::unordered_map<std::string, std::filesystem::path> found;
+    const std::wstring base = core::config::GetAppConfig().GetScriptPaths().basePath.native();
     {
         const std::scoped_lock lock(foundMutex);
-        if (found.contains(resolved)) {
-            return resolved;
+        if (base != foundBase) {
+            found.clear();
+            foundBase = base;
+        }
+        if (const auto it = found.find(relativePath); it != found.end()) {
+            return it->second;
         }
     }
-    if (!std::filesystem::exists(resolved)) {
+    auto resolved = core::config::GetPathRelScript("libs/" + relativePath);
+    if (resolved.empty() || !std::filesystem::exists(resolved)) {
         return {};
     }
     const std::scoped_lock lock(foundMutex);
-    found.insert(resolved);
+    if (base == foundBase) {
+        found.emplace(relativePath, resolved);
+    }
     return resolved;
 }
 
