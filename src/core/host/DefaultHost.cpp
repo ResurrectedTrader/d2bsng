@@ -32,6 +32,10 @@ void ScriptWait(std::chrono::milliseconds remaining, std::chrono::milliseconds s
     std::this_thread::sleep_for(std::clamp(remaining, std::chrono::milliseconds(1), slice));
 }
 
+bool AllowsCharacterState() {
+    return true;
+}
+
 void OnNativeCall(std::string_view /*name*/) {}
 
 void ObserveNativeResult(const NativeResult& /*result*/) {}

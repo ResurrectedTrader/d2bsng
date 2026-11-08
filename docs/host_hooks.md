@@ -27,7 +27,8 @@ every native call and frame.
 ## The hooks
 
 Only the points nothing outside the frontend can observe at a deterministic moment: the script threads' lifecycle,
-and the hand-offs between the scripts and the game thread.
+and the hand-offs between the scripts and the game thread; and the features a host must keep out before they start
+(the character-state snapshots).
 
 | Hook | Called from | Why it has to be a hook |
 | --- | --- | --- |
@@ -38,6 +39,7 @@ and the hand-offs between the scripts and the game thread.
 | `OnNativeCall(name)` | every native binding call (the trampolines) | a call quantum on deterministic points (a script that never blocks yields); counting clock reads from outside misses spins on game state |
 | `ObserveNativeResult(result)` | every native binding call that returned (the trampolines) | a binding's result, for a host that logs or counts what the scripts saw (only the simulator does). `result` computes its `Hash()` (numbers, booleans and strings by value, objects by kind) and `Text()` only when asked, so the in-process no-op costs nothing |
 | `RunFrame()` | `GameLoop::OnSleep`, with the frame's write lock released | the host runs the scripts' turns for the frame instead of the timed wait; on a held-still virtual clock that wait never ends |
+| `AllowsCharacterState()` | `GameLoop::OnSleep` (the character-state tick), `Host::BuildCallbacks` (whether the monster-death callback, the kill counter, is set) | whether the frontend takes the snapshots it sends the manager: each costs reads of the player's state and items every frame, for a display a simulator has no manager for. In process: true, which folds the checks away |
 | `RetainReadLock()` | `GameReadLock` (its last level ending, its first beginning) and `GameReadLockReleaser` | a host that runs one script at a time with the game thread parked keeps the shared lock for the script's whole turn instead of taking it per property read; it drops it at each hand-off with `GameReadLock::DropRetained()`. In process: false, which folds the checks away |
 | `WaitForTask(state)` | `GameThread::Execute`, with the game read lock released | the wait for a posted task, until its `TaskState` is Done or Cancelled. In process: `state.wait` (an atomic wait), a blocking wait the host cannot see; a host that schedules the thread gives up its turns until the game thread ran or the script cancelled the task |
 
