@@ -1900,7 +1900,9 @@ std::string GetBackendVersion() {
 
 FrontendLaunchOptions GetFrontendLaunchOptions() {
     const auto& opts = GetLaunchOptions();
-    return {.disableAnalytics = opts.disableAnalytics, .disableUpdateCheck = opts.disableUpdateCheck};
+    return {.disableAnalytics = opts.disableAnalytics,
+            .disableUpdateCheck = opts.disableUpdateCheck,
+            .disableConsole = opts.disableConsole};
 }
 
 std::vector<std::string> GetActiveFeatures() {

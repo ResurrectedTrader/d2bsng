@@ -21,6 +21,7 @@
 #include "components/console/ThreadsPanel.h"
 #include "components/script/Script.h"
 #include "components/script/ScriptEngine.h"
+#include "game/GameHelpers.h"
 
 namespace d2bs::runtime::console {
 
@@ -179,6 +180,11 @@ void DrawFrame() {
 }
 
 void OnMessage(const game::console::Message& msg) {
+    // Only DrawFrame drains the queue, and without a console nothing calls it.
+    static const bool IS_DISABLED = game::GetFrontendLaunchOptions().disableConsole;
+    if (IS_DISABLED) {
+        return;
+    }
     const std::scoped_lock guard(queueMutex);
     pending.push_back(msg);
     constexpr size_t MAX_PENDING = 5000;

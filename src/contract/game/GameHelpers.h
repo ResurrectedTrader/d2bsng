@@ -251,6 +251,9 @@ std::string GetBackendVersion();
 struct FrontendLaunchOptions {
     bool disableAnalytics = false;    // -noanalytics
     bool disableUpdateCheck = false;  // -noupdatecheck
+    // -noconsole: no console is hosted, so the frontend console drops the messages
+    // it is handed instead of queueing them for a draw that never comes.
+    bool disableConsole = false;
 };
 FrontendLaunchOptions GetFrontendLaunchOptions();
 
