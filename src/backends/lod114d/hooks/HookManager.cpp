@@ -13,6 +13,7 @@
 #include "detour/Hook.h"
 #include "game/GameThread.h"
 #include "game/LaunchOptions.h"
+#include "hooks/FogPoolFixes.h"
 #include "hooks/Intercepts.h"
 #include "hooks/Realms.h"
 #include "imports/D2Gfx.h"
@@ -166,9 +167,11 @@ void InstallDetoursHooks() {
     // Inject framework realms into D2's in-memory server list (detours the Storm
     // registry read/write helpers). Must precede the client's first list read.
     realms::Install();
+    fog_pools::Install();
 }
 
 void RemoveDetoursHooks() {
+    fog_pools::Remove();
     realms::Remove();
     core::proxy::socks5::Remove();
     core::speedhack::Remove();
