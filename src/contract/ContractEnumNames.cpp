@@ -1502,6 +1502,21 @@ std::string EnumName(Skill value) {
     return utils::NameEnumValue("Skill", ENTRIES, std::to_underlying(value));
 }
 
+std::string EnumName(SkillUseState value) {
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(SkillUseState::Usable), .name = "Usable"},
+        {.bits = utils::EnumBits(SkillUseState::NoMana), .name = "NoMana"},
+        {.bits = utils::EnumBits(SkillUseState::NoQuantity), .name = "NoQuantity"},
+        {.bits = utils::EnumBits(SkillUseState::Disabled), .name = "Disabled"},
+        {.bits = utils::EnumBits(SkillUseState::ShapeRestrict), .name = "ShapeRestrict"},
+        {.bits = utils::EnumBits(SkillUseState::Passive), .name = "Passive"},
+        {.bits = utils::EnumBits(SkillUseState::Aura), .name = "Aura"},
+        {.bits = utils::EnumBits(SkillUseState::NoLevel), .name = "NoLevel"},
+        {.bits = utils::EnumBits(SkillUseState::Blocked), .name = "Blocked"},
+    });
+    return utils::NameEnumValue("SkillUseState", ENTRIES, std::to_underlying(value));
+}
+
 std::string EnumName(UnitType value) {
     static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
         {.bits = utils::EnumBits(UnitType::Player), .name = "Player"},
@@ -2192,6 +2207,10 @@ std::string format_as(State value) {
 }
 
 std::string format_as(Skill value) {
+    return EnumName(value);
+}
+
+std::string format_as(SkillUseState value) {
     return EnumName(value);
 }
 

@@ -220,6 +220,8 @@ class Unit {
     //   true    -> charge-only skills (IsCharge == 1).
     std::optional<uint32_t> GetSkillLevel(Skill skill, bool includeExtraLevels,
                                           std::optional<bool> charge = std::nullopt) const;
+    // The game's own use-state check for the unit's (non-charge) skill; Disabled when the unit does not have it.
+    SkillUseState SkillState(Skill skill) const;
 
     // === Actions ===
     void Move(Position target) const;

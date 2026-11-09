@@ -79,6 +79,8 @@ inline FastcallFunc<D2UnitStrc*(D2UnitStrc* /*pMissile*/)> MISSILE_GetOwnerUnit{
 inline StdcallFunc<uint32_t(D2UnitStrc* /*pUnit*/, D2SkillStrc* /*pSkill*/, bool /*bBonus*/)> SKILLS_GetSkillLevel{
     0x2442A0};
 
+inline StdcallFunc<game::SkillUseState(D2UnitStrc* /*pUnit*/, D2SkillStrc* /*pSkill*/)> SKILLS_GetUseState{0x247960};
+
 inline StdcallFunc<int32_t(D2UnitStrc* /*pItem*/, D2UnitStrc* /*pUnit*/)> ITEMS_GetLevelRequirement{0x22BA60};
 inline StdcallFunc<int32_t(D2UnitStrc* /*pItem*/, int32_t /*nItemType*/)> ITEMS_CheckItemTypeId{0x229BB0};
 inline StdcallFunc<bool(D2UnitStrc* /*pItem*/)> ITEMS_CheckIfBeltable{0x22BAD0};

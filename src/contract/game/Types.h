@@ -1354,6 +1354,20 @@ enum class Skill : uint16_t {
     Invalid = UINT16_MAX,
 };
 
+/// Whether the player can use a skill right now, as getSkillState reports it. The numbering is the game's own; the
+/// checks run in the order below and the first that fails is reported.
+enum class SkillUseState : uint32_t {
+    Usable = 0,
+    NoMana = 1,
+    NoQuantity = 2,
+    Disabled = 3,  // also: the unit does not have the skill
+    ShapeRestrict = 4,
+    Passive = 5,
+    Aura = 6,
+    NoLevel = 7,
+    Blocked = 8,  // on cooldown: the skill delay a timed skill (Blizzard, Frozen Orb, ...) starts
+};
+
 // ============================================================================
 // Unit / item
 // ============================================================================

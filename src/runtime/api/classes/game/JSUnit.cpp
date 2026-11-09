@@ -1150,6 +1150,45 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             }
         });
 
+    /// @description Asks the game whether the unit can use one of its skills right now. It folds in mana, quantity,
+    /// level, shape restrictions and the skill delay, so one call replaces a script's own mana and getState(121)
+    /// checks.
+    /// @signature getSkillState(skillId: Skill|number)
+    /// @param skillId {Skill|number} - The skill id to check.
+    /// @returns {SkillUseState|false} - 0 when usable, 8 while on cooldown (the other codes name the first failed
+    /// check; 3 also when the unit lacks the skill), or false when the unit cannot be resolved.
+    Method(
+        isolate, proto, "getSkillState", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+            auto* isolate = args.GetIsolate();
+            if (args.Length() < 1 || !args[0]->IsNumber()) {
+                args.GetReturnValue().SetFalse();
+                return;
+            }
+            const auto skill = static_cast<game::Skill>(convert::To<uint16_t>(isolate, args[0]));
+            const auto data = Unwrap(isolate, args.This());
+            if (!data || !*data) {
+                args.GetReturnValue().SetFalse();
+                return;
+            }
+            args.GetReturnValue().Set(std::to_underlying(data->SkillState(skill)));
+        });
+
+    /// @description Whether getSkillState reports the skill as usable (0) right now.
+    /// @signature canUseSkill(skillId: Skill|number)
+    /// @param skillId {Skill|number} - The skill id to check.
+    /// @returns {boolean} - True when usable now; false otherwise, including when the unit cannot be resolved.
+    Method(
+        isolate, proto, "canUseSkill", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+            auto* isolate = args.GetIsolate();
+            if (args.Length() < 1 || !args[0]->IsNumber()) {
+                args.GetReturnValue().SetFalse();
+                return;
+            }
+            const auto skill = static_cast<game::Skill>(convert::To<uint16_t>(isolate, args[0]));
+            const auto data = Unwrap(isolate, args.This());
+            args.GetReturnValue().Set(data && *data && data->SkillState(skill) == game::SkillUseState::Usable);
+        });
+
     // Reference: returns different types based on unit type:
     //   Monster -> owner Unit (via GetMonsterOwner)
     //   Object  -> owner name STRING (pObjectData->szOwner)
