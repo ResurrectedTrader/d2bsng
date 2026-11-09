@@ -15,6 +15,7 @@
 #include "game/LaunchOptions.h"
 #include "hooks/Intercepts.h"
 #include "hooks/Realms.h"
+#include "hooks/SpriteCacheFixes.h"
 #include "hooks/StormSoundFixes.h"
 #include "imports/D2Gfx.h"
 #include "input/InputHook.h"
@@ -168,9 +169,11 @@ void InstallDetoursHooks() {
     // registry read/write helpers). Must precede the client's first list read.
     realms::Install();
     storm_sound::Install();
+    sprite_cache::Install();
 }
 
 void RemoveDetoursHooks() {
+    sprite_cache::Remove();
     storm_sound::Remove();
     realms::Remove();
     core::proxy::socks5::Remove();
