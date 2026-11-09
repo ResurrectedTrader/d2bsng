@@ -84,6 +84,7 @@
 #include "game/Types.h"
 #include "hooks/HookManager.h"
 #include "hooks/InlinePatch.h"
+#include "hooks/RevisionTempPath.h"
 #include "imports/BnClient.h"
 #include "imports/D2Client.h"
 #include "imports/D2Common.h"
@@ -681,58 +682,10 @@ extern "C" HANDLE __stdcall OpenPerInstanceBnetCache(LPCSTR /*fileName*/, DWORD 
                        flagsAndAttributes, templateFile);
 }
 
-// d2bsng addition (installed under -multi): derive a per-instance, filesystem-
-// safe subdirectory name for the Bnet DLL extraction temp path. Prefers the
-// launch profile, falls back to the window title, then the pid. Sanitised to
-// [A-Za-z0-9_-] and length-capped. The reference build hashed the profile
-// name (MD5); we use a readable name instead - the goal is only uniqueness
-// across concurrent instances.
-std::string PerInstanceTempKey() {
-    const auto& opts = game::GetLaunchOptions();
-    std::string key = opts.profile.has_value() && !opts.profile->empty() ? *opts.profile : ReadWindowTitle();
-
-    constexpr size_t MAX_KEY = 32;
-    std::string safe;
-    for (const char c : key) {
-        const bool ok =
-            (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_' || c == '-';
-        if (ok) {
-            safe += c;
-        }
-        if (safe.size() >= MAX_KEY) {
-            break;
-        }
-    }
-    if (safe.empty()) {
-        safe = std::format("pid{}", GetCurrentProcessId());
-    }
-    return "d2bs-" + safe;
-}
-
-// Replaces the `call ds:GetTempPathA` inside NET_CopyDllFromArchive. That
-// routine extracts the Battle.net check-revision DLL from an MPQ into
-// GetTempPathA() and loads it; two clients sharing one %TEMP% would race on
-// the same file. We append a per-instance subdirectory and create it, so each
-// instance extracts into its own folder. The signature matches GetTempPathA
-// (the IAT call we replace) so the stack stays balanced; on any failure we
-// leave the stock %TEMP% path GetTempPathA already wrote.
+// Keep the existing GetTempPathA call-site patch and its stdcall ABI. A path failure
+// must return zero: NET_CopyDllFromArchive treats every nonzero result as a valid length.
 extern "C" DWORD __stdcall GetTempPathPerInstance(DWORD nBufferLength, LPSTR lpBuffer) {
-    const DWORD baseLen = GetTempPathA(nBufferLength, lpBuffer);
-    if (baseLen == 0 || lpBuffer == nullptr) {
-        return baseLen;
-    }
-    try {
-        const std::string full = std::string{lpBuffer, baseLen} + PerInstanceTempKey() + "\\";
-        if (full.size() + 1 > nBufferLength) {
-            return baseLen;  // no room - keep the stock temp path
-        }
-        std::memcpy(lpBuffer, full.c_str(), full.size() + 1);
-        CreateDirectoryA(lpBuffer, nullptr);
-        return full.size();
-    } catch (...) {
-        // lpBuffer still holds the stock %TEMP% GetTempPathA wrote above.
-        return baseLen;
-    }
+    return GetRevisionTempPath(nBufferLength, lpBuffer);
 }
 
 // P22: ErrorReportLaunch - D2's own crash path. Called when D2 has decided
