@@ -6,4 +6,3 @@ Both original functions remain intact: row order, probability rolls, signed comp
 
 Validation: original bytes, table globals, register liveness and continuations checked in IDA; Release backend build. Live repeated Act 5 generation stress is still required.
 
-Related upstream: blizzhackers/d2bs `501f3518220026810782edca2adc4e86a3802504`.

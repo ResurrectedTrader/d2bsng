@@ -137,7 +137,7 @@ char** bnclientXPacKeySlot = nullptr;
 const char* classicCdKey = nullptr;
 const char* lodCdKey = nullptr;
 
-// Per-site original-byte storage. Sized for the longest patch (10 bytes for
+// Per-site original-byte storage. Sized for the longest patch (17 bytes for
 // LvlSub placement); shorter ones leave the trailing slots untouched.
 struct SiteState {
     bool installed = false;
@@ -1296,7 +1296,11 @@ void InstallAll() {
     constexpr std::array<uint8_t, 10> PICK_TAIL = {0x81, 0xC3, 0x5C, 0x01, 0, 0, 0x39, 0x13, 0x74, 0xA6};
     const auto installLoop = [](SiteState& state, uint32_t rva, auto bytes, auto thunk) {
         const auto* original = reinterpret_cast<const uint8_t*>(moduleBase + rva);
-        if (state.installed || !std::ranges::equal(bytes, std::span{original, bytes.size()})) {
+        if (state.installed) {
+            return;
+        }
+        if (!std::ranges::equal(bytes, std::span{original, bytes.size()})) {
+            spdlog::warn("LvlSub loop bytes at {:#x} differ from 1.14d; patch skipped", moduleBase + rva);
             return;
         }
         InstallSite(state, rva, thunk, bytes.size(), true);
