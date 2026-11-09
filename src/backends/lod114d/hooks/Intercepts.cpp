@@ -154,6 +154,7 @@ SiteState siteBypassMultiInstance, siteCreateWindowTitled, siteTempPathPerInstan
 SiteState siteBnetCache1, siteBnetCache2;
 SiteState siteClassicCdKey, siteLodCdKey, siteFailToJoinBackoff;
 SiteState siteSleepyInGame, siteSleepyOoG;
+SiteState siteReadPacing;
 
 // P5 click-target override. clickActionActive mirrors reference Vars.bClickAction; null with active=true forces "no
 // unit selected" instead of game hover selection.
@@ -1350,6 +1351,16 @@ void InstallAll() {
     if (lodCdKey != nullptr) {
         InstallSite(siteLodCdKey, LOD_CDKEY_RVA, &InjectLodCdKeyThunk, 5, /*isJmp=*/true);
     }
+    if (!siteReadPacing.installed) {
+        const auto* branch = reinterpret_cast<const uint8_t*>(moduleBase + 0x1A588);
+        // JZ -> JMP skips rate calculation; the empty-queue wait remains untouched.
+        if (branch[0] == 0x74 && branch[1] == 0x11) {
+            WriteByte(moduleBase + 0x1A588, 0xEB, siteReadPacing.original[0]);
+            siteReadPacing.installed = true;
+        } else {
+            spdlog::warn("Storm read-pacing branch differs from 1.14d; bypass skipped");
+        }
+    }
     if (opts.sleepy) {
         if (!siteSleepyInGame.installed) {
             WriteByte(moduleBase + SLEEPY_INGAME_RVA, 0x90, siteSleepyInGame.original[0]);
@@ -1384,6 +1395,10 @@ void RemoveAll() {
     }
 
     // Reverse install order - Conditional[] first (they were installed last).
+    if (siteReadPacing.installed) {
+        RestoreByte(moduleBase + 0x1A588, siteReadPacing.original[0]);
+        siteReadPacing.installed = false;
+    }
     if (siteSleepyOoG.installed) {
         RestoreByte(moduleBase + SLEEPY_OOG_RVA, siteSleepyOoG.original[0]);
         siteSleepyOoG.installed = false;
