@@ -24,8 +24,6 @@ struct LaunchOptions {
     bool reduceFailToJoin = false;    // -ftj
     bool randomizeBnetCache = false;  // -cachefix
 
-    bool unpacedReads = false;  // -unpacedreads (optional Storm resource-read pacing bypass)
-
     bool sleepy = false;  // -sleepy  (force the game loop to sleep even when focused)
 
     bool disableConsole = false;  // -noconsole

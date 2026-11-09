@@ -1335,7 +1335,7 @@ void InstallAll() {
     if (lodCdKey != nullptr) {
         InstallSite(siteLodCdKey, LOD_CDKEY_RVA, &InjectLodCdKeyThunk, 5, /*isJmp=*/true);
     }
-    if (opts.unpacedReads && !siteReadPacing.installed) {
+    if (!siteReadPacing.installed) {
         const auto* branch = reinterpret_cast<const uint8_t*>(moduleBase + 0x1A588);
         // JZ -> JMP skips rate calculation; the empty-queue wait remains untouched.
         if (branch[0] == 0x74 && branch[1] == 0x11) {

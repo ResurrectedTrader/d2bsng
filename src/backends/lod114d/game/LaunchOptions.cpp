@@ -68,11 +68,6 @@ std::vector<core::config::OptionSpec<LaunchOptions>> BuildSpecs() {
     /// @category Performance
     builder.Add("-sleepy", "", +[](LaunchOptions& o, std::wstring_view) { o.sleepy = true; });
 
-    /// @description Let queued resource reads run without Storm's bandwidth pacing. Can shorten game exits when
-    /// many sprite reads are queued; applies throughout gameplay and can increase I/O and CPU load.
-    /// @category Performance
-    builder.Add("-unpacedreads", "", +[](LaunchOptions& o, std::wstring_view) { o.unpacedReads = true; });
-
     /// @description Run without the d2bs console window: its window and render thread are never created, and the
     /// console hotkey and hideConsole / showConsole do nothing. Console lines are dropped rather than buffered for a
     /// window that never opens; the log file is unaffected.
