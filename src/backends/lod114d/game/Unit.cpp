@@ -1337,6 +1337,20 @@ std::optional<uint32_t> Unit::GetSkillLevel(Skill skill, bool includeExtraLevels
     return std::nullopt;
 }
 
+SkillUseState Unit::SkillState(Skill skill) const {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->pSkills == nullptr) {
+        return SkillUseState::Disabled;
+    }
+    for (auto* entry = u->pSkills->pFirstSkill; entry != nullptr; entry = entry->pNextSkill) {
+        if (entry->pSkillsTxt == nullptr || SkillOf(entry) != skill || IsChargeSkill(entry)) {
+            continue;
+        }
+        return lod114d::imports::d2common::SKILLS_GetUseState(u, entry);
+    }
+    return SkillUseState::Disabled;
+}
+
 // === Actions ===
 
 void Unit::Move(Position target) const {
