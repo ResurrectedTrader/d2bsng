@@ -1268,8 +1268,18 @@ void InstallAll() {
         InstallSite(siteCreateWindowTitled, CREATE_WINDOW_TITLED_RVA,
                     reinterpret_cast<void (*)()>(&CreateGameWindowWithTitle), 6, /*isJmp=*/false);
         // d2bsng addition: per-instance temp dir for the extracted Bnet DLL.
-        InstallSite(siteTempPathPerInstance, TEMP_PATH_PER_INSTANCE_RVA,
-                    reinterpret_cast<void (*)()>(&GetTempPathPerInstance), 6, /*isJmp=*/false);
+        if (!siteTempPathPerInstance.installed) {
+            // call dword ptr [6CC344h] (GetTempPathA): same stdcall ABI as the replacement.
+            constexpr std::array<uint8_t, 6> GET_TEMP_PATH_CALL = {0xFF, 0x15, 0x44, 0xC3, 0x6C, 0};
+            const auto* site = reinterpret_cast<const uint8_t*>(moduleBase + TEMP_PATH_PER_INSTANCE_RVA);
+            if (std::ranges::equal(GET_TEMP_PATH_CALL, std::span{site, GET_TEMP_PATH_CALL.size()})) {
+                InstallSite(siteTempPathPerInstance, TEMP_PATH_PER_INSTANCE_RVA,
+                            reinterpret_cast<void (*)()>(&GetTempPathPerInstance), 6, /*isJmp=*/false);
+            } else {
+                spdlog::warn("Revision path call at {:#x} differs from 1.14d; patch skipped",
+                             moduleBase + TEMP_PATH_PER_INSTANCE_RVA);
+            }
+        }
     }
     if (opts.randomizeBnetCache) {
         InstallSite(siteBnetCache1, BNET_CACHE_1_RVA, reinterpret_cast<void (*)()>(&OpenPerInstanceBnetCache), 6,
