@@ -831,8 +831,11 @@ std::vector<Position> CastCountTeleportSearch(CollisionLookup& coll, Position st
         // Copy g - getOrCreate() below may rehash `nodes`, invalidating references.
         const int32_t curG = nodes[cur].g;
 
-        // Early-out: if the goal is within a single cast, jump straight to it.
-        if (EuclideanDist(endPt, cur) < earlyGoalRange && !coll.IsBlocked(endPt)) {
+        // Early-out: if the goal is within a single cast, jump straight to it. Like the reference, the goal is taken
+        // even when it reads blocked and MutatePoint could not free it (a character standing on a cell that reads
+        // blocked): the ring and walk steps below skip blocked cells, so this is the only way in, and without it the
+        // search floods every reachable cell, loading each adjacent level on the way.
+        if (EuclideanDist(endPt, cur) < earlyGoalRange) {
             pushNeighbor(endPt, curG, cur);
             continue;
         }
