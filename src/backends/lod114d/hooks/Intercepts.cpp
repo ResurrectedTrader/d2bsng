@@ -84,6 +84,7 @@
 #include "game/Types.h"
 #include "hooks/HookManager.h"
 #include "hooks/InlinePatch.h"
+#include "hooks/RevisionTempPath.h"
 #include "imports/BnClient.h"
 #include "imports/D2Client.h"
 #include "imports/D2Common.h"
@@ -154,6 +155,7 @@ SiteState siteBypassMultiInstance, siteCreateWindowTitled, siteTempPathPerInstan
 SiteState siteBnetCache1, siteBnetCache2;
 SiteState siteClassicCdKey, siteLodCdKey, siteFailToJoinBackoff;
 SiteState siteSleepyInGame, siteSleepyOoG;
+SiteState siteReadPacing;
 
 // P5 click-target override. clickActionActive mirrors reference Vars.bClickAction; null with active=true forces "no
 // unit selected" instead of game hover selection.
@@ -680,58 +682,10 @@ extern "C" HANDLE __stdcall OpenPerInstanceBnetCache(LPCSTR /*fileName*/, DWORD 
                        flagsAndAttributes, templateFile);
 }
 
-// d2bsng addition (installed under -multi): derive a per-instance, filesystem-
-// safe subdirectory name for the Bnet DLL extraction temp path. Prefers the
-// launch profile, falls back to the window title, then the pid. Sanitised to
-// [A-Za-z0-9_-] and length-capped. The reference build hashed the profile
-// name (MD5); we use a readable name instead - the goal is only uniqueness
-// across concurrent instances.
-std::string PerInstanceTempKey() {
-    const auto& opts = game::GetLaunchOptions();
-    std::string key = opts.profile.has_value() && !opts.profile->empty() ? *opts.profile : ReadWindowTitle();
-
-    constexpr size_t MAX_KEY = 32;
-    std::string safe;
-    for (const char c : key) {
-        const bool ok =
-            (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_' || c == '-';
-        if (ok) {
-            safe += c;
-        }
-        if (safe.size() >= MAX_KEY) {
-            break;
-        }
-    }
-    if (safe.empty()) {
-        safe = std::format("pid{}", GetCurrentProcessId());
-    }
-    return "d2bs-" + safe;
-}
-
-// Replaces the `call ds:GetTempPathA` inside NET_CopyDllFromArchive. That
-// routine extracts the Battle.net check-revision DLL from an MPQ into
-// GetTempPathA() and loads it; two clients sharing one %TEMP% would race on
-// the same file. We append a per-instance subdirectory and create it, so each
-// instance extracts into its own folder. The signature matches GetTempPathA
-// (the IAT call we replace) so the stack stays balanced; on any failure we
-// leave the stock %TEMP% path GetTempPathA already wrote.
+// Keep the existing GetTempPathA call-site patch and its stdcall ABI. A path failure
+// must return zero: NET_CopyDllFromArchive treats every nonzero result as a valid length.
 extern "C" DWORD __stdcall GetTempPathPerInstance(DWORD nBufferLength, LPSTR lpBuffer) {
-    const DWORD baseLen = GetTempPathA(nBufferLength, lpBuffer);
-    if (baseLen == 0 || lpBuffer == nullptr) {
-        return baseLen;
-    }
-    try {
-        const std::string full = std::string{lpBuffer, baseLen} + PerInstanceTempKey() + "\\";
-        if (full.size() + 1 > nBufferLength) {
-            return baseLen;  // no room - keep the stock temp path
-        }
-        std::memcpy(lpBuffer, full.c_str(), full.size() + 1);
-        CreateDirectoryA(lpBuffer, nullptr);
-        return full.size();
-    } catch (...) {
-        // lpBuffer still holds the stock %TEMP% GetTempPathA wrote above.
-        return baseLen;
-    }
+    return GetRevisionTempPath(nBufferLength, lpBuffer);
 }
 
 // P22: ErrorReportLaunch - D2's own crash path. Called when D2 has decided
@@ -1279,7 +1233,24 @@ void InstallAll() {
             WriteN(moduleBase + 0x99D9, POOL_LOOKUP_NEW.data(), POOL_LOOKUP_NEW.size(), original.data());
         }
     } else {
-        spdlog::warn("Fog pool index instructions differ from 1.14d; repairs skipped");
+        spdlog::warn("Fog pool index ranges at {:#x} / {:#x} differ from 1.14d; repairs skipped", moduleBase + 0x95F5,
+                     moduleBase + 0x99D9);
+    }
+
+    // GAME_UpdateGamesProgress: retain the full DWORD time and compare elapsed time unsigned.
+    // The masked clock and signed JGE stop the single-player server at the 2^31-ms boundary.
+    const auto* mask = reinterpret_cast<const uint8_t*>(moduleBase + 0x12FC46);
+    const auto* branch = reinterpret_cast<const uint8_t*>(moduleBase + 0x12FC64);
+    constexpr std::array<uint8_t, 5> MASK_PREFIX = {0x81, 0xE7, 0xFF, 0xFF, 0xFF};
+    if (std::ranges::equal(MASK_PREFIX, std::span{mask, MASK_PREFIX.size()}) && (mask[5] == 0x7F || mask[5] == 0xFF) &&
+        (branch[0] == 0x7D || branch[0] == 0x73) && branch[1] == 0x09) {
+        uint8_t original = 0;
+        WriteByte(moduleBase + 0x12FC4B, 0xFF, original);
+        WriteByte(moduleBase + 0x12FC64, 0x73, original);
+        // Permanent game-only bytes: restoring the masked clock after updating last on the full
+        // clock would reintroduce the freeze. Idempotent across unload/reload; no DLL pointers.
+    } else {
+        spdlog::warn("Single-player clock instructions differ from 1.14d; rollover fix skipped");
     }
 
     InstallSite(siteP1, P1_RVA, &GameInputThunk, 5, /*isJmp=*/false);
@@ -1376,6 +1347,16 @@ void InstallAll() {
     if (lodCdKey != nullptr) {
         InstallSite(siteLodCdKey, LOD_CDKEY_RVA, &InjectLodCdKeyThunk, 5, /*isJmp=*/true);
     }
+    if (!siteReadPacing.installed) {
+        const auto* branch = reinterpret_cast<const uint8_t*>(moduleBase + 0x1A588);
+        // JZ -> JMP skips rate calculation; the empty-queue wait remains untouched.
+        if (branch[0] == 0x74 && branch[1] == 0x11) {
+            WriteByte(moduleBase + 0x1A588, 0xEB, siteReadPacing.original[0]);
+            siteReadPacing.installed = true;
+        } else {
+            spdlog::warn("Storm read-pacing branch differs from 1.14d; bypass skipped");
+        }
+    }
     if (opts.sleepy) {
         if (!siteSleepyInGame.installed) {
             WriteByte(moduleBase + SLEEPY_INGAME_RVA, 0x90, siteSleepyInGame.original[0]);
@@ -1410,6 +1391,10 @@ void RemoveAll() {
     }
 
     // Reverse install order - Conditional[] first (they were installed last).
+    if (siteReadPacing.installed) {
+        RestoreByte(moduleBase + 0x1A588, siteReadPacing.original[0]);
+        siteReadPacing.installed = false;
+    }
     if (siteSleepyOoG.installed) {
         RestoreByte(moduleBase + SLEEPY_OOG_RVA, siteSleepyOoG.original[0]);
         siteSleepyOoG.installed = false;

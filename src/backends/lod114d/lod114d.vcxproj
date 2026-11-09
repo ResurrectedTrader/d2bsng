@@ -114,6 +114,7 @@
     <!-- Naked-asm thunks for non-C-callable game entries -->
     <ClCompile Include="asm_thunks\asm_thunks.cpp" />
     <!-- Hook subsystem -->
+    <ClCompile Include="hooks\RevisionTempPath.cpp" />
     <ClCompile Include="hooks\HookManager.cpp" />
     <ClCompile Include="hooks\InlinePatch.cpp" />
     <ClCompile Include="hooks\Intercepts.cpp" />
@@ -151,6 +152,7 @@
     <ClInclude Include="imports\extras\TransactionDialogs.h" />
     <ClInclude Include="imports\extras\WindowHandlers.h" />
     <ClInclude Include="asm_thunks\asm_thunks.h" />
+    <ClInclude Include="hooks\RevisionTempPath.h" />
     <ClInclude Include="hooks\HookManager.h" />
     <ClInclude Include="hooks\InlinePatch.h" />
     <ClInclude Include="hooks\Intercepts.h" />
