@@ -1240,6 +1240,32 @@ void InstallAll() {
         return;  // Init() not yet run; bail gracefully.
     }
 
+    // Game-only permanent corrections: skip AllocateBlock's unlocked index growth (InsertBlock
+    // already grows it under the lock), then move FindBlock's index load after EnterCriticalSection.
+    // No DLL callbacks remain in these bytes, so do not restore them into a running allocator.
+    constexpr std::array<uint8_t, 25> POOL_LOOKUP_OLD = {0x8B, 0xBE, 0xA8, 0x07, 0,    0,    0x8D, 0x5E, 0x04,
+                                                         0x53, 0x89, 0x5D, 0xFC, 0xFF, 0x15, 0x18, 0xC2, 0x6C,
+                                                         0,    0x8B, 0xB6, 0xA0, 0x07, 0,    0};
+    constexpr std::array<uint8_t, 25> POOL_LOOKUP_NEW = {0x8D, 0x5E, 0x04, 0x53, 0x89, 0x5D, 0xFC, 0xFF, 0x15,
+                                                         0x18, 0xC2, 0x6C, 0,    0x8B, 0xBE, 0xA8, 0x07, 0,
+                                                         0,    0x8B, 0xB6, 0xA0, 0x07, 0,    0};
+    const auto* grow = reinterpret_cast<const uint8_t*>(moduleBase + 0x95F5);
+    const auto* lookup = reinterpret_cast<const uint8_t*>(moduleBase + 0x99D9);
+    const bool oldLookup = std::ranges::equal(POOL_LOOKUP_OLD, std::span{lookup, POOL_LOOKUP_OLD.size()});
+    const bool newLookup = std::ranges::equal(POOL_LOOKUP_NEW, std::span{lookup, POOL_LOOKUP_NEW.size()});
+    if ((grow[0] == 0x7C || grow[0] == 0xEB) && grow[1] == 0x5C && (oldLookup || newLookup)) {
+        if (grow[0] == 0x7C) {
+            uint8_t original = 0;
+            WriteByte(moduleBase + 0x95F5, 0xEB, original);
+        }
+        if (oldLookup) {
+            std::array<uint8_t, POOL_LOOKUP_NEW.size()> original{};
+            WriteN(moduleBase + 0x99D9, POOL_LOOKUP_NEW.data(), POOL_LOOKUP_NEW.size(), original.data());
+        }
+    } else {
+        spdlog::warn("Fog pool index instructions differ from 1.14d; repairs skipped");
+    }
+
     InstallSite(siteP1, P1_RVA, &GameInputThunk, 5, /*isJmp=*/false);
     InstallSite(siteP2, P2_RVA, &GameDrawThunk, 5, /*isJmp=*/true);
     InstallSite(siteP3, P3_RVA, &GamePacketReceivedThunk, 5, /*isJmp=*/false);

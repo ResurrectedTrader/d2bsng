@@ -1,11 +1,12 @@
 # Fog memory-pool index locking (1.14d)
 
-`FOG_MemAllocateBlock` at `0x4095E0` grows the shared region index before acquiring its system lock. `FOG_MemFindBlock` at `0x4099D0` captures the array pointer before locking. A concurrent resize can lose an insertion or leave lookup searching freed memory.
+Two game-only instruction corrections use the existing `WriteByte` / `WriteN` facilities:
 
-Entry detours acquire the existing recursive system critical section before calling either original trampoline. This preserves the original allocator, growth policy, OOM paths and lookup algorithm. Allocation holds the system lock for its complete block allocation (including VirtualAlloc), so this trades a longer critical section for avoiding permanent byte rewrites. The original insertion and lookup recursively take the same lock. Region removal's caller already holds it and needs no extra hook. This does not claim to repair unrelated pool lock-order or lifetime issues.
+- `0x4095F5`: JL becomes JMP, bypassing the unlocked region-index reallocation. The original insertion helper at `0x409370` already grows the index under its system lock.
+- `0x4099D9`: move the index-pointer load after EnterCriticalSection within the same 25-byte range. The original lookup algorithm stays intact. Removal's caller already holds the system lock.
 
-Only the custom EAX/RET4 entry and trampoline calls use ABI adapters; the locking uses the existing RAII guard. HookManager owns attachment and removal. Install before game worker activity; Detours cannot retroactively protect a call already executing the original body during late injection. Detachment likewise requires a quiescent lifecycle.
+Both original and already-corrected instructions are accepted, making reload idempotent. Both sites are validated before either write. These bytes contain no DLL addresses and intentionally remain after unload: restoring the races in a running allocator is unsafe. There are no allocator replacements, detours, ABI adapters or longer lock scopes.
 
-Validation: inspect original entry ABIs, callers, system lock offset +4 and recursive inner acquisitions in IDA; build Release; stress concurrent allocation across different pools and free/realloc during repeated index growth in a live game. Live stress validation remains required.
+Like the existing inline patches, installation must run before worker activity at suspended-process startup. Do not hot-inject this rewrite into an active allocator: moving instructions changes interior return addresses, and one already-blocked old lookup can retain its stale pointer. This PR does not add a separate thread suspension/patching framework.
 
-Related upstream: blizzhackers/d2bs `7cfc19cbb7035045569d5bc59229d5789865b409`.
+Validation: original bytes, system-lock offset, insertion growth and removal caller inspected in IDA; Release backend build. Live simultaneous growth across different size classes and free/realloc stress remain required.
