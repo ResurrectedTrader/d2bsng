@@ -10,3 +10,5 @@ Both original and already-corrected instructions are accepted, making reload ide
 Like the existing inline patches, installation must run before worker activity at suspended-process startup. Do not hot-inject this rewrite into an active allocator: moving instructions changes interior return addresses, and one already-blocked old lookup can retain its stale pointer. This PR does not add a separate thread suspension/patching framework.
 
 Validation: original bytes, system-lock offset, insertion growth and removal caller inspected in IDA; Release backend build. Live simultaneous growth across different size classes and free/realloc stress remain required.
+
+The lookup call operand is an absolute, relocated IAT-slot address. `BuildFogPoolLookupPatch` derives it from `GameModuleBase() + 0x2CC218` in both layouts, so matching and writing work at the preferred base and at manually mapped bases. The byte arrays keep instruction annotations; their four-byte operand placeholders are filled before use. Regression tests apply the actual PE HIGHLOW relocation to the original instruction fixture, then compare both generated layouts at four bases.

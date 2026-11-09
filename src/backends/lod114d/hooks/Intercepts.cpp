@@ -55,6 +55,7 @@
 // =============================================================================
 
 #include "hooks/Intercepts.h"
+#include "hooks/FogPoolPatch.h"
 
 #include <Windows.h>
 #include <spdlog/spdlog.h>
@@ -1252,35 +1253,24 @@ void InstallAll() {
     // After:  lock = &system->lock; Enter(lock); index = system->index; count = system->count;
     // A resize may free the old index while Enter blocks. Read BOTH index and count only after locking.
     // The saved stack local and every instruction after this 25-byte span retain their native layout.
-    constexpr std::array<uint8_t, 25> POOL_LOOKUP_OLD = {
-        0x8B, 0xBE, 0xA8, 0x07, 0,    0,   // mov edi, [esi+7A8h]  ; index = system->index (too early)
-        0x8D, 0x5E, 0x04,                  // lea ebx, [esi+4]     ; lock = &system->lock
-        0x53,                              // push ebx             ; EnterCriticalSection argument
-        0x89, 0x5D, 0xFC,                  // mov [ebp-4], ebx     ; save lock for LeaveCriticalSection
-        0xFF, 0x15, 0x18, 0xC2, 0x6C, 0,   // call [6CC218h]       ; EnterCriticalSection(lock)
-        0x8B, 0xB6, 0xA0, 0x07, 0,    0};  // mov esi, [esi+7A0h]  ; count = system->count
-    constexpr std::array<uint8_t, 25> POOL_LOOKUP_NEW = {
-        0x8D, 0x5E, 0x04,                  // lea ebx, [esi+4]     ; lock = &system->lock
-        0x53,                              // push ebx             ; EnterCriticalSection argument
-        0x89, 0x5D, 0xFC,                  // mov [ebp-4], ebx     ; preserve native lock local
-        0xFF, 0x15, 0x18, 0xC2, 0x6C, 0,   // call [6CC218h]       ; EnterCriticalSection(lock)
-        0x8B, 0xBE, 0xA8, 0x07, 0,    0,   // mov edi, [esi+7A8h]  ; index = system->index (now protected)
-        0x8B, 0xB6, 0xA0, 0x07, 0,    0};  // mov esi, [esi+7A0h]  ; count = system->count
+    const auto poolLookup = BuildFogPoolLookupPatch(static_cast<uint32_t>(moduleBase));
+    const auto& originalLookup = poolLookup.original;
+    const auto& replacementLookup = poolLookup.replacement;
     // FOG_MemAllocateBlock (0x4095F5): 7C 5C = jl 0x409653; EB 5C = jmp 0x409653.
     // Before: if (count >= capacity) GrowIndexUnlocked(); AllocateRegion(); InsertRegion();
     // After:  AllocateRegion(); InsertRegion();  // InsertRegion grows the index under the system lock.
     const auto* grow = reinterpret_cast<const uint8_t*>(moduleBase + 0x95F5);
     const auto* lookup = reinterpret_cast<const uint8_t*>(moduleBase + 0x99D9);
-    const bool oldLookup = std::ranges::equal(POOL_LOOKUP_OLD, std::span{lookup, POOL_LOOKUP_OLD.size()});
-    const bool newLookup = std::ranges::equal(POOL_LOOKUP_NEW, std::span{lookup, POOL_LOOKUP_NEW.size()});
+    const bool oldLookup = std::ranges::equal(originalLookup, std::span{lookup, originalLookup.size()});
+    const bool newLookup = std::ranges::equal(replacementLookup, std::span{lookup, replacementLookup.size()});
     if ((grow[0] == 0x7C || grow[0] == 0xEB) && grow[1] == 0x5C && (oldLookup || newLookup)) {
         if (grow[0] == 0x7C) {
             uint8_t original = 0;
             WriteByte(moduleBase + 0x95F5, 0xEB, original);
         }
         if (oldLookup) {
-            std::array<uint8_t, POOL_LOOKUP_NEW.size()> original{};
-            WriteN(moduleBase + 0x99D9, POOL_LOOKUP_NEW.data(), POOL_LOOKUP_NEW.size(), original.data());
+            std::array<uint8_t, 25> original{};
+            WriteN(moduleBase + 0x99D9, replacementLookup.data(), replacementLookup.size(), original.data());
         }
     } else {
         spdlog::warn("Fog pool index ranges at {:#x} / {:#x} differ from 1.14d; repairs skipped", moduleBase + 0x95F5,
