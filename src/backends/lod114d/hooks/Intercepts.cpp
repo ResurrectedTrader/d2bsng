@@ -1240,6 +1240,22 @@ void InstallAll() {
         return;  // Init() not yet run; bail gracefully.
     }
 
+    // GAME_UpdateGamesProgress: retain the full DWORD time and compare elapsed time unsigned.
+    // The masked clock and signed JGE stop the single-player server at the 2^31-ms boundary.
+    const auto* mask = reinterpret_cast<const uint8_t*>(moduleBase + 0x12FC46);
+    const auto* branch = reinterpret_cast<const uint8_t*>(moduleBase + 0x12FC64);
+    constexpr std::array<uint8_t, 5> MASK_PREFIX = {0x81, 0xE7, 0xFF, 0xFF, 0xFF};
+    if (std::ranges::equal(MASK_PREFIX, std::span{mask, MASK_PREFIX.size()}) && (mask[5] == 0x7F || mask[5] == 0xFF) &&
+        (branch[0] == 0x7D || branch[0] == 0x73) && branch[1] == 0x09) {
+        uint8_t original = 0;
+        WriteByte(moduleBase + 0x12FC4B, 0xFF, original);
+        WriteByte(moduleBase + 0x12FC64, 0x73, original);
+        // Permanent game-only bytes: restoring the masked clock after updating last on the full
+        // clock would reintroduce the freeze. Idempotent across unload/reload; no DLL pointers.
+    } else {
+        spdlog::warn("Single-player clock instructions differ from 1.14d; rollover fix skipped");
+    }
+
     InstallSite(siteP1, P1_RVA, &GameInputThunk, 5, /*isJmp=*/false);
     InstallSite(siteP2, P2_RVA, &GameDrawThunk, 5, /*isJmp=*/true);
     InstallSite(siteP3, P3_RVA, &GamePacketReceivedThunk, 5, /*isJmp=*/false);
