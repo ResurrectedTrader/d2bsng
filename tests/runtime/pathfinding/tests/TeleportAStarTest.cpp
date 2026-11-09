@@ -1,3 +1,4 @@
+#include <chrono>
 #include <cmath>
 
 #include <doctest/doctest.h>
@@ -72,6 +73,27 @@ TEST_CASE("Teleport A* navigates around wall") {
     CHECK_FALSE(path.empty());
     CHECK(path.front() == (Position{.x = 25, .y = 50}));
     CHECK(path.back() == (Position{.x = 75, .y = 50}));
+}
+
+TEST_CASE("Teleport A* reaches a goal inside a wall, like the reference") {
+    CollisionLookup coll;
+    coll.primary = LevelGrid({.size = {.width = 2000, .height = 2000}});
+
+    // Too thick for MutatePoint to move the goal out.
+    for (uint32_t x = 990; x <= 1010; x++) {
+        for (uint32_t y = 990; y <= 1010; y++) {
+            coll.primary.Set({.x = x, .y = y}, CollisionFlag::Wall);
+        }
+    }
+
+    // A goal that stays blocked is entered by the single-cast jump; refusing it there made the search flood all 4M open
+    // cells (seconds) and return nothing.
+    const auto started = std::chrono::steady_clock::now();
+    auto path = FindPathOnGrid(coll, {.x = 100, .y = 100}, {.x = 1000, .y = 1000}, ReductionType::Teleport, 20, {});
+    const auto elapsed = std::chrono::steady_clock::now() - started;
+    REQUIRE_FALSE(path.empty());
+    CHECK(path.back() == (Position{.x = 1000, .y = 1000}));
+    CHECK(elapsed < std::chrono::milliseconds(500));
 }
 
 TEST_CASE("Teleport A* does not emit single-cell steps along a wall") {
