@@ -76,7 +76,8 @@ void Install() {
     const auto base = imports::GameModuleBase();
     const auto* site = reinterpret_cast<const uint8_t*>(base + 0x1A725);
     if (!std::ranges::equal(EXPECTED, std::span{site, EXPECTED.size()})) {
-        utils::GetLogger("hooks.storm_sound")->error("Storm sound block differs from 1.14d; patch skipped");
+        utils::GetLogger("hooks.storm_sound")
+            ->warn("Storm sound block at {:#x} differs from 1.14d; patch skipped", base + 0x1A725);
         return;
     }
     refill = base + 0x157C0;
