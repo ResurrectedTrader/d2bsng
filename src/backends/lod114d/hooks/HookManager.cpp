@@ -14,7 +14,6 @@
 #include "game/GameThread.h"
 #include "game/LaunchOptions.h"
 #include "hooks/Intercepts.h"
-#include "hooks/LvlSubFixes.h"
 #include "hooks/Realms.h"
 #include "imports/D2Gfx.h"
 #include "input/InputHook.h"
@@ -167,11 +166,9 @@ void InstallDetoursHooks() {
     // Inject framework realms into D2's in-memory server list (detours the Storm
     // registry read/write helpers). Must precede the client's first list read.
     realms::Install();
-    lvlsub::Install();
 }
 
 void RemoveDetoursHooks() {
-    lvlsub::Remove();
     realms::Remove();
     core::proxy::socks5::Remove();
     core::speedhack::Remove();

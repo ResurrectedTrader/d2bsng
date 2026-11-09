@@ -1,9 +1,9 @@
 # LvlSub table bounds (1.14d)
 
-The placement and theme-selection walkers at `0x670750` and `0x6706A0` used a change of type as their only terminator. The final type has no following row to inspect. Both entry points are detoured through the typed Detours slots; replacements check the loaded table's end before reading a row. Valid rows retain their order, probability rolls and DT1 masks.
+The placement and theme-selection walkers at `0x670750` and `0x6706A0` use a change of type as their only terminator. The last type has no following row to inspect. Small checked loop-tail patches at `0x670783` and `0x670724` compare the next row against `table + count * 0x15C` before loading it.
 
-The placement helper at `0x66F990` has an EBX argument, so a small ABI adapter remains. There are no new mid-function patches. The hooks attach and detach with HookManager's other backend detours. These repairs affect the mapped 1.14d game, including levels initialized for script room queries.
+Both original functions remain intact: row order, probability rolls, signed comparisons, DT1 masks and placement all execute their original instructions. The stubs use the existing InlinePatch/InstallSite/RestoreSite lifecycle and verify the complete old instruction sequences. Only EAX/ECX are scratch; EDX retains the picker's subtype. Continuations are original instruction boundaries. Install/remove at quiescent lifecycle points, as with the existing inline patches.
 
-Validation: compare all valid row sequences and RNG state against the original, then repeatedly generate the Act 5 outdoor levels with the last table group at the allocation boundary. Runtime stress validation is still required.
+Validation: original bytes, table globals, register liveness and continuations checked in IDA; Release backend build. Live repeated Act 5 generation stress is still required.
 
-Related upstream fix: blizzhackers/d2bs `501f3518220026810782edca2adc4e86a3802504`.
+Related upstream: blizzhackers/d2bs `501f3518220026810782edca2adc4e86a3802504`.
