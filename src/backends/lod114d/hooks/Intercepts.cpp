@@ -111,6 +111,11 @@ namespace {
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables) - hook subsystem owns module-level state
 uintptr_t moduleBase = 0;
 
+// LvlSub loop-tail bounds, checked before reading the next row (stride 0x15C).
+uintptr_t lvlSubRowsSlot = 0, lvlSubCountSlot = 0;
+uintptr_t lvlSubPlaceContinue = 0, lvlSubPlaceDone = 0;
+uintptr_t lvlSubPickContinue = 0, lvlSubPickDone = 0;
+
 // Tail-call targets for the naked thunks; populated by Init().
 uintptr_t inputCall = 0;
 uintptr_t receivePacket = 0;
@@ -133,16 +138,17 @@ char** bnclientXPacKeySlot = nullptr;
 const char* classicCdKey = nullptr;
 const char* lodCdKey = nullptr;
 
-// Per-site original-byte storage. Sized for the longest patch (10 bytes for
-// P18); shorter ones leave the trailing slots untouched.
+// Per-site original-byte storage. Sized for the longest patch (17 bytes for
+// LvlSub placement); shorter ones leave the trailing slots untouched.
 struct SiteState {
     bool installed = false;
-    std::array<uint8_t, 10> original{};
+    std::array<uint8_t, 17> original{};
 };
 
 SiteState siteP1, siteP2, siteP3, siteP4, siteP5;
 SiteState siteP8, siteP9, siteP14, siteP15, siteP16;
 SiteState siteP17, siteP18, siteP19, siteP21, siteP22;
+SiteState siteLvlSubPlace, siteLvlSubPick;
 
 // d2bsng addition - unconditional SID_REQUIREDWORK (0x4C) suppression.
 SiteState siteRequiredWork;
@@ -932,6 +938,44 @@ extern "C" __declspec(naked) void GameDrawOOGThunk() {
     }
 }
 
+// Preserve the original walkers, RNG and placement helpers. Only their loop tails change:
+// advance, compare against table end, then perform the original type comparison.
+extern "C" __declspec(naked) void LvlSubPlaceThunk() {
+    __asm {
+        add ebx, 0x15C
+        mov ecx, [lvlSubCountSlot]
+        mov eax, [ecx]
+        imul eax, eax, 0x15C
+        mov ecx, [lvlSubRowsSlot]
+        add eax, [ecx]
+        cmp ebx, eax
+        jae Done
+        mov eax, [ebx]
+        cmp eax, [esi+0x18]
+        jne Done
+        jmp dword ptr [lvlSubPlaceContinue]
+Done:
+        jmp dword ptr [lvlSubPlaceDone]
+    }
+}
+extern "C" __declspec(naked) void LvlSubPickThunk() {
+    __asm {
+        add ebx, 0x15C
+        mov ecx, [lvlSubCountSlot]
+        mov eax, [ecx]
+        imul eax, eax, 0x15C
+        mov ecx, [lvlSubRowsSlot]
+        add eax, [ecx]
+        cmp ebx, eax
+        jae Done
+        cmp [ebx], edx
+        jne Done
+        jmp dword ptr [lvlSubPickContinue]
+Done:
+        jmp dword ptr [lvlSubPickDone]
+    }
+}
+
 // P18: GameCrashFix. Original 10 bytes at 0x6091E5:
 //   89 51 10                  mov [ecx+0x10], edx
 //   C7 40 0C 00 00 00 00      mov [eax+0xC], 0
@@ -1114,6 +1158,12 @@ bool Init() {
         }
     }
 
+    lvlSubRowsSlot = moduleBase + 0x56CA10;
+    lvlSubCountSlot = moduleBase + 0x56CA14;
+    lvlSubPlaceContinue = moduleBase + 0x270774;
+    lvlSubPlaceDone = moduleBase + 0x270794;
+    lvlSubPickContinue = moduleBase + 0x2706D4;
+    lvlSubPickDone = moduleBase + 0x27072E;
     inputCall = imports::d2client::InputCall_I.Addr();
     receivePacket = reinterpret_cast<uintptr_t>(imports::d2net::CLIENT_ReceivePacket_I.Ptr());
     sendPacketII = imports::d2client::SendPacket_II.Addr();
@@ -1237,6 +1287,23 @@ void InstallAll() {
                      moduleBase + 0x99D9);
     }
 
+    // Checked as complete instructions; both patches resume at original instruction boundaries.
+    constexpr std::array<uint8_t, 17> PLACE_TAIL = {0x8B, 0x83, 0x5C, 0x01, 0,    0,    0x81, 0xC3, 0x5C,
+                                                    0x01, 0,    0,    0x3B, 0x46, 0x18, 0x74, 0xE0};
+    constexpr std::array<uint8_t, 10> PICK_TAIL = {0x81, 0xC3, 0x5C, 0x01, 0, 0, 0x39, 0x13, 0x74, 0xA6};
+    const auto installLoop = [](SiteState& state, uint32_t rva, auto bytes, auto thunk) {
+        const auto* original = reinterpret_cast<const uint8_t*>(moduleBase + rva);
+        if (state.installed) {
+            return;
+        }
+        if (!std::ranges::equal(bytes, std::span{original, bytes.size()})) {
+            spdlog::warn("LvlSub loop bytes at {:#x} differ from 1.14d; patch skipped", moduleBase + rva);
+            return;
+        }
+        InstallSite(state, rva, thunk, bytes.size(), true);
+    };
+    installLoop(siteLvlSubPlace, 0x270783, PLACE_TAIL, &LvlSubPlaceThunk);
+    installLoop(siteLvlSubPick, 0x270724, PICK_TAIL, &LvlSubPickThunk);
     // GAME_UpdateGamesProgress: retain the full DWORD time and compare elapsed time unsigned.
     // The masked clock and signed JGE stop the single-player server at the 2^31-ms boundary.
     const auto* mask = reinterpret_cast<const uint8_t*>(moduleBase + 0x12FC46);
@@ -1442,6 +1509,8 @@ void RemoveAll() {
     RestoreSite(siteP3, P3_RVA, 5);
     RestoreSite(siteP2, P2_RVA, 5);
     RestoreSite(siteP1, P1_RVA, 5);
+    RestoreSite(siteLvlSubPick, 0x270724, 10);
+    RestoreSite(siteLvlSubPlace, 0x270783, 17);
 }
 
 }  // namespace d2bs::lod114d::hooks::intercepts
