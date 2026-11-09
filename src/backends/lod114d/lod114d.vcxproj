@@ -159,6 +159,7 @@
     <ClInclude Include="hooks\RevisionTempPath.h" />
     <ClInclude Include="hooks\HookManager.h" />
     <ClInclude Include="hooks\InlinePatch.h" />
+    <ClInclude Include="hooks\FogPoolPatch.h" />
     <ClInclude Include="hooks\Intercepts.h" />
     <ClInclude Include="hooks\Realms.h" />
     <ClInclude Include="console\Console.h" />
