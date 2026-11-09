@@ -15,6 +15,7 @@
 #include "game/LaunchOptions.h"
 #include "hooks/Intercepts.h"
 #include "hooks/Realms.h"
+#include "hooks/SpriteCacheFixes.h"
 #include "imports/D2Gfx.h"
 #include "input/InputHook.h"
 #include "proxy/Socks5Proxy.h"
@@ -166,9 +167,11 @@ void InstallDetoursHooks() {
     // Inject framework realms into D2's in-memory server list (detours the Storm
     // registry read/write helpers). Must precede the client's first list read.
     realms::Install();
+    sprite_cache::Install();
 }
 
 void RemoveDetoursHooks() {
+    sprite_cache::Remove();
     realms::Remove();
     core::proxy::socks5::Remove();
     core::speedhack::Remove();
