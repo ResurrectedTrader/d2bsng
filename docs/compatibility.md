@@ -60,8 +60,33 @@ the framework interface). 1.14d returns an empty vector
 (`src/backends/lod114d/game/GameHelpers.cpp`). Returned flags are merged into the same
 registry, so they are enabled/disabled through the same `Compatibility` object;
 the port queries `CompatibilityFlags::Instance().IsEnabled(...)` to act on them.
-Game-version flags are registered at runtime; the statically-generated API docs
-cover the framework catalog only.
+
+A backend flag is documented like a framework one: each `{.name = "x", ...}`
+entry its `GetCompatibilityFlags()` returns carries a `/// @description` block.
+`scripts/extract_api.py` reads the source files listed in its
+`COMPAT_FLAG_BACKENDS` with libclang and adds those entries to the
+`CompatibilityFlag` option set tagged with their backend, which the API docs
+show with the same backend badge as the launch options. 1.14d has none, so the
+mapping is empty here. A backend kept outside this repository is described by a
+JSON file passed as `--backend <spec.json>`:
+
+```json
+{
+  "key": "mybackend",
+  "label": "My game",
+  "short": "mine",
+  "dll": "mybackend.dll",
+  "launch_options": "src/backends/mybackend/game/LaunchOptions.cpp",
+  "compat_flags": "src/backends/mybackend/game/Compatibility.cpp",
+  "includes": ["src/backends/mybackend"],
+  "defines": []
+}
+```
+
+Paths are relative to the file's directory (the backend's root); `compat_flags`
+and `defines` are optional. Its launch options join the merged switch table
+after this repository's backends, and its flags join the `CompatibilityFlag`
+set.
 
 ## Raw game data
 

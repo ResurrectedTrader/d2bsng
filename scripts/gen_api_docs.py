@@ -269,6 +269,10 @@ table.opt-tbl code{background:var(--code-bg);padding:1px 5px;border-radius:4px}
 .badge-type{color:var(--accent);border-color:var(--accent)}
 .badge-static{color:#8250df;border-color:#8250df55}
 .badge-blockable{color:#bc4c00;border-color:#bc4c0055}
+.badge-be{cursor:help;color:#8250df;border-color:#8250df55}
+.badge-be-lod114d{color:#0969da;border-color:#0969da55}
+.lo-legend{margin-left:4px}
+.lo-legend+.badge{margin-left:10px}
 
 /* inherited members */
 .inherited{margin:16px 0 4px}
@@ -381,16 +385,26 @@ function linkType(t){
 }
 function badge(text,kind){ return '<span class="badge'+(kind?' badge-'+kind:'')+'">'+esc(text)+'</span>'; }
 function typeBadge(t){ return t ? '<span class="badge badge-type">'+linkType(t)+'</span>' : ''; }
+// Backend marker for a launch option: the short game name, titled with the full
+// name and the DLL it ships as.  `map` is data.launch_backends; an option from
+// an older api.json (no backend info) gets no marker.
+function backendInfo(key,map){ return (map&&map[key])||{}; }
+function backendBadge(key,map){
+  var b=backendInfo(key,map), title=(b.label||key)+(b.dll?' ('+b.dll+')':'');
+  return '<span class="badge badge-be badge-be-'+esc(String(key).replace(/[^A-Za-z0-9_-]/g,'-'))+
+    '" title="'+esc(title)+'">'+esc(b.short||b.label||key)+'</span>';
+}
+function backendBadges(keys,map){ return (keys||[]).map(function(k){ return backendBadge(k,map); }).join(''); }
 function sourceBase(){
   if(state.tag && CFG.repo) return 'https://github.com/'+CFG.repo+'/blob/'+state.tag+'/';
   return CFG.sourceBase || '';
 }
-function sourceLink(e){
+function sourceLink(e,label){
   var f=e.file, line=e.line; if(!f) return '';
   var loc = line ? f+'#L'+line : f, base=sourceBase();
-  if(base) return '<a class="src" href="'+esc(base.replace(/\/$/,'')+'/'+loc)+'" target="_blank" rel="noopener">source</a>';
-  var label = line ? f+':'+line : f;
-  return '<span class="src src-plain" title="'+esc(label)+'">'+esc(f.split('/').pop())+'</span>';
+  if(base) return '<a class="src" href="'+esc(base.replace(/\/$/,'')+'/'+loc)+'" target="_blank" rel="noopener">'+esc(label||'source')+'</a>';
+  var title = line ? f+':'+line : f;
+  return '<span class="src src-plain" title="'+esc(title)+'">'+esc(label||f.split('/').pop())+'</span>';
 }
 function head(level,anchor,titleHtml,badges){
   return '<h'+level+' id="'+esc(anchor)+'" class="sym-head">'+
@@ -446,12 +460,14 @@ function renderThrows(doc){
     var ty=esc(x.type||'Error'), d=esc(x.description||''); return '<li><code>'+ty+'</code>'+(d?' &mdash; '+d:'')+'</li>';
   }).join('')+'</ul></div>';
 }
-function renderOptRows(rows){
+// A row a game backend contributes (a backend compatibility flag) carries the
+// backends it exists on, badged like the launch options.
+function renderOptRows(rows,backendMap){
   rows=rows||[]; if(!rows.length) return '';
   var hasVal=rows.some(function(r){ return r.value!==undefined && r.value!==''; });
   var trs=rows.map(function(r){
     var c=hasVal ? '<td class="ov"><code>'+esc(r.value!=null?String(r.value):'')+'</code></td>' : '';
-    c+='<td class="on"><code>'+esc(r.name||'')+'</code></td>';
+    c+='<td class="on"><code>'+esc(r.name||'')+'</code>'+backendBadges(r.backends,backendMap)+'</td>';
     c+='<td>'+esc(r.description||'')+'</td>';
     return '<tr>'+c+'</tr>';
   }).join('');
@@ -626,7 +642,7 @@ function buildApi(data){
       var d=enums[en], a=slug('enum',en);
       var h=head(3,a,'<span class="sym-name">'+esc(en)+'</span>',badge(d.kind==='flags'?'flags':'enum','type'));
       var hayStr=hay(en,(d.rows||[]).map(function(r){return r.name;}).join(' '),d.description);
-      body.push('<div class="member" data-hay="'+hayStr+'">'+h+'<div class="member-body">'+descHtml(d)+renderOptRows(d.rows)+'</div></div>');
+      body.push('<div class="member" data-hay="'+hayStr+'">'+h+'<div class="member-body">'+descHtml(d)+renderOptRows(d.rows,data.launch_backends)+'</div></div>');
       enLeaves.push([a,en,hayStr]);
     });
     body.push('</section>');
@@ -656,19 +672,38 @@ function buildApi(data){
   // command line options (switches passed to the game executable) - grouped
   // under "Others", after the JS API sections so body order matches the sidebar.
   var launch=data.launch_options||[];
+  var backends=data.launch_backends||{};
   if(launch.length){
+    // Each backend ships as its own DLL and accepts its own set of switches;
+    // most are shared, so every option carries a marker per backend that takes
+    // it rather than the page splitting into one table per backend.
+    var beKeys=Object.keys(backends);
+    var legend=beKeys.length ? '<p class="lo-meta">Each switch is marked with the game it applies to: '+
+      beKeys.map(function(k){
+        var b=backends[k];
+        return backendBadge(k,backends)+'<span class="lo-legend">'+esc(b.label||k)+
+          (b.dll?' (<code>'+esc(b.dll)+'</code>)':'')+'</span>';
+      }).join('')+'</p>' : '';
     body.push('<section class="area"><h2 id="launch" class="spy">Command line options</h2>'+
       '<p class="area-intro">Command-line switches passed to the game executable (typically by the launcher / bot manager). '+
-      'A switch shown with an argument (e.g. <code>-profile &lt;name&gt;</code>) takes the following token as its value.</p>');
+      'A switch shown with an argument (e.g. <code>-profile &lt;name&gt;</code>) takes the following token as its value.</p>'+legend);
     var loLeaves=[];
     launch.forEach(function(o){
       var a=slug('launch',o.name);
       var title='<span class="sym-name">'+esc(o.name)+'</span>'+(o.syntax?' <span class="lo-syntax">'+esc(o.syntax)+'</span>':'');
-      var h=head(3,a,title,(o.category?badge(o.category):''));
+      var h=head(3,a,title,(o.category?badge(o.category):'')+backendBadges(o.backends,backends));
       var body2=(o.description?'<p class="desc">'+esc(o.description)+'</p>':'');
-      body.push('<div class="member" data-hay="'+hay(o.name,o.description,o.syntax)+'">'+h+
-        '<div class="member-body">'+body2+'<div class="member-foot">'+sourceLink(o)+'</div></div></div>');
-      loLeaves.push([a,o.name,hay(o.name,o.description,o.syntax)]);
+      // Backend keys and names are searchable, so a game's key or name filters
+      // the list down to the switches that game accepts.
+      var beHay=(o.backends||[]).map(function(k){ var b=backendInfo(k,backends); return k+' '+(b.short||'')+' '+(b.label||''); }).join(' ');
+      // A switch defined by several backends has one definition per backend, so
+      // link each; a single definition keeps the plain "source" link.
+      var foot=(o.sources&&o.sources.length>1)
+        ? o.sources.map(function(s){ return sourceLink(s,(backendInfo(s.backend,backends).short||s.backend)+' source'); }).join(' &middot; ')
+        : sourceLink(o);
+      body.push('<div class="member" data-hay="'+hay(o.name,o.description,o.syntax,beHay)+'">'+h+
+        '<div class="member-body">'+body2+'<div class="member-foot">'+foot+'</div></div></div>');
+      loLeaves.push([a,o.name,hay(o.name,o.description,o.syntax,beHay)]);
     });
     body.push('</section>');
     loNav.push(navGroup('launch','Command line options',loLeaves));
@@ -831,7 +866,10 @@ function flatten(data){
     else out[cn]={label:cn, fp:(cv.doc||{}).type||'', anchor:slug('const',cn)};
   });
   (data.events||[]).forEach(function(e){ out['event '+e.name]={label:'event '+e.name, fp:(e.signature||'')+'|'+!!e.blockable, anchor:slug('event',e.name)}; });
-  (data.launch_options||[]).forEach(function(o){ out['option '+o.name]={label:'option '+o.name, fp:(o.syntax||'')+'|'+(o.description||''), anchor:slug('launch',o.name)}; });
+  // The backend list is part of an option's fingerprint, so a switch gaining or
+  // losing a game reads as changed; a release from before the field existed
+  // documented the 1.14d table alone.
+  (data.launch_options||[]).forEach(function(o){ out['option '+o.name]={label:'option '+o.name, fp:(o.syntax||'')+'|'+(o.description||'')+'|'+(o.backends||['lod114d']).join(','), anchor:slug('launch',o.name)}; });
   var sim=data.simulator&&simPublic(data.simulator);
   if(sim){
     (sim.options||[]).forEach(function(o){ out['simulator '+o.name]={label:'simulator '+o.name, fp:(o.syntax||'')+'|'+(o['default']||'')+'|'+(o.description||''), anchor:slug('sim','opt',o.name)}; });
