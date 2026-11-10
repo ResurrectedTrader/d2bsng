@@ -649,7 +649,10 @@ forward to `utils/EnumFlags.h`. A flag set so stays its enumeration type - test 
 `HasFlag`, not `std::to_underlying(a) & std::to_underlying(b)`. Only scoped enumerations may
 be marked (operators on an unscoped one would change what existing expressions mean).
 **Rerun the script after adding, removing or changing an enumeration** (`pip install
-libclang` once); CI's `--check` fails otherwise. A covered enumeration must be
+libclang` once); CI's `--check` fails otherwise. A repository that builds its own
+projects against this one generates their pairs with the same script: `--src <dir>` names
+its project directories in place of `src/`, and `--define Name=<dir>` resolves a `$(Name)`
+property of its own in their include directories. A covered enumeration must be
 forward-declarable - scoped, or unscoped with a fixed underlying type - and that type
 must be a builtin or standard integer type. Enumerations nested in a class or declared
 in a `.cpp` get no names.

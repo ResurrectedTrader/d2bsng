@@ -30,6 +30,11 @@ diffs.
     pip install libclang
     python scripts/gen_enum_names.py [--check]
 
+A repository that keeps its own projects and builds them against this one runs
+the same generator over them with --src (its project directories, in place of
+src/) and --define (the directory each of its own $(Name) include-path
+properties stands for); the output follows this repository's .clang-format.
+
 An enumeration nested in a class or function, or declared in a .cpp, gets no
 overloads. A covered enumeration must be forward-declarable: scoped, or unscoped
 with a fixed underlying type, which must be a builtin or standard integer type.
@@ -62,6 +67,9 @@ SRC = REPO_ROOT / "src"
 SPELLED_FROM_PARENT = {SRC / "utils"}
 # Directories never scanned: build output, and vendored code that keeps its own style.
 SKIP_DIRS = {"Release", "Debug", "x64", "Win32", "vcpkg_installed"}
+# Extra $(Name) -> directory substitutions for include paths (--define), for projects kept in
+# another repository that name their own root through a property of theirs.
+MACROS = {}
 VENDORED = []  # e.g. SRC / "some" / "third_party" - paths under src/ to leave alone
 SUFFIX = "EnumNames"
 SHARED_HEADER = "utils/EnumNaming.h"
@@ -88,6 +96,8 @@ class Project:
         found = []
         for value in re.findall(r"<AdditionalIncludeDirectories>(.*?)</AdditionalIncludeDirectories>", text):
             for item in value.split(";"):
+                for name, directory in MACROS.items():
+                    item = item.replace(f"$({name})", str(directory) + "\\")
                 item = (item.replace("$(ProjectDir)", str(self.dir) + "\\")
                         .replace("$(D2bsngRoot)", str(REPO_ROOT) + "\\")
                         .replace("$(MSBuildThisFileDirectory)", str(self.dir) + "\\"))
@@ -244,9 +254,17 @@ def utils_prefix(namespace):
     return "utils::" if namespace.startswith("d2bs::") else "::d2bs::utils::"
 
 
+CAMEL_CASE_RE = re.compile(r"[A-Z][A-Za-z0-9]*")
+
+
 def forward_declaration(e):
     keyword = "enum class" if e["scoped"] else "enum"
-    return f"{keyword} {e['name']}" + (f" : {e['underlying']};" if e["underlying"] else ";")
+    line = f"{keyword} {e['name']}" + (f" : {e['underlying']};" if e["underlying"] else ";")
+    # A name outside .clang-tidy's EnumCase (CamelCase) is exempted where it is defined
+    # (e.g. D2C_Language mirroring the game's); the forward declaration carries the same.
+    if not CAMEL_CASE_RE.fullmatch(e["name"]):
+        line += "  // NOLINT(readability-identifier-naming)"
+    return line
 
 
 def flag_operators(e, u):
@@ -411,13 +429,16 @@ def find_clang_format():
 
 def clang_format(text, path, tool):
     """Formats *text* as if it were *path*, so the repository's .clang-format applies."""
-    return subprocess.run([tool, f"--assume-filename={path}"], input=text, capture_output=True, text=True,
+    # The style file is named rather than looked up from *path*, so a project kept outside this
+    # repository (--src) is formatted by the same rules.
+    return subprocess.run([tool, f"--style=file:{REPO_ROOT / '.clang-format'}", f"--assume-filename={path}"],
+                          input=text, capture_output=True, text=True,
                           encoding="utf-8", check=True, cwd=REPO_ROOT).stdout
 
 
-def plan(tool):
+def plan(tool, roots):
     """({path: new bytes}, [paths to delete], number of enumerations)."""
-    projects = [Project(v) for v in sorted(SRC.rglob("*.vcxproj"))]
+    projects = [Project(v) for root in roots for v in sorted(root.rglob("*.vcxproj"))]
     writes, deletes, total = {}, [], 0
     for project in projects:
         generated = [p for pattern in (f"*{SUFFIX}.h", f"*{SUFFIX}.cpp")
@@ -459,14 +480,23 @@ def plan(tool):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--check", action="store_true", help="report stale output or wiring instead of writing it")
+    parser.add_argument("--src", action="append", type=Path, metavar="DIR",
+                        help="cover the projects under DIR instead of this repository's src/ (repeatable), "
+                             "for a repository that keeps its own projects and builds them against this one")
+    parser.add_argument("--define", action="append", default=[], metavar="NAME=DIR",
+                        help="resolve $(NAME) in those projects' include directories to DIR (repeatable)")
     args = parser.parse_args()
+    for define in args.define:
+        name, _, value = define.partition("=")
+        MACROS[name] = Path(value).resolve()
+    roots = [d.resolve() for d in args.src] if args.src else [SRC]
 
     tool = find_clang_format()
     if not tool:
         print("gen_enum_names: clang-format not found", file=sys.stderr)
         return 1
     try:
-        writes, deletes, total = plan(tool)
+        writes, deletes, total = plan(tool, roots)
     except RuntimeError as err:
         print(f"gen_enum_names: {err}", file=sys.stderr)
         return 1
@@ -484,7 +514,7 @@ def main():
     if not args.check:
         for path in deletes:
             path.unlink()
-    rel = [p.relative_to(REPO_ROOT).as_posix() for p in changed]
+    rel = [Path(os.path.relpath(p)).as_posix() for p in changed]
     if args.check and rel:
         print("gen_enum_names: stale, rerun the script:\n  " + "\n  ".join(rel), file=sys.stderr)
         return 1
