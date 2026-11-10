@@ -224,6 +224,19 @@ packet drains. `utils::CriticalSectionLock` holds that critical section for the 
 it when the scope exits, before the game read lock. The next packet drain handles the text through the
 game's overhead-message path, which frees and replaces the previous message. Empty text remains a no-op.
 
+### The message loop
+
+The write lock is also held while the game thread is outside the frame body. `OnSleep` ends with
+`GameWriteLock::Acquire()` and the next `OnSleep` releases it, so from the first tick on the game thread
+holds it through the rest of its frame *and* through its message loop; script readers only get in during
+`OnSleep`'s drain slices. Work a backend runs from the message loop (`input::RequestPump`, see
+`docs/window_message_handling.md`) therefore runs with readers excluded without taking anything. The lock
+is not held until the script engine is up (`OnSleep` returns before taking it), so such work tests
+`GameWriteLock::IsHeldByCurrentThread()` and takes a `GameWriteLock` of its own when it is not - though then
+no script exists to have asked for it. A script waiting for that work releases its read lock while it waits
+(`GameReadLockReleaser`), exactly as `GameThread::Execute` does - otherwise the game thread would block
+reacquiring the write lock at the end of `OnSleep` and never reach the message loop that runs the work.
+
 ## Per-frame events (`render`)
 
 The `render` event is a signal, not a queued event. `GameLoop::OnDraw` (the backend's `onDraw` callback, once

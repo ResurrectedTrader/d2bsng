@@ -15,7 +15,9 @@
 //     discarded, so the game's message pump keeps turning
 //   * tagging of injected input (PostInjectedInput) so the bot's own clicks and
 //     keystrokes pass the hook while the human's are blocked
-//   * a WndProc subclass on the game window that forwards WM_COPYDATA
+//   * a WndProc subclass on the game window that forwards WM_COPYDATA, and runs
+//     the backend's pump callback from the game's own message loop on request
+//     (RequestPump)
 
 namespace d2bs::core::input {
 
@@ -42,6 +44,10 @@ struct Hooks {
     // A WM_COPYDATA message on the game window. The trailing NUL senders
     // include in cbData is stripped from the payload.
     void (*onIPC)(game::IpcMode mode, const std::string& payload) = nullptr;
+
+    // Runs on the window's thread, from the game's own message loop, once per
+    // RequestPump(). The message that carries it never reaches the game.
+    void (*onPump)() = nullptr;
 };
 
 // Install the WH_GETMESSAGE hook on the window's owning thread and subclass the
@@ -55,6 +61,12 @@ void Install(HWND window, Hooks hooks);
 // a call already inside the hook procedure or the subclass; if that thread does
 // not answer within a bounded wait, the caller's thread does it instead.
 void Remove();
+
+// Ask the window's thread to run Hooks::onPump from its message loop. At most
+// one request is outstanding: a call made while one is still queued folds into
+// it, and onPump sees the request as consumed before it runs, so it may request
+// another. False when the window is not hooked or the post failed. Thread-safe.
+bool RequestPump();
 
 // Post synthetic input (clicks / keys) to the game window. Tagged so the hook
 // lets it through even while blockKeys / blockMouse suppresses the human's

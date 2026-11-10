@@ -2,6 +2,7 @@
 
 #include <Windows.h>
 
+#include <atomic>
 #include <cstdint>
 #include <string>
 
@@ -32,16 +33,30 @@ constexpr LPARAM INJECTED_KEY_TAG = 0x02000000;
 WNDPROC originalWndProc = nullptr;
 HWND subclassedHwnd = nullptr;
 
+// RequestPump runs on any thread, so it reads the subclassed window from its own
+// atomic copy rather than subclassedHwnd.
+std::atomic<HWND> pumpWindow{nullptr};
+std::atomic<bool> isPumpPending{false};
+std::atomic<uint64_t> pumpPostedAt{0};
+
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 // Sent to the subclassed window by Remove() so the unhook runs on the window's
 // thread.
 constexpr UINT WM_REMOVE_INPUT_HOOKS = WM_APP + 0x2B5;
 
+// Posted by RequestPump; the subclass runs Hooks::onPump for it and does not
+// forward it. Being posted, it is dispatched by whichever message loop removes
+// it, so a backend relying on onPump running at a particular point of the
+// game's loop has to know that no other loop removes WM_APP messages.
+constexpr UINT WM_INPUT_PUMP = WM_APP + 0x2B6;
+
 // Retires the hook and the subclass. The window's thread is the only one that
 // runs GetMsgProc (a thread-specific hook) and the subclassed WndProc, so on
 // that thread neither can be mid-call while this runs.
 void RemoveOnWindowThread() {
+    pumpWindow.store(nullptr);
+    isPumpPending.store(false);
     if (getMsgHook != nullptr) {
         UnhookWindowsHookEx(getMsgHook);
         getMsgHook = nullptr;
@@ -229,6 +244,14 @@ LRESULT CALLBACK SubclassedWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
         RemoveOnWindowThread();
         return 0;
     }
+    if (msg == WM_INPUT_PUMP) {
+        // Cleared first, so a callback that requests another pump gets a fresh post.
+        isPumpPending.store(false);
+        if (auto* const onPump = activeHooks.onPump; onPump != nullptr) {
+            onPump();
+        }
+        return 0;
+    }
     if (auto* const onIPC = activeHooks.onIPC; msg == WM_COPYDATA && onIPC != nullptr) {
         auto* cds = reinterpret_cast<const COPYDATASTRUCT*>(lParam);
         if (cds != nullptr && cds->lpData != nullptr) {
@@ -272,6 +295,9 @@ void Install(HWND window, Hooks hooks) {
     originalWndProc = reinterpret_cast<WNDPROC>(
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) - Win32 SetWindowLongPtr returns LONG_PTR
         SetWindowLongPtrW(window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&SubclassedWndProc)));
+    if (originalWndProc != nullptr) {
+        pumpWindow.store(window);
+    }
 }
 
 // GameThread::Execute cannot carry the unhook to the window's thread: by the
@@ -299,6 +325,26 @@ void Remove() {
     // re-subclassed over us. Retire from here; a call already inside the hook
     // then finishes against cleared state.
     RemoveOnWindowThread();
+}
+
+bool RequestPump() {
+    HWND window = pumpWindow.load();
+    if (window == nullptr) {
+        return false;
+    }
+    const uint64_t now = GetTickCount64();
+    // A request still pending after this long is taken as lost - removed by a loop
+    // that did not dispatch it - and posted again rather than folded into.
+    constexpr uint64_t PUMP_REPOST_MS = 100;
+    if (isPumpPending.exchange(true) && now - pumpPostedAt.load() < PUMP_REPOST_MS) {
+        return true;
+    }
+    pumpPostedAt.store(now);
+    if (PostMessageW(window, WM_INPUT_PUMP, 0, 0) == 0) {
+        isPumpPending.store(false);
+        return false;
+    }
+    return true;
 }
 
 void PostInjectedInput(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {

@@ -16,7 +16,7 @@ Design docs live in `docs/`. Read the one(s) covering whatever you are about to 
 
 - `docs/coords.md` - the two D2 coordinate spaces (subtiles vs game coords) and where the subtile -> game-coord conversion lives (game-layer stubs only).
 - `docs/game_thread_safety.md` - identity-based handles, per-frame pointer caching (`HandleCache`), and the game read/write lock model.
-- `docs/window_message_handling.md` - the `WH_GETMESSAGE` input hook (block / dispatch / injected-input tagging), the game-window WndProc subclasses, and the console raw-input summon.
+- `docs/window_message_handling.md` - the `WH_GETMESSAGE` input hook (block / dispatch / injected-input tagging), the game-window WndProc subclasses, `RequestPump` (running a backend's work from the game's own message loop), and the console raw-input summon.
 - `docs/inspector.md` - the V8 inspector (Chrome DevTools) attachment: the ixwebsocket transport, the InspectorServer / InspectorTarget / ScriptInspector split, the inbound-queue threading model, and releasing game locks during a breakpoint pause.
 - `docs/compatibility.md` - the scripting compatibility-flag system: the `CompatibilityFlags` registry, the framework flag catalog, the `game::GetCompatibilityFlags()` extension point, the `Compatibility` JS object, the per-flag gating sites, and why the BOM strip and `delay` wrapper stay un-flagged.
 - `docs/realms.md` - custom Battle.net gateways: the `RealmRegistry` store, the `-realm` launch option, in-memory injection into D2's gateway list by detouring the Storm registry read/write helpers (no registry persistence), realm enumeration (`game::GetRealms`) exposed as the global `getRealms()`.

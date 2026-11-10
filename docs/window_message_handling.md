@@ -102,12 +102,42 @@ chains to it with `CallWindowProcW`, so order does not matter:
    the payload to the `onIPC` hook, which the backend wires to
    `GameCallbacks::onIPC` (the launcher / inter-instance IPC channel; matches
    the reference launcher's `CF_TEXT`-style null-terminated convention, so the
-   trailing NUL is stripped). Everything else chains through.
+   trailing NUL is stripped). It also consumes two app-defined messages, the
+   unhook (`WM_REMOVE_INPUT_HOOKS`, see Lifecycle) and the pump request
+   (below). Everything else chains through.
 2. `TitleSubclassProc` (`Console.cpp`) - observes `WM_SETTEXT` so the console
    window can mirror the game window's title (multi-instance titling). It does
    not change behavior; it `PostMessage`s `WM_GAME_TITLE_CHANGED` to the console
    and lets the original proc do the real title update. Installed lazily from the
    console render loop (`EnsureGameTitleSubclass`), one-shot per HWND.
+
+### Running work from the game's message loop (`RequestPump`)
+
+`input::RequestPump()` posts an app-defined `WM_INPUT_PUMP` (`WM_APP + 0x2B6`) to
+the subclassed window; `SubclassedWndProc` answers it by calling the backend's
+`Hooks::onPump` and returns 0 without forwarding it, so the game never sees
+it. It is the way for a backend to run game-thread work at the point of the
+game's loop where the game dispatches its own messages, rather than from a
+hook inside the frame. 1.14d leaves `onPump` null, and nothing there requests
+a pump.
+
+- **Coalesced.** One request is outstanding at a time: an atomic pending flag
+  is set by the post and cleared by the subclass *before* it calls `onPump`, so
+  a request made while one is queued folds into it and `onPump` can ask for
+  another. A request still pending after 100ms is taken as lost (removed by a
+  loop that did not dispatch it) and posted again. The flag is cleared again
+  on unhook.
+- **Any thread.** `RequestPump` reads the window from its own atomic copy (set
+  once the subclass took, cleared by `RemoveOnWindowThread`) and returns false
+  when the window is not hooked or `PostMessageW` fails, so a caller can fall
+  back to another route.
+- **Where it runs.** A posted message is dispatched by whichever message loop
+  removes it. A backend that relies on `onPump` running at one particular point
+  of the game's loop has to know that nothing else in the frame removes
+  `WM_APP` messages.
+- **Locking.** The game thread holds the write lock through its message loop,
+  so `onPump` runs with script readers excluded (see "The message loop" in
+  `docs/game_thread_safety.md`).
 
 ## Console window
 
