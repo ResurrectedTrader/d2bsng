@@ -209,18 +209,20 @@ git submodule update --init --recursive
 configuration, and not the headers. The build downloads them. The first build that needs V8
 pulls one archive from
 [v8-static-win](https://github.com/ResurrectedTrader/v8-static-win/releases), which builds the
-monolith for 32-bit Windows against the static CRT, and unpacks it into a directory named for
-the version and the archive it came from:
+monolith for 32-bit and 64-bit Windows against the static CRT, and unpacks it into a directory
+named for the version and the archive it came from:
 
 ```
 dependencies/v8/15.6.8/x86-release/include/...
 dependencies/v8/15.6.8/x86-release/v8_monolith.lib
 dependencies/v8/15.6.8/x86-debug/...
+dependencies/v8/15.6.8/x64-release/...
 ```
 
-That download is a few hundred megabytes and happens once per version and configuration.
-Later builds see the directory and skip it, and only the configuration being built is
-fetched - a Release build never pulls the debug archive.
+That download is a few hundred megabytes and happens once per version, platform and
+configuration. Later builds see the directory and skip it, and only the platform and
+configuration being built are fetched - a Win32 Release build never pulls the debug or the x64
+archive.
 
 Which V8 that is lives in `Directory.Build.props`, as `V8Version` / `V8Repo` / `V8ReleaseTag` /
 `V8Toolset`. That is the only place it is written down: the compiler's include path, the
@@ -229,9 +231,10 @@ the path, **changing `V8Version` changes where everything points**, so the new a
 fetched and the headers and the library are always from one build of V8. Header/library skew
 is not something a check catches - there is no path that expresses it.
 
-The flavour is in the path too because `v8-gn.h` differs between the release and debug
-archives (every other header is identical), and that header is what makes the compiler lay
-objects out the way the library does - an ABI requirement, not a convenience.
+The platform and flavour are in the path too because `v8-gn.h` differs between the x86 and x64
+archives and between the release and debug ones (every other header is identical), and that
+header is what makes the compiler lay objects out the way the library does - an ABI
+requirement, not a convenience.
 
 `V8Toolset` is the MSVC toolset the published archive was built with, which is part of its
 name. It is a **floor, not a match**: build with that toolset or newer. An older one fails
