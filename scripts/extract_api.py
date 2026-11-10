@@ -55,8 +55,9 @@ def v8_include_dir():
         return None
     root = REPO_ROOT / "dependencies" / "v8" / node.text.strip()
     # Release is what a normal build leaves behind; fall back to whichever
-    # flavor is present so a tree that has only ever built Debug still works.
-    for flavor in ("x86-release", "x86-debug"):
+    # flavor is present so a tree that has only ever built Debug, or only
+    # ever built x64, still works.
+    for flavor in ("x86-release", "x86-debug", "x64-release", "x64-debug"):
         d = root / flavor / "include"
         if (d / "v8.h").exists():
             return d
@@ -172,13 +173,15 @@ def build_compile_flags():
     ):
         if d.exists():
             flags += ["-I", str(d)]
-    # V8 and vcpkg use angle-bracket includes → -isystem
-    vcpkg_inc = (
-        REPO_ROOT
-        / "vcpkg_installed"
-        / "x86-windows-static"
-        / "x86-windows-static"
-        / "include"
+    # V8 and vcpkg use angle-bracket includes → -isystem. The vcpkg tree is
+    # per triplet; whichever platform the checkout was built for has one.
+    vcpkg_inc = next(
+        (
+            d
+            for triplet in ("x86-windows-static", "x64-windows-static")
+            if (d := REPO_ROOT / "vcpkg_installed" / triplet / triplet / "include").exists()
+        ),
+        None,
     )
     for d in (v8_include_dir(), vcpkg_inc):
         if d and d.exists():
@@ -1074,11 +1077,50 @@ ENUM_SOURCES = [
 ]
 COMPAT_FLAGS_SOURCE = REPO_ROOT / "src" / "core" / "config" / "CompatibilityFlags.cpp"
 
-# The command-line option registry (the backend's option table). Parsed with
-# libclang for the docs' Launch options section, the same way the compat-flag
-# catalog is read: each documented builder.Add("-name", "<syntax>", ...) call
-# carries a preceding /// doc block.
-LAUNCH_OPTIONS_SOURCE = REPO_ROOT / "src" / "backends" / "lod114d" / "game" / "LaunchOptions.cpp"
+# The game backends' own compatibility flags: each backend's
+# game::GetCompatibilityFlags(), whose returned `{.name = "x", ...}` entries
+# carry a /// doc block, like RegisterDefaults' Register() calls. The rows join
+# the CompatibilityFlag set tagged with the backend (`backends`), which the docs
+# render with the launch options' backend badges. A backend without flags has
+# no entry here; one described by --backend adds its own (`compat_flags`).
+COMPAT_FLAG_BACKENDS = {}
+
+# The command-line option registries - one table per game backend, each shipped
+# in its own DLL. Parsed with libclang for the docs' Launch options section, the
+# same way the compat-flag catalog is read: each documented
+# builder.Add("-name", "<syntax>", ...) call carries a preceding /// doc block.
+#
+# Rows are merged by switch name across backends (see _merge_launch_options), so
+# one entry records every backend that accepts the switch. Mapping order is the
+# merge precedence: the first backend listed wins when two document the same
+# switch differently. Each entry carries the extra include roots / defines that
+# backend's TU needs on top of build_compile_flags().
+LAUNCH_OPTION_BACKENDS = {
+    "lod114d": {
+        "label": "Diablo II 1.14d",
+        "short": "1.14d",
+        "dll": "d2bs.dll",
+        "source": REPO_ROOT / "src" / "backends" / "lod114d" / "game" / "LaunchOptions.cpp",
+        "includes": [REPO_ROOT / "src" / "backends" / "lod114d"]
+        + [
+            REPO_ROOT / "dependencies" / "D2MOO" / "source" / lib / "include"
+            for lib in (
+                "D2CommonDefinitions",
+                "D2Common",
+                "D2Game",
+                "D2Gfx",
+                "D2Win",
+                "D2Net",
+                "D2Lang",
+                "D2CMP",
+                "D2Hell",
+                "Storm",
+                "Fog",
+            )
+        ],
+        "defines": [],
+    },
+}
 
 _INT_LITERAL_RE = re.compile(r"0[xX][0-9a-fA-F]+|\d+")
 
@@ -1221,6 +1263,55 @@ def _parse_compat_flags(tu):
     return description, rows
 
 
+def _parse_backend_compat_flag_rows(tu, key):
+    """Collect one backend's flag rows from its GetCompatibilityFlags(): every
+    documented `{.name = "x", ...}` initializer it returns."""
+    rows = []
+    for cur in tu.cursor.walk_preorder():
+        if not (
+            cur.spelling == "GetCompatibilityFlags"
+            and cur.is_definition()
+            and cur.kind in (CursorKind.CXX_METHOD, CursorKind.FUNCTION_DECL)
+        ):
+            continue
+        for init in cur.walk_preorder():
+            if init.kind != CursorKind.INIT_LIST_EXPR:
+                continue
+            toks = [t.spelling for t in init.get_tokens()]
+            if toks[:4] != ["{", ".", "name", "="] or len(toks) < 5 or not toks[4].startswith('"'):
+                continue
+            src = init.location.file
+            doc = extract_doc_comment(Path(src.name), init.location.line) if src else {}
+            rows.append(
+                {
+                    "name": strip_quotes(toks[4]),
+                    "description": (doc or {}).get("description", ""),
+                    "backends": [key],
+                }
+            )
+    return rows
+
+
+def _parse_backend_compat_flags(flags, backends=COMPAT_FLAG_BACKENDS):
+    """Every backend's documented flag rows, in mapping order. A missing or
+    unparsable source warns and yields nothing for that backend."""
+    rows = []
+    index = Index.create()
+    opts = TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD | TranslationUnit.PARSE_INCOMPLETE
+    for key, path in backends.items():
+        rel = _rel_to_repo(path)
+        if not Path(path).exists():
+            print(f"warning: no compatibility flags for backend '{key}' at {rel}", file=sys.stderr)
+            continue
+        tu = index.parse(str(path), args=flags, options=opts)
+        _AUX_FATALS.extend(fatal_diagnostics(tu, Path(path)))
+        found = _parse_backend_compat_flag_rows(tu, key)
+        if not found:
+            print(f"warning: no compatibility flags parsed from {rel}", file=sys.stderr)
+        rows.extend(found)
+    return rows
+
+
 def extract_enums(result, flags):
     """Build the `{name -> option set}` map (enums + the CompatibilityFlag set),
     parsed with libclang, filtered to those referenced by a doc `{type}` in
@@ -1239,6 +1330,7 @@ def extract_enums(result, flags):
         tu = index.parse(str(COMPAT_FLAGS_SOURCE), args=flags, options=opts)
         _AUX_FATALS.extend(fatal_diagnostics(tu, COMPAT_FLAGS_SOURCE))
         description, rows = _parse_compat_flags(tu)
+        rows += _parse_backend_compat_flags(flags)
         if rows:
             defs["CompatibilityFlag"] = {
                 "name": "CompatibilityFlag",
@@ -1285,19 +1377,61 @@ def _parse_launch_option_rows(tu, rel):
     return rows
 
 
-def extract_launch_options(flags, path=LAUNCH_OPTIONS_SOURCE):
-    """Parse the command-line option registry with libclang and return the
-    ordered list of launch options for the docs' Launch options section."""
-    if not Path(path).exists():
+# Roots of the backends described by --backend, which live outside this
+# repository: their sources are named relative to their own root.
+EXTERNAL_ROOTS = []
+
+
+def _rel_to_repo(path):
+    for root in [REPO_ROOT, *EXTERNAL_ROOTS]:
+        try:
+            return str(Path(path).resolve().relative_to(root)).replace("\\", "/")
+        except ValueError:
+            continue
+    return str(path)
+
+
+def load_backend_spec(spec_path):
+    """Register a game backend kept outside this repository, described by a JSON
+    file: {"key", "label", "short", "dll", "launch_options", "compat_flags",
+    "includes", "defines"}. Paths are relative to the file's directory, which is
+    the backend's root; "compat_flags" and "defines" are optional. The backend is
+    appended to LAUNCH_OPTION_BACKENDS (so this repository's backends keep merge
+    precedence) and, with flags, to COMPAT_FLAG_BACKENDS."""
+    spec_path = Path(spec_path).resolve()
+    root = spec_path.parent
+    spec = json.loads(spec_path.read_text(encoding="utf-8"))
+    key = spec["key"]
+    EXTERNAL_ROOTS.append(root)
+    LAUNCH_OPTION_BACKENDS[key] = {
+        "label": spec["label"],
+        "short": spec["short"],
+        "dll": spec["dll"],
+        "source": root / spec["launch_options"],
+        "includes": [root / inc for inc in spec.get("includes", [])],
+        "defines": list(spec.get("defines", [])),
+    }
+    if spec.get("compat_flags"):
+        COMPAT_FLAG_BACKENDS[key] = root / spec["compat_flags"]
+
+
+def _parse_backend_launch_options(flags, key, spec):
+    """Parse one backend's option table and return its ordered rows. A missing
+    or unparsable source warns and yields nothing, so the other backends' tables
+    still make it into the docs."""
+    path = Path(spec["source"])
+    rel = _rel_to_repo(path)
+    if not path.exists():
+        print(f"warning: no launch option table for backend '{key}' at {rel}", file=sys.stderr)
         return []
-    try:
-        rel = str(Path(path).relative_to(REPO_ROOT)).replace("\\", "/")
-    except ValueError:
-        rel = str(path)
-    # LaunchOptions.cpp is a backend TU; add its include root here rather than to
-    # the global frontend flag set (keeps it off every other parse).
-    backend = REPO_ROOT / "src" / "backends" / "lod114d"
-    args = flags + (["-I", str(backend)] if backend.exists() else [])
+    # These are backend TUs; their include roots and defines go here rather than
+    # into the global frontend flag set (keeps them off every other parse).
+    args = list(flags)
+    for inc in spec.get("includes", []):
+        if Path(inc).exists():
+            args += ["-I", str(inc)]
+    for define in spec.get("defines", []):
+        args.append(f"-D{define}")
     try:
         index = Index.create()
         tu = index.parse(
@@ -1313,6 +1447,73 @@ def extract_launch_options(flags, path=LAUNCH_OPTIONS_SOURCE):
     if not rows:
         print(f"warning: no launch options parsed from {rel} (option registry renamed?)", file=sys.stderr)
     return rows
+
+
+def _merge_launch_options(per_backend):
+    """Merge the per-backend row lists into one entry per switch, carrying the
+    backends that define it.
+
+    A switch shared by several backends is meant to be documented identically,
+    so a differing syntax / description / category is a bug: the first backend
+    (mapping order) wins and the divergence is reported on stderr. Entry order
+    is first-seen, i.e. the first backend's table followed by whatever each
+    later backend adds on its own."""
+    merged = {}
+    order = []
+    for key, rows in per_backend:
+        for row in rows:
+            name = row["name"]
+            entry = merged.get(name)
+            source = {"backend": key, "file": row["file"], "line": row["line"]}
+            if entry is None:
+                entry = {
+                    "name": name,
+                    "syntax": row.get("syntax", ""),
+                    "description": row.get("description", ""),
+                }
+                if row.get("category"):
+                    entry["category"] = row["category"]
+                entry["backends"] = [key]
+                # The winning backend's location, so a consumer that only knows
+                # file/line still links to a real definition.
+                entry["file"] = row["file"]
+                entry["line"] = row["line"]
+                entry["sources"] = [source]
+                merged[name] = entry
+                order.append(name)
+                continue
+            owner = entry["backends"][0]
+            for field in ("syntax", "description", "category"):
+                if entry.get(field, "") != row.get(field, ""):
+                    print(
+                        f"warning: launch option {name}: {field} differs between "
+                        f"{owner} ({entry['file']}:{entry['line']}) and "
+                        f"{key} ({row['file']}:{row['line']}); documenting {owner}'s",
+                        file=sys.stderr,
+                    )
+            entry["backends"].append(key)
+            entry["sources"].append(source)
+    return [merged[name] for name in order]
+
+
+def extract_launch_options(flags, backends=LAUNCH_OPTION_BACKENDS):
+    """Parse every backend's command-line option registry with libclang and
+    return ``(options, backend_descriptors)`` for the docs' Launch options
+    section: the merged switch list, and the ``key -> {label, short, dll,
+    source}`` map naming the backends those switches are tagged with (only
+    backends that contributed a table)."""
+    parsed = [(key, _parse_backend_launch_options(flags, key, spec)) for key, spec in backends.items()]
+    descriptors = {
+        key: {
+            "label": backends[key]["label"],
+            "short": backends[key]["short"],
+            "dll": backends[key]["dll"],
+            "source": _rel_to_repo(backends[key]["source"]),
+        }
+        for key, rows in parsed
+        if rows
+    }
+    return _merge_launch_options(parsed), descriptors
 
 
 def _find_string_literal(cur, depth=8, hops=2):
@@ -1520,6 +1721,8 @@ def main():
     for i, arg in enumerate(args):
         if arg in ("-o", "--output") and i + 1 < len(args):
             output_path = args[i + 1]
+        elif arg == "--backend" and i + 1 < len(args):
+            load_backend_spec(args[i + 1])
         elif arg in ("-j", "--jobs") and i + 1 < len(args):
             try:
                 jobs = max(1, int(args[i + 1]))
@@ -1571,8 +1774,8 @@ def main():
     # after the result is assembled so referenced-type filtering can see all docs.
     result["enums"] = extract_enums(result, flags)
 
-    # Command-line switches (the backend's option registry).
-    result["launch_options"] = extract_launch_options(flags)
+    # Command-line switches (every backend's option registry, merged by name).
+    result["launch_options"], result["launch_backends"] = extract_launch_options(flags)
 
     drawable_base = extract_drawable_base()
     if drawable_base and "DrawableBase" not in result["classes"]:
@@ -1592,11 +1795,12 @@ def main():
     nev = len(result.get("events", []))
     nen = len(result.get("enums", {}))
     nlo = len(result.get("launch_options", []))
+    nlb = len(result.get("launch_backends", {}))
     print(
         f"Found: {nc} classes ({nm} methods, {np} properties, {ns} static, "
         f"{nctor} constructors, {nnoctor} non-constructable), "
         f"{ng} global functions, {nk} constants, {nme} 'me' properties, "
-        f"{nev} events, {nen} enums, {nlo} launch options",
+        f"{nev} events, {nen} enums, {nlo} launch options from {nlb} backend(s)",
         file=sys.stderr,
     )
 
