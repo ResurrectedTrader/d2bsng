@@ -78,6 +78,21 @@ class CrashContextScope {
 
 LONG WINAPI ExceptionHandler(PEXCEPTION_POINTERS exceptionInfo);
 
+// How the first-chance handler treats an exception raised inside the game's own
+// module. By default an error-severity fault other than an access violation
+// terminates on the spot, with the crash log written from the fault's own stack.
+// A backend whose game raises and handles exceptions of its own sets a policy at
+// bring-up, before the handlers are installed.
+struct GameExceptionPolicy {
+    // Codes the game raises and handles itself; passed on without logging.
+    std::vector<uint32_t> ignoredCodes;
+    // When false, an error-severity fault is logged and left to the game; the
+    // unhandled-exception filter still writes the crash log if nothing handles it.
+    bool terminateOnError = true;
+};
+
+void SetGameExceptionPolicy(GameExceptionPolicy policy);
+
 // First-chance exception handler. Backstop for cases where our UEF was
 // overridden (V8/Crashpad, Detours) so we still get a record before the
 // active filter does anything. Returns EXCEPTION_CONTINUE_SEARCH so it

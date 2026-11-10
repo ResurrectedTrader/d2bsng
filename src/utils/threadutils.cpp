@@ -6,9 +6,12 @@
 // #define D2BSNG_HANG_ON_CRASH 1
 
 #include <atlconv.h>
+#include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <spdlog/spdlog.h>
@@ -395,6 +398,29 @@ LONG WINAPI ExceptionHandler(PEXCEPTION_POINTERS exceptionInfo) {
     CrashAndExit(preamble + message, exceptionInfo->ExceptionRecord->ExceptionCode);
 }
 
+namespace {
+// Set once at bring-up, before the handlers are installed, and published by
+// pointer so the handler reads it lock-free from whichever thread faults.
+std::atomic<const GameExceptionPolicy*> gameExceptionPolicy{nullptr};
+
+GameExceptionPolicy& GameExceptionPolicyStorage() {
+    static GameExceptionPolicy storage;
+    return storage;
+}
+
+const GameExceptionPolicy& CurrentGameExceptionPolicy() {
+    static const GameExceptionPolicy DEFAULT_POLICY{};
+    const auto* policy = gameExceptionPolicy.load(std::memory_order_acquire);
+    return policy != nullptr ? *policy : DEFAULT_POLICY;
+}
+}  // namespace
+
+void SetGameExceptionPolicy(GameExceptionPolicy policy) {
+    auto& storage = GameExceptionPolicyStorage();
+    storage = std::move(policy);
+    gameExceptionPolicy.store(&storage, std::memory_order_release);
+}
+
 LONG WINAPI VectoredExceptionHandler(PEXCEPTION_POINTERS exceptionInfo) {
     // Fast bail-out: if a crash dump is already in progress, propagate
     // without re-running our dump logic. This catches the common case
@@ -468,6 +494,11 @@ LONG WINAPI VectoredExceptionHandler(PEXCEPTION_POINTERS exceptionInfo) {
                        reinterpret_cast<LPCSTR>(expAddr), &expModule);
     const auto ourModule = reinterpret_cast<HMODULE>(&__ImageBase);
     if (expModule == nullptr || (expModule != ourModule && expModule != GetModuleHandleA(nullptr))) {
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+    const bool isGameFault = expModule != ourModule;
+    const auto& gamePolicy = CurrentGameExceptionPolicy();
+    if (isGameFault && std::ranges::contains(gamePolicy.ignoredCodes, code)) {
         return EXCEPTION_CONTINUE_SEARCH;
     }
 
@@ -545,7 +576,8 @@ LONG WINAPI VectoredExceptionHandler(PEXCEPTION_POINTERS exceptionInfo) {
     // Terminate on ERROR-severity NTSTATUS codes (top two bits set): illegal
     // instruction, stack overflow, integer divide, privileged instruction, etc.
     // - almost always real bugs. Reaching here means the fault is in our own
-    // code (foreign-module faults already bailed out above). Informational
+    // code or the game's (foreign-module faults already bailed out above); a
+    // game fault terminates only under its GameExceptionPolicy. Informational
     // (0x4xxxxxxx) / warning (0x8xxxxxxx) codes are benign SEH signals and never
     // terminate. AVs are error-severity but are often legitimate first-chance
     // (V8 Wasm traps, stack guard), so they propagate via the path below rather
@@ -553,7 +585,7 @@ LONG WINAPI VectoredExceptionHandler(PEXCEPTION_POINTERS exceptionInfo) {
     constexpr DWORD NT_ERROR_SEVERITY_MASK = 0xC0000000U;
     const bool isError = (code & NT_ERROR_SEVERITY_MASK) == NT_ERROR_SEVERITY_MASK;
     const bool isAv = (code == EXCEPTION_ACCESS_VIOLATION);
-    if (isError && !isAv) {
+    if (isError && !isAv && (!isGameFault || gamePolicy.terminateOnError)) {
         CrashAndExit(msg, code);
     }
 
