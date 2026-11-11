@@ -17,8 +17,8 @@
 
 namespace d2bs::runtime::api::classes {
 
-// V8 binding for game::StashTab (docs/plugy_stash.md). Obtained from getStashTabs()
-// and Unit.stashTab; never constructed by scripts.
+// V8 binding for game::StashTab (docs/plugy_stash.md). Obtained from getStashTabs();
+// never constructed by scripts.
 class JSStashTab : public ClassBase<JSStashTab, game::StashTab> {
    public:
     static constexpr std::string_view ClassName = "StashTab";

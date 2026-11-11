@@ -7,7 +7,6 @@
 #include <utility>
 #include <vector>
 
-#include "api/classes/game/JSStashTab.h"
 #include "api/core/Extract.h"
 #include "components/script/Script.h"
 #include "components/script/ScriptEngine.h"
@@ -16,6 +15,7 @@
 #include "game/Finders.h"
 #include "game/GameHelpers.h"
 #include "game/GameLock.h"
+#include "game/StashTab.h"
 
 namespace d2bs::runtime::api::classes {
 
@@ -588,25 +588,31 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             info.GetReturnValue().Set(static_cast<uint8_t>(data->ItemLocation()));
         });
 
-    /// @description The stash tab holding this item; undefined unless the item is in your stash. Item units only.
-    /// @type {StashTab|undefined}
+    /// @description The kind of the stash tab holding this item, its StashTab.kind; undefined unless the item is in
+    /// your stash. With stashIndex it names the tab among getStashTabs(). Item units only.
+    /// @type {StashTabKind|undefined}
     Property(
-        isolate, inst, "stashTab", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
-            std::optional<game::StashTab> tab;
-            {
-                const auto data = Unwrap(info.GetIsolate(), info.Holder());
-                if (!data || !*data || data->Type() != UnitType::Item) {
-                    return;
-                }
-                tab = data->StashTab();
-            }
-            if (!tab) {
+        isolate, inst, "stashKind", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
+            const auto data = Unwrap(info.GetIsolate(), info.Holder());
+            if (!data || !*data || data->Type() != UnitType::Item) {
                 return;
             }
-            auto* isolate = info.GetIsolate();
-            auto obj = JSStashTab::CreateInstance(isolate, isolate->GetCurrentContext(), *tab);
-            if (!obj.IsEmpty()) {
-                info.GetReturnValue().Set(obj);
+            if (const auto tab = data->StashTab()) {
+                info.GetReturnValue().Set(static_cast<uint32_t>(tab->Kind()));
+            }
+        });
+
+    /// @description The index of the stash tab holding this item within its kind, its StashTab.index; undefined
+    /// unless the item is in your stash. Item units only.
+    /// @type {number|undefined}
+    Property(
+        isolate, inst, "stashIndex", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
+            const auto data = Unwrap(info.GetIsolate(), info.Holder());
+            if (!data || !*data || data->Type() != UnitType::Item) {
+                return;
+            }
+            if (const auto tab = data->StashTab()) {
+                info.GetReturnValue().Set(tab->Index());
             }
         });
 
