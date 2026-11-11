@@ -38,7 +38,6 @@ framework calls `RegisterDefaults()`, then registers every entry returned by
 | `errorStackTrace` | the `func@file:line:col` `Error.prepareStackTrace` formatter **and** the raised `Error.stackTraceLimit` (prelude); require.js / LazyLoader parse this format and depend on the depth, so they are one flag |
 | `errorSpiderMonkeyProps` | non-standard `Error.prototype` `fileName` / `lineNumber` / `columnNumber` accessors (prelude) |
 | `objectToSource` | the `Object.prototype.toSource` shim (prelude) |
-| `jsStrictShim` | `js_strict(true);` -> prepend `"use strict";` (CompileSource) |
 | `constRunnableRewrite` | `const X = new Runnable` -> `var X = new Runnable` (CompileSource) |
 | `profileCallWithoutNew` | calling `Profile(...)` without `new` (JSProfile) |
 | `legacySkillNames` | `getSkillByName(name)` and `unit.setSkill(name, ...)` resolving names through the shared 1.14d skill table (`game::LegacySkillByName`, `src/contract/game/Common.cpp`) rather than the game's skills.txt. Read by each backend's `game::GetSkillByName` (`src/backends/lod114d/game/GameHelpers.cpp`, which otherwise walks the skills.txt link list) |
@@ -133,7 +132,7 @@ per flag:
   `objectToSource`) are read in `ApplyCompatibilityPrelude`, once per V8 context
   when a script starts. Toggling affects scripts started afterwards, not a
   context already running.
-- **CompileSource flags** (`jsStrictShim`, `constRunnableRewrite`) are read when a
+- **CompileSource flag** (`constRunnableRewrite`) is read when a
   script's source is compiled. Toggling affects code compiled afterwards.
 - **`profileCallWithoutNew`** is checked live in `JSProfile::New`, so it takes
   effect immediately.

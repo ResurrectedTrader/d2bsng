@@ -19,16 +19,6 @@ v8::MaybeLocal<v8::Script> CompileSource(v8::Isolate* isolate, v8::Local<v8::Con
         source.erase(0, 3);
     }
 
-    // kolbot-era `js_strict(true);` shim (flag: jsStrictShim). Prepended without
-    // a newline, on purpose: an extra line would shift every line V8 reports off
-    // the file the user is editing, and ScriptOrigin's line offset only ever
-    // adds, so cancelling it would take a negative offset. Sharing line 1 keeps
-    // every line number exact and costs only that line's columns. Still a valid
-    // directive prologue - it remains the first statement.
-    if (compat.IsEnabled("jsStrictShim") && source.find("js_strict(true);") != std::string::npos) {
-        source.insert(0, "\"use strict\";");
-    }
-
     // kolbot-era `const X = new Runnable` -> `var X` rewrite (flag:
     // constRunnableRewrite). const declarations don't bind to the global object
     // in V8; kolbot relies on the global binding for cross-script lookup.

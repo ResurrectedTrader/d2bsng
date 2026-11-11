@@ -484,7 +484,8 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             args.GetReturnValue().Set(true);
         });
 
-    /// @description No-op kept for API compatibility (strict mode is decided per-script by the V8 parser).
+    /// @description No-op kept for API compatibility. On d2bs it toggled SpiderMonkey's strict option, which only added
+    /// warnings for dubious code; scripts opt into ES5 strict mode with a "use strict" directive.
     /// @signature js_strict()
     /// @returns {boolean} - true
     /// @signature js_strict(value: any)

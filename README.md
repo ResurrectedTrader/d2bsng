@@ -312,10 +312,8 @@ Running existing d2bs scripts on a different JavaScript engine is the project's 
 constraint, and it is handled in two layers, both applied at the point user source enters V8:
 
 1. **Source rewrites.** Before compilation, each script is lightly preprocessed: a UTF-8 BOM
-   is stripped; a legacy strict-mode opt-in is translated into a real `"use strict"`
-   directive (with the script origin offset so error line numbers still line up); and a
-   declaration idiom that the older engine bound to the global object - but V8 does not - is
-   rewritten so cross-script lookups keep resolving.
+   is stripped, and a declaration idiom that the older engine bound to the global object - but
+   V8 does not - is rewritten so cross-script lookups keep resolving.
 
 2. **A per-context compatibility prelude.** Each V8 context is seeded with shims for
    SpiderMonkey-era behaviors that scripts relied on: aliases for non-standard string/array

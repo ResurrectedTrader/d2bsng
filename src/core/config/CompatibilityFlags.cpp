@@ -86,8 +86,8 @@ void CompatibilityFlags::RegisterDefaults() {
     // The framework's built-in flags. Each /// @description is the catalog text
     // shown in the API docs - scripts/extract_api.py reads these Register() calls
     // (the same way it reads RegisterConstants). The flag names must match the
-    // gating sites in CompileSource (the prelude features / jsStrictShim /
-    // constRunnableRewrite) and JSProfile (profileCallWithoutNew).
+    // gating sites in CompileSource (the prelude features / constRunnableRewrite)
+    // and JSProfile (profileCallWithoutNew).
 
     /// @description String.prototype.contains / Array.prototype.contains aliases (SpiderMonkey extension; the standard
     /// name is includes()).
@@ -104,10 +104,6 @@ void CompatibilityFlags::RegisterDefaults() {
     /// @description Object.prototype.toSource(): an eval-roundtrippable representation V8 dropped; kolbot error-logging
     /// paths call it.
     Register("objectToSource");
-
-    /// @description Treat a 'js_strict(true);' line in a script as a request to run it in strict mode (prepends "use
-    /// strict";).
-    Register("jsStrictShim");
 
     /// @description Rewrite 'const X = new Runnable' to 'var X = new Runnable' so the binding lands on the global
     /// object for cross-script lookup.
