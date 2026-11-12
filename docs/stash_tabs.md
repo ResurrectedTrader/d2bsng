@@ -115,7 +115,11 @@ A `StashTab` class (`api/classes/game/JSStashTab.h`) wrapping `game::StashTab`
 one to one, the same shape as `Unit` or `Room`:
 
 - `getStashTabs()` -> `StashTab[]`, personal first, then shared
-- `unit.stashTab` -> `StashTab | undefined`
+- `unit.stashKind` / `unit.stashIndex` -> the `kind` and `index` of the tab
+  holding an item, or `undefined` for an item not in the stash; scripts find
+  the tab itself in `getStashTabs()`. They are plain numbers rather than a
+  `StashTab` because a tab's `items` lead back to the unit, and scripts
+  `JSON.stringify` items, which would then recurse without end
 - `tab.kind`, `tab.index`, `tab.type`, `tab.removeOnly`, `tab.season`,
   `tab.name`, `tab.gold` (getters)
 - `tab.items` -> `Unit[]`, built on each access, so listing tabs stays cheap
