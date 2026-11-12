@@ -43,7 +43,7 @@ compile it would save.
 
 A blob's key is a 64-bit FNV-1a over:
 
-- the **post-transform source** (after the BOM strip, the `js_strict` prelude and the `const ... = new Runnable`
+- the **post-transform source** (after the BOM strip and the `const ... = new Runnable`
   rewrite - see `docs/compatibility.md`) and its length;
 - the **origin name**, which is baked into the compiled script (stack traces, error positions) and so is part of the
   blob's identity. It is the only `ScriptOrigin` field callers vary; if another starts varying, it has to be folded
