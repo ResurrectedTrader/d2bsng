@@ -170,8 +170,9 @@ bool Matches(uint32_t rva, const std::array<uint8_t, N>& bytes) {
     return true;
 }
 template <size_t N>
-void Nop(uint32_t rva, const std::array<uint8_t, N>&) {
-    std::array<uint8_t, N> nops{}, original{};
+void Nop(uint32_t rva, const std::array<uint8_t, N>& /*bytes*/) {
+    std::array<uint8_t, N> nops{};
+    std::array<uint8_t, N> original{};
     nops.fill(0x90);
     WriteN(imports::GameModuleBase() + rva, nops.data(), N, original.data());
 }
