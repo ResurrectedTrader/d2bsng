@@ -159,6 +159,58 @@ static void ConvertToEuc(const v8::FunctionCallbackInfo<v8::Value>& args) {
     args.GetReturnValue().Set(convert::ToJS(isolate, ansi));
 }
 
+// setTimeout(callback, delay, ...args) / setInterval: the extra arguments go to the callback. A fraction is cut to
+// whole milliseconds, and a negative or NaN delay runs at once.
+static void StartTimer(const v8::FunctionCallbackInfo<v8::Value>& args, bool isRepeating) {
+    auto* isolate = args.GetIsolate();
+    args.GetReturnValue().SetNull();
+
+    if (args.Length() < 2 || !args[0]->IsFunction() || !args[1]->IsNumber()) {
+        error::ReportError(
+            args, isRepeating ? "invalid params passed to setInterval" : "invalid params passed to setTimeout");
+        return;
+    }
+
+    auto* script = script::ScriptEngine::Instance().GetScript(isolate);
+    if (!script)
+        return;
+
+    constexpr double MAX_DELAY_MS = 0x7FFFFFFF;
+    const double delay = convert::To<double>(isolate, args[1]);
+    const auto delayMs = static_cast<uint32_t>(delay > 0 ? std::min(delay, MAX_DELAY_MS) : 0.0);
+
+    std::vector<v8::Global<v8::Value>> callbackArgs;
+    callbackArgs.reserve(args.Length() - 2);
+    for (int32_t i = 2; i < args.Length(); ++i) {
+        callbackArgs.emplace_back(isolate, args[i]);
+    }
+
+    auto event = std::make_shared<events::DelayedEvent>(v8::Global<v8::Function>(isolate, args[0].As<v8::Function>()),
+                                                        std::move(callbackArgs), delayMs, isRepeating);
+    script->AddDelayedEvent(event);
+    script->PostEvent(event, delayMs);
+    args.GetReturnValue().Set(event->EventId());
+}
+
+// clearTimeout and clearInterval: a timer of either kind, of any script.
+static void ClearTimer(const v8::FunctionCallbackInfo<v8::Value>& args, std::string_view errorMessage) {
+    auto* isolate = args.GetIsolate();
+    args.GetReturnValue().SetNull();
+
+    if (args.Length() < 1 || !args[0]->IsNumber()) {
+        error::ReportError(args, errorMessage);
+        return;
+    }
+
+    const auto id = convert::To<uint32_t>(isolate, args[0]);
+    auto* self = script::ScriptEngine::Instance().GetScript(isolate);
+    if (self && self->RemoveDelayedEvent(id)) {
+        return;
+    }
+    script::ScriptEngine::Instance().ForEachScript(
+        [id](const std::shared_ptr<script::Script>& script) { script->RemoveDelayedEvent(id); });
+}
+
 void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> global) {
     /// @description Prints each argument to the console as its own Info-level message.
     /// @signature print(...args: any)
@@ -949,109 +1001,62 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             args.GetReturnValue().Set(array);
         });
 
-    /// @description Schedules a callback to run once after a delay on the calling script.
-    /// @signature setTimeout(callback: function, ms: number)
+    /// @description Schedules a callback to run once after a delay on the calling script. A fractional delay is cut
+    /// to whole milliseconds; a negative or NaN delay runs the callback at once.
+    /// @signature setTimeout(callback: function, ms: number, ...args: any)
     /// @param callback {function} - the function to invoke after the delay
-    /// @callback callback() - invoked with no arguments after the delay; return value ignored
+    /// @callback callback(...args) - invoked with the extra arguments given to setTimeout; return value ignored
     /// @param ms {number} - delay in milliseconds before the callback runs
-    /// @returns {number|null} - the event ID for use with clearTimeout, or null on error/no script
+    /// @param args {any} - zero or more values passed on to the callback
+    /// @returns {number|null} - the timer ID for use with clearTimeout, or null on error/no script
     function::Register(
-        isolate, global, "setTimeout", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            auto* isolate = args.GetIsolate();
-            args.GetReturnValue().SetNull();
+        isolate, global, "setTimeout",
+        +[](const v8::FunctionCallbackInfo<v8::Value>& args) { StartTimer(args, /*isRepeating=*/false); });
 
-            if (args.Length() < 2 || !args[0]->IsFunction() || !args[1]->IsNumber()) {
-                error::ReportError(args, "invalid params passed to setTimeout");
-                return;
-            }
-
-            auto* script = script::ScriptEngine::Instance().GetScript(isolate);
-            if (!script)
-                return;
-
-            auto fn = args[0].As<v8::Function>();
-            uint32_t delayMs = convert::To<uint32_t>(isolate, args[1]);
-
-            auto event = std::make_shared<events::DelayedEvent>(v8::Global<v8::Function>(isolate, fn));
-            script->AddDelayedEvent(event);
-            script->PostEvent(event, delayMs);
-            args.GetReturnValue().Set(event->EventId());
-        });
-
-    /// @description Cancels a pending timeout created by setTimeout, by its event ID.
+    /// @description Cancels a timer created by setTimeout or setInterval, by its ID. Any script's timer can be
+    /// cancelled.
     /// @signature clearTimeout(id: number)
-    /// @param id {number} - the event ID returned by setTimeout
+    /// @param id {number} - the timer ID returned by setTimeout or setInterval
     /// @returns {null}
     function::Register(
         isolate, global, "clearTimeout", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            args.GetReturnValue().SetNull();
-            auto* isolate = args.GetIsolate();
-
-            if (args.Length() < 1 || !args[0]->IsNumber()) {
-                error::ReportError(args, "invalid params passed to clearTimeout");
-                return;
-            }
-
-            auto* script = script::ScriptEngine::Instance().GetScript(isolate);
-            if (!script)
-                return;
-
-            uint32_t id = convert::To<uint32_t>(isolate, args[0]);
-            script->RemoveDelayedEvent(id);
+            ClearTimer(args, "invalid params passed to clearTimeout");
         });
 
-    /// @description Schedules a callback to run repeatedly at a fixed interval on the calling script.
-    /// @signature setInterval(callback: function, ms: number)
+    /// @description Schedules a callback to run repeatedly on the calling script until the timer is cleared or the
+    /// script ends. A period of 0 (or a negative or NaN one) repeats every millisecond. A call never starts while the
+    /// previous one is still running (for example inside delay()), and periods missed meanwhile give one call.
+    /// @signature setInterval(callback: function, ms: number, ...args: any)
     /// @param callback {function} - the function to invoke on each interval
-    /// @callback callback() - invoked with no arguments on each interval; return value ignored
+    /// @callback callback(...args) - invoked with the extra arguments given to setInterval; return value ignored
     /// @param ms {number} - interval in milliseconds between invocations
-    /// @returns {number|null} - the event ID for use with clearInterval, or null on error/no script
+    /// @param args {any} - zero or more values passed on to the callback
+    /// @returns {number|null} - the timer ID for use with clearInterval, or null on error/no script
     function::Register(
-        isolate, global, "setInterval", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            args.GetReturnValue().SetNull();
-            auto* isolate = args.GetIsolate();
+        isolate, global, "setInterval",
+        +[](const v8::FunctionCallbackInfo<v8::Value>& args) { StartTimer(args, /*isRepeating=*/true); });
 
-            if (args.Length() < 2 || !args[0]->IsFunction() || !args[1]->IsNumber()) {
-                error::ReportError(args, "invalid params passed to setInterval");
-                return;
-            }
-
-            auto* script = script::ScriptEngine::Instance().GetScript(isolate);
-            if (!script)
-                return;
-
-            auto fn = args[0].As<v8::Function>();
-            uint32_t repeatMs = convert::To<uint32_t>(isolate, args[1]);
-
-            auto event = std::make_shared<events::DelayedEvent>(v8::Global<v8::Function>(isolate, fn), repeatMs);
-            script->AddDelayedEvent(event);
-            script->PostEvent(event, repeatMs);
-            args.GetReturnValue().Set(event->EventId());
-        });
-
-    /// @description Cancels a repeating interval created by setInterval, by its event ID.
+    /// @description Cancels a timer created by setInterval or setTimeout, by its ID. Any script's timer can be
+    /// cancelled.
     /// @signature clearInterval(id: number)
-    /// @param id {number} - the event ID returned by setInterval
+    /// @param id {number} - the timer ID returned by setInterval or setTimeout
     /// @returns {null}
     function::Register(
         isolate, global, "clearInterval", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
-            args.GetReturnValue().SetNull();
-            auto* isolate = args.GetIsolate();
-
-            if (args.Length() < 1 || !args[0]->IsNumber()) {
-                error::ReportError(args, "invalid params passed to clearInterval");
-                return;
-            }
-
-            auto* script = script::ScriptEngine::Instance().GetScript(isolate);
-            if (!script)
-                return;
-
-            uint32_t id = convert::To<uint32_t>(isolate, args[0]);
-            script->RemoveDelayedEvent(id);
+            ClearTimer(args, "invalid params passed to clearInterval");
         });
 
-    /// @description Registers an event handler for a named event on the calling script.
+    /// @description Cancels every timer of the calling script, including an interval whose callback is running.
+    /// @signature clearAllTimers()
+    /// @returns {number} - how many timers were cancelled
+    function::Register(
+        isolate, global, "clearAllTimers", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+            auto* script = script::ScriptEngine::Instance().GetScript(args.GetIsolate());
+            args.GetReturnValue().Set(script ? script->ClearAllDelayedEvents() : 0U);
+        });
+
+    /// @description Registers an event handler for a named event on the calling script. A function already listening
+    /// to that event is not added again, so it runs once per event and one removeEventListener() call removes it.
     /// @signature addEventListener(eventName: string, callback: function)
     /// @param eventName {string} - the event name to listen for (non-empty)
     /// @param callback {function} - the handler to invoke when the event fires; its arguments depend on the event name
@@ -1131,7 +1136,8 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             script->ClearEvent(eventName);
         });
 
-    /// @description Removes all registered event handlers (for every event name) on the calling script.
+    /// @description Removes all registered event handlers (for every event name) on the calling script. Timers keep
+    /// running: they stop with clearTimeout(), clearInterval(), clearAllTimers() or the end of their script.
     /// @signature clearAllEvents()
     /// @returns {undefined}
     function::Register(

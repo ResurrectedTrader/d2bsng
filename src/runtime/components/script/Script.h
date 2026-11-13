@@ -183,6 +183,8 @@ class Script : public std::enable_shared_from_this<Script> {
     // Delayed events (timers)
     void AddDelayedEvent(const std::shared_ptr<events::DelayedEvent>& event);
     bool RemoveDelayedEvent(uint32_t eventId);
+    // Cancels every pending timer, including an interval whose callback is running; returns how many.
+    uint32_t ClearAllDelayedEvents();
 
     // Logger - per-script logger named after the script filename.
     // Use GetScriptLogger(isolate) from callbacks for convenient access.
