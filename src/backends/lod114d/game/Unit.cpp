@@ -1143,14 +1143,11 @@ uint32_t Unit::WeaponSwitch() const {
 }
 
 std::optional<Unit> Unit::GetMerc(bool includeDead) const {
-    // D2MOO D2Game's D2PetTypes::PETTYPE_HIREABLE; that header declares server functions.
-    constexpr int32_t PET_TYPE_HIREABLE = 7;
     const auto u = Resolve<D2UnitStrc>();
     if (!u) {
         return std::nullopt;
     }
-    const uint32_t id =
-        lod114d::imports::d2client::ROSTERPETS_GetPetGUID(u, PET_TYPE_HIREABLE, includeDead ? TRUE : FALSE);
+    const uint32_t id = lod114d::imports::d2client::ROSTERPETS_GetPetGUID(u, PETTYPE_HIREABLE, includeDead);
     if (id == NO_OWNER_GUID) {
         return std::nullopt;
     }
