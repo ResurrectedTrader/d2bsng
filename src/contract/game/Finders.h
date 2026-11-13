@@ -183,15 +183,17 @@ inline std::optional<Unit> Unit::FindMerc() const {
     GameReadLock guard;
     // Reference D2Helpers.cpp:482-498 walks pUnit->pAct->pRoom1 then each
     // Room1's pUnitFirst/pRoomNext chain. We walk the monster hash table
-    // directly via existing iteration primitives - the set of loaded monsters
-    // is equivalent (D2 only loads monsters for the current act), and this
-    // avoids introducing Act-level Room1 traversal primitives just for this
-    // one method. Filter: dwType==Monster, dwTxtFileNo in {MERC_A1..A5},
-    // GetMonsterOwner(merc) resolves to the caller.
+    // instead and skip units without a room, which leaves the same set: the
+    // client never removes the player's own merc from the table when it leaves
+    // view, so a merc replaced by a new hire stays there roomless, still naming
+    // the player as its owner. Filter: dwType==Monster, dwTxtFileNo in
+    // {MERC_A1..A5}, in a room, GetMonsterOwner(merc) resolves to the caller.
     for (auto m = GetFirstInGame(UnitType::Monster); m; m = m->GetNextInGame()) {
         const auto cls = m->ClassId();
         if (cls != MERC_CLASS_ID_ACT1 && cls != MERC_CLASS_ID_ACT2 && cls != MERC_CLASS_ID_ACT3 &&
             cls != MERC_CLASS_ID_ACT5)
+            continue;
+        if (!m->GetRoom())
             continue;
         auto owner = m->GetOwner();  // Monster branch -> fn::GetMonsterOwner
         if (owner && *owner == *this)
