@@ -1235,8 +1235,11 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
         });
 
     /// @description Returns this player's hired mercenary as a Unit (Player units only).
-    /// @signature getMerc()
-    /// @returns {Unit|null} - The mercenary Unit, null if none or not a player, false if the game was not ready.
+    /// @signature getMerc(includeDead?: boolean)
+    /// @param includeDead {boolean} - Optional: true returns the current mercenary dead or alive, in view or not (out
+    /// of view, the client keeps the unit where it last saw it). Default false.
+    /// @returns {Unit|null} - The mercenary Unit; null if there is none or this is not a player, and, unless
+    /// includeDead, while it is dead or out of view; false if the game was not ready.
     Method(
         isolate, proto, "getMerc", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
@@ -1244,6 +1247,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 return;
             }
             args.GetReturnValue().SetNull();
+            const bool includeDead = args.Length() > 0 && convert::To<bool>(args.GetIsolate(), args[0]);
             std::optional<game::Unit> merc;
             {
                 const auto data = Unwrap(args.GetIsolate(), args.This());
@@ -1254,7 +1258,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 if (data->Type() != UnitType::Player) {
                     return;
                 }
-                merc = data->FindMerc();
+                merc = data->GetMerc(includeDead);
             }
             if (!merc) {
                 return;
@@ -1269,7 +1273,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// valid, else the local player).
     /// @signature getMercHP()
     /// @returns {number} - Mercenary HP percent 0-100 (0 while the owner is dead or with no max HP), undefined if no
-    /// merc, false if the game was not ready.
+    /// merc or it is dead or out of view, false if the game was not ready.
     Method(
         isolate, proto, "getMercHP", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
@@ -1286,7 +1290,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             }
             if (!unit)
                 return;
-            auto merc = unit.FindMerc();
+            auto merc = unit.GetMerc(false);
             if (!merc)
                 return;
             // d2bs tests mode 12, which is a monster's dead mode but a player's kick.

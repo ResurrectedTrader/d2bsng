@@ -349,7 +349,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description Get the player's mercenary HP as a percentage (0-100).
     /// @signature getMercHP()
     /// @returns {number} - Merc HP as a percent (0-100, 0 while the player is dead or with no max HP); undefined if
-    /// there is no player or merc.
+    /// there is no player or merc, or the merc is dead or out of view.
     function::Register(
         isolate, global, "getMercHP", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
@@ -362,7 +362,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             auto player = game::Unit::Player();
             if (!player)
                 return;
-            auto merc = player.FindMerc();
+            auto merc = player.GetMerc(false);
             if (!merc)
                 return;
             // d2bs tests mode 12, which is a monster's dead mode but a player's kick.

@@ -259,9 +259,9 @@ Collected Collect(const game::Unit& player) {
     // single personal tab with the same items the walk would have found.
     out.stashPages = CollectStashPages();
 
-    // FindMerc walks the monster table; cheap at the ~1s cadence. Merc carries only
-    // equipped items.
-    out.mercUnit = player.FindMerc();
+    // Dead or out of view too: the client keeps its own merc's unit, and its gear, through both.
+    // Merc carries only equipped items.
+    out.mercUnit = player.GetMerc(true);
     if (out.mercUnit) {
         for (const auto& item : out.mercUnit->GetItems()) {
             if (item.ItemLocation() == game::ItemLocation::Equip) {

@@ -23,6 +23,7 @@ struct D2GfxDataStrc;
 #include <D2Structs.OtherDLLs.h>  // D2AutomapCellStrc, D2AutomapLayerStrc
 #include <D2Waypoints.h>          // D2WaypointDataStrc
 #include <Drlg/D2DrlgDrlg.h>      // D2ActiveRoomStrc
+#include <PLAYER/PlayerPets.h>    // D2PetTypes
 #include <Units/Units.h>          // D2UnitStrc
 #pragma clang diagnostic pop
 
@@ -51,6 +52,11 @@ inline StdcallFunc<D2UnitStrc*()> UNITS_GetSelectedUnit{0x67A10};
 inline FastcallFunc<int32_t(D2UnitStrc* /*pItem*/, wchar_t* /*wBuffer*/, size_t /*nSize*/)> ITEMS_GetName{0x8C060};
 inline StdcallFunc<int32_t(D2UnitStrc* /*pItem*/, int32_t /*type*/)> ITEMS_LoadDescription{0x8DD90};
 inline FastcallFunc<uint32_t(uint32_t /*nMonsterId*/)> MONSTERS_GetOwner{0x79150};
+// CROSTERPETS_GetPetGUID: unit id of the first pet roster record (0x7BB5BC, newest first)
+// of `nPetType` that `pOwner` owns, passing over dead records unless `bIncludeDead`;
+// UINT32_MAX when none matches. The game's own "my merc" lookup is (player, PETTYPE_HIREABLE, ...).
+inline FastcallFunc<uint32_t(D2UnitStrc* /*pOwner*/, D2PetTypes /*nPetType*/, BOOL /*bIncludeDead*/)>
+    ROSTERPETS_GetPetGUID{0x78F20};
 inline FastcallFunc<void()> INVENTORY_Init{0x845A0};
 // Third arg's role isn't reconstructed: no MOO equivalent, and every reference
 // d2bs / d2bs-ascii caller passes 0 for it.

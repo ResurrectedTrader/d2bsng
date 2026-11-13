@@ -1142,6 +1142,22 @@ uint32_t Unit::WeaponSwitch() const {
     return *lod114d::imports::d2client::gnWeaponSwitch;
 }
 
+std::optional<Unit> Unit::GetMerc(bool includeDead) const {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u) {
+        return std::nullopt;
+    }
+    const uint32_t id = lod114d::imports::d2client::ROSTERPETS_GetPetGUID(u, PETTYPE_HIREABLE, includeDead);
+    if (id == NO_OWNER_GUID) {
+        return std::nullopt;
+    }
+    auto* merc = unit_tables::FindUnitInHashTable(id, UnitType::Monster);
+    if (merc == nullptr || (!includeDead && lod114d::imports::d2common::UNITS_GetRoom(merc) == nullptr)) {
+        return std::nullopt;
+    }
+    return FromPtr(merc);
+}
+
 // === Traversal ===
 
 std::optional<Unit> Unit::GetFirstItem() const {

@@ -161,6 +161,16 @@ class Unit {
     MoveMode RunWalk() const;
     uint32_t WeaponSwitch() const;
 
+    // This player's current mercenary as the client's pet roster records it: the first
+    // Mercenary record the player owns, passing over dead records unless `includeDead`,
+    // resolved to its unit. The game finds its merc this way, never in the unit table: a
+    // new hire's record goes to the head of the roster, while the replaced merc's record
+    // stays behind it flagged dead and its unit can linger in the client's unit list.
+    // nullopt when no record matches or its unit is not in the unit table, and, unless
+    // includeDead, when the unit is not in a room (the client keeps its own merc's unit,
+    // roomless, while it is out of view).
+    std::optional<Unit> GetMerc(bool includeDead) const;
+
     // === Traversal ===
     // Each primitive returns nullopt when the chain is empty/exhausted, so the
     // standard loop pattern is
@@ -188,9 +198,6 @@ class Unit {
     std::optional<Unit> FindFirstInventoryItem(const UnitCursorState& state = {}) const;
     // Find next inventory item matching stored cursor + owner. Returns new handle.
     std::optional<Unit> FindNextInventoryItem() const;
-    // Search the monster table for this unit's merc (a summoned monster of a merc class
-    // whose owner resolves to this unit).
-    std::optional<Unit> FindMerc() const;
     // Bulk collect of this unit's inventory items via GetFirstItem/GetNextItem.
     // Empty vector on no inventory (binding emits JS `undefined` in that case).
     std::vector<Unit> GetItems() const;
