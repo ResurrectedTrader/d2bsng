@@ -1236,10 +1236,10 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
 
     /// @description Returns this player's hired mercenary as a Unit (Player units only).
     /// @signature getMerc(includeDead?: boolean)
-    /// @param includeDead {boolean} - Optional: true also returns a dead mercenary (its corpse, while in view). Default
-    /// false.
-    /// @returns {Unit|null} - The mercenary Unit, null if there is none, it is dead (unless includeDead) or out of
-    /// view, or this is not a player; false if the game was not ready.
+    /// @param includeDead {boolean} - Optional: true returns the current mercenary dead or alive, in view or not (out
+    /// of view, the client keeps the unit where it last saw it). Default false.
+    /// @returns {Unit|null} - The mercenary Unit; null if there is none or this is not a player, and, unless
+    /// includeDead, while it is dead or out of view; false if the game was not ready.
     Method(
         isolate, proto, "getMerc", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {

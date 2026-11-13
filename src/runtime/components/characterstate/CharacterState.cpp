@@ -259,7 +259,8 @@ Collected Collect(const game::Unit& player) {
     // single personal tab with the same items the walk would have found.
     out.stashPages = CollectStashPages();
 
-    // Dead too, so the manager keeps showing a dead merc's gear. Merc carries only equipped items.
+    // Dead or out of view too: the client keeps its own merc's unit, and its gear, through both.
+    // Merc carries only equipped items.
     out.mercUnit = player.GetMerc(true);
     if (out.mercUnit) {
         for (const auto& item : out.mercUnit->GetItems()) {

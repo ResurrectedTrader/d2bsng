@@ -166,8 +166,9 @@ class Unit {
     // resolved to its unit. The game finds its merc this way, never in the unit table: a
     // new hire's record goes to the head of the roster, while the replaced merc's record
     // stays behind it flagged dead and its unit can linger in the client's unit list.
-    // nullopt when no record matches or the unit is not in a room (the client keeps its
-    // own merc's unit, roomless, while it is out of view).
+    // nullopt when no record matches or its unit is not in the unit table, and, unless
+    // includeDead, when the unit is not in a room (the client keeps its own merc's unit,
+    // roomless, while it is out of view).
     std::optional<Unit> GetMerc(bool includeDead) const;
 
     // === Traversal ===

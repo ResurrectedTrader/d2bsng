@@ -1152,7 +1152,7 @@ std::optional<Unit> Unit::GetMerc(bool includeDead) const {
         return std::nullopt;
     }
     auto* merc = unit_tables::FindUnitInHashTable(id, UnitType::Monster);
-    if (merc == nullptr || lod114d::imports::d2common::UNITS_GetRoom(merc) == nullptr) {
+    if (merc == nullptr || (!includeDead && lod114d::imports::d2common::UNITS_GetRoom(merc) == nullptr)) {
         return std::nullopt;
     }
     return FromPtr(merc);
