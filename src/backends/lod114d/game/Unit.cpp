@@ -709,7 +709,11 @@ std::optional<Unit> Unit::GetOwner() const {
             return Find(ownerId, std::nullopt);
         }
         case UNIT_MISSILE: {
-            auto* owner = lod114d::imports::d2common::MISSILE_GetOwnerUnit(u);
+            // The game's own owner lookup (0x004639D0) halts on an id freed and reused by another type.
+            if ((u->dwFlagEx & UNITFLAGEX_STOREOWNERINFO) == 0) {
+                return std::nullopt;
+            }
+            auto* owner = unit_tables::FindUnitInHashTable(u->dwOwnerGUID, static_cast<UnitType>(u->dwOwnerType));
             if (owner == nullptr) {
                 return std::nullopt;
             }
@@ -725,6 +729,14 @@ std::optional<Unit> Unit::GetOwner() const {
         default:
             return std::nullopt;
     }
+}
+
+std::optional<std::pair<uint32_t, UnitType>> Unit::MissileCaster() const {
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u || u->dwUnitType != UNIT_MISSILE || (u->dwFlagEx & UNITFLAGEX_STOREOWNERINFO) == 0) {
+        return std::nullopt;
+    }
+    return std::pair{u->dwOwnerGUID, static_cast<UnitType>(u->dwOwnerType)};
 }
 
 // === Item-specific ===

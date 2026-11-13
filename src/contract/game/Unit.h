@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "GameHelpers.h"
@@ -97,11 +98,14 @@ class Unit {
 
     // Resolves the owning unit. Game-impl dispatches three ways on Type():
     //   Monster -> summoner via fn::GetMonsterOwner(unitId)
-    //   Missile -> caster via fn::GetMissileOwnerUnit(pMissile)
+    //   Missile -> the caster the missile records, when it is in view
     //   Item    -> pItemData->pOwnerInventory->pOwner
     //   other   -> nullopt
     // Returns a fully resolved Unit handle or nullopt when no owner exists.
     std::optional<Unit> GetOwner() const;
+    // The id and type of the caster a missile records, set even while that unit is out of view; nullopt for any
+    // other unit type or a missile without one.
+    std::optional<std::pair<uint32_t, UnitType>> MissileCaster() const;
 
     // === Item-specific ===
     std::string ItemCode() const;
