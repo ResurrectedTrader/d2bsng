@@ -1236,7 +1236,8 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
 
     /// @description Returns this player's hired mercenary as a Unit (Player units only).
     /// @signature getMerc()
-    /// @returns {Unit|null} - The mercenary Unit, null if none or not a player, false if the game was not ready.
+    /// @returns {Unit|null} - The mercenary Unit, null if there is none, it is dead or out of view, or this is not a
+    /// player; false if the game was not ready.
     Method(
         isolate, proto, "getMerc", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
@@ -1254,7 +1255,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
                 if (data->Type() != UnitType::Player) {
                     return;
                 }
-                merc = data->FindMerc();
+                merc = data->GetMerc();
             }
             if (!merc) {
                 return;
@@ -1269,7 +1270,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// valid, else the local player).
     /// @signature getMercHP()
     /// @returns {number} - Mercenary HP percent 0-100 (0 while the owner is dead or with no max HP), undefined if no
-    /// merc, false if the game was not ready.
+    /// merc or it is dead or out of view, false if the game was not ready.
     Method(
         isolate, proto, "getMercHP", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
@@ -1286,7 +1287,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             }
             if (!unit)
                 return;
-            auto merc = unit.FindMerc();
+            auto merc = unit.GetMerc();
             if (!merc)
                 return;
             // d2bs tests mode 12, which is a monster's dead mode but a player's kick.

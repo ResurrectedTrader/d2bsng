@@ -44,11 +44,4 @@ enum class CharFlag : uint16_t {
     WeaponSwitch = 0x2000,
 };
 
-// Mercenary class IDs (dwTxtFileNo) - used to filter summoned monsters
-// when identifying a player's hired merc. Values from reference/d2bs/Constants.h.
-constexpr uint32_t MERC_CLASS_ID_ACT1 = 0x010f;
-constexpr uint32_t MERC_CLASS_ID_ACT2 = 0x0152;
-constexpr uint32_t MERC_CLASS_ID_ACT3 = 0x0167;
-constexpr uint32_t MERC_CLASS_ID_ACT5 = 0x0231;
-
 }  // namespace d2bs::game

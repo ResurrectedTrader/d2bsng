@@ -270,7 +270,7 @@ because they do more than the walk.
 |---|---|
 | `Unit::FindFirst` / `FindNext` | `getUnit()`, `unit.getNext()` |
 | `Unit::FindFirstInventoryItem` / `FindNextInventoryItem` | `getItem()`, `item.getNext()` |
-| `Unit::FindMerc` | `getMerc()`, `getMercHP()` |
+| `Unit::GetMerc` | `getMerc()`, `getMercHP()` |
 | `Unit::GetItems` | `getItems()` |
 | `Level::FindRoomAt` | `getRoom()`, `getCollision()` |
 | `Party::FindById` / `FindByName` | `getParty()` |

@@ -1158,7 +1158,7 @@ ClickResult ClickItem(ClickButton button, const Unit& item) {
         if (!player) {
             return ClickResult::InvalidTarget;
         }
-        auto merc = player.FindMerc();
+        auto merc = player.GetMerc();
         if (!merc) {
             return ClickResult::InvalidTarget;
         }

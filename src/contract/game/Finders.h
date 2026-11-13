@@ -179,27 +179,18 @@ inline std::optional<Unit> Unit::FindNextInventoryItem() const {
     return std::nullopt;
 }
 
-inline std::optional<Unit> Unit::FindMerc() const {
+inline std::optional<Unit> Unit::GetMerc() const {
     GameReadLock guard;
-    // Reference D2Helpers.cpp:482-498 walks pUnit->pAct->pRoom1 then each
-    // Room1's pUnitFirst/pRoomNext chain. We walk the monster hash table
-    // instead and skip units without a room, which leaves the same set: the
-    // client never removes the player's own merc from the table when it leaves
-    // view, so a merc replaced by a new hire stays there roomless, still naming
-    // the player as its owner. Filter: dwType==Monster, dwTxtFileNo in
-    // {MERC_A1..A5}, in a room, GetMonsterOwner(merc) resolves to the caller.
-    for (auto m = GetFirstInGame(UnitType::Monster); m; m = m->GetNextInGame()) {
-        const auto cls = m->ClassId();
-        if (cls != MERC_CLASS_ID_ACT1 && cls != MERC_CLASS_ID_ACT2 && cls != MERC_CLASS_ID_ACT3 &&
-            cls != MERC_CLASS_ID_ACT5)
-            continue;
-        if (!m->GetRoom())
-            continue;
-        auto owner = m->GetOwner();  // Monster branch -> fn::GetMonsterOwner
-        if (owner && *owner == *this)
-            return m;
-    }
-    return std::nullopt;
+    const auto record = Merc();
+    if (!record || record->isDead)
+        return std::nullopt;
+    // The client keeps its own merc's unit in the unit table when it leaves view,
+    // detached from any room; reference d2bs walked only the act's rooms and so
+    // returned null there.
+    auto merc = Find(record->unitId, UnitType::Monster);
+    if (!merc || !merc->GetRoom())
+        return std::nullopt;
+    return merc;
 }
 
 // Bulk-collect inventory items via GetFirstItem / GetNextItem. Empty vector

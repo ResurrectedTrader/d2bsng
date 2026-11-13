@@ -710,8 +710,8 @@ the directory under the project root holding the file.
 Game-layer handle methods follow a three-bucket prefix convention that signals *what kind of operation* the method performs:
 
 - **(bare)**: identity lookups, static factories, data reads - `Unit::Find(id)`, `Unit::Player()`, `Pos()`, `Name()`
-- **`Get`**: iteration primitives, bulk collects, and resolved-reference reads (dispatch internally then resolve to a handle) - `GetFirstItem()`, `GetNextInGame()`, `GetItems()`, `GetPresetUnits(...)`, `GetOwner()`
-- **`Find`**: filtered search / composed walk - `FindFirst`, `FindNext`, `FindInvItem`, `FindMerc`, `FindRoomAt`
+- **`Get`**: iteration primitives, bulk collects, and resolved-reference reads (dispatch internally then resolve to a handle) - `GetFirstItem()`, `GetNextInGame()`, `GetItems()`, `GetPresetUnits(...)`, `GetOwner()`, `GetMerc()`
+- **`Find`**: filtered search / composed walk - `FindFirst`, `FindNext`, `FindInvItem`, `FindRoomAt`
 
 ### Integer Types
 

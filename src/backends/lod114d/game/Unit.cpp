@@ -1142,6 +1142,22 @@ uint32_t Unit::WeaponSwitch() const {
     return *lod114d::imports::d2client::gnWeaponSwitch;
 }
 
+std::optional<Unit::MercRecord> Unit::Merc() const {
+    // D2MOO D2Game's D2PetTypes::PETTYPE_HIREABLE; that header declares server functions.
+    constexpr int32_t PET_TYPE_HIREABLE = 7;
+    const auto u = Resolve<D2UnitStrc>();
+    if (!u) {
+        return std::nullopt;
+    }
+    const uint32_t id = lod114d::imports::d2client::ROSTERPETS_GetPetGUID(u, PET_TYPE_HIREABLE, TRUE);
+    if (id == NO_OWNER_GUID) {
+        return std::nullopt;
+    }
+    // The game's alive-only lookup lands on the same record unless that record is dead.
+    const uint32_t aliveId = lod114d::imports::d2client::ROSTERPETS_GetPetGUID(u, PET_TYPE_HIREABLE, FALSE);
+    return MercRecord{.unitId = id, .isDead = aliveId != id};
+}
+
 // === Traversal ===
 
 std::optional<Unit> Unit::GetFirstItem() const {
