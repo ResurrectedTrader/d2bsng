@@ -179,20 +179,6 @@ inline std::optional<Unit> Unit::FindNextInventoryItem() const {
     return std::nullopt;
 }
 
-inline std::optional<Unit> Unit::GetMerc() const {
-    GameReadLock guard;
-    const auto record = Merc();
-    if (!record || record->isDead)
-        return std::nullopt;
-    // The client keeps its own merc's unit in the unit table when it leaves view,
-    // detached from any room; reference d2bs walked only the act's rooms and so
-    // returned null there.
-    auto merc = Find(record->unitId, UnitType::Monster);
-    if (!merc || !merc->GetRoom())
-        return std::nullopt;
-    return merc;
-}
-
 // Bulk-collect inventory items via GetFirstItem / GetNextItem. Empty vector
 // when the unit has no inventory or an empty one - binding emits JS
 // `undefined` on .empty() (matches reference behaviour).

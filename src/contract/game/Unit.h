@@ -161,16 +161,14 @@ class Unit {
     MoveMode RunWalk() const;
     uint32_t WeaponSwitch() const;
 
-    // This player's current mercenary as the client's pet roster records it: the
-    // first Mercenary record the player owns, dead or alive. The game finds its merc
-    // this way, never in the unit table: a new hire's record goes to the head of the
-    // roster, while the replaced merc's record stays behind it flagged dead and its
-    // unit can linger in the client's unit list. nullopt when the roster holds none.
-    struct MercRecord {
-        uint32_t unitId = 0;
-        bool isDead = false;
-    };
-    std::optional<MercRecord> Merc() const;
+    // This player's current mercenary as the client's pet roster records it: the first
+    // Mercenary record the player owns, passing over dead records unless `includeDead`,
+    // resolved to its unit. The game finds its merc this way, never in the unit table: a
+    // new hire's record goes to the head of the roster, while the replaced merc's record
+    // stays behind it flagged dead and its unit can linger in the client's unit list.
+    // nullopt when no record matches or the unit is not in a room (the client keeps its
+    // own merc's unit, roomless, while it is out of view).
+    std::optional<Unit> GetMerc(bool includeDead) const;
 
     // === Traversal ===
     // Each primitive returns nullopt when the chain is empty/exhausted, so the
@@ -199,9 +197,6 @@ class Unit {
     std::optional<Unit> FindFirstInventoryItem(const UnitCursorState& state = {}) const;
     // Find next inventory item matching stored cursor + owner. Returns new handle.
     std::optional<Unit> FindNextInventoryItem() const;
-    // This player's current mercenary (Merc()) as a unit; nullopt while it is dead or
-    // its unit is not in a room.
-    std::optional<Unit> GetMerc() const;
     // Bulk collect of this unit's inventory items via GetFirstItem/GetNextItem.
     // Empty vector on no inventory (binding emits JS `undefined` in that case).
     std::vector<Unit> GetItems() const;

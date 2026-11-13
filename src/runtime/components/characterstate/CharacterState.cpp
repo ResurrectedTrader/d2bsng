@@ -228,16 +228,8 @@ struct Collected {
     std::vector<game::Unit> belt;
     std::vector<StashPage> stashPages;
     std::optional<game::Unit> mercUnit;
-    bool isMercDead = false;
     std::array<game::Size, BUCKET_COUNT> containerDims;
 };
-
-// The merc's unit document, plus whether the roster has it dead.
-json MercToJson(const game::Unit& merc, bool isDead) {
-    json doc = UnitToJson(merc);
-    doc["dead"] = isDead;
-    return doc;
-}
 
 Collected Collect(const game::Unit& player) {
     Collected out;
@@ -267,13 +259,8 @@ Collected Collect(const game::Unit& player) {
     // single personal tab with the same items the walk would have found.
     out.stashPages = CollectStashPages();
 
-    // The roster's merc even while it is dead or out of view, unlike GetMerc: the client
-    // keeps its own merc's unit, and that unit's gear, in the unit table through both.
-    // Merc carries only equipped items.
-    if (const auto record = player.Merc()) {
-        out.mercUnit = game::Unit::Find(record->unitId, game::UnitType::Monster);
-        out.isMercDead = record->isDead;
-    }
+    // Dead too, so the manager keeps showing a dead merc's gear. Merc carries only equipped items.
+    out.mercUnit = player.GetMerc(true);
     if (out.mercUnit) {
         for (const auto& item : out.mercUnit->GetItems()) {
             if (item.ItemLocation() == game::ItemLocation::Equip) {
@@ -371,7 +358,7 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
         }
     }
 
-    auto [equipped, merc, inventory, cube, belt, stashPages, mercUnit, isMercDead, containerDims] = Collect(player);
+    auto [equipped, merc, inventory, cube, belt, stashPages, mercUnit, containerDims] = Collect(player);
 
     // Hash every section for change detection; the wire json documents below are built only
     // for the sections that moved. Identity and progression are tiny, so they are built here
@@ -385,7 +372,7 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
     const size_t playerStatsHash = HashOf(playerStats);
     // With no merc, the empty-unit sentinel stands in - stable and distinct from any real
     // merc, so a merc appearing or leaving moves the hash.
-    const size_t mercHash = mercUnit ? MixHash(UnitHash(*mercUnit), static_cast<size_t>(isMercDead)) : EmptyUnitHash();
+    const size_t mercHash = mercUnit ? UnitHash(*mercUnit) : EmptyUnitHash();
     json mercStats = mercUnit ? WearerStats(*mercUnit) : json();
     const size_t mercStatsHash = HashOf(mercStats);
     const std::array containerHashes = {
@@ -482,9 +469,8 @@ void CharacterState::OnTick(game::GameState state, bool sessionEntered) {
         if (mercChanged) {
             snapshot["merc"] = json();
         }
-    } else if (json mercJson =
-                   BuildWearerSection(mercChanged ? MercToJson(*mercUnit, isMercDead) : json::object(), mercChanged,
-                                      std::move(mercStats), mercStatsChanged, std::move(mercContainers));
+    } else if (json mercJson = BuildWearerSection(mercChanged ? UnitToJson(*mercUnit) : json::object(), mercChanged,
+                                                  std::move(mercStats), mercStatsChanged, std::move(mercContainers));
                !mercJson.empty()) {
         snapshot["merc"] = std::move(mercJson);
     }
@@ -540,8 +526,8 @@ std::optional<std::string> CharacterState::BuildSnapshot() const {
     if (collected.mercUnit) {
         json mercContainers = json::object();
         mercContainers["equipped"] = BuildContainer(collected.merc, collected.containerDims[BUCKET_MERC]);
-        snapshot["merc"] = BuildWearerSection(MercToJson(*collected.mercUnit, collected.isMercDead), true,
-                                              WearerStats(*collected.mercUnit), true, std::move(mercContainers));
+        snapshot["merc"] = BuildWearerSection(UnitToJson(*collected.mercUnit), true, WearerStats(*collected.mercUnit),
+                                              true, std::move(mercContainers));
     } else {
         snapshot["merc"] = json();
     }

@@ -362,7 +362,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             auto player = game::Unit::Player();
             if (!player)
                 return;
-            auto merc = player.GetMerc();
+            auto merc = player.GetMerc(false);
             if (!merc)
                 return;
             // d2bs tests mode 12, which is a monster's dead mode but a player's kick.
