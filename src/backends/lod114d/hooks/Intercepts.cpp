@@ -71,7 +71,6 @@
 #include <span>
 #include <string>
 #include <system_error>
-#include <thread>
 #include <utility>
 #include <variant>
 
@@ -79,7 +78,6 @@
 #include "game/Finders.h"
 #include "game/GameCallbacks.h"
 #include "game/GameHelpers.h"
-#include "game/GameLock.h"
 #include "game/LaunchOptions.h"
 #include "game/Party.h"
 #include "game/Types.h"
@@ -100,8 +98,9 @@
 
 #include "UnitTables.h"
 
+#include <D2Items.h>       // D2ItemSaveStrc, D2C_ItemModes
 #include <D2Monsters.h>    // D2C_MonModes
-#include <D2PacketDef.h>   // D2GSPacketClt16, D2GSPacketSrv15
+#include <D2PacketDef.h>   // D2GSPacketSrv15, D2GSPacketSrv9C
 #include <Units/Player.h>  // D2C_PlayerModes
 #include <Units/Units.h>   // D2UnitStrc, UNITFLAG_ISDEAD
 
@@ -170,16 +169,6 @@ std::atomic clickActionActive{false};
 std::atomic<D2UnitStrc*> clickActionUnit{nullptr};
 
 std::atomic<IncomingPacketObserver> incomingPacketObserver{nullptr};
-
-// The client's last ground pickup (see WaitOutBeltPickupWindow).
-struct Pickup {
-    uint32_t itemId = 0;
-    uint32_t tick = 0;  // GetTickCount
-};
-std::atomic<Pickup> lastPickup{};
-// GetTickCount of the client's last belt use (see WaitOutBeltUseWindow).
-std::atomic<uint32_t> lastBeltUseTick{0};
-static_assert(std::atomic<Pickup>::is_always_lock_free);
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 constexpr uint32_t P1_RVA = 0x7C89D;
@@ -340,6 +329,56 @@ bool IsWarpOfRoomlessDeadUnit(std::span<const uint8_t> packet) {
     return unit->dwAnimMode == MONMODE_DEATH || unit->dwAnimMode == MONMODE_DEAD;
 }
 
+// D2Game compacts a belt column the moment a potion is drunk from it (ITEMMODE_CompactBeltColumn, Game.exe
+// 0x55EDC0) but only queues the moved potions' updates (INVENTORY_AddItemToCommandQueue), which go out as 0x9Ds
+// when the player's update ends (D2GAME_INVMODE_Last, 0x597B00). A potion picked up into that column later in the
+// same server frame goes out at once, as a 0x9C put-in-belt (0x53EE70) into the slot the compaction freed at the
+// top of the column, which the client still fills with the column's last potion. CITEMS_ItemAction_PutInBelt
+// (0x4C4130) ignores INVENTORY_PlaceItemInBeltSlot failing, so the new potion is left in no inventory, and the next
+// 0x9D that moves it halts the client (CITEMS_ItemAction_UpdateStats 0x4C4C70, line 3166). Giving the client's
+// column the same compaction first frees the slot; the queued 0x9Ds then recreate each potion where it already is.
+void CompactBeltColumnBeforePutInBelt(std::span<uint8_t> packet) {
+    constexpr uint8_t SRV_ITEM_ACTION = 0x9C;
+    if (packet.size() <= offsetof(D2GSPacketSrv9C, pBitstream) || packet[0] != SRV_ITEM_ACTION ||
+        packet[1] != ITEMACTION_PUTINBELT) {
+        return;
+    }
+    auto* player = imports::d2client::UNITS_GetPlayerUnit();
+    if (player == nullptr || player->pInventory == nullptr) {
+        return;
+    }
+    uint32_t itemId = 0;
+    std::memcpy(&itemId, packet.subspan(offsetof(D2GSPacketSrv9C, nItemId)).data(), sizeof(itemId));
+    const auto bitstream = packet.subspan(offsetof(D2GSPacketSrv9C, pBitstream));
+    D2ItemSaveStrc itemSave{};
+    imports::d2common::ITEMS_GetCompactItemDataFromBitstream(bitstream.data(), bitstream.size(), FALSE, &itemSave);
+
+    constexpr int32_t BELT_COLUMNS = 4;
+    constexpr int32_t BELT_SLOTS = 16;
+    const int32_t target = itemSave.nX;
+    if (itemSave.nAnimMode != IMODE_INBELT || target >= BELT_SLOTS) {
+        return;
+    }
+    auto* inventory = player->pInventory;
+    const auto* occupant = imports::d2common::INVENTORY_GetItemFromBeltSlot(inventory, target);
+    if (occupant == nullptr || occupant->dwUnitId == itemId) {
+        return;
+    }
+    const int32_t column = target % BELT_COLUMNS;
+    int32_t nextFree = column;
+    for (int32_t slot = column; slot < BELT_SLOTS; slot += BELT_COLUMNS) {
+        auto* item = imports::d2common::INVENTORY_GetItemFromBeltSlot(inventory, slot);
+        if (item == nullptr) {
+            continue;
+        }
+        if (slot != nextFree) {
+            imports::d2common::INVENTORY_PlaceItemInBeltSlot(inventory, item, nextFree);
+        }
+        nextFree += BELT_COLUMNS;
+    }
+    spdlog::info("belt: compacted column {} before item {:#x} is put in slot {}", column, itemId, target);
+}
+
 }  // namespace
 
 // Block-decision policy: if EITHER the global `onGamePacketReceived` handler
@@ -357,6 +396,7 @@ extern "C" uint32_t __fastcall OnGamePacketReceived(uint8_t* packet, uint32_t si
     if (IsWarpOfRoomlessDeadUnit(std::span<const uint8_t>{packet, size})) {
         return 0;
     }
+    CompactBeltColumnBeforePutInBelt(std::span{packet, size});
     const auto* cb = GetActiveCallbacks();
     if (cb == nullptr) {
         return 1;
@@ -483,33 +523,14 @@ extern "C" uint32_t __fastcall OnGamePacketReceived(uint8_t* packet, uint32_t si
     return blocked ? 0U : 1U;
 }
 
-void NoteBeltPacket(std::span<const uint8_t> packet) {
-    constexpr uint8_t CLT_USE_BELT_ITEM = 0x26;
-    if (packet[0] == CLT_USE_BELT_ITEM) {
-        lastBeltUseTick.store(GetTickCount(), std::memory_order_release);
-        return;
-    }
-    constexpr uint8_t CLT_PICKUP_ITEM = 0x16;
-    if (packet.size() < sizeof(D2GSPacketClt16) || packet[0] != CLT_PICKUP_ITEM) {
-        return;
-    }
-    const auto* pickup = reinterpret_cast<const D2GSPacketClt16*>(packet.data());
-    lastPickup.store(Pickup{.itemId = pickup->dwUnitGUID, .tick = GetTickCount()}, std::memory_order_release);
-}
-
 // P4: GamePacketSent. ecx=packet, edx=size (the naked thunk pulls them off
 // the saved context - see the asm body). Returns non-zero to allow.
 extern "C" uint32_t __fastcall OnGamePacketSent(uint8_t* packet, uint32_t size) {
-    if (packet == nullptr || size == 0) {
+    const auto* cb = GetActiveCallbacks();
+    if (cb == nullptr || cb->onGamePacketSent == nullptr || packet == nullptr || size == 0) {
         return 1;
     }
-    const std::span<const uint8_t> data{packet, size};
-    const auto* cb = GetActiveCallbacks();
-    if (cb != nullptr && cb->onGamePacketSent != nullptr && cb->onGamePacketSent(data)) {
-        return 0;
-    }
-    NoteBeltPacket(data);
-    return 1;
+    return cb->onGamePacketSent(std::span<const uint8_t>{packet, size}) ? 0 : 1;
 }
 
 // P2 / P17: GameDraw / GameDrawOOG. Plain `void` calls - the framework
@@ -1187,57 +1208,6 @@ bool Init() {
 
 void SetIncomingPacketObserver(IncomingPacketObserver observer) {
     incomingPacketObserver.store(observer, std::memory_order_release);
-}
-
-namespace {
-
-// The rest of the belt window when `pickup` is a beltable item picked up (or, for a pickup, a
-// belt use sent) less than a few server frames (25 fps) ago, else zero: long enough that the
-// pickup and the belt use are handled in different server frames under normal jitter.
-uint32_t BeltWindowLeft(Pickup pickup) {
-    constexpr uint32_t BELT_WINDOW_MS = 100;
-    const uint32_t elapsed = GetTickCount() - pickup.tick;
-    if (pickup.itemId == 0 || pickup.tick == 0 || elapsed >= BELT_WINDOW_MS) {
-        return 0;
-    }
-    const game::GameReadLock guard;
-    auto* item = game::unit_tables::FindUnitInHashTable(pickup.itemId, game::UnitType::Item);
-    if (item == nullptr || !imports::d2common::ITEMS_CheckIfBeltable(item)) {
-        return 0;
-    }
-    return BELT_WINDOW_MS - elapsed;
-}
-
-// Sleeps out the belt window of `latest()` with the thread's game read locks released, and again
-// for a newer one sent meanwhile (the pickit thread keeps picking potions up while the potion
-// thread waits), a few times at most so a drink is not held off for long. Returns at once on the
-// game thread, which must not block.
-template <typename Latest>
-void WaitOutBeltWindow(Latest latest) {
-    if (GetGameThreadId() == GetCurrentThreadId()) {
-        return;
-    }
-    constexpr int32_t MAX_WAITS = 3;
-    for (int32_t i = 0; i < MAX_WAITS; ++i) {
-        const uint32_t left = BeltWindowLeft(latest());
-        if (left == 0) {
-            return;
-        }
-        const game::GameReadLockReleaser releaser;
-        std::this_thread::sleep_for(std::chrono::milliseconds{left});
-    }
-}
-
-}  // namespace
-
-void WaitOutBeltPickupWindow() {
-    WaitOutBeltWindow([] { return lastPickup.load(std::memory_order_acquire); });
-}
-
-void WaitOutBeltUseWindow(uint32_t pickupItemId) {
-    WaitOutBeltWindow([pickupItemId] {
-        return Pickup{.itemId = pickupItemId, .tick = lastBeltUseTick.load(std::memory_order_acquire)};
-    });
 }
 
 void InstallAll() {

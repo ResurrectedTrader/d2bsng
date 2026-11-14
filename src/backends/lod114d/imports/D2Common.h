@@ -30,6 +30,7 @@
 // pointer parameter in ITEMS_GetAllRepairCosts; we don't need its definition
 // to type the import.
 struct D2GameStrc;
+struct D2ItemSaveStrc;
 
 // NOLINTBEGIN(readability-identifier-naming) - MOO-style names use DOMAIN_PascalCase with embedded underscores
 namespace d2bs::lod114d::imports::d2common {
@@ -78,7 +79,9 @@ inline StdcallFunc<game::SkillUseState(D2UnitStrc* /*pUnit*/, D2SkillStrc* /*pSk
 
 inline StdcallFunc<int32_t(D2UnitStrc* /*pItem*/, D2UnitStrc* /*pUnit*/)> ITEMS_GetLevelRequirement{0x22BA60};
 inline StdcallFunc<int32_t(D2UnitStrc* /*pItem*/, int32_t /*nItemType*/)> ITEMS_CheckItemTypeId{0x229BB0};
-inline StdcallFunc<bool(D2UnitStrc* /*pItem*/)> ITEMS_CheckIfBeltable{0x22BAD0};
+inline StdcallFunc<int32_t(uint8_t* /*pBitstream*/, size_t /*nSize*/, int32_t /*bCheckForHeader*/,
+                           D2ItemSaveStrc* /*pItemSave*/)>
+    ITEMS_GetCompactItemDataFromBitstream{0x22E410};
 
 inline StdcallFunc<int32_t(D2UnitStrc* /*pPlayer*/, D2UnitStrc* /*pItem*/, D2C_Difficulties /*nDifficulty*/,
                            D2BitBufferStrc* /*pQuestFlags*/, uint32_t /*nVendorId*/,
@@ -96,6 +99,10 @@ inline StdcallFunc<int32_t(D2GameStrc* /*pGame*/, D2UnitStrc* /*pUnit*/, uint32_
 inline StdcallFunc<char*(uint16_t /*wAffixIndex*/)> ITEMS_GetMagicalMods{0x233EE0};
 inline StdcallFunc<D2UnitStrc*(D2InventoryStrc* /*pInventory*/)> INVENTORY_GetFirstItem{0x23B2C0};
 inline StdcallFunc<D2UnitStrc*(D2UnitStrc* /*pItem*/)> INVENTORY_GetNextItem{0x23DFA0};
+inline StdcallFunc<D2UnitStrc*(D2InventoryStrc* /*pInventory*/, int32_t /*nSlotId*/)> INVENTORY_GetItemFromBeltSlot{
+    0x23C7F0};
+inline StdcallFunc<int32_t(D2InventoryStrc* /*pInventory*/, D2UnitStrc* /*pItem*/, int32_t /*nSlot*/)>
+    INVENTORY_PlaceItemInBeltSlot{0x23C4F0};
 
 // Reference d2bs declared this as a D2CLIENT FUNCPTR; per MOO it is a D2COMMON
 // export. The 1.14d entry is a thin no-arg wrapper that fetches the active
