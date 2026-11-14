@@ -299,6 +299,11 @@ extern "C" uint32_t __fastcall OnGameInput(wchar_t* wMsg) {
 //
 namespace {
 
+spdlog::logger& Log() {
+    static const auto LOGGER = utils::GetLogger("hooks.intercepts");
+    return *LOGGER;
+}
+
 // SCMD_Handler0x15_UnitWarpXY (Game.exe 0x45D160) halts ("Could not get act!", line 1336) when the
 // warped unit has no room afterwards, and CUNIT_WarpUnit leaves a dead unit where it is. So the warp
 // of a dead unit whose room the client has already freed halts the client: the player's hireling
@@ -376,7 +381,7 @@ void CompactBeltColumnBeforePutInBelt(std::span<uint8_t> packet) {
         }
         nextFree += BELT_COLUMNS;
     }
-    spdlog::info("belt: compacted column {} before item {:#x} is put in slot {}", column, itemId, target);
+    Log().debug("belt: compacted column {} before item {:#x} is put in slot {}", column, itemId, target);
 }
 
 }  // namespace
