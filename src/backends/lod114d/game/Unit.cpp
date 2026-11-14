@@ -10,7 +10,6 @@
 #include "game/GameLock.h"
 #include "game/GameThread.h"
 #include "game/Room.h"
-#include "hooks/Intercepts.h"
 #include "imports/D2Client.h"
 #include "imports/D2Common.h"
 #include "imports/D2Net.h"
@@ -1395,14 +1394,11 @@ void Unit::Move(Position target) const {
 }
 
 bool Unit::Interact() const {
-    bool isBeltableGroundItem = false;
     {
         const auto u = Resolve<D2UnitStrc>();
         if (!u || u == lod114d::imports::d2client::UNITS_GetPlayerUnit()) {
             return false;
         }
-        isBeltableGroundItem = u->dwUnitType == UNIT_ITEM && u->dwItemMode == IMODE_ONGROUND &&
-                               lod114d::imports::d2common::ITEMS_CheckIfBeltable(u);
 
         // Items in inventory/stash use packet 0x20; belt items use 0x26. Reference
         // hard-codes these because the underlying ClickItem path is gated behind
@@ -1433,18 +1429,10 @@ bool Unit::Interact() const {
                 D2GSPacketClt26 packet{};
                 packet.nHeader = 0x26U;
                 packet.nItemGUID = static_cast<int32_t>(u->dwUnitId);
-                // Hands the read lock back while it waits; `u` is not read after it.
-                lod114d::hooks::intercepts::WaitOutBeltPickupWindow();
                 lod114d::imports::d2net::CLIENT_Send(sizeof(packet), 1U, reinterpret_cast<uint8_t*>(&packet));
                 return false;
             }
         }
-    }
-
-    // The click picks a ground item up with a 0x16 sent from the game thread, which
-    // cannot wait, so a pickup right after a belt use waits here.
-    if (isBeltableGroundItem) {
-        lod114d::hooks::intercepts::WaitOutBeltUseWindow(Id());
     }
 
     // Default path: a left-click on the unit's screen position via the
