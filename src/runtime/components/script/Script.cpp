@@ -800,10 +800,16 @@ void Script::RegisterEvent(const std::string& eventName, v8::Local<v8::Function>
     if (!iso)
         return;
     std::scoped_lock lock(eventFunctionsMutex_);
+    auto& functions = eventFunctions_[eventName];
+    // Once per function and event, as in a browser.
+    if (std::ranges::any_of(
+            functions, [&func, iso](const v8::Global<v8::Function>& function) { return function.Get(iso) == func; })) {
+        return;
+    }
     // Published before the insert: dispatchers read the count without this mutex, so bumping it
     // after would leave a window where the handler exists but the probe still reads zero.
     events::ListenerCount::For(eventName).Add(1);
-    eventFunctions_[eventName].emplace_back(iso, func);
+    functions.emplace_back(iso, func);
 }
 
 void Script::UnregisterEvent(const std::string& eventName, v8::Local<v8::Function> func) {
@@ -867,6 +873,14 @@ bool Script::RemoveDelayedEvent(uint32_t eventId) {
         return true;
     }
     return false;
+}
+
+uint32_t Script::ClearAllDelayedEvents() {
+    std::scoped_lock lock(delayedEventMutex_);
+    for (const auto& event : delayedEvents_ | std::views::values) {
+        event->Cancel();
+    }
+    return static_cast<uint32_t>(std::exchange(delayedEvents_, {}).size());
 }
 
 void Script::ExecuteEvents(std::chrono::milliseconds duration) {
@@ -1001,8 +1015,8 @@ bool Script::ExecuteEvent(const std::shared_ptr<events::BaseEvent>& event) {
         // rather than queued concurrently. This trades fixed-rate timing for safety
         // (timer drift is acceptable).
         if (auto delayedEvent = std::dynamic_pointer_cast<events::DelayedEvent>(event); delayedEvent) {
-            if (delayedEvent->RepeatMs() > 0 && !delayedEvent->IsCancelled()) {
-                PostEvent(delayedEvent, delayedEvent->RepeatMs());
+            if (delayedEvent->IsRepeating() && !delayedEvent->IsCancelled()) {
+                PostEvent(delayedEvent, delayedEvent->PeriodMs());
             } else {
                 RemoveDelayedEvent(delayedEvent->EventId());
             }
