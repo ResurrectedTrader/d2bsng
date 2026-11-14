@@ -97,7 +97,7 @@ class Unit {
 
     // Resolves the owning unit. Game-impl dispatches three ways on Type():
     //   Monster -> summoner via fn::GetMonsterOwner(unitId)
-    //   Missile -> caster via fn::GetMissileOwnerUnit(pMissile)
+    //   Missile -> the caster the missile records, when it is in view
     //   Item    -> pItemData->pOwnerInventory->pOwner
     //   other   -> nullopt
     // Returns a fully resolved Unit handle or nullopt when no owner exists.

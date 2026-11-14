@@ -1199,7 +1199,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     //   Monster -> owner Unit (via GetMonsterOwner)
     //   Object  -> owner name STRING (pObjectData->szOwner)
     //   Item    -> owner Unit (from inventory)
-    //   Missile -> owner Unit (via GetMissileOwnerUnit)
+    //   Missile -> caster Unit, when it is in view
     /// @description Returns the unit's parent/owner, with a type that depends on this unit's type (owner name string
     /// for Objects; owning Unit for Monster/Item/Missile).
     /// @signature getParent()

@@ -71,11 +71,6 @@ inline FastcallFunc<uint32_t(uint32_t /*dwUnitId*/)> UNITS_GetCurrentLifePercent
 inline FastcallFunc<uint32_t(D2UnitStrc* /*pUnit*/)> UNITS_GetClientCoordX{0x5ADF0};
 inline FastcallFunc<uint32_t(D2UnitStrc* /*pUnit*/)> UNITS_GetClientCoordY{0x5AE20};
 
-// Reference d2bs already tagged this as D2COMMON; MOO exposes MISSILE_SetOwner
-// (@11129) and MISSILE_CheckUnitIfOwner (@11130) but no matching getter, so
-// the entry takes the MISSILE_ domain prefix without a direct MOO ordinal.
-inline FastcallFunc<D2UnitStrc*(D2UnitStrc* /*pMissile*/)> MISSILE_GetOwnerUnit{0x639D0};
-
 inline StdcallFunc<uint32_t(D2UnitStrc* /*pUnit*/, D2SkillStrc* /*pSkill*/, bool /*bBonus*/)> SKILLS_GetSkillLevel{
     0x2442A0};
 

@@ -724,7 +724,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature getParty(unitId: number)
     /// @param unitId {number} - unit id to search for
     /// @signature getParty(unit: Unit)
-    /// @param unit {Unit} - a Unit object; matched by its unit id
+    /// @param unit {Unit} - a player Unit, matched by its unit id; any other unit gives undefined
     /// @returns {Party|undefined} - the matching Party member, or undefined if not found
     function::Register(
         isolate, global, "getParty", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -762,6 +762,10 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 auto unitObj = args[0].As<v8::Object>();
                 if (JSUnit::IsInstance(isolate, unitObj)) {
                     const auto unitData = JSUnit::Unwrap(isolate, unitObj);
+                    // Unit ids are per type, so only a player Unit names a roster entry.
+                    if (unitData && unitData->Type() != game::UnitType::Player) {
+                        return;
+                    }
                     if (unitData && *unitData) {
                         found = game::Party::FindById(unitData->Id());
                     } else {
@@ -1092,21 +1096,18 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param unitId1 {number} - first player's unit id
     /// @param unitId2 {number} - second player's unit id
     /// @param flag {RosterFlag} - relationship flag mask to test
-    /// @returns {boolean|undefined} - flag test result, undefined on bad args
+    /// @returns {boolean} - flag test result; false on bad args
     function::Register(
         isolate, global, "getPlayerFlag", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
+            args.GetReturnValue().SetFalse();
+
+            if (args.Length() != 3 || !args[0]->IsNumber() || !args[1]->IsNumber() || !args[2]->IsNumber()) {
+                return;
+            }
 
             if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
-                return;
-            }
-
-            if (args.Length() != 3) {
-                return;
-            }
-
-            if (!args[0]->IsNumber() || !args[1]->IsNumber() || !args[2]->IsNumber()) {
                 return;
             }
 
@@ -1465,7 +1466,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
     /// @description Perform a party action (invite/leave/loot/hostile) on a party member.
     /// @signature clickParty(party: Party, mode: PartyMode)
-    /// @param party {Party} - the target party member object (yourself only to leave the party)
+    /// @param party {Party} - the target party member object; for Leave, any player still in the game (the action
+    /// leaves your own party)
     /// @param mode {PartyMode} - party action mode
     /// @returns {boolean} - true if the action dispatched, false on bad args or no-op conditions
     function::Register(
@@ -1533,8 +1535,14 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     return;
                 }
 
-                // Reference JSGame.cpp:1112 - Leave no-ops if the target unit isn't in a party.
-                if (mode == game::PartyMode::Leave && partyData->PartyId() == game::NO_PARTY_ID) {
+                // The game acts on the target's party state, not the mode, and halts on this one.
+                if (mode == game::PartyMode::Invite && partyData->PartyState() == game::PartyState::InParty) {
+                    args.GetReturnValue().SetFalse();
+                    return;
+                }
+
+                // Leaving depends on the player's own party, whichever player still in the game was passed.
+                if (mode == game::PartyMode::Leave && (!playerPartyId || *playerPartyId == game::NO_PARTY_ID)) {
                     args.GetReturnValue().SetFalse();
                     return;
                 }
