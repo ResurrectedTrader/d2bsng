@@ -731,14 +731,6 @@ std::optional<Unit> Unit::GetOwner() const {
     }
 }
 
-std::optional<std::pair<uint32_t, UnitType>> Unit::MissileCaster() const {
-    const auto u = Resolve<D2UnitStrc>();
-    if (!u || u->dwUnitType != UNIT_MISSILE || (u->dwFlagEx & UNITFLAGEX_STOREOWNERINFO) == 0) {
-        return std::nullopt;
-    }
-    return std::pair{u->dwOwnerGUID, static_cast<UnitType>(u->dwOwnerType)};
-}
-
 // === Item-specific ===
 
 std::string Unit::ItemCode() const {

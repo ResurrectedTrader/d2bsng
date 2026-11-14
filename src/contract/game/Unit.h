@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <optional>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "GameHelpers.h"
@@ -103,9 +102,6 @@ class Unit {
     //   other   -> nullopt
     // Returns a fully resolved Unit handle or nullopt when no owner exists.
     std::optional<Unit> GetOwner() const;
-    // The id and type of the caster a missile records, set even while that unit is out of view; nullopt for any
-    // other unit type or a missile without one.
-    std::optional<std::pair<uint32_t, UnitType>> MissileCaster() const;
 
     // === Item-specific ===
     std::string ItemCode() const;

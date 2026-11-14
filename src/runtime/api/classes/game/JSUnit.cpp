@@ -300,11 +300,6 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             if (!data || !*data) {
                 return;
             }
-            // A missile's caster may be out of view; the missile still records it.
-            if (const auto caster = data->MissileCaster()) {
-                info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), caster->first));
-                return;
-            }
             const auto owner = data->GetOwner();
             info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), owner ? owner->Id() : 0U));
         });
@@ -315,10 +310,6 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
         isolate, inst, "ownertype", +[](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info) {
             const auto data = Unwrap(info.GetIsolate(), info.Holder());
             if (!data || !*data) {
-                return;
-            }
-            if (const auto caster = data->MissileCaster()) {
-                info.GetReturnValue().Set(convert::ToJS(info.GetIsolate(), std::to_underlying(caster->second)));
                 return;
             }
             const auto owner = data->GetOwner();
@@ -1213,8 +1204,7 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
     /// for Objects; owning Unit for Monster/Item/Missile).
     /// @signature getParent()
     /// @returns {string|Unit|null} - Owner name string for Objects, owner Unit for Monster/Item/Missile, null if no
-    /// owner or a missile's caster is out of view (its owner and ownertype still name it), false if the game was not
-    /// ready.
+    /// owner, false if the game was not ready.
     Method(
         isolate, proto, "getParent", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
