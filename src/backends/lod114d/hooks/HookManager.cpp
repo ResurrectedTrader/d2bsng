@@ -13,6 +13,7 @@
 #include "detour/Hook.h"
 #include "game/GameThread.h"
 #include "game/LaunchOptions.h"
+#include "hooks/DrlgActivateFixes.h"
 #include "hooks/Intercepts.h"
 #include "hooks/Realms.h"
 #include "hooks/SpriteCacheFixes.h"
@@ -170,9 +171,11 @@ void InstallDetoursHooks() {
     realms::Install();
     storm_sound::Install();
     sprite_cache::Install();
+    drlg_activate::Install();
 }
 
 void RemoveDetoursHooks() {
+    drlg_activate::Remove();
     sprite_cache::Remove();
     storm_sound::Remove();
     realms::Remove();
