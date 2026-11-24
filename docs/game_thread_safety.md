@@ -218,9 +218,11 @@ case-insensitively), a cleared startup latch, or the normal game-session transit
 inside `Login` must not cause the game thread to join the script waiting for that same thread.
 
 The 1.14d backend's `overhead()` hands the game a server overhead message (0x26, type 5) through
-`ReceiveGamePacket` and its own locked incoming packet queue. A game read lock excludes local
-game-thread producers; the game's critical section serializes injection with the TCP producer and
-packet drains. `utils::CriticalSectionLock` holds that critical section for the enqueue call and releases
+`ReceiveGamePacket` and its own locked incoming packet queue, as `getPacket()` does. A game read lock
+excludes local game-thread producers; the game's critical section serializes injection with the TCP
+producer and packet drains. That section is in use only while the game connection pointer (0x882B34)
+is set - the disconnect clears the pointer inside it - so under the read lock `ReceiveGamePacket`
+queues nothing, and returns false, when the pointer is null or the client is at the menu. `utils::CriticalSectionLock` holds that critical section for the enqueue call and releases
 it when the scope exits, before the game read lock. The next packet drain handles the text through the
 game's overhead-message path, which frees and replaces the previous message. Empty text remains a no-op.
 

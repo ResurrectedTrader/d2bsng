@@ -483,14 +483,18 @@ void SendGamePacket(std::span<const uint8_t> data) {
     d2net::CLIENT_Send(data.size(), 1, data.data());
 }
 
-void ReceiveGamePacket(std::span<const uint8_t> data) {
+bool ReceiveGamePacket(std::span<const uint8_t> data) {
     if (data.empty()) {
-        return;
+        return false;
     }
     // Local game-thread producers rely on frame serialization; the TCP producer uses this critical section.
     const GameReadLock guard;
+    if (*d2net::gpSession == nullptr || GetGameState() == GameState::Menu) {
+        return false;
+    }
     const utils::CriticalSectionLock packetLock(*d2net::gIncomingPacketCriticalSection.Ptr());
     d2net::CLIENT_DequeueGamePacket(data.data(), data.size());
+    return true;
 }
 
 // === Chat ===
