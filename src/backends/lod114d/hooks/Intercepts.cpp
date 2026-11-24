@@ -43,6 +43,8 @@
 //   UninterruptableHalt    0x5B0E19  byte/1  74 1F                 jz -> jmp
 //   NpcTextHeaderLoad      0x661403  byte/2  8B 45                 -> jmp NpcTextPadding
 //   NpcTextPadding         0x661435  byte/10 CC x 10               -> header null test
+//   NpcListFree            0x4A170C  byte/2  50 E8                 -> jmp NpcListFreePadding
+//   NpcListFreePadding     0x4A1721  byte/15 CC x 15               -> list null test + free
 //
 // RequiredWork suppresses SID_REQUIREDWORK (0x4C) so a server can't make the
 // client download and run an extra-work DLL; it is unconditional (reference
@@ -154,6 +156,7 @@ SiteState siteLvlSubPlace, siteLvlSubPick;
 SiteState siteRequiredWork;
 SiteState siteUninterruptableHalt;
 SiteState siteNpcTextHeaderLoad, siteNpcTextPadding;
+SiteState siteNpcListFree, siteNpcListFreePadding;
 
 // Conditional[] sites - installed only when their LaunchOptions toggle is set.
 // siteTempPathPerInstance is a d2bsng addition gated on -multi (multiInstance).
@@ -238,6 +241,19 @@ constexpr uint32_t UNINTERRUPTABLE_HALT_RVA = 0x1B0E19;
 // next speech and the speech ends as after the last one.
 constexpr uint32_t NPC_TEXT_HEADER_LOAD_RVA = 0x261403;
 constexpr uint32_t NPC_TEXT_PADDING_RVA = 0x261435;
+
+// d2bsng addition (unconditional): the S2C 0x27 handler (0x4A1600), for a unit type
+// other than 1 (monster) or 2 (object), frees the open NPC's message list
+// (0x7BF250) through TEXT_FreeTextHeader (0x6612A0, __stdcall) at 0x4A170D with
+// no null test, unlike the game's other frees of that list (0x4A068D, 0x4A1684,
+// 0x4A1749). With no NPC open the free reads the null list: an access violation
+// at 0x6612A7. The guard: a short jmp from the `push eax` (0x4A170C) into the
+// int3 padding after the handler (0x4A1721), which frees the list only when
+// eax holds one and jumps back to 0x4A1712, where the handler clears the list
+// and returns. The handler reads only esi and ebp after the call, and the
+// packet dispatcher discards its eax.
+constexpr uint32_t NPC_LIST_FREE_RVA = 0xA170C;
+constexpr uint32_t NPC_LIST_FREE_PADDING_RVA = 0xA1721;
 
 // Fills in the names a 0x5A event packet leaves to the client, as reference
 // D2NetHandlers.cpp EventMessagesHandler does before firing gameevent.
@@ -1351,6 +1367,31 @@ void InstallAll() {
         }
     }
 
+    if (!siteNpcListFree.installed) {
+        // push eax; call 0x6612A0 -> jmp short 0x4A1721, the call left unreached.
+        constexpr std::array<uint8_t, 6> PUSH_AND_FREE = {0x50, 0xE8, 0x8E, 0xFB, 0x1B, 0x00};
+        constexpr std::array<uint8_t, 2> JMP_TO_PADDING = {0xEB, 0x13};
+        // test eax, eax; jz +6; push eax; call 0x6612A0; jmp 0x4A1712. Both rel32s stay within Game.exe.
+        constexpr std::array<uint8_t, 15> INT3_PADDING = {0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC,
+                                                          0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC};
+        constexpr std::array<uint8_t, 15> TEST_AND_FREE = {0x85, 0xC0, 0x74, 0x06, 0x50, 0xE8, 0x75, 0xFB,
+                                                           0x1B, 0x00, 0xE9, 0xE2, 0xFF, 0xFF, 0xFF};
+        const uintptr_t site = moduleBase + NPC_LIST_FREE_RVA;
+        const uintptr_t padding = moduleBase + NPC_LIST_FREE_PADDING_RVA;
+        if (std::ranges::equal(PUSH_AND_FREE,
+                               std::span(reinterpret_cast<const uint8_t*>(site), PUSH_AND_FREE.size())) &&
+            std::ranges::equal(INT3_PADDING,
+                               std::span(reinterpret_cast<const uint8_t*>(padding), INT3_PADDING.size()))) {
+            WriteN(padding, TEST_AND_FREE.data(), TEST_AND_FREE.size(), siteNpcListFreePadding.original.data());
+            siteNpcListFreePadding.installed = true;
+            WriteN(site, JMP_TO_PADDING.data(), JMP_TO_PADDING.size(), siteNpcListFree.original.data());
+            siteNpcListFree.installed = true;
+        } else {
+            spdlog::warn("NPC message list free sites at {:#x} / {:#x} do not hold the expected bytes - left unpatched",
+                         site, padding);
+        }
+    }
+
     // Conditional[] sites - each gated on its LaunchOptions toggle.
     const auto& opts = game::GetLaunchOptions();
 
@@ -1446,6 +1487,8 @@ void RemoveAll() {
     RestoreSite(siteCreateWindowTitled, CREATE_WINDOW_TITLED_RVA, 6);
     RestoreSite(siteBypassMultiInstance, BYPASS_MULTI_INSTANCE_RVA, 6);
 
+    RestoreSite(siteNpcListFree, NPC_LIST_FREE_RVA, 2);
+    RestoreSite(siteNpcListFreePadding, NPC_LIST_FREE_PADDING_RVA, 15);
     RestoreSite(siteNpcTextHeaderLoad, NPC_TEXT_HEADER_LOAD_RVA, 2);
     RestoreSite(siteNpcTextPadding, NPC_TEXT_PADDING_RVA, 10);
     if (siteUninterruptableHalt.installed) {
