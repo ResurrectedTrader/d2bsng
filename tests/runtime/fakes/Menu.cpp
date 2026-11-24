@@ -8,6 +8,12 @@ LoginResult Login(const config::ProfileData& /*profile*/) {
 bool SelectCharacter(const std::string& /*charName*/) {
     return false;
 }
+std::optional<std::vector<CharacterListEntry>> GetCharacterList() {
+    return std::nullopt;
+}
+bool FocusCharacter(const std::string& /*name*/) {
+    return false;
+}
 bool CreateCharacter(const std::string& /*name*/, CharacterClass /*charClass*/, bool /*isHardcore*/, bool /*isLadder*/,
                      GameType /*gameType*/) {
     return false;

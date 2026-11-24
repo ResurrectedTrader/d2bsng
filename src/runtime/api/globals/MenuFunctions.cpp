@@ -102,6 +102,72 @@ void RegisterMenuFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             args.GetReturnValue().Set(game::SelectCharacter(*charname));
         });
 
+    /// @description Lists every character on the character-select screen in one call, in the order the screen lists
+    /// them. Only the expansion character-select screen is supported. On a realm the list holds the characters the
+    /// realm sent: when an account has more, the screen's "more characters" row is left out.
+    /// @signature getCharacterList()
+    /// @returns {Array<{name:string, realm:string, classid:number, level:number, hardcore:boolean, expansion:boolean,
+    /// ladder:boolean, dead:boolean, expires:number}>|false} - one object per character: realm is empty in single
+    /// player, classid runs from 0 (Amazon) to 6 (Assassin), dead marks a hardcore character that died and can't be
+    /// played, and expires is the realm expiry in Unix seconds, 0 when there is none (as in single player). false when
+    /// getLocation() does not report 12 (only the expansion character-select screen does, and a popup such as the
+    /// difficulty choice changes the location) or a realm is still sending its list. A screen with no characters
+    /// reports 42, as it can while a list is still loading.
+    function::Register(
+        isolate, global, "getCharacterList", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+            auto* isolate = args.GetIsolate();
+            auto context = isolate->GetCurrentContext();
+            const auto list = game::GetCharacterList();
+            if (!list) {
+                args.GetReturnValue().SetFalse();
+                return;
+            }
+            auto arr = v8::Array::New(isolate, static_cast<int32_t>(list->size()));
+            uint32_t i = 0;
+            for (const auto& character : *list) {
+                auto obj = v8::Object::New(isolate);
+                auto set = [&](const char* key, v8::Local<v8::Value> value) {
+                    obj->Set(context, convert::ToJS(isolate, key), value).Check();
+                };
+                set("name", convert::ToJS(isolate, character.name));
+                set("realm", convert::ToJS(isolate, character.realm));
+                set("classid", convert::ToJS(isolate, character.classId));
+                set("level", convert::ToJS(isolate, character.level));
+                set("hardcore", convert::ToJS(isolate, character.isHardcore));
+                set("expansion", convert::ToJS(isolate, character.isExpansion));
+                set("ladder", convert::ToJS(isolate, character.isLadder));
+                set("dead", convert::ToJS(isolate, character.isDead));
+                set("expires", convert::ToJS(isolate, character.expires));
+                arr->Set(context, i++, obj).Check();
+            }
+            args.GetReturnValue().Set(arr);
+        });
+
+    /// @description Selects a character on the character-select screen by name and scrolls the list to show it.
+    /// Selecting does not log in: click OK or press Enter after it returns; a character slot click or an arrow key in
+    /// between changes the selection again. Only the expansion character-select screen is supported.
+    /// @signature focusCharacter(name: string)
+    /// @param name {string} - The character name, not case sensitive.
+    /// @returns {boolean} - true when the character is selected; false when it is not in the list, getLocation()
+    /// does not report 12, a realm is still sending its list, a character is being deleted or logged in, or a popup
+    /// such as the delete confirmation or the gateway list is open.
+    /// @throws {Error} - name is missing or not a string.
+    function::Register(
+        isolate, global, "focusCharacter", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
+            auto* isolate = args.GetIsolate();
+            args.GetReturnValue().SetFalse();
+            if (args.Length() < 1 || !args[0]->IsString()) {
+                error::ThrowError(isolate, "focusCharacter needs a character name");
+                return;
+            }
+            const std::string name = convert::ToString(isolate, args[0]);
+            // The match would stop at the first NUL, so a name holding one would select whoever its prefix names.
+            if (name.empty() || name.find('\0') != std::string::npos) {
+                return;
+            }
+            args.GetReturnValue().Set(game::FocusCharacter(name));
+        });
+
     /// @description Creates a new character at the menu with the given name and class.
     /// @signature createCharacter(name: string, type: CharacterClass, hardcore?: boolean, ladder?: boolean, gameType?:
     /// GameType)

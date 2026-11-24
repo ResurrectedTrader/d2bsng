@@ -149,6 +149,7 @@
     <ClInclude Include="imports\BnClient.h" />
     <ClInclude Include="imports\Storm.h" />
     <ClInclude Include="imports\extras\BNGatewayAccess.h" />
+    <ClInclude Include="imports\extras\CharSel.h" />
     <ClInclude Include="imports\extras\D2UnitHashTables.h" />
     <ClInclude Include="imports\extras\MPQStats.h" />
     <ClInclude Include="imports\extras\NPCMenu.h" />

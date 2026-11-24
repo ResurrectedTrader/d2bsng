@@ -12,6 +12,7 @@
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-braces"
+#include <D2WinScrollBar.h>
 #include <D2WinTextBox.h>
 #pragma clang diagnostic pop
 
@@ -22,6 +23,7 @@
 #include <string_view>
 #include <thread>
 #include <utility>
+#include <vector>
 
 namespace d2bs::game {
 
@@ -572,6 +574,129 @@ bool SelectCharacter(const std::string& charName) {
     }
     hit->Click();
     return ClickButtonAt(627, 572, 128, 35);
+}
+
+namespace {
+
+// The character-select list, or null when the screen is not up or a realm's list is being
+// requested again (it is torn down and refilled from the reply). The caller holds the game lock.
+lod114d::imports::extras::CharSelEntry* CharSelListIfReady() {
+    namespace d2launch = lod114d::imports::d2launch;
+    if (GetGameState() != GameState::Menu || GetOutOfGameLocation() != OutOfGameLocation::CharacterSelect ||
+        *d2launch::gbCharSelRealmRequest != 0U) {
+        return nullptr;
+    }
+    return *d2launch::gpCharSelList;
+}
+
+std::string CharSelName(const lod114d::imports::extras::CharSelEntry& entry) {
+    const auto& raw = entry.szName;
+    const auto length = std::ranges::find(raw, '\0') - raw.begin();
+    return utils::ToStr(utils::ToWStr(std::string(raw.data(), length), CP_ACP));
+}
+
+}  // namespace
+
+std::optional<std::vector<CharacterListEntry>> GetCharacterList() {
+    namespace extras = lod114d::imports::extras;
+    GameReadLock guard;
+    const auto* entry = CharSelListIfReady();
+    if (entry == nullptr) {
+        return std::nullopt;
+    }
+    const int32_t count = *lod114d::imports::d2launch::gnCharSelCount;
+    std::vector<CharacterListEntry> list;
+    list.reserve(static_cast<size_t>(std::max(count, 0)));
+    for (int32_t i = 0; entry != nullptr && i < count; entry = entry->pNext, ++i) {
+        if (entry->nKind != extras::CHARSEL_ROW_CHARACTER) {
+            continue;
+        }
+        const auto& realm = entry->wszRealm;
+        const auto realmLength = std::ranges::find(realm, L'\0') - realm.begin();
+        const bool isHardcore = (entry->wFlags & extras::CHARSEL_FLAG_HARDCORE) != 0;
+        list.push_back({
+            .name = CharSelName(*entry),
+            .realm = utils::ToStr(std::wstring(realm.data(), realmLength)),
+            .classId = entry->nClass,
+            .level = entry->wLevel,
+            .isHardcore = isHardcore,
+            .isExpansion = (entry->wFlags & extras::CHARSEL_FLAG_EXPANSION) != 0,
+            .isLadder = entry->bLadder != 0,
+            // The status bit records a death, and only a hardcore character stays dead. Single player and TCP/IP
+            // refuse one at OK; a realm leaves the refusal to its server.
+            .isDead = isHardcore && (entry->wFlags & extras::CHARSEL_FLAG_DIED) != 0,
+            .expires = entry->dwExpires,
+        });
+    }
+    return list;
+}
+
+bool FocusCharacter(const std::string& name) {
+    if (name.empty() || GetGameState() != GameState::Menu) {
+        return false;
+    }
+    // One game-thread turn covers the lookup and the writes: the list can be rebuilt in between otherwise, and the
+    // game does not reset the selected row when it is, so a stale index would select whoever moved into it.
+    return GameThread::Execute([&name]() -> bool {
+        namespace d2launch = lod114d::imports::d2launch;
+        const auto* entry = CharSelListIfReady();
+        // Only the expansion screen shows eight rows, two to a line; the classic screen lays them out differently.
+        // The delete and convert confirmations act on whichever row is selected when YES is clicked, and the realm
+        // login, delete and convert waits run inside their handlers; each shows a popup, so a popup refuses.
+        constexpr int32_t VISIBLE = 8;
+        if (entry == nullptr || *d2launch::gnCharSelVisible != VISIBLE || *d2launch::gbCharSelBusy != 0U ||
+            *d2launch::gbCharSelGatewayList != 0U || *d2launch::gnPopupControls != 0) {
+            return false;
+        }
+
+        const int32_t count = *d2launch::gnCharSelCount;
+        int32_t index = -1;
+        for (int32_t i = 0; entry != nullptr && i < count; entry = entry->pNext, ++i) {
+            if (entry->nKind == lod114d::imports::extras::CHARSEL_ROW_CHARACTER &&
+                utils::EqualsCaseInsensitive(CharSelName(*entry), name)) {
+                index = i;
+                break;
+            }
+        }
+        if (index < 0) {
+            return false;
+        }
+
+        int32_t first = *d2launch::gnCharSelFirst;
+        const int32_t last = count > VISIBLE ? count - VISIBLE + ((count - VISIBLE) & 1) : 0;
+        // The game keeps the first row even so each column holds one parity, which its Left and Right keys rely
+        // on. End can leave it odd and a scroll bar drag past the end, so both are realigned with the least movement.
+        if (index < first || index >= first + VISIBLE || (first & 1) != 0 || first > last) {
+            if (index >= first && index < first + VISIBLE) {
+                first &= ~1;
+                if (index >= first + VISIBLE) {
+                    first += 2;
+                }
+            } else if (index < first) {
+                first = index - (index & 1);
+            } else {
+                first = index - (index & 1) - (VISIBLE - 2);
+            }
+            first = std::clamp(first, 0, std::max(last, 0));
+        }
+        *d2launch::gnCharSelFirst = first;
+        *d2launch::gnCharSelSelected = index;
+
+        // The scroll callback moves the list by the change from the position it saw last, so both are set together.
+        auto* box = *d2launch::gpCharSelListBox;
+        auto* bar = box != nullptr && box->controlHeader.nType == D2WIN_TEXTBOX ? box->pScrollBar : nullptr;
+        if (bar != nullptr && bar->controlHeader.nType == D2WIN_SCROLLBAR) {
+            const int32_t pos = std::clamp(first / 2, 0, std::max(bar->nMaxSteps, 0));
+            bar->nCurrentStep = pos;
+            *d2launch::gnCharSelScrollPos = pos;
+        }
+
+        // The update also enables OK for the new row: without it OK can stay disabled from an earlier empty-slot
+        // click.
+        d2launch::CHARSEL_RefillRows();
+        d2launch::CHARSEL_UpdateSelection();
+        return true;
+    });
 }
 
 bool CreateGame(const std::string& name, const std::string& password, Difficulty difficulty) {
