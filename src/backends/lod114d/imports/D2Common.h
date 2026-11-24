@@ -120,6 +120,9 @@ inline StdcallFunc<void(D2DrlgActStrc* /*pAct*/, int32_t /*nLevelId*/, int32_t /
 inline StdcallFunc<void(D2DrlgActStrc* /*pAct*/, int32_t /*nLevelId*/, int32_t /*nX*/, int32_t /*nY*/,
                         D2ActiveRoomStrc* /*pRoom*/)>
     DUNGEON_UnsetClientIsInSight{0x21A0C0};
+// Frees one preset unit and its path data (pMapAI) from the act's pool, as the room free (0x66C100) does for each
+// node of a room's preset list.
+inline FastcallFunc<void(void* /*pMemPool*/, D2PresetUnitStrc* /*pPresetUnit*/)> DRLGPRESET_FreePresetUnit{0x2675D0};
 
 // Semantically matches MOO's QUESTRECORD_GetQuestState shape (BitBuffer + two
 // ints). 1.14d encodes (quest, flag) into the (nQuest, nState) pair the
