@@ -173,29 +173,30 @@ class JSControl : public ClassBase<JSControl, game::Control> {
                     return;
                 info.GetReturnValue().Set(static_cast<uint32_t>(data->Type()));
             });
-        /// @description The text-caret character offset within the control's text buffer.
+        /// @description The text-caret character offset within an edit box's text buffer; undefined for any other
+        /// control type, and writing it there (or writing a non-integer) does nothing.
         /// @type {number}
         Property(
             isolate, inst, "cursorpos",
             +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
                 const auto data = MenuOnly(info);
-                if (!data)
+                // The caret is an edit-box field; other control types keep other data at that offset.
+                if (!data || data->Type() != game::ControlType::EditBox)
                     return;
                 info.GetReturnValue().Set(static_cast<int32_t>(data->CursorPos()));
             },
             +[](v8::Local<v8::Name> property, v8::Local<v8::Value> value,
                 const v8::PropertyCallbackInfo<v8::Boolean>& info) {
+                if (!value->IsInt32()) {
+                    return;
+                }
                 // SetCursorPos can wait on the game thread, so it runs on a copy after the lock is dropped.
                 game::Control control;
                 {
                     const auto data = MenuOnly(info);
-                    if (!data)
+                    if (!data || data->Type() != game::ControlType::EditBox)
                         return;
                     control = *data;
-                }
-                if (!value->IsNumber()) {
-                    error::ThrowError(info.GetIsolate(), "Invalid cursor position value");
-                    return;
                 }
                 control.SetCursorPos(convert::To<uint32_t>(info.GetIsolate(), value));
             });

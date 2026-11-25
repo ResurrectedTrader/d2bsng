@@ -282,16 +282,14 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @returns {boolean} - true on success (or if already included); false if the file is not found under libs/, fails
     /// to compile or throws (the error is reported; with the includeReturnsFalse compatibility flag off it is also
     /// rethrown), or there is no current script
+    /// @throws {TypeError} - file is missing or not a string ("include: the file name must be a string")
     function::Register(
         isolate, global, "include", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             args.GetReturnValue().SetFalse();
 
-            if (!error::CheckArgCount(args, 1, "include")) {
-                return;
-            }
-
-            if (!error::CheckIsString(args, 0, "file")) {
+            if (args.Length() < 1 || !args[0]->IsString()) {
+                error::ThrowTypeError(isolate, "include: the file name must be a string");
                 return;
             }
 
@@ -313,16 +311,14 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature isIncluded(file: string)
     /// @param file {string} - path relative to the libs/ subdirectory
     /// @returns {boolean} - true if the file is already included; false otherwise
+    /// @throws {TypeError} - file is missing or not a string ("isIncluded: the file name must be a string")
     function::Register(
         isolate, global, "isIncluded", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             args.GetReturnValue().SetFalse();
 
-            if (!error::CheckArgCount(args, 1, "isIncluded")) {
-                return;
-            }
-
-            if (!error::CheckIsString(args, 0, "file")) {
+            if (args.Length() < 1 || !args[0]->IsString()) {
+                error::ThrowTypeError(isolate, "isIncluded: the file name must be a string");
                 return;
             }
 
