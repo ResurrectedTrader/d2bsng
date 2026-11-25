@@ -640,19 +640,19 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param data {string} - optional DDE data payload
     /// @returns {string|boolean} - for a Request (mode 0), the reply, or an empty string when the server could not be
     /// reached or gave none; false for the other modes
-    /// @throws {Error} - fewer than 2 arguments ("sendDDE: mode and server are required"), a mode that is not an
-    /// integer ("sendDDE: mode must be an integer"), or DDE cannot be initialised
+    /// @throws {Error} - fewer than 2 arguments ("sendDDE requires at least 2 arguments"), a mode that is not an
+    /// integer ("sendDDE mode must be an integer"), or DDE cannot be initialised
     function::Register(
         isolate, global, "sendDDE", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
             args.GetReturnValue().SetFalse();
 
             if (args.Length() < 2) {
-                error::ThrowError(isolate, "sendDDE: mode and server are required");
+                error::ThrowError(isolate, "sendDDE requires at least 2 arguments");
                 return;
             }
             if (!args[0]->IsInt32()) {
-                error::ThrowError(isolate, "sendDDE: mode must be an integer");
+                error::ThrowError(isolate, "sendDDE mode must be an integer");
                 return;
             }
             const int32_t mode = args[0].As<v8::Int32>()->Value();

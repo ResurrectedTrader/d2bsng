@@ -1881,13 +1881,18 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature copy(text: string)
     /// @param text {string} - text to place on the clipboard
     /// @returns {boolean} - true when the clipboard took the text; false when it could not be opened or set
-    /// @throws {Error} - text is missing or not a string ("copy: the argument must be a string")
+    /// @throws {TypeError} - text is missing ("copy requires 1 argument") or not a string ("copy requires a string
+    /// argument")
     function::Register(
         isolate, global, "copy", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
-            if (args.Length() < 1 || !args[0]->IsString()) {
-                error::ThrowError(isolate, "copy: the argument must be a string");
+            if (args.Length() < 1) {
+                error::ThrowTypeError(isolate, "copy requires 1 argument");
+                return;
+            }
+            if (!args[0]->IsString()) {
+                error::ThrowTypeError(isolate, "copy requires a string argument");
                 return;
             }
             args.GetReturnValue().SetFalse();
