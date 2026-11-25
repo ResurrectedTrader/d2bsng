@@ -2,6 +2,12 @@
 
 #include <v8.h>
 
+#include <fcntl.h>
+#include <io.h>
+#include <share.h>
+#include <sys/stat.h>
+
+#include <array>
 #include <cstdio>
 #include <filesystem>
 #include <mutex>
@@ -99,15 +105,17 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
                 std::filesystem::rename(oldPath, newPath, ec);
             });
 
-        /// @description Copy a file within the script base directory (text-mode, so CRLF/LF translation may apply).
-        /// @signature copy(original: string, copy: string, skipIfExists?: boolean)
+        /// @description Copy a file byte for byte within the script base directory. An existing destination is
+        /// replaced only when overwrite is true; a failed copy leaves no partial destination behind.
+        /// @signature copy(original: string, copy: string, overwrite?: boolean)
         /// @param original {string} - source file name relative to the script base directory.
         /// @param copy {string} - destination file name relative to the script base directory.
-        /// @param skipIfExists {boolean} - optional, default false; when true, skip the copy if the destination exists.
-        /// @returns {undefined} - throws "Invalid new file name", "Couldn't open file", or "File copy failed".
-        /// @throws {Error} - original or copy is empty or resolves outside the script base directory.
-        /// @throws {Error} - the source or destination file cannot be opened.
-        /// @throws {Error} - copying fails partway (a read or write error occurs).
+        /// @param overwrite {boolean} - optional, default false; true replaces an existing destination.
+        /// @returns {boolean} - true when the file was copied; false when it was not: a missing or unreadable source,
+        /// an existing destination without overwrite, a destination that is the source or held open, or a failed
+        /// read or write.
+        /// @throws {Error} - original or copy is empty or resolves outside the script base directory ("Invalid
+        /// original file name" / "Invalid new file name").
         StaticMethod(
             isolate, tpl, "copy", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
@@ -125,56 +133,68 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
 
                 std::string original = convert::ToString(isolate, args[0]);
                 std::string copyName = convert::ToString(isolate, args[1]);
-                bool skipIfExists = convert::To<bool>(isolate, args.Length() > 2 ? args[2] : v8::Local<v8::Value>());
+                const bool overwrite = args.Length() > 2 && args[2]->IsBoolean() && args[2]->BooleanValue(isolate);
 
+                auto srcPath = filetools_detail::ResolveScriptPath(isolate, original, "Invalid original file name");
+                if (srcPath.empty()) {
+                    return;
+                }
                 auto dstPath = filetools_detail::ResolveScriptPath(isolate, copyName, "Invalid new file name");
                 if (dstPath.empty()) {
                     return;
                 }
 
-                // Reference: if "overwrite" is true and dest exists, skip (inverted semantic)
-                std::error_code ec;
-                if (skipIfExists && std::filesystem::exists(dstPath, ec)) {
+                // Filesystem failures return false rather than throw: scripts copy files that may be missing.
+                args.GetReturnValue().SetFalse();
+                // A self-copy must never reach the truncating open.
+                if (_wcsicmp(srcPath.c_str(), dstPath.c_str()) == 0) {
                     return;
                 }
 
-                // Text-mode char-by-char copy matching reference fgetc/fputc behavior
-                FILE* src = filetools_detail::FileOpenRelScript(isolate, original, L"r");
-                if (src == nullptr) {
+                FILE* src = nullptr;
+                if (_wfopen_s(&src, srcPath.c_str(), L"rb") != 0 || src == nullptr) {
                     return;
                 }
-                FILE* dst = filetools_detail::FileOpenRelScript(isolate, copyName, L"w");
-                if (dst == nullptr) {
+                // _O_EXCL keeps an existing destination atomically; _O_TRUNC replaces it only when asked. Deny-all
+                // sharing makes a second copy to the same destination fail instead of interleaving.
+                int32_t fd = -1;
+                if (_wsopen_s(&fd, dstPath.c_str(), _O_WRONLY | _O_CREAT | _O_BINARY | (overwrite ? _O_TRUNC : _O_EXCL),
+                              _SH_DENYRW, _S_IREAD | _S_IWRITE) != 0) {
                     fclose(src);
                     return;
                 }
-
-                bool success = true;
-                while (!feof(src)) {
-                    int32_t ch = fgetc(src);
-                    if (ferror(src)) {
-                        success = false;
-                        break;
-                    }
-                    if (!feof(src)) {
-                        fputc(ch, dst);
-                        if (ferror(dst)) {
-                            success = false;
-                            break;
-                        }
-                    }
-                }
-
-                fflush(dst);
-                fclose(dst);
-                fclose(src);
-
-                if (!success) {
-                    std::error_code removeEc;
-                    std::filesystem::remove(dstPath, removeEc);
-                    error::ThrowError(isolate, "File copy failed");
+                FILE* dst = _wfdopen(fd, L"wb");
+                if (dst == nullptr) {
+                    _close(fd);
+                    fclose(src);
+                    _wremove(dstPath.c_str());
                     return;
                 }
+
+                constexpr size_t CHUNK_SIZE = 4096;
+                std::array<char, CHUNK_SIZE> chunk{};
+                bool isCopied = true;
+                size_t count = 0;
+                while ((count = fread(chunk.data(), 1, chunk.size(), src)) > 0) {
+                    if (fwrite(chunk.data(), 1, count, dst) != count) {
+                        isCopied = false;
+                        break;
+                    }
+                }
+                if (ferror(src) != 0) {
+                    isCopied = false;
+                }
+                // fclose flushes; a failed flush leaves the destination incomplete.
+                if (fclose(dst) != 0) {
+                    isCopied = false;
+                }
+                fclose(src);
+
+                // A partial destination must not look like a finished copy.
+                if (!isCopied) {
+                    _wremove(dstPath.c_str());
+                }
+                args.GetReturnValue().Set(isCopied);
             });
 
         /// @description Test whether a file or directory exists under the script base directory.
