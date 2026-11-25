@@ -2,16 +2,11 @@
 
 #include <v8.h>
 
-#include <fcntl.h>
-#include <io.h>
-#include <share.h>
-#include <sys/stat.h>
-
-#include <array>
 #include <cstdio>
 #include <filesystem>
 #include <mutex>
 #include <string>
+#include <system_error>
 
 #include "api/core/Class.h"
 #include "api/core/Convert.h"
@@ -106,14 +101,14 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
             });
 
         /// @description Copy a file byte for byte within the script base directory. An existing destination is
-        /// replaced only when overwrite is true; a failed copy leaves no partial destination behind.
+        /// replaced only when overwrite is true, and a failed copy leaves no partial destination behind.
         /// @signature copy(original: string, copy: string, overwrite?: boolean)
         /// @param original {string} - source file name relative to the script base directory.
         /// @param copy {string} - destination file name relative to the script base directory.
         /// @param overwrite {boolean} - optional, default false; true replaces an existing destination.
         /// @returns {boolean} - true when the file was copied; false when it was not: a missing or unreadable source,
-        /// an existing destination without overwrite, a destination that is the source or held open, or a failed
-        /// read or write.
+        /// an existing destination without overwrite, a destination that is the source, or a destination that cannot be
+        /// written.
         /// @throws {Error} - original or copy is empty or resolves outside the script base directory ("Invalid
         /// original file name" / "Invalid new file name").
         StaticMethod(
@@ -146,55 +141,19 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
 
                 // Filesystem failures return false rather than throw: scripts copy files that may be missing.
                 args.GetReturnValue().SetFalse();
-                // A self-copy must never reach the truncating open.
-                if (_wcsicmp(srcPath.c_str(), dstPath.c_str()) == 0) {
+                std::error_code ec;
+                // A self-copy is refused, as in the reference (equivalent fails, with ec set, when either is missing).
+                if (std::filesystem::equivalent(srcPath, dstPath, ec)) {
                     return;
                 }
-
-                FILE* src = nullptr;
-                if (_wfopen_s(&src, srcPath.c_str(), L"rb") != 0 || src == nullptr) {
-                    return;
-                }
-                // _O_EXCL keeps an existing destination atomically; _O_TRUNC replaces it only when asked. Deny-all
-                // sharing makes a second copy to the same destination fail instead of interleaving.
-                int32_t fd = -1;
-                if (_wsopen_s(&fd, dstPath.c_str(), _O_WRONLY | _O_CREAT | _O_BINARY | (overwrite ? _O_TRUNC : _O_EXCL),
-                              _SH_DENYRW, _S_IREAD | _S_IWRITE) != 0) {
-                    fclose(src);
-                    return;
-                }
-                FILE* dst = _wfdopen(fd, L"wb");
-                if (dst == nullptr) {
-                    _close(fd);
-                    fclose(src);
-                    _wremove(dstPath.c_str());
-                    return;
-                }
-
-                constexpr size_t CHUNK_SIZE = 4096;
-                std::array<char, CHUNK_SIZE> chunk{};
-                bool isCopied = true;
-                size_t count = 0;
-                while ((count = fread(chunk.data(), 1, chunk.size(), src)) > 0) {
-                    if (fwrite(chunk.data(), 1, count, dst) != count) {
-                        isCopied = false;
-                        break;
-                    }
-                }
-                if (ferror(src) != 0) {
-                    isCopied = false;
-                }
-                // fclose flushes; a failed flush leaves the destination incomplete.
-                if (fclose(dst) != 0) {
-                    isCopied = false;
-                }
-                fclose(src);
-
-                // A partial destination must not look like a finished copy.
-                if (!isCopied) {
-                    _wremove(dstPath.c_str());
-                }
-                args.GetReturnValue().Set(isCopied);
+                ec.clear();
+                // CopyFile underneath fails atomically on an existing destination without overwrite, and removes a
+                // destination it could not finish.
+                const bool isCopied = std::filesystem::copy_file(
+                    srcPath, dstPath,
+                    overwrite ? std::filesystem::copy_options::overwrite_existing : std::filesystem::copy_options::none,
+                    ec);
+                args.GetReturnValue().Set(isCopied && !ec);
             });
 
         /// @description Test whether a file or directory exists under the script base directory.
