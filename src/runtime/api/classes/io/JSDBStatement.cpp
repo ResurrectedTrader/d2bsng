@@ -11,7 +11,7 @@ namespace d2bs::runtime::api::classes {
 namespace {
 
 // Thrown by every method that needs a live statement after close(), go() or the database's close().
-constexpr std::string_view STMT_CLOSED = "The statement is closed";
+constexpr std::string_view STMT_CLOSED = "Invalid or finalized statement object";
 
 v8::Local<v8::ArrayBuffer> ColumnBlob(v8::Isolate* isolate, sqlite3_stmt* handle, int32_t index) {
     // SQLite documents this order: the byte count describes the value the
@@ -73,12 +73,12 @@ bool CheckColumnArgs(const v8::FunctionCallbackInfo<v8::Value>& args, const DBSt
         return false;
     }
     if (args.Length() != 1 || !args[0]->IsInt32()) {
-        error::ThrowError(isolate, std::string("Invalid parameter for SQLiteStatement.").append(method));
+        error::ThrowTypeError(isolate, std::string(method).append("() requires column index"));
         return false;
     }
     index = args[0].As<v8::Int32>()->Value();
     if (index < 0 || index >= sqlite3_column_count(data.handle)) {
-        error::ThrowError(isolate, "Invalid column index");
+        error::ThrowRangeError(isolate, "Column index out of range");
         return false;
     }
     return true;
@@ -115,8 +115,8 @@ void DBStatementData::Close() {
 }
 
 // Every method keeps the reference's three answers to an unusable statement: a `this` that is no DBStatement (a
-// foreign object or the prototype) gets a neutral value, a closed statement throws "The statement is closed", and
-// reading the row with no current row throws "Statement is not ready".
+// foreign object or the prototype) gets a neutral value, a closed statement throws "Invalid or finalized statement
+// object", and reading the row with no current row throws "Statement is not ready".
 // NOLINTNEXTLINE(readability-function-size) - V8 template configuration, intentionally large
 void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
     auto inst = tpl->InstanceTemplate();
@@ -165,7 +165,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
     /// @signature getObject()
     /// @returns {object|boolean|null} - Row object keyed by column name (BLOB columns as an ArrayBuffer), true for a
     /// zero-column row, null if no row.
-    /// @throws {Error} - the statement is closed ("The statement is closed")
+    /// @throws {Error} - the statement is closed ("Invalid or finalized statement object")
     Method(
         isolate, proto, "getObject", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
@@ -215,7 +215,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
     /// @description The number of columns in the current row.
     /// @signature getColumnCount()
     /// @returns {number} - Count of columns in the current row; 0 when this is not a DBStatement.
-    /// @throws {Error} - the statement is closed ("The statement is closed")
+    /// @throws {Error} - the statement is closed ("Invalid or finalized statement object")
     /// @throws {Error} - if the statement is not ready (no current row)
     Method(
         isolate, proto, "getColumnCount", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -241,10 +241,10 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
     /// @signature getColumnName(index: number)
     /// @param index {number} - Zero-based column index; must be an integer in [0, columnCount).
     /// @returns {string} - The column's name; undefined when this is not a DBStatement.
-    /// @throws {Error} - the statement is closed ("The statement is closed")
+    /// @throws {Error} - the statement is closed ("Invalid or finalized statement object")
     /// @throws {Error} - if the statement is not ready (no current row)
-    /// @throws {Error} - index is missing or not an integer ("Invalid parameter for SQLiteStatement.getColumnName")
-    /// @throws {Error} - index is outside [0, columnCount) ("Invalid column index")
+    /// @throws {TypeError} - index is missing or not an integer ("getColumnName() requires column index")
+    /// @throws {RangeError} - index is outside [0, columnCount) ("Column index out of range")
     Method(
         isolate, proto, "getColumnName", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
@@ -265,10 +265,10 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
     /// @param index {number} - Zero-based column index; must be an integer in [0, columnCount).
     /// @returns {number|string|ArrayBuffer|null} - The column value by type (a BLOB as an ArrayBuffer), null for SQL
     /// NULL; undefined when this is not a DBStatement.
-    /// @throws {Error} - the statement is closed ("The statement is closed")
+    /// @throws {Error} - the statement is closed ("Invalid or finalized statement object")
     /// @throws {Error} - if the statement is not ready (no current row)
-    /// @throws {Error} - index is missing or not an integer ("Invalid parameter for SQLiteStatement.getColumnValue")
-    /// @throws {Error} - index is outside [0, columnCount) ("Invalid column index")
+    /// @throws {TypeError} - index is missing or not an integer ("getColumnValue() requires column index")
+    /// @throws {RangeError} - index is outside [0, columnCount) ("Column index out of range")
     Method(
         isolate, proto, "getColumnValue", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
@@ -287,7 +287,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
     /// @signature go()
     /// @returns {boolean} - True if the statement ran to completion, false if it returned a row (or this is not a
     /// DBStatement).
-    /// @throws {Error} - the statement is closed ("The statement is closed")
+    /// @throws {Error} - the statement is closed ("Invalid or finalized statement object")
     /// @throws {Error} - if stepping the statement fails; the statement stays open and not ready
     Method(
         isolate, proto, "go", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -318,7 +318,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
     /// @description Advances the statement to the next result row.
     /// @signature next()
     /// @returns {boolean} - True if a row is now available, false if no more rows (or this is not a DBStatement).
-    /// @throws {Error} - the statement is closed ("The statement is closed")
+    /// @throws {Error} - the statement is closed ("Invalid or finalized statement object")
     /// @throws {Error} - if stepping the statement fails
     Method(
         isolate, proto, "next", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -349,8 +349,8 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
     /// @param count {number} - Maximum number of rows to skip, an integer; 0 or less skips nothing.
     /// @returns {number} - Count of rows actually skipped, which may be less than count; 0 when this is not a
     /// DBStatement.
-    /// @throws {Error} - the statement is closed ("The statement is closed")
-    /// @throws {Error} - count is missing or not an integer ("Invalid parameter to SQLiteStatement.skip")
+    /// @throws {Error} - the statement is closed ("Invalid or finalized statement object")
+    /// @throws {TypeError} - count is missing or not an integer ("skip() requires a count argument")
     /// @throws {Error} - if stepping the statement fails
     Method(
         isolate, proto, "skip", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -365,7 +365,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
                 return;
             }
             if (args.Length() < 1 || !args[0]->IsInt32()) {
-                error::ThrowError(isolate, "Invalid parameter to SQLiteStatement.skip");
+                error::ThrowTypeError(isolate, "skip() requires a count argument");
                 return;
             }
 
@@ -395,7 +395,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
     /// @description Resets the statement to its initial state for re-stepping, preserving bound parameters.
     /// @signature reset()
     /// @returns {boolean} - True on successful reset; false when this is not a DBStatement.
-    /// @throws {Error} - the statement is closed ("The statement is closed")
+    /// @throws {Error} - the statement is closed ("Invalid or finalized statement object")
     /// @throws {Error} - if resetting the statement fails (it reports the last step's error, and is rewound anyway)
     Method(
         isolate, proto, "reset", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -449,11 +449,11 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
     /// NULL, integers bind INTEGER, other numbers bind REAL, strings bind TEXT, booleans bind INTEGER 1/0, an
     /// ArrayBuffer or typed array / DataView binds a BLOB of its bytes.
     /// @returns {boolean} - True on success; false when this is not a DBStatement.
-    /// @throws {Error} - the statement is closed ("The statement is closed")
-    /// @throws {Error} - not exactly two arguments, or param is neither an integer nor a string ("Invalid parameters
-    /// for SQLiteStatement.bind")
+    /// @throws {Error} - the statement is closed ("Invalid or finalized statement object")
+    /// @throws {TypeError} - not exactly two arguments, or param is neither an integer nor a string ("bind() requires
+    /// index or parameter name")
     /// @throws {Error} - the parameter name does not resolve, or the index is 0 (indexes start at 1)
-    /// @throws {Error} - value is not a bindable type ("Invalid bound parameter")
+    /// @throws {TypeError} - value is not a bindable type ("Invalid bound parameter type")
     /// @throws {Error} - SQLite refuses the binding, such as an index past the last parameter or a statement that has
     /// stepped and not been reset ("Could not bind parameter N: ...")
     Method(
@@ -469,7 +469,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
                 return;
             }
             if (args.Length() != 2 || !(args[0]->IsInt32() || args[0]->IsString())) {
-                error::ThrowError(isolate, "Invalid parameters for SQLiteStatement.bind");
+                error::ThrowTypeError(isolate, "bind() requires index or parameter name");
                 return;
             }
 
@@ -492,7 +492,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
                     args.GetReturnValue().Set(true);
                     return;
                 case BindResult::BadType:
-                    error::ThrowError(isolate, "Invalid bound parameter");
+                    error::ThrowTypeError(isolate, "Invalid bound parameter type");
                     return;
                 case BindResult::Failed:
                     return;
