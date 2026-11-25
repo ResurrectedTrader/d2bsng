@@ -23,7 +23,11 @@ namespace extract = extract;
 
 using game::UnitType;
 
-std::optional<uint32_t> JSUnit::MercHpPercent(const game::Unit& owner) {
+namespace {
+
+// getMercHP's value for `owner`'s mercenary, under the caller's game read lock: its HP percent, 0 while it lies
+// dead in view, nullopt when `owner` is no player or has no mercenary in view.
+std::optional<uint32_t> MercHpPercent(const game::Unit& owner) {
     if (!owner || owner.Type() != UnitType::Player) {
         return std::nullopt;
     }
@@ -42,6 +46,8 @@ std::optional<uint32_t> JSUnit::MercHpPercent(const game::Unit& owner) {
     const uint32_t maxHp = merc->HpMax();
     return maxHp > 0 ? ((100 * merc->Hp()) + maxHp - 1) / maxHp : 0U;
 }
+
+}  // namespace
 
 // NOLINTNEXTLINE(readability-function-size) - V8 template configuration, intentionally large
 void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {

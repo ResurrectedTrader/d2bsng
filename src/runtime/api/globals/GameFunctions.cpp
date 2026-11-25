@@ -191,7 +191,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// callbacks are called with getPath's own `this`, and the path is empty when the game or the act changes while
     /// one runs.
     /// @throws {Error} - area is 0 (invalid level)
-    /// @throws {Error} - the level is not loaded: it is not in the player's current act ("Level Not loaded")
+    /// @throws {Error} - the level is not loaded: it is not in the player's current act ("Level not loaded")
     /// @throws {RangeError} - reductionType is outside 0-3
     /// @throws {Error} - reductionType is 3 but reject/reduce/mutate functions are missing ("getPath reduction type 3
     /// needs reject, reduce and mutate functions")
@@ -242,7 +242,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             // Reference: a level outside the loaded act throws as getCollision does.
             if (!game::Level::Get(area)) {
-                error::ThrowError(isolate, "Level Not loaded");
+                error::ThrowError(isolate, "Level not loaded");
                 return;
             }
 
@@ -456,7 +456,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 }
             }
             if (!isLevelLoaded) {
-                error::ThrowError(isolate, "Level Not loaded");
+                error::ThrowError(isolate, "Level not loaded");
                 return;
             }
             args.GetReturnValue().Set(std::to_underlying(collision));
@@ -472,16 +472,26 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
-            std::optional<uint32_t> percent;
-            {
-                // One lock across the player test and the merc reads, so they all see the same frame.
-                const game::GameReadLock lock;
-                // Reference: global version always uses player unit
-                percent = JSUnit::MercHpPercent(game::Unit::Player());
+            // One lock across the player test and the merc reads, so they all see the same frame.
+            game::GameReadLock lock;
+            // Reference: global version always uses player unit
+            auto player = game::Unit::Player();
+            if (!player)
+                return;
+            // The current merc dead or alive, as long as it is in a room: d2bs walks the loaded rooms, where a dead
+            // merc lies until the game removes it.
+            auto merc = player.GetMerc(true);
+            if (!merc || !merc->GetRoom())
+                return;
+            // The merc's own mode: its dead mode (12) is a player's kick, so the owner's mode says nothing here.
+            if (merc->Mode() == std::to_underlying(game::MonsterMode::Dead)) {
+                args.GetReturnValue().Set(0);
+                return;
             }
-            if (percent) {
-                args.GetReturnValue().Set(*percent);
-            }
+            // A hireling's Hp() is the game's HP percent scaled to max HP and rounded down, so rounding back up
+            // recovers that percent (exactly whenever max HP is at least 100).
+            const uint32_t maxHp = merc->HpMax();
+            args.GetReturnValue().Set(maxHp > 0 ? ((100 * merc->Hp()) + maxHp - 1) / maxHp : 0U);
         });
 
     /// @description Get the current cursor type.
