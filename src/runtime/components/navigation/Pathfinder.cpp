@@ -426,6 +426,9 @@ struct LevelNodes {
     size_t index;
     WalkNode* nodes;                              // points into gArena.data or ownedFallback
     utils::VirtualArray<WalkNode> ownedFallback;  // non-empty only for fallback case
+    // The call's gCurrentGen: a search a reject callback starts on this thread bumps the counter, which must not
+    // reset this one's nodes.
+    uint32_t generation;
 
     bool Contains(Position p) const { return rect.Contains(p); }
     int32_t ToIdx(Position p) const { return static_cast<int32_t>(CellIndex(rect, p)); }
@@ -438,8 +441,8 @@ struct LevelNodes {
 
     WalkNode& Touch(int32_t idx) const {
         auto& n = nodes[idx];
-        if (n.generation != gCurrentGen) {
-            n.generation = gCurrentGen;
+        if (n.generation != generation) {
+            n.generation = generation;
             n.g = std::numeric_limits<int32_t>::max();
             n.parentIdx = -1;
             n.closed = false;
@@ -464,6 +467,7 @@ std::vector<Position> WalkAStar(CollisionLookup& coll, Position start, Position 
         gArena.data = d2bs::utils::VirtualArray<WalkNode>{};
         gCurrentGen = 1;
     }
+    const uint32_t generation = gCurrentGen;
 
     // A* neighbor math operates on signed Point (for diagonal offset arithmetic
     // and short-circuit checks near grid edges); convert the unsigned Position
@@ -490,7 +494,9 @@ std::vector<Position> WalkAStar(CollisionLookup& coll, Position start, Position 
     // safe to share the arena. Cross-level paths fall back to per-call
     // VirtualArrays for every level they touch - the A* loop itself is large
     // enough in that case that the extra allocations are noise.
-    bool useArena = coll.primary.Contains(start) && coll.primary.Contains(end);
+    // A reject callback runs script, which can start a search of its own on this thread and take the arena over,
+    // so a search with one keeps per-call storage.
+    bool useArena = !jsReject && coll.primary.Contains(start) && coll.primary.Contains(end);
 
     // Per-level node storage. deque for stable references on push_back.
     // Each level's VirtualArray is demand-paged: only pages the A* touches
@@ -517,7 +523,8 @@ std::vector<Position> WalkAStar(CollisionLookup& coll, Position start, Position 
                     return nullptr;
                 gArena = {.origin = g.rect.origin, .data = std::move(arr)};
             }
-            allLevels.push_back({.rect = g.rect, .index = allLevels.size(), .nodes = gArena.data.Data()});
+            allLevels.push_back(
+                {.rect = g.rect, .index = allLevels.size(), .nodes = gArena.data.Data(), .generation = generation});
             return &allLevels.back();
         }
 
@@ -527,7 +534,11 @@ std::vector<Position> WalkAStar(CollisionLookup& coll, Position start, Position 
         if (arr.Empty())
             return nullptr;
         WalkNode* raw = arr.Data();
-        allLevels.push_back({.rect = g.rect, .index = allLevels.size(), .nodes = raw, .ownedFallback = std::move(arr)});
+        allLevels.push_back({.rect = g.rect,
+                             .index = allLevels.size(),
+                             .nodes = raw,
+                             .ownedFallback = std::move(arr),
+                             .generation = generation});
         return &allLevels.back();
     };
 
@@ -1026,6 +1037,19 @@ void RefreshRoomsNearPlayer(CollisionLookup& lookup) {
 }  // namespace
 
 std::vector<Position> FindPath(const PathRequest& request) {
+    // The callbacks run script, which can call getPath on this thread and replace the cached lookup under this
+    // search, so a callback search builds its own.
+    if (request.reduction == ReductionType::JSCallback) {
+        auto levelOpt = game::Level::Get(request.areaId);
+        if (!levelOpt)
+            return {};
+        CollisionLookup lookup;
+        lookup.primary = BuildLevelGrid(*levelOpt);
+        return FindPathOnGrid(lookup, request.start, request.end, request.reduction, request.radius,
+                              request.cancelToken, request.jsReject, request.jsReduce, request.jsMutate,
+                              request.teleportHWeight);
+    }
+
     const uint32_t currentSeed = game::GetMapSeed();
     const bool cacheValid = cachedLookup.has_value() && cachedLookup->primary.levelId == request.areaId &&
                             cachedLookup->primary.mapSeed == currentSeed;

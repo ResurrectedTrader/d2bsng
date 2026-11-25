@@ -96,3 +96,31 @@ TEST_CASE("non-zero origin grid works correctly") {
     CHECK(path.front() == (Position{.x = 1005, .y = 2005}));
     CHECK(path.back() == (Position{.x = 1045, .y = 2045}));
 }
+
+TEST_CASE("a search started from a reject callback leaves the outer search intact") {
+    CollisionLookup coll;
+    coll.primary = LevelGrid({.size = {.width = 60, .height = 60}});
+    for (uint32_t y = 0; y < 50; y++) {
+        coll.primary.Set({.x = 30, .y = y}, CollisionFlag::Wall);
+    }
+    auto reject = [&coll](Position p) {
+        return coll.IsBlocked(p.ToPoint());
+    };
+    const Position start{.x = 5, .y = 5};
+    const Position end{.x = 55, .y = 5};
+    const auto expected = FindPathOnGrid(coll, start, end, ReductionType::JSCallback, 20, {}, reject);
+    REQUIRE_FALSE(expected.empty());
+
+    // The inner search walks a grid over the same rect, as a callback's own getPath on the same level does.
+    CollisionLookup inner;
+    inner.primary = LevelGrid({.size = {.width = 60, .height = 60}});
+    uint32_t calls = 0;
+    auto nestedReject = [&](Position p) {
+        if (++calls % 50 == 0) {
+            FindPathOnGrid(inner, {.x = 1, .y = 1}, {.x = 58, .y = 58}, ReductionType::None, 20, {});
+        }
+        return reject(p);
+    };
+    const auto path = FindPathOnGrid(coll, start, end, ReductionType::JSCallback, 20, {}, nestedReject);
+    CHECK(path == expected);
+}

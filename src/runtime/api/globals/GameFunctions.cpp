@@ -1,10 +1,13 @@
 #include "GameFunctions.h"
 
 #include <array>
+#include <cmath>
 #include <memory>
 #include <optional>
 #include <span>
+#include <stop_token>
 #include <utility>
+#include <vector>
 
 #include <Windows.h>
 
@@ -181,11 +184,16 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @callback reduce(path: Array<{x: number, y: number}>) -> {Array<{x: number, y: number}>} - return the reduced
     /// point list
     /// @callback mutate(x: number, y: number) -> {[number, number]} - return the mutated point as a positional [x, y]
-    /// array
-    /// @returns {Array<{x:number,y:number}>} - array of path positions (possibly empty)
+    /// array; a result that is not an object keeps the point
+    /// @returns {Array<{x:number,y:number}>} - array of path positions (possibly empty). With reductionType 3 the
+    /// callbacks are called with getPath's own `this`, and the path is empty when the game or the act changes while
+    /// one runs.
     /// @throws {Error} - area is 0 (invalid level)
     /// @throws {RangeError} - reductionType is outside 0-3
-    /// @throws {Error} - reductionType is 3 but reject/reduce/mutate functions are missing
+    /// @throws {Error} - reductionType is 3 but reject/reduce/mutate functions are missing ("getPath reduction type 3
+    /// needs reject, reduce and mutate functions")
+    /// @throws {*} - whatever a reject, reduce or mutate callback throws: it ends the search, and getPath rethrows it
+    /// @throws {TypeError} - mutate returned an object whose [0] or [1] is not a number in the 32-bit integer range
     function::Register(
         isolate, global, "getPath", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             // Delegates to d2bs::pathfinding::FindPath after parsing and validating args.
@@ -225,7 +233,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
             if (reductionType == static_cast<uint32_t>(navigation::ReductionType::JSCallback) &&
                 (args.Length() < 10 || !args[7]->IsFunction() || !args[8]->IsFunction() || !args[9]->IsFunction())) {
-                error::ThrowError(isolate, "Invalid function values for reduction type");
+                error::ThrowError(isolate, "getPath reduction type 3 needs reject, reduce and mutate functions");
                 return;
             }
 
@@ -237,71 +245,162 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             request.end = dst;
             request.reduction = static_cast<navigation::ReductionType>(reductionType);
             request.radius = static_cast<int32_t>(radius);
+            std::stop_token scriptToken;
             if (auto* script = script::ScriptEngine::Instance().GetScript(isolate)) {
-                request.cancelToken = script->GetStopToken();
+                scriptToken = script->GetStopToken();
             }
+            // The search ends on the script's stop, and for reduction type 3 also once a callback throws or the game
+            // moves on under it.
+            std::stop_source searchStop;
+            const std::stop_callback forwardStop(scriptToken, [&searchStop] { searchStop.request_stop(); });
+            request.cancelToken = searchStop.get_token();
 
+            // Set once the search must end: every later callback then returns at once, without running script.
+            bool isStopped = false;
+            // Set when a callback threw: its exception is rethrown to getPath's caller instead of a path.
+            bool hasThrown = false;
+
+            std::vector<navigation::Position> path;
             if (reductionType == static_cast<uint32_t>(navigation::ReductionType::JSCallback)) {
                 auto rejectFunc = args[7].As<v8::Function>();
                 auto reduceFunc = args[8].As<v8::Function>();
                 auto mutateFunc = args[9].As<v8::Function>();
+                const v8::Local<v8::Value> receiver = args.This();
 
-                request.jsReject = [isolate, context, rejectFunc](navigation::Position p) -> bool {
+                // A callback runs script without the game lock, so the game can move on during it. The search reads
+                // only its own copy of the level's collision, except to load a level it walks into, so it ends (with
+                // no path) once the game or the act it started in is gone rather than mix in another one's levels.
+                const uint32_t mapSeed = game::GetMapSeed();
+                const auto act = game::Unit::Player().Act();
+                auto stop = [&searchStop, &isStopped] {
+                    isStopped = true;
+                    searchStop.request_stop();
+                };
+                // True when the call went through and the search may go on.
+                auto finishCall = [&](v8::TryCatch& tryCatch, bool hasResult) -> bool {
+                    if (!hasResult || tryCatch.HasCaught()) {
+                        hasThrown = true;
+                        stop();
+                        tryCatch.ReThrow();
+                        return false;
+                    }
+                    if (game::GetMapSeed() != mapSeed || game::Unit::Player().Act() != act) {
+                        stop();
+                        return false;
+                    }
+                    return true;
+                };
+
+                request.jsReject = [&, isolate, context, rejectFunc, receiver](navigation::Position p) -> bool {
+                    // A blocked point: a stopped search drains without calling script again.
+                    if (isStopped) {
+                        return true;
+                    }
                     v8::HandleScope scope(isolate);
                     v8::TryCatch tryCatch(isolate);
                     std::array<v8::Local<v8::Value>, 2> argv = {convert::ToJS(isolate, p.x),
                                                                 convert::ToJS(isolate, p.y)};
-                    auto result = rejectFunc->Call(context, v8::Undefined(isolate), argv.size(), argv.data());
-                    if (tryCatch.HasCaught() || result.IsEmpty())
-                        return false;
-                    return result.ToLocalChecked()->BooleanValue(isolate);
+                    v8::Local<v8::Value> result;
+                    if (!finishCall(tryCatch,
+                                    rejectFunc->Call(context, receiver, argv.size(), argv.data()).ToLocal(&result))) {
+                        return true;
+                    }
+                    return result->BooleanValue(isolate);
                 };
 
                 request.jsReduce =
-                    [isolate, context,
-                     reduceFunc](const std::vector<navigation::Position>& path) -> std::vector<navigation::Position> {
+                    [&, isolate, context, reduceFunc,
+                     receiver](const std::vector<navigation::Position>& path) -> std::vector<navigation::Position> {
+                    if (isStopped) {
+                        return {};
+                    }
                     v8::HandleScope scope(isolate);
                     v8::TryCatch tryCatch(isolate);
 
                     auto pathArr = PositionsToJS(isolate, context, path);
 
                     std::array<v8::Local<v8::Value>, 1> argv = {pathArr};
-                    auto callResult = reduceFunc->Call(context, v8::Undefined(isolate), argv.size(), argv.data());
-                    if (tryCatch.HasCaught() || callResult.IsEmpty() || !callResult.ToLocalChecked()->IsArray()) {
+                    v8::Local<v8::Value> result;
+                    if (!finishCall(tryCatch,
+                                    reduceFunc->Call(context, receiver, argv.size(), argv.data()).ToLocal(&result))) {
+                        return {};
+                    }
+                    if (!result->IsArray()) {
                         return path;
                     }
 
-                    auto resultArr = callResult.ToLocalChecked().As<v8::Array>();
+                    auto resultArr = result.As<v8::Array>();
                     std::vector<navigation::Position> reduced;
                     reduced.reserve(resultArr->Length());
                     for (uint32_t i = 0; i < resultArr->Length(); i++) {
-                        auto elem = resultArr->Get(context, i).ToLocalChecked();
+                        v8::Local<v8::Value> elem;
+                        if (!resultArr->Get(context, i).ToLocal(&elem)) {
+                            finishCall(tryCatch, false);
+                            return {};
+                        }
                         if (auto pt = extract::Position(isolate, elem))
                             reduced.push_back(*pt);
+                    }
+                    // Reading an element's x and y can run a getter that throws.
+                    if (!finishCall(tryCatch, true)) {
+                        return {};
                     }
                     return reduced;
                 };
 
-                request.jsMutate = [isolate, context, mutateFunc](navigation::Position p) -> navigation::Position {
+                request.jsMutate = [&, isolate, context, mutateFunc,
+                                    receiver](navigation::Position p) -> navigation::Position {
+                    if (isStopped) {
+                        return p;
+                    }
                     v8::HandleScope scope(isolate);
                     v8::TryCatch tryCatch(isolate);
                     std::array<v8::Local<v8::Value>, 2> argv = {convert::ToJS(isolate, p.x),
                                                                 convert::ToJS(isolate, p.y)};
-                    auto result = mutateFunc->Call(context, v8::Undefined(isolate), argv.size(), argv.data());
-                    if (tryCatch.HasCaught() || result.IsEmpty() || !result.ToLocalChecked()->IsArray())
+                    v8::Local<v8::Value> result;
+                    if (!finishCall(tryCatch,
+                                    mutateFunc->Call(context, receiver, argv.size(), argv.data()).ToLocal(&result))) {
                         return p;
-                    auto arr = result.ToLocalChecked().As<v8::Array>();
-                    auto rxMaybe = arr->Get(context, 0);
-                    auto ryMaybe = arr->Get(context, 1);
-                    if (rxMaybe.IsEmpty() || ryMaybe.IsEmpty())
+                    }
+                    // A result that isn't an object keeps the point.
+                    if (!result->IsObject()) {
                         return p;
-                    auto rx = convert::To<uint32_t>(isolate, rxMaybe.ToLocalChecked());
-                    auto ry = convert::To<uint32_t>(isolate, ryMaybe.ToLocalChecked());
-                    return {.x = rx, .y = ry};
+                    }
+                    auto point = result.As<v8::Object>();
+                    // The element reads can run getters and the conversions valueOf, both script.
+                    auto readCoord = [&](uint32_t index, int32_t& out) -> bool {
+                        v8::Local<v8::Value> elem;
+                        double value = 0;
+                        if (!point->Get(context, index).ToLocal(&elem) || !elem->NumberValue(context).To(&value)) {
+                            return false;
+                        }
+                        // A double outside int32 range (the infinities included) has no defined cast.
+                        if (std::isnan(value) || value <= -2147483649.0 || value >= 2147483648.0) {
+                            error::ThrowTypeError(
+                                isolate,
+                                "getPath mutate must return [x, y] with two numbers in the 32-bit integer range");
+                            return false;
+                        }
+                        out = static_cast<int32_t>(value);
+                        return true;
+                    };
+                    int32_t x = 0;
+                    int32_t y = 0;
+                    if (!finishCall(tryCatch, readCoord(0, x) && readCoord(1, y))) {
+                        return p;
+                    }
+                    return {.x = static_cast<uint32_t>(x), .y = static_cast<uint32_t>(y)};
                 };
+                // The callbacks hold references into this scope, so the search runs inside it.
+                path = navigation::FindPath(request);
+            } else {
+                path = navigation::FindPath(request);
             }
 
-            auto path = navigation::FindPath(request);
+            // The callback's exception is pending for getPath's caller.
+            if (hasThrown) {
+                return;
+            }
             args.GetReturnValue().Set(PositionsToJS(isolate, context, path));
         });
 
