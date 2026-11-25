@@ -158,15 +158,17 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
         });
 
     // Static Methods
-    /// @description Opens a blocking TCP connection to the given host and port. Only a host listed in the Hosts key
-    /// of d2bs.ini's [settings] section is allowed: it must equal one whole entry, compared case-insensitively, with
-    /// entries separated by commas, semicolons, spaces or tabs (Hosts=127.0.0.1, api.example.com). With no Hosts key,
-    /// every host is refused.
+    /// @description Opens a blocking TCP connection to the given host and port. When the Hosts key of d2bs.ini's
+    /// [settings] section lists hosts, only a listed one is allowed: it must equal one whole entry, compared
+    /// case-insensitively, with entries separated by commas, semicolons, spaces or tabs (Hosts=127.0.0.1,
+    /// api.example.com). With no Hosts key, or an empty one, every host is allowed; legacy d2bs refuses every host
+    /// then.
     /// @signature open(host: string, port: number)
     /// @param host {string} - Hostname or IP address to connect to.
     /// @param port {number} - TCP port to connect to (coerced to int32).
     /// @returns {Socket|boolean} - Connected Socket on success, or false if called with fewer than 2 args.
-    /// @throws {Error} - host is not a string or not listed in Hosts ("Invalid hostname specified").
+    /// @throws {TypeError} - host is not a string, or port is not a number.
+    /// @throws {Error} - Hosts lists hosts and host is not one of them ("Invalid hostname specified").
     /// @throws {Error} - if Winsock init fails, the host cannot be resolved, or the socket cannot be created or
     /// connected.
     StaticMethod(
@@ -178,13 +180,13 @@ void JSSocket::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
                 return;
             }
 
-            // Reference: the host check comes before the port's, so a refused host reports the host error first.
             if (!args[0]->IsString()) {
-                error::ThrowError(isolate, "Invalid hostname specified");
+                error::ThrowTypeError(isolate, "Socket.open() requires host as first argument");
                 return;
             }
+            // Reference: the host check comes before the port's, so a refused host reports the host error first.
             std::string host = convert::ToString(isolate, args[0]);
-            if (!core::config::HostListContains(core::config::GetAppConfig().socketHosts, host)) {
+            if (!core::config::IsSocketHostAllowed(core::config::GetAppConfig().socketHosts, host)) {
                 error::ThrowError(isolate, "Invalid hostname specified");
                 return;
             }

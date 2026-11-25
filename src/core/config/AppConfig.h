@@ -87,7 +87,8 @@ struct AppConfig {
     std::string engineFlags;
 
     // The hosts Socket.open may connect to (INI [settings]/Hosts): whole names, compared case-insensitively,
-    // separated by commas, semicolons, spaces or tabs. Empty refuses every host.
+    // separated by commas, semicolons, spaces or tabs. Empty allows every host, unlike legacy d2bs, which refuses
+    // every host then.
     std::string socketHosts;
 
     // The engine's worker-thread budget (INI [settings]/EngineThreadPoolSize, 0 =
@@ -177,5 +178,9 @@ std::filesystem::path GetPathRelScript(const std::string& relativePath);
 // True when `host` equals one whole entry of `hostList` (the AppConfig::socketHosts form), ignoring case. An empty
 // host is never listed.
 bool HostListContains(std::string_view hostList, std::string_view host);
+
+// Whether Socket.open may connect to `host` under `hostList`: any host while the list has no entry, else only a
+// listed one.
+bool IsSocketHostAllowed(std::string_view hostList, std::string_view host);
 
 }  // namespace d2bs::core::config

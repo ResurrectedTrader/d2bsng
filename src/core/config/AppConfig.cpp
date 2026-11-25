@@ -130,20 +130,33 @@ std::filesystem::path GetPathRelScript(const std::string& relativePath) {
     return fullPath;
 }
 
+namespace {
+// Between the entries of a Hosts list.
+constexpr std::string_view HOST_SEPARATORS = ",; \t";
+}  // namespace
+
 bool HostListContains(std::string_view hostList, std::string_view host) {
     if (host.empty()) {
         return false;
     }
-    constexpr std::string_view SEPARATORS = ",; \t";
-    size_t start = hostList.find_first_not_of(SEPARATORS);
+    size_t start = hostList.find_first_not_of(HOST_SEPARATORS);
     while (start != std::string_view::npos) {
-        const size_t end = hostList.find_first_of(SEPARATORS, start);
+        const size_t end = hostList.find_first_of(HOST_SEPARATORS, start);
         if (utils::EqualsCaseInsensitive(hostList.substr(start, end - start), host)) {
             return true;
         }
-        start = hostList.find_first_not_of(SEPARATORS, end);
+        start = hostList.find_first_not_of(HOST_SEPARATORS, end);
     }
     return false;
+}
+
+bool IsSocketHostAllowed(std::string_view hostList, std::string_view host) {
+    // A deliberate difference from legacy d2bs, which refuses every host without a Hosts list: d2bsng never had
+    // one, so only a configured list restricts.
+    if (hostList.find_first_not_of(HOST_SEPARATORS) == std::string_view::npos) {
+        return true;
+    }
+    return HostListContains(hostList, host);
 }
 
 }  // namespace d2bs::core::config
