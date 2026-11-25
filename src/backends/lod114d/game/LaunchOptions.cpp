@@ -98,6 +98,12 @@ std::vector<core::config::OptionSpec<LaunchOptions>> BuildSpecs() {
     /// @category Network
     builder.Add("-noupdatecheck", "", +[](LaunchOptions& o, std::wstring_view) { o.disableUpdateCheck = true; });
 
+    /// @description Turn off the packet log for this launch: the dev console's Packets tab is left out and the receive
+    /// and send intercepts copy no packets. With it on (the default), every game packet the client receives or sends
+    /// is kept for the tab, which decodes, filters, logs and records them.
+    /// @category Diagnostics
+    builder.Add("-nopacketlog", "", +[](LaunchOptions& o, std::wstring_view) { o.disablePacketLog = true; });
+
     return std::move(builder.specs);
 }
 

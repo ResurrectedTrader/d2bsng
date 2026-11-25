@@ -68,11 +68,13 @@
 #include <cstdint>
 #include <filesystem>
 #include <format>
+#include <mutex>
 #include <span>
 #include <string>
 #include <system_error>
 #include <utility>
 #include <variant>
+#include <vector>
 
 // ReSharper disable once CppUnusedIncludeDirective - inline body of Party::FindById
 #include "game/Finders.h"
@@ -169,6 +171,20 @@ std::atomic clickActionActive{false};
 std::atomic<D2UnitStrc*> clickActionUnit{nullptr};
 
 std::atomic<IncomingPacketObserver> incomingPacketObserver{nullptr};
+std::atomic<PacketObserver> packetObserver{nullptr};
+std::atomic<uint32_t> gameFrame{0};
+
+// Set while a script's sendPacket runs CLIENT_Send on this thread.
+thread_local bool isScriptSend = false;
+
+// Buffers a script queued for the client to receive, and how much of each P3 has dispatched so far.
+struct ScriptReceive {
+    std::vector<uint8_t> bytes;
+    size_t dispatched = 0;
+};
+std::mutex scriptReceiveMutex;
+std::vector<ScriptReceive> scriptReceives;
+std::atomic<bool> hasScriptReceives{false};
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 constexpr uint32_t P1_RVA = 0x7C89D;
@@ -384,6 +400,28 @@ void CompactBeltColumnBeforePutInBelt(std::span<uint8_t> packet) {
     Log().debug("belt: compacted column {} before item {:#x} is put in slot {}", column, itemId, target);
 }
 
+// Whether `packet` is the next one of a buffer a script queued; consumes it if so. The client dispatches a queued
+// buffer's packets in order, so each buffer is matched from where its last packet ended.
+bool TakeScriptReceive(std::span<const uint8_t> packet) {
+    if (!hasScriptReceives.load(std::memory_order_acquire)) {
+        return false;
+    }
+    const std::scoped_lock guard(scriptReceiveMutex);
+    for (auto it = scriptReceives.begin(); it != scriptReceives.end(); ++it) {
+        const auto rest = std::span{it->bytes}.subspan(it->dispatched);
+        if (rest.size() < packet.size() || !std::ranges::equal(rest.first(packet.size()), packet)) {
+            continue;
+        }
+        it->dispatched += packet.size();
+        if (it->dispatched == it->bytes.size()) {
+            scriptReceives.erase(it);
+        }
+        hasScriptReceives.store(!scriptReceives.empty(), std::memory_order_release);
+        return true;
+    }
+    return false;
+}
+
 }  // namespace
 
 // Block-decision policy: if EITHER the global `onGamePacketReceived` handler
@@ -394,6 +432,10 @@ void CompactBeltColumnBeforePutInBelt(std::span<uint8_t> packet) {
 extern "C" uint32_t __fastcall OnGamePacketReceived(uint8_t* packet, uint32_t size) {
     if (packet == nullptr || size == 0) {
         return 1;  // pass through
+    }
+    if (auto* observer = packetObserver.load(std::memory_order_acquire); observer != nullptr) {
+        const std::span<const uint8_t> data{packet, size};
+        observer(data, true, TakeScriptReceive(data));
     }
     if (auto* observer = incomingPacketObserver.load(std::memory_order_acquire); observer != nullptr) {
         observer(std::span<const uint8_t>{packet, size});
@@ -531,6 +573,12 @@ extern "C" uint32_t __fastcall OnGamePacketReceived(uint8_t* packet, uint32_t si
 // P4: GamePacketSent. ecx=packet, edx=size (the naked thunk pulls them off
 // the saved context - see the asm body). Returns non-zero to allow.
 extern "C" uint32_t __fastcall OnGamePacketSent(uint8_t* packet, uint32_t size) {
+    if (auto* observer = packetObserver.load(std::memory_order_acquire);
+        observer != nullptr && packet != nullptr && size != 0) {
+        // A thread the loader never gave this module's thread-local storage cannot be a script's.
+        observer(std::span<const uint8_t>{packet, size}, false,
+                 utils::threads::HasThreadLocalStorage() && isScriptSend);
+    }
     const auto* cb = GetActiveCallbacks();
     if (cb == nullptr || cb->onGamePacketSent == nullptr || packet == nullptr || size == 0) {
         return 1;
@@ -541,6 +589,7 @@ extern "C" uint32_t __fastcall OnGamePacketSent(uint8_t* packet, uint32_t size) 
 // P2 / P17: GameDraw / GameDrawOOG. Plain `void` calls - the framework
 // flushes drawables and runs Console::Draw inside onDraw.
 extern "C" void OnGameDraw() {
+    gameFrame.fetch_add(1, std::memory_order_relaxed);
     const auto* cb = GetActiveCallbacks();
     if (cb != nullptr && cb->onDraw != nullptr) {
         cb->onDraw();
@@ -1213,6 +1262,36 @@ bool Init() {
 
 void SetIncomingPacketObserver(IncomingPacketObserver observer) {
     incomingPacketObserver.store(observer, std::memory_order_release);
+}
+
+void SetPacketObserver(PacketObserver observer) {
+    packetObserver.store(observer, std::memory_order_release);
+}
+
+uint32_t GameFrame() {
+    return gameFrame.load(std::memory_order_relaxed);
+}
+
+ScriptSendScope::ScriptSendScope() {
+    isScriptSend = true;
+}
+
+ScriptSendScope::~ScriptSendScope() {
+    isScriptSend = false;
+}
+
+void NoteScriptReceive(std::span<const uint8_t> buffer) {
+    if (buffer.empty() || packetObserver.load(std::memory_order_acquire) == nullptr) {
+        return;
+    }
+    // A buffer the client never dispatches (the game ended first) must not pin the queue.
+    constexpr size_t MAX_PENDING = 64;
+    const std::scoped_lock guard(scriptReceiveMutex);
+    if (scriptReceives.size() >= MAX_PENDING) {
+        scriptReceives.erase(scriptReceives.begin());
+    }
+    scriptReceives.push_back({.bytes = std::vector(buffer.begin(), buffer.end()), .dispatched = 0});
+    hasScriptReceives.store(true, std::memory_order_release);
 }
 
 void InstallAll() {

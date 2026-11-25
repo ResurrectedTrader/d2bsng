@@ -10,6 +10,7 @@
 #include <thread>
 
 #include "console/Console.h"
+#include "console/PacketInspector.h"
 #include "detour/Hook.h"
 #include "game/GameThread.h"
 #include "game/LaunchOptions.h"
@@ -241,6 +242,9 @@ void Install(const game::GameCallbacks* callbacks) {
     // DllMain (each site is idempotent on `installed`); re-running here is a
     // no-op in that case, and a safety net if the early-install path changes.
     intercepts::InstallAll();
+    if (!game::GetLaunchOptions().disablePacketLog) {
+        console::packet_inspector::Install();
+    }
     InstallWin32Hooks();
 }
 
@@ -250,6 +254,7 @@ void Remove() {
         return;
     }
     RemoveWin32Hooks();
+    console::packet_inspector::Remove();
     intercepts::RemoveAll();
     RemoveDetoursHooks();
     activeCallbacks = nullptr;

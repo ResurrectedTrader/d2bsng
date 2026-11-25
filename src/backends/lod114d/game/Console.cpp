@@ -4,6 +4,8 @@
 #include <vector>
 
 #include "console/Console.h"
+#include "console/PacketInspector.h"
+#include "game/LaunchOptions.h"
 #include "hooks/HookManager.h"
 
 // Backend-side game::console sink. OnMessage forwards to the frontend console via the
@@ -41,7 +43,11 @@ bool IsInGameOverlay() {
 }
 
 std::vector<std::unique_ptr<BackendPanel>> GetBackendPanels() {
-    return {};
+    std::vector<std::unique_ptr<BackendPanel>> panels;
+    if (!GetLaunchOptions().disablePacketLog) {
+        panels.push_back(std::make_unique<lod114d::console::packet_inspector::Panel>());
+    }
+    return panels;
 }
 
 }  // namespace d2bs::game::console

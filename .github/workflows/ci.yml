@@ -32,3 +32,9 @@ jobs:
       - name: clang-format check
         shell: pwsh
         run: .\build.ps1 check-format
+      # The 1.14d packet registry table is generated from the packet headers and
+      # checked in; this fails a change that added or renumbered a packet class
+      # without rerunning the generator. Pure stdlib, so it needs no build.
+      - name: Check generated packet registry
+        shell: pwsh
+        run: python scripts/gen_packet_registry.py --check

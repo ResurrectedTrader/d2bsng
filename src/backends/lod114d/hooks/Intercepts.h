@@ -46,6 +46,32 @@ void RemoveAll();
 using IncomingPacketObserver = void (*)(std::span<const uint8_t> packet);
 void SetIncomingPacketObserver(IncomingPacketObserver observer);
 
+// Tap on every game packet the client receives (P3) or sends (P4), before any callback sees it. `fromScript` marks a
+// packet a script injected (getPacket / sendPacket). Called on the thread that handles the packet - the game thread
+// for a receive, the sending thread for a send - so it must not wait on the game. One slot; nullptr clears it. The
+// console's packet inspector is the observer.
+using PacketObserver = void (*)(std::span<const uint8_t> packet, bool fromServer, bool fromScript);
+void SetPacketObserver(PacketObserver observer);
+
+// Drawn in-game frames so far, so the packets one frame handles can be grouped. Any thread.
+[[nodiscard]] uint32_t GameFrame();
+
+// Marks the packets the calling thread sends as script-injected while alive (game::SendGamePacket).
+class ScriptSendScope {
+   public:
+    ScriptSendScope();
+    ~ScriptSendScope();
+    ScriptSendScope(const ScriptSendScope&) = delete;
+    ScriptSendScope& operator=(const ScriptSendScope&) = delete;
+    ScriptSendScope(ScriptSendScope&&) = delete;
+    ScriptSendScope& operator=(ScriptSendScope&&) = delete;
+};
+
+// Notes a buffer a script queued for the client to receive (game::ReceiveGamePacket). The client splits and dispatches
+// it later through P3, mixed with the server's packets, so the packets are matched there by their bytes. Kept only
+// while a packet observer is installed.
+void NoteScriptReceive(std::span<const uint8_t> buffer);
+
 namespace detail {
 
 // RAII guard for the P5 GetSelectedUnit intercept's click-target override.

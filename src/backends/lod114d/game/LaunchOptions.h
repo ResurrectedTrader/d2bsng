@@ -35,6 +35,8 @@ struct LaunchOptions {
     bool disableAnalytics = false;  // -noanalytics
 
     bool disableUpdateCheck = false;  // -noupdatecheck
+
+    bool disablePacketLog = false;  // -nopacketlog
 };
 
 // Parse GetCommandLineW() once and return a stable reference. Safe to call
