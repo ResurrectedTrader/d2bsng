@@ -35,6 +35,7 @@ void IniConfigStore::LoadSettings(AppConfig& config) {
     config.startAtMenu.store(ReadBool("settings", "StartAtMenu", true));
     config.waitForProfile.store(ReadBool("settings", "UseProfileScript", false));
     config.enableUnsupported.store(ReadBool("settings", "EnableUnsupported", false));
+    config.socketHosts = ReadString("settings", "Hosts", "");
     // InspectorPort: the sign encodes enabled/disabled (see AppConfig), the
     // magnitude is the listening port. 0 (default) disables. Clamp the magnitude
     // into the valid range for either sign (without negating the raw value, so a

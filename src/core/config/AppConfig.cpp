@@ -4,6 +4,7 @@
 // ReSharper disable once CppUnusedIncludeDirective
 #include "AppConfig.h"
 #include "ConfigStore.h"
+#include "utils/Strings.h"
 #include "utils/utils.h"
 
 namespace d2bs::core::config {
@@ -127,6 +128,22 @@ std::filesystem::path GetPathRelScript(const std::string& relativePath) {
     }
 
     return fullPath;
+}
+
+bool HostListContains(std::string_view hostList, std::string_view host) {
+    if (host.empty()) {
+        return false;
+    }
+    constexpr std::string_view SEPARATORS = ",; \t";
+    size_t start = hostList.find_first_not_of(SEPARATORS);
+    while (start != std::string_view::npos) {
+        const size_t end = hostList.find_first_of(SEPARATORS, start);
+        if (utils::EqualsCaseInsensitive(hostList.substr(start, end - start), host)) {
+            return true;
+        }
+        start = hostList.find_first_not_of(SEPARATORS, end);
+    }
+    return false;
 }
 
 }  // namespace d2bs::core::config

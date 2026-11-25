@@ -130,6 +130,7 @@
     <ClCompile Include="..\..\src\core\host\DefaultHost.cpp" />
     <!-- Test cases -->
     <ClCompile Include="config\OptionParserTest.cpp" />
+    <ClCompile Include="config\HostListTest.cpp" />
     <ClCompile Include="utils\EnumNamingTest.cpp" />
     <ClCompile Include="utils\LoggingTest.cpp" />
     <ClCompile Include="pathfinding\tests\CollisionLookupTest.cpp" />

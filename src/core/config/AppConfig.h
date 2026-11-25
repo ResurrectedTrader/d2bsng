@@ -7,6 +7,7 @@
 #include <memory>
 #include <shared_mutex>
 #include <string>
+#include <string_view>
 
 #include "config/ScriptPaths.h"
 
@@ -84,6 +85,10 @@ struct AppConfig {
     // once at its init: V8 hands it to SetFlagsFromString, another engine may map
     // it onto its own prefs or make nothing of it. There is no shared syntax.
     std::string engineFlags;
+
+    // The hosts Socket.open may connect to (INI [settings]/Hosts): whole names, compared case-insensitively,
+    // separated by commas, semicolons, spaces or tabs. Empty refuses every host.
+    std::string socketHosts;
 
     // The engine's worker-thread budget (INI [settings]/EngineThreadPoolSize, 0 =
     // auto from CPU count, clamped [0, 64]), and whether it runs with no worker
@@ -168,5 +173,9 @@ bool IsValidPath(const std::string& relativePath);
 
 // Resolve relative path under the script base. Returns empty on validation failure.
 std::filesystem::path GetPathRelScript(const std::string& relativePath);
+
+// True when `host` equals one whole entry of `hostList` (the AppConfig::socketHosts form), ignoring case. An empty
+// host is never listed.
+bool HostListContains(std::string_view hostList, std::string_view host);
 
 }  // namespace d2bs::core::config
