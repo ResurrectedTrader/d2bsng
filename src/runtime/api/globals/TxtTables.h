@@ -4,7 +4,7 @@
 // Schema of the Diablo II 1.14d data tables (.txt): table index -> name,
 // and per-table column index -> name. Includes the appended 'affixes' table
 // (magicprefix / magicsuffix).
-// Summary: 29 tables, 2316 columns total.
+// Summary: 30 tables, 2347 columns total.
 #pragma once
 
 #include <array>
@@ -16,7 +16,7 @@ namespace d2bs::runtime::api::globals {
 // ============================================================================
 // Table name lookup: table index -> canonical .txt table name.
 // ============================================================================
-inline constexpr std::array<std::string_view, 29> TXT_TABLE_NAMES = {
+inline constexpr std::array<std::string_view, 30> TXT_TABLE_NAMES = {
     "items",         // [ 0]
     "monstats",      // [ 1]
     "skilldesc",     // [ 2]
@@ -43,9 +43,10 @@ inline constexpr std::array<std::string_view, 29> TXT_TABLE_NAMES = {
     "experience",    // [23]
     "pettable",      // [24]
     "superuniques",  // [25]
-    "affixes",       // [26]
-    "properties",    // [27]
-    "npc",           // [28]
+    "monlvl",        // [26]
+    "affixes",       // [27]
+    "properties",    // [28]
+    "npc",           // [29]
 };
 
 // ----------------------------------------------------------------------------
@@ -2432,7 +2433,44 @@ inline constexpr std::array<std::string_view, 21> TXT_COLUMNS_SUPERUNIQUES = {
 };
 
 // ----------------------------------------------------------------------------
-// [26] affixes - 41 columns
+// [26] monlvl - 31 columns
+// ----------------------------------------------------------------------------
+inline constexpr std::array<std::string_view, 31> TXT_COLUMNS_MONLVL = {
+    "AC",       // [ 0]
+    "AC(N)",    // [ 1]
+    "AC(H)",    // [ 2]
+    "L-AC",     // [ 3]
+    "L-AC(N)",  // [ 4]
+    "L-AC(H)",  // [ 5]
+    "TH",       // [ 6]
+    "TH(N)",    // [ 7]
+    "TH(H)",    // [ 8]
+    "L-TH",     // [ 9]
+    "L-TH(N)",  // [10]
+    "L-TH(H)",  // [11]
+    "HP",       // [12]
+    "HP(N)",    // [13]
+    "HP(H)",    // [14]
+    "L-HP",     // [15]
+    "L-HP(N)",  // [16]
+    "L-HP(H)",  // [17]
+    "DM",       // [18]
+    "DM(N)",    // [19]
+    "DM(H)",    // [20]
+    "L-DM",     // [21]
+    "L-DM(N)",  // [22]
+    "L-DM(H)",  // [23]
+    "XP",       // [24]
+    "XP(N)",    // [25]
+    "XP(H)",    // [26]
+    "L-XP",     // [27]
+    "L-XP(N)",  // [28]
+    "L-XP(H)",  // [29]
+    "end",      // [30]
+};
+
+// ----------------------------------------------------------------------------
+// [27] affixes - 41 columns
 // ----------------------------------------------------------------------------
 inline constexpr std::array<std::string_view, 41> TXT_COLUMNS_AFFIXES = {
     "Name",            // [ 0]
@@ -2479,7 +2517,7 @@ inline constexpr std::array<std::string_view, 41> TXT_COLUMNS_AFFIXES = {
 };
 
 // ----------------------------------------------------------------------------
-// [27] properties - 29 columns
+// [28] properties - 29 columns
 // ----------------------------------------------------------------------------
 inline constexpr std::array<std::string_view, 29> TXT_COLUMNS_PROPERTIES = {
     "code",   // [ 0]
@@ -2514,7 +2552,7 @@ inline constexpr std::array<std::string_view, 29> TXT_COLUMNS_PROPERTIES = {
 };
 
 // ----------------------------------------------------------------------------
-// [28] npc - 19 columns
+// [29] npc - 19 columns
 // ----------------------------------------------------------------------------
 inline constexpr std::array<std::string_view, 19> TXT_COLUMNS_NPC = {
     "npc",              // [ 0]
@@ -2569,9 +2607,10 @@ inline constexpr std::array TXT_COLUMNS_BY_TABLE = {
     std::span<const std::string_view>{TXT_COLUMNS_EXPERIENCE},    // [23] experience
     std::span<const std::string_view>{TXT_COLUMNS_PETTABLE},      // [24] pettable
     std::span<const std::string_view>{TXT_COLUMNS_SUPERUNIQUES},  // [25] superuniques
-    std::span<const std::string_view>{TXT_COLUMNS_AFFIXES},       // [26] affixes
-    std::span<const std::string_view>{TXT_COLUMNS_PROPERTIES},    // [27] properties
-    std::span<const std::string_view>{TXT_COLUMNS_NPC},           // [28] npc
+    std::span<const std::string_view>{TXT_COLUMNS_MONLVL},        // [26] monlvl
+    std::span<const std::string_view>{TXT_COLUMNS_AFFIXES},       // [27] affixes
+    std::span<const std::string_view>{TXT_COLUMNS_PROPERTIES},    // [28] properties
+    std::span<const std::string_view>{TXT_COLUMNS_NPC},           // [29] npc
 };
 
 }  // namespace d2bs::runtime::api::globals

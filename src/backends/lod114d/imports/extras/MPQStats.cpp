@@ -2342,6 +2342,42 @@ constexpr std::array<ColumnSchema, 20> COLS_SUPERUNIQUES = {{
     {.name = "TC(H)", .type = FieldKind::Word, .bitOrLen = 0x0U, .offset = 0x30U},
 }};
 
+// monlvl.txt - the per-level monster base values (D2MonLvlTxt, 0x78-byte records): its 30 value columns in file
+// order, classic then expansion (L-) for each difficulty. The row is the monster level; the Level column is not
+// stored.
+constexpr std::array<ColumnSchema, 30> COLS_MONLVL = {{
+    {.name = "AC", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x0U},
+    {.name = "AC(N)", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x4U},
+    {.name = "AC(H)", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x8U},
+    {.name = "L-AC", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0xcU},
+    {.name = "L-AC(N)", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x10U},
+    {.name = "L-AC(H)", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x14U},
+    {.name = "TH", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x18U},
+    {.name = "TH(N)", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x1cU},
+    {.name = "TH(H)", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x20U},
+    {.name = "L-TH", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x24U},
+    {.name = "L-TH(N)", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x28U},
+    {.name = "L-TH(H)", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x2cU},
+    {.name = "HP", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x30U},
+    {.name = "HP(N)", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x34U},
+    {.name = "HP(H)", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x38U},
+    {.name = "L-HP", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x3cU},
+    {.name = "L-HP(N)", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x40U},
+    {.name = "L-HP(H)", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x44U},
+    {.name = "DM", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x48U},
+    {.name = "DM(N)", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x4cU},
+    {.name = "DM(H)", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x50U},
+    {.name = "L-DM", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x54U},
+    {.name = "L-DM(N)", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x58U},
+    {.name = "L-DM(H)", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x5cU},
+    {.name = "XP", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x60U},
+    {.name = "XP(N)", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x64U},
+    {.name = "XP(H)", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x68U},
+    {.name = "L-XP", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x6cU},
+    {.name = "L-XP(N)", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x70U},
+    {.name = "L-XP(H)", .type = FieldKind::Dword, .bitOrLen = 0x0U, .offset = 0x74U},
+}};
+
 // === Master table list ======================================================
 
 // magicprefix.txt / magicsuffix.txt share one in-memory D2MagicAffixTxt array,
@@ -2465,7 +2501,7 @@ constexpr std::array<ColumnSchema, 19> COLS_NPC = {{
     {.name = "max buy (H)", .type = FieldKind::DwordSigned, .bitOrLen = 0x0U, .offset = 0x48U},
 }};
 
-constexpr std::array<TableSchema, 30> TABLES = {{
+constexpr std::array<TableSchema, 31> TABLES = {{
     // D2Common's gpItemsTxt / gnItemsTxtRecordCount (DATATBLS_LoadItemsTxt 0x006315D0). The copy at 0x008426F0 that
     // reference d2bs reads is only built when the launcher draws a character (D2COMP_AllocTxt_Items 0x00504570), so a
     // process that went straight into a game had no items table there for its whole first game.
@@ -2547,6 +2583,10 @@ constexpr std::array<TableSchema, 30> TABLES = {{
     {.name = "superuniques",
      .info = {.tableOffset = 0xad4U, .countOffset = 0xadcU, .isAbsolute = false, .recordSize = 0x34U},
      .columns = COLS_SUPERUNIQUES},
+    // pMonLvlTxt / nMonLvlTxtRecordCount in *sgptDataTables (D2MOO D2DataTblsStrc 0xb70 / 0xb74).
+    {.name = "monlvl",
+     .info = {.tableOffset = 0xb70U, .countOffset = 0xb74U, .isAbsolute = false, .recordSize = 0x78U},
+     .columns = COLS_MONLVL},
     // Magic prefix/suffix affixes (shared D2MagicAffixTxt array). Direct globals,
     // not *sgptDataTables: ptr @ Game.exe+0x56CA80, count @ +0x56CA7C, row 0x90.
     {.name = "affixes",

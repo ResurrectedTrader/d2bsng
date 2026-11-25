@@ -952,7 +952,12 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         });
 
     /// @description Read game data (.txt) table cells. With a column, returns that one cell; without a column,
-    /// returns an object mapping every column name to its value for the row.
+    /// returns an object mapping every column name to its value for the row. Tables, by index (the name or the index
+    /// selects one): 0 items, 1 monstats, 2 skilldesc, 3 skills, 4 objects, 5 missiles, 6 monstats2, 7 itemstatcost,
+    /// 8 levels, 9 leveldefs, 10 lvlmaze, 11 lvlsub, 12 lvlwarp, 13 lvlprest, 14 lvltypes, 15 charstats, 16 setitems,
+    /// 17 uniqueitems, 18 sets, 19 itemtypes, 20 runes, 21 cubemain, 22 gems, 23 experience, 24 pettable,
+    /// 25 superuniques, 26 monlvl, 27 affixes, 28 properties, 29 npc; "belts" is read by name only. In monlvl the row
+    /// is the monster level and the columns are MonLvl.txt's 30 value columns, for example "L-DM(H)".
     /// @signature getBaseStat(table: string|number, row: number, column: string|number)
     /// @signature getBaseStat(table: string|number, row: number)
     /// @param table {string|number} - table name, or index into the known table-name list

@@ -179,6 +179,18 @@ def main() -> int:
             raise RuntimeError(f"{var_name} parsed to zero columns")
         tables.append((table_name, columns))
 
+    # monlvl.txt sits right after the reference tables, at legacy d2bs's index 26
+    # (blizzhackers/d2bs#18), so a script's numeric table ids match there. A reference that
+    # already lists it keeps its own entry.
+    if all(name != "monlvl" for name, _ in tables):
+        monlvl_columns = [
+            prefix + stat + diff
+            for stat in ("AC", "TH", "HP", "DM", "XP")
+            for prefix in ("", "L-")
+            for diff in ("", "(N)", "(H)")
+        ]
+        tables.append(("monlvl", [*monlvl_columns, "end"]))
+
     # The magic-affix table (magicprefix.txt / magicsuffix.txt share one in-memory
     # D2MagicAffixTxt array, indexed by affix id) is not in the reference's
     # BaseStatTable, so append it here. Column order matches magicprefix.txt.
