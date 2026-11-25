@@ -8,6 +8,11 @@
 #include "game/GameLock.h"
 #include "imports/D2Common.h"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmissing-braces"
+#include <Drlg/D2DrlgPreset.h>  // D2PresetUnitStrc
+#pragma clang diagnostic pop
+
 namespace d2bs::game {
 
 // RAII helper that keeps a room's data (its D2ActiveRoomStrc, `pRoom`) loaded
@@ -47,6 +52,15 @@ namespace d2bs::game {
 //      guard per room; a GameThread::Execute round-trip per room would be
 //      paced by the engine's sleep cadence - hundreds of round-trips -> tens
 //      of seconds on large levels like Frigid Highlands.
+//
+//   4. A room's preset list outlives its data: the unload leaves `pPresetUnits`
+//      alone (only the level's free releases it), while every load derives the
+//      presets from the room's tiles and placed maps again and prepends each
+//      (DRLGACTIVATE_RoomEx_EnsureHasRoom 0x61B190 -> DRLGROOM_AllocPresetUnit
+//      0x66BF30). So the guard frees the nodes a load puts in front of a list
+//      that survived (DropReloadedPresets). That edits the list under a read
+//      lock other script threads share, so a script-thread walk of a preset
+//      list holds LockPresetList() for its length.
 class RoomDataGuard {
    public:
     explicit RoomDataGuard(D2DrlgRoomStrc* drlgRoom) {
@@ -67,8 +81,10 @@ class RoomDataGuard {
         if (drlgRoom->pRoom != nullptr) {
             return;
         }
+        auto* survivors = drlgRoom->pPresetUnits;
         lod114d::imports::d2common::DUNGEON_SetClientIsInSight(drlg->pAct, drlgRoom->pLevel->nLevelId,
                                                                drlgRoom->nTileXPos, drlgRoom->nTileYPos, nullptr);
+        DropReloadedPresets(drlgRoom, survivors, drlg->pMempool);
         addedRooms_.push_back({.room = drlgRoom, .act = drlg->pAct, .guards = 1});
         drlgRoom_ = drlgRoom;
     }
@@ -93,7 +109,52 @@ class RoomDataGuard {
     RoomDataGuard(RoomDataGuard&&) = delete;
     RoomDataGuard& operator=(RoomDataGuard&&) = delete;
 
+    // Keeps every guard from editing a preset list while the caller walks one.
+    [[nodiscard]] static std::unique_lock<std::mutex> LockPresetList() { return std::unique_lock(mutex_); }
+
    private:
+    // Frees each node the load put in front of `survivors` that repeats a surviving one, with the function and pool
+    // the room free uses. Each prepended node cancels at most one survivor, so a preset the load added for the first
+    // time stays, and a list that no longer ends in `survivors` is left alone.
+    static void DropReloadedPresets(D2DrlgRoomStrc* drlgRoom, D2PresetUnitStrc* survivors, void* memPool) {
+        if (survivors == nullptr || drlgRoom->pPresetUnits == survivors) {
+            return;
+        }
+        auto* node = drlgRoom->pPresetUnits;
+        while (node != nullptr && node != survivors) {
+            node = node->pNext;
+        }
+        if (node == nullptr) {
+            return;
+        }
+
+        std::vector<D2PresetUnitStrc*> kept;
+        for (node = survivors; node != nullptr; node = node->pNext) {
+            kept.push_back(node);
+        }
+        std::vector<bool> matched(kept.size(), false);
+        auto isSame = [](const D2PresetUnitStrc* a, const D2PresetUnitStrc* b) {
+            return a->nUnitType == b->nUnitType && a->nIndex == b->nIndex && a->nMode == b->nMode &&
+                   a->nXpos == b->nXpos && a->nYpos == b->nYpos;
+        };
+
+        auto** link = &drlgRoom->pPresetUnits;
+        while (*link != survivors) {
+            auto* fresh = *link;
+            size_t i = 0;
+            while (i < kept.size() && (matched[i] || !isSame(fresh, kept[i]))) {
+                ++i;
+            }
+            if (i == kept.size()) {
+                link = &fresh->pNext;
+                continue;
+            }
+            matched[i] = true;
+            *link = fresh->pNext;
+            lod114d::imports::d2common::DRLGPRESET_FreePresetUnit(memPool, fresh);
+        }
+    }
+
     struct AddedRoom {
         D2DrlgRoomStrc* room = nullptr;
         D2DrlgActStrc* act = nullptr;

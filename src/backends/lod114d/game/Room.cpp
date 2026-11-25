@@ -18,6 +18,7 @@
 #pragma clang diagnostic pop
 
 #include <cstdint>
+#include <optional>
 #include <ranges>
 #include <span>
 #include <utility>
@@ -252,7 +253,14 @@ std::vector<PresetUnitInfo> Room::GetPresetUnits(std::optional<UnitType> type, s
     const auto drlgRoom = Resolve<D2DrlgRoomStrc>();
     if (!drlgRoom)
         return {};
-    RoomDataGuard roomData(drlgRoom);
+    // The list survives the room data's unload, so only a room with none yet is loaded to build it.
+    std::optional<RoomDataGuard> roomData;
+    if (drlgRoom->pPresetUnits == nullptr) {
+        roomData.emplace(drlgRoom);
+    }
+    const auto presetList = RoomDataGuard::LockPresetList();
+    const auto level =
+        drlgRoom->pLevel != nullptr ? static_cast<game::LevelId>(drlgRoom->pLevel->nLevelId) : game::LevelId::None;
     const Position roomPos{.x = static_cast<uint32_t>(drlgRoom->nTileXPos),
                            .y = static_cast<uint32_t>(drlgRoom->nTileYPos)};
 
@@ -287,7 +295,7 @@ std::vector<PresetUnitInfo> Room::GetPresetUnits(std::optional<UnitType> type, s
             .roomPos = roomPos,
             .posInRoom = {.x = static_cast<uint32_t>(preset->nXpos), .y = static_cast<uint32_t>(preset->nYpos)},
             .id = presetIndex,
-            .level = game::LevelId::None,
+            .level = level,
             .tileTargetLevelId = presetType == UnitType::Tile ? resolveTileTarget(presetIndex) : game::LevelId::None,
         });
     }
