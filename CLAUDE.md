@@ -826,7 +826,7 @@ Every wrapper's native lives in a cell on the isolate's C++ heap (cppgc), attach
 | Category | Classes | Cell | Constructor |
 |----------|---------|------|-------------|
 | Game Data | Room, Party, Unit, Area, Exit, PresetUnit, Control, StashTab | Owns the handle / value (`CreateInstance`) | NOT_CONSTRUCTABLE |
-| Script-Owned | File, Directory, SQLite, DBStatement, Profile, Socket, Sandbox, Script | Owns the native (`CreateInstance`, or `Attach` in a constructor) | Factory/CONSTRUCTABLE |
+| Script-Owned | File, Directory, SQLite, DBStatement, Profile, Socket, Script | Owns the native (`CreateInstance`, or `Attach` in a constructor) | Factory/CONSTRUCTABLE |
 | Static namespaces | FileTools, HttpClient, Compatibility, TxtTables | None (never instantiated) | NOT_CONSTRUCTABLE |
 | Screen Hooks | Frame, Box, Line, Text, Image | Borrowed (`Borrow`; owned by the script's DrawableRegistry, which clears the cell when it drops the drawable) | CONSTRUCTABLE |
 

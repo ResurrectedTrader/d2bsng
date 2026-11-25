@@ -8,8 +8,8 @@
 namespace d2bs::runtime::script {
 
 // Compile a JavaScript source string into a v8::Script, applying source-level
-// kolbot compatibility transforms. Used by the per-script execution path and
-// by Sandbox compile/include - anywhere user-authored source enters V8.
+// kolbot compatibility transforms. Used by the per-script execution path -
+// anywhere user-authored source enters V8.
 //
 // Transforms applied:
 //   1. UTF-8 BOM strip (always; source hygiene, not a compatibility flag).

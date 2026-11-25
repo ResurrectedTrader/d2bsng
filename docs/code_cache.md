@@ -26,7 +26,7 @@ teardown.
 ## Where it hooks in
 
 Entirely inside `CompileSource` - the one funnel every user-authored source goes through (`Script::RunScript`,
-`Script::Include`, the console REPL, the compatibility prelude, and the `Sandbox` compile / include).
+`Script::Include`, the console REPL and the compatibility prelude).
 
 - **Miss** - compile with `kEagerCompile`, then `ScriptCompiler::CreateCodeCache` and store. Eager is what makes the
   stored blob complete; a lazily compiled script serializes only the functions that happened to run.

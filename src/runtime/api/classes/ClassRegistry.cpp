@@ -34,7 +34,6 @@
 #include "io/JSSocket.h"
 #include "scripting/JSCompatibility.h"
 #include "scripting/JSProfile.h"
-#include "scripting/JSSandbox.h"
 #include "scripting/JSScript.h"
 
 namespace d2bs::runtime::api::classes {
@@ -47,13 +46,12 @@ consteval bool ClassTagsAreDistinct() {
     // could share a tag and let Unwrap hand back a wrongly-typed pointer. This is the one place
     // every class is listed, so the invariant is checked here rather than left to review.
     constexpr std::array CLASS_NAMES = {
-        JSUnit::ClassName,       JSRoom::ClassName,       JSArea::ClassName,      JSExit::ClassName,
-        JSStashTab::ClassName,   JSPresetUnit::ClassName, JSParty::ClassName,     JSControl::ClassName,
-        JSFile::ClassName,       JSFileTools::ClassName,  JSDirectory::ClassName, JSFrame::ClassName,
-        JSBox::ClassName,        JSLine::ClassName,       JSText::ClassName,      JSImage::ClassName,
-        JSScript::ClassName,     JSSandbox::ClassName,    JSProfile::ClassName,   JSCompatibility::ClassName,
-        JSHttpClient::ClassName, JSSocket::ClassName,     JSSQLite::ClassName,    JSDBStatement::ClassName,
-        JSTxtTables::ClassName,
+        JSUnit::ClassName,     JSRoom::ClassName,       JSArea::ClassName,          JSExit::ClassName,
+        JSStashTab::ClassName, JSPresetUnit::ClassName, JSParty::ClassName,         JSControl::ClassName,
+        JSFile::ClassName,     JSFileTools::ClassName,  JSDirectory::ClassName,     JSFrame::ClassName,
+        JSBox::ClassName,      JSLine::ClassName,       JSText::ClassName,          JSImage::ClassName,
+        JSScript::ClassName,   JSProfile::ClassName,    JSCompatibility::ClassName, JSHttpClient::ClassName,
+        JSSocket::ClassName,   JSSQLite::ClassName,     JSDBStatement::ClassName,   JSTxtTables::ClassName,
     };
     for (size_t i = 0; i < CLASS_NAMES.size(); ++i) {
         for (size_t j = i + 1; j < CLASS_NAMES.size(); ++j) {
@@ -95,7 +93,6 @@ void RegisterAllClasses(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> glob
 
     // Script management
     global->Set(isolate, "D2BSScript", JSScript::GetTemplate(isolate));
-    global->Set(isolate, "Sandbox", JSSandbox::GetTemplate(isolate));
     global->Set(isolate, "Profile", JSProfile::GetTemplate(isolate));
     global->Set(isolate, "Compatibility", JSCompatibility::GetTemplate(isolate));
 
@@ -134,7 +131,6 @@ void ClearAllClassCaches(v8::Isolate* isolate) {
 
     // Script management
     JSScript::ClearCache(isolate);
-    JSSandbox::ClearCache(isolate);
     JSProfile::ClearCache(isolate);
     JSCompatibility::ClearCache(isolate);
 

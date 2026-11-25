@@ -118,7 +118,6 @@
     <ClCompile Include="api\classes\io\JSSQLite.cpp" />
     <!-- Scripting Classes -->
     <ClCompile Include="api\classes\scripting\JSProfile.cpp" />
-    <ClCompile Include="api\classes\scripting\JSSandbox.cpp" />
     <ClCompile Include="api\classes\scripting\JSScript.cpp" />
     <!-- Drawing -->
     <ClCompile Include="components\analytics\Analytics.cpp" />
@@ -241,7 +240,6 @@
     <!-- Scripting Classes -->
     <ClInclude Include="api\classes\scripting\JSCompatibility.h" />
     <ClInclude Include="api\classes\scripting\JSProfile.h" />
-    <ClInclude Include="api\classes\scripting\JSSandbox.h" />
     <ClInclude Include="api\classes\scripting\JSScript.h" />
     <!-- Script Components -->
     <ClInclude Include="components\navigation\ExitFinder.h" />
