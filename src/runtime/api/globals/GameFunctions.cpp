@@ -1876,64 +1876,79 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         isolate, global, "takeScreenshot",
         +[](const v8::FunctionCallbackInfo<v8::Value>& args) { game::TakeScreenshot(); });
 
-    /// @description Copy a string to the Windows clipboard (CF_TEXT); best-effort, no-op on failure.
+    /// @description Copy a string to the Windows clipboard as Unicode text (CF_UNICODETEXT; Windows synthesizes
+    /// CF_TEXT for ANSI readers), so non-ASCII text survives.
     /// @signature copy(text: string)
-    /// @param text {string} - text to place on the clipboard (any value is stringified)
-    /// @returns {undefined} - no return value
+    /// @param text {string} - text to place on the clipboard
+    /// @returns {boolean} - true when the clipboard took the text; false when it could not be opened or set
+    /// @throws {Error} - text is missing or not a string ("copy: the argument must be a string")
     function::Register(
         isolate, global, "copy", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
 
-            if (args.Length() < 1) {
-                error::ThrowTypeError(isolate, "copy requires 1 argument");
+            if (args.Length() < 1 || !args[0]->IsString()) {
+                error::ThrowError(isolate, "copy: the argument must be a string");
                 return;
             }
+            args.GetReturnValue().SetFalse();
 
-            std::string text = convert::ToString(isolate, args[0]);
-
-            HGLOBAL hText = GlobalAlloc(GMEM_DDESHARE | GMEM_MOVEABLE, text.size() + 1);
-            if (hText) {
-                auto* pText = static_cast<char*>(GlobalLock(hText));
-                if (pText) {
-                    std::memcpy(pText, text.data(), text.size() + 1);
-                    GlobalUnlock(hText);
-                    if (OpenClipboard(nullptr)) {
-                        EmptyClipboard();
-                        SetClipboardData(CF_TEXT, hText);
-                        CloseClipboard();
-                    } else {
-                        GlobalFree(hText);
-                    }
-                } else {
-                    GlobalFree(hText);
-                }
+            const auto string = args[0].As<v8::String>();
+            const auto length = static_cast<uint32_t>(string->Length());
+            HGLOBAL hText = GlobalAlloc(GMEM_MOVEABLE, (static_cast<size_t>(length) + 1) * sizeof(wchar_t));
+            if (hText == nullptr) {
+                return;
             }
+            auto* pText = static_cast<uint16_t*>(GlobalLock(hText));
+            if (pText == nullptr) {
+                GlobalFree(hText);
+                return;
+            }
+            string->Write(isolate, 0, length, pText, v8::String::WriteFlags::kNullTerminate);
+            GlobalUnlock(hText);
+
+            // An owner window is required: EmptyClipboard after OpenClipboard(nullptr) leaves no owner and
+            // SetClipboardData fails.
+            if (OpenClipboard(static_cast<HWND>(game::GetHwnd())) == 0) {
+                GlobalFree(hText);
+                return;
+            }
+            EmptyClipboard();
+            const bool isSet = SetClipboardData(CF_UNICODETEXT, hText) != nullptr;
+            CloseClipboard();
+            // The system owns the handle only once SetClipboardData succeeds.
+            if (!isSet) {
+                GlobalFree(hText);
+            }
+            args.GetReturnValue().Set(isSet);
         });
 
-    /// @description Read text from the Windows clipboard (CF_TEXT).
+    /// @description Read Unicode text from the Windows clipboard (CF_UNICODETEXT).
     /// @signature paste()
-    /// @returns {string|undefined} - clipboard text, empty string if no text data, or undefined if clipboard
-    /// unavailable
+    /// @returns {string} - clipboard text; an empty string when the clipboard holds no text or cannot be opened
     function::Register(
         isolate, global, "paste", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
+            args.GetReturnValue().SetEmptyString();
 
-            if (!OpenClipboard(nullptr)) {
-                return;  // Returns undefined -- distinguishable from empty clipboard
+            if (OpenClipboard(nullptr) == 0) {
+                return;
             }
-            HANDLE hData = GetClipboardData(CF_TEXT);
-            if (hData) {
-                auto* pText = static_cast<const char*>(GlobalLock(hData));
-                if (pText) {
-                    std::string text(pText);
-                    GlobalUnlock(hData);
-                    CloseClipboard();
-                    args.GetReturnValue().Set(convert::ToJS(isolate, text));
-                    return;
+            // The handle is valid only while the clipboard is open, so the string is built before CloseClipboard.
+            HANDLE hData = GetClipboardData(CF_UNICODETEXT);
+            const auto* pText = hData != nullptr ? static_cast<const wchar_t*>(GlobalLock(hData)) : nullptr;
+            if (pText != nullptr) {
+                // Bounded by the handle size: another process's clipboard text need not be terminated.
+                const std::wstring text(pText, wcsnlen(pText, GlobalSize(hData) / sizeof(wchar_t)));
+                GlobalUnlock(hData);
+                v8::Local<v8::String> result;
+                // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) - wchar_t and uint16_t are UTF-16 here
+                if (v8::String::NewFromTwoByte(isolate, reinterpret_cast<const uint16_t*>(text.data()),
+                                               v8::NewStringType::kNormal, static_cast<int32_t>(text.size()))
+                        .ToLocal(&result)) {
+                    args.GetReturnValue().Set(result);
                 }
             }
             CloseClipboard();
-            args.GetReturnValue().Set(convert::ToJS(isolate, ""));
         });
 
     /// @description Send an inter-process WM_COPYDATA message to another window/game instance.

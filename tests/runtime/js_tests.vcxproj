@@ -125,6 +125,7 @@
     <!-- utils dependency (IniConfigStore uses ToLower/ToStr/ToWStr; GameLoop owns a profiling::Timeline) -->
     <ClCompile Include="..\..\src\utils\Strings.cpp" />
     <ClCompile Include="..\..\src\utils\utils.cpp" />
+    <ClCompile Include="..\..\src\utils\crypto.cpp" />
     <ClCompile Include="..\..\src\utils\Profiling.cpp" />
     <ClCompile Include="..\..\src\utils\EnumNaming.cpp" />
     <ClCompile Include="..\..\src\core\host\DefaultHost.cpp" />
@@ -132,6 +133,7 @@
     <ClCompile Include="config\OptionParserTest.cpp" />
     <ClCompile Include="config\HostListTest.cpp" />
     <ClCompile Include="utils\EnumNamingTest.cpp" />
+    <ClCompile Include="utils\CryptoTest.cpp" />
     <ClCompile Include="utils\LoggingTest.cpp" />
     <ClCompile Include="pathfinding\tests\CollisionLookupTest.cpp" />
     <ClCompile Include="pathfinding\tests\WalkAStarTest.cpp" />

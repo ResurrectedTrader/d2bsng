@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <vector>
 
@@ -18,6 +19,10 @@ namespace d2bs::runtime::api::classes {
 namespace directory_detail {
 std::vector<std::string> ListFiles(const std::filesystem::path& fullPath, const std::string& pattern);
 std::vector<std::string> ListFolders(const std::filesystem::path& fullPath, const std::string& pattern);
+// A pattern names entries inside the folder only: a separator or a drive colon would reach outside it, and Win32
+// strips trailing dots and spaces before it resolves "." and "..", so a dots-and-spaces pattern names the folder or its
+// parent. Wildcards stay allowed.
+bool IsValidSearchPattern(std::string_view pattern);
 }  // namespace directory_detail
 
 // Internal directory data structure
@@ -162,6 +167,8 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
         /// @signature getFiles(pattern?: string)
         /// @param pattern {string} - Optional glob pattern to match files against; defaults to "*.*".
         /// @returns {string[]} - Matching file names; empty array when the object or path is invalid.
+        /// @throws {Error} - more than one argument ("Invalid arguments").
+        /// @throws {Error} - the pattern holds a \, / or :, or only dots and spaces ("Invalid search pattern").
         Method(
             isolate, proto, "getFiles", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
@@ -175,6 +182,7 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
                 }
 
                 if (args.Length() > 1) {
+                    error::ThrowError(isolate, "Invalid arguments");
                     return;
                 }
 
@@ -182,6 +190,10 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
                 std::string pattern = "*.*";
                 if (args.Length() > 0) {
                     pattern = convert::ToString(isolate, args[0]);
+                }
+                if (!directory_detail::IsValidSearchPattern(pattern)) {
+                    error::ThrowError(isolate, "Invalid search pattern");
+                    return;
                 }
 
                 auto fullPath = core::config::GetPathRelScript(data->path.string());
@@ -203,6 +215,8 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
         /// @signature getFolders(pattern?: string)
         /// @param pattern {string} - Optional glob pattern to match folders against; defaults to "*.*".
         /// @returns {string[]} - Matching subdirectory names; empty array when the object or path is invalid.
+        /// @throws {Error} - more than one argument ("Invalid arguments").
+        /// @throws {Error} - the pattern holds a \, / or :, or only dots and spaces ("Invalid search pattern").
         Method(
             isolate, proto, "getFolders", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
@@ -216,6 +230,7 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
                 }
 
                 if (args.Length() > 1) {
+                    error::ThrowError(isolate, "Invalid arguments");
                     return;
                 }
 
@@ -223,6 +238,10 @@ class JSDirectory : public ClassBase<JSDirectory, DirectoryData> {
                 std::string pattern = "*.*";
                 if (args.Length() > 0) {
                     pattern = convert::ToString(isolate, args[0]);
+                }
+                if (!directory_detail::IsValidSearchPattern(pattern)) {
+                    error::ThrowError(isolate, "Invalid search pattern");
+                    return;
                 }
 
                 auto fullPath = core::config::GetPathRelScript(data->path.string());

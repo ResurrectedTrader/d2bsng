@@ -39,7 +39,8 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
         /// @description Delete a file under the script base directory.
         /// @signature remove(path: string)
         /// @param path {string} - file name relative to the script base directory.
-        /// @returns {undefined} - throws "Invalid file name" on bad path; a missing file is ignored.
+        /// @returns {boolean} - true when the file was removed; false when it could not be (a missing file, for
+        /// example).
         /// @throws {Error} - path is empty or resolves outside the script base directory.
         StaticMethod(
             isolate, tpl, "remove", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -58,15 +59,16 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
                     return;
                 }
 
-                std::error_code ec;
-                std::filesystem::remove(fullPath, ec);
+                // Reference: _wremove, which removes files only; a missing file is a normal outcome, not an error.
+                args.GetReturnValue().Set(_wremove(fullPath.c_str()) == 0);
             });
 
         /// @description Rename or move a file within the script base directory.
         /// @signature rename(oldName: string, newName: string)
         /// @param oldName {string} - existing file name relative to the script base directory.
         /// @param newName {string} - destination file name relative to the script base directory.
-        /// @returns {undefined} - throws "Invalid original/new file name" on bad path; filesystem errors are ignored.
+        /// @returns {boolean} - true when the file was renamed; false when it could not be (a missing file, or an
+        /// existing newName, which is never replaced).
         /// @throws {Error} - oldName is empty or resolves outside the script base directory.
         /// @throws {Error} - newName is empty or resolves outside the script base directory.
         StaticMethod(
@@ -96,8 +98,8 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
                     return;
                 }
 
-                std::error_code ec;
-                std::filesystem::rename(oldPath, newPath, ec);
+                // Reference: _wrename, which fails rather than replace an existing newName.
+                args.GetReturnValue().Set(_wrename(oldPath.c_str(), newPath.c_str()) == 0);
             });
 
         /// @description Copy a file byte for byte within the script base directory. An existing destination is
