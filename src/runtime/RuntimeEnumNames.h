@@ -8,6 +8,21 @@
 
 #include "utils/EnumNaming.h"
 
+namespace d2bs::runtime::api::classes {
+
+enum class BindResult : uint8_t;
+
+// A human-readable name for an enum value: the enumerator that has it (the first declared one
+// for aliases), else the single-bit enumerators that together make it up exactly as "A|B",
+// else "Type(value)". std::format and fmt / spdlog print the same.
+[[nodiscard]] std::string EnumName(BindResult value);
+
+// NOLINTBEGIN(readability-identifier-naming) - fmt's customisation point name
+[[nodiscard]] std::string format_as(BindResult value);
+// NOLINTEND(readability-identifier-naming)
+
+}  // namespace d2bs::runtime::api::classes
+
 namespace d2bs::runtime::api::globals {
 
 enum class FileMode : int32_t;

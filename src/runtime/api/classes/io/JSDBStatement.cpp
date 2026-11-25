@@ -3,11 +3,15 @@
 #include "SQLiteBind.h"
 
 #include <cstring>
+#include <string_view>
 #include <utility>
 
 namespace d2bs::runtime::api::classes {
 
 namespace {
+
+// Thrown by every method that needs a live statement after close(), go() or the database's close().
+constexpr std::string_view STMT_CLOSED = "The statement is closed";
 
 v8::Local<v8::ArrayBuffer> ColumnBlob(v8::Isolate* isolate, sqlite3_stmt* handle, int32_t index) {
     // SQLite documents this order: the byte count describes the value the
@@ -19,6 +23,65 @@ v8::Local<v8::ArrayBuffer> ColumnBlob(v8::Isolate* isolate, sqlite3_stmt* handle
         std::memcpy(buffer->Data(), bytes, size);
     }
     return buffer;
+}
+
+v8::Local<v8::Value> ColumnValue(v8::Isolate* isolate, sqlite3_stmt* handle, int32_t index) {
+    switch (sqlite3_column_type(handle, index)) {
+        case SQLITE_INTEGER:
+            // Use double for 64-bit integers to preserve precision
+            return convert::ToJS(isolate, static_cast<double>(sqlite3_column_int64(handle, index)));
+        case SQLITE_FLOAT:
+            return convert::ToJS(isolate, sqlite3_column_double(handle, index));
+        case SQLITE_TEXT: {
+            const char* text = reinterpret_cast<const char*>(sqlite3_column_text(handle, index));
+            return convert::ToJS(isolate, text ? text : "");
+        }
+        case SQLITE_BLOB:
+            return ColumnBlob(isolate, handle, index);
+        case SQLITE_NULL:
+        default:
+            return v8::Null(isolate);
+    }
+}
+
+// The step that failed, reported with the database's message.
+void ThrowStepError(v8::Isolate* isolate, const DBStatementData& data) {
+    if (data.parent && data.parent->handle) {
+        error::ThrowError(isolate, sqlite3_errmsg(data.parent->handle));
+    } else {
+        error::ThrowError(isolate, STMT_CLOSED);
+    }
+}
+
+// A step leaves the current row whatever it returns, so the cached row and ready state go first.
+void DropRow(DBStatementData& data) {
+    data.hasRow = false;
+    data.cachedRow.Reset();
+}
+
+// The reference's checks for getColumnName / getColumnValue, in its order: a closed statement, no current row, then
+// the index. False with an Error pending.
+bool CheckColumnArgs(const v8::FunctionCallbackInfo<v8::Value>& args, const DBStatementData& data,
+                     std::string_view method, int32_t& index) {
+    auto* isolate = args.GetIsolate();
+    if (!data.handle) {
+        error::ThrowError(isolate, STMT_CLOSED);
+        return false;
+    }
+    if (!data.hasRow) {
+        error::ThrowError(isolate, "Statement is not ready");
+        return false;
+    }
+    if (args.Length() != 1 || !args[0]->IsInt32()) {
+        error::ThrowError(isolate, std::string("Invalid parameter for SQLiteStatement.").append(method));
+        return false;
+    }
+    index = args[0].As<v8::Int32>()->Value();
+    if (index < 0 || index >= sqlite3_column_count(data.handle)) {
+        error::ThrowError(isolate, "Invalid column index");
+        return false;
+    }
+    return true;
 }
 
 }  // namespace
@@ -51,12 +114,16 @@ void DBStatementData::Close() {
     parentObject.Reset();
 }
 
+// Every method keeps the reference's three answers to an unusable statement: a `this` that is no DBStatement (a
+// foreign object or the prototype) gets a neutral value, a closed statement throws "The statement is closed", and
+// reading the row with no current row throws "Statement is not ready".
+// NOLINTNEXTLINE(readability-function-size) - V8 template configuration, intentionally large
 void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> tpl) {
     auto inst = tpl->InstanceTemplate();
     auto proto = tpl->PrototypeTemplate();
 
     // Properties
-    /// @description The SQL text of the prepared statement.
+    /// @description The SQL text of the prepared statement; undefined once it is closed.
     /// @type {string}
     Property(
         isolate, inst, "sql", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
@@ -77,7 +144,7 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
             }
         });
 
-    /// @description Whether a row is currently available to read.
+    /// @description Whether a row is currently available to read; false once the statement is closed.
     /// @type {boolean}
     Property(
         isolate, inst, "ready", +[](v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info) {
@@ -94,10 +161,11 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
         });
 
     // Methods
-    /// @description The current row as an object keyed by column name.
+    /// @description The current row as an object keyed by column name; the same object until the statement steps.
     /// @signature getObject()
     /// @returns {object|boolean|null} - Row object keyed by column name (BLOB columns as an ArrayBuffer), true for a
     /// zero-column row, null if no row.
+    /// @throws {Error} - the statement is closed ("The statement is closed")
     Method(
         isolate, proto, "getObject", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
@@ -110,7 +178,10 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
             if (!data) {
                 return;
             }
-
+            if (!data->handle) {
+                error::ThrowError(isolate, STMT_CLOSED);
+                return;
+            }
             if (!data->hasRow) {
                 return;
             }
@@ -131,31 +202,10 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
 
             for (int32_t i = 0; i < cols; i++) {
                 const char* colName = sqlite3_column_name(data->handle, i);
-                v8::Local<v8::Value> val;
-
-                switch (sqlite3_column_type(data->handle, i)) {
-                    case SQLITE_INTEGER:
-                        // Use double for 64-bit integers to preserve precision
-                        val = convert::ToJS(isolate, static_cast<double>(sqlite3_column_int64(data->handle, i)));
-                        break;
-                    case SQLITE_FLOAT:
-                        val = convert::ToJS(isolate, sqlite3_column_double(data->handle, i));
-                        break;
-                    case SQLITE_TEXT: {
-                        const char* text = reinterpret_cast<const char*>(sqlite3_column_text(data->handle, i));
-                        val = convert::ToJS(isolate, text ? text : "");
-                        break;
-                    }
-                    case SQLITE_BLOB:
-                        val = ColumnBlob(isolate, data->handle, i);
-                        break;
-                    case SQLITE_NULL:
-                    default:
-                        val = v8::Null(isolate);
-                        break;
-                }
-
-                obj->Set(context, convert::ToJS(isolate, colName), val).Check();
+                // Defined, not set: an inherited setter for the name would run script mid-row.
+                obj->CreateDataProperty(context, convert::ToJS(isolate, colName ? colName : ""),
+                                        ColumnValue(isolate, data->handle, i))
+                    .Check();
             }
 
             data->cachedRow.Reset(isolate, obj);
@@ -164,15 +214,22 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
 
     /// @description The number of columns in the current row.
     /// @signature getColumnCount()
-    /// @returns {number} - Count of columns in the current row.
+    /// @returns {number} - Count of columns in the current row; 0 when this is not a DBStatement.
+    /// @throws {Error} - the statement is closed ("The statement is closed")
     /// @throws {Error} - if the statement is not ready (no current row)
     Method(
         isolate, proto, "getColumnCount", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            auto self = args.This();
-
-            auto data = Unwrap(isolate, self);
-            if (!data || !data->hasRow) {
+            auto data = Unwrap(isolate, args.This());
+            if (!data) {
+                args.GetReturnValue().Set(0);
+                return;
+            }
+            if (!data->handle) {
+                error::ThrowError(isolate, STMT_CLOSED);
+                return;
+            }
+            if (!data->hasRow) {
                 error::ThrowError(isolate, "Statement is not ready");
                 return;
             }
@@ -182,119 +239,73 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
 
     /// @description The name of the column at the given index in the current row.
     /// @signature getColumnName(index: number)
-    /// @param index {number} - Zero-based column index; must be in [0, columnCount).
-    /// @returns {string} - The column's name, or empty string if unavailable.
+    /// @param index {number} - Zero-based column index; must be an integer in [0, columnCount).
+    /// @returns {string} - The column's name; undefined when this is not a DBStatement.
+    /// @throws {Error} - the statement is closed ("The statement is closed")
     /// @throws {Error} - if the statement is not ready (no current row)
-    /// @throws {RangeError} - if index is outside [0, columnCount)
+    /// @throws {Error} - index is missing or not an integer ("Invalid parameter for SQLiteStatement.getColumnName")
+    /// @throws {Error} - index is outside [0, columnCount) ("Invalid column index")
     Method(
         isolate, proto, "getColumnName", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            auto self = args.This();
-
-            if (!error::CheckArgCount(args, 1, "getColumnName")) {
+            auto data = Unwrap(isolate, args.This());
+            if (!data) {
                 return;
             }
-
-            if (!args[0]->IsNumber()) {
-                error::ThrowTypeError(isolate, "getColumnName() requires column index");
-                return;
-            }
-
-            auto data = Unwrap(isolate, self);
-            if (!data || !data->hasRow) {
-                error::ThrowError(isolate, "Statement is not ready");
-                return;
-            }
-
-            int32_t index = convert::To<int32_t>(isolate, args[0]);
-            if (index < 0 || index >= sqlite3_column_count(data->handle)) {
-                error::ThrowRangeError(isolate, "Column index out of range");
+            int32_t index = 0;
+            if (!CheckColumnArgs(args, *data, "getColumnName", index)) {
                 return;
             }
             const char* name = sqlite3_column_name(data->handle, index);
-
             args.GetReturnValue().Set(convert::ToJS(isolate, name ? name : ""));
         });
 
     /// @description The value of the column at the given index in the current row.
     /// @signature getColumnValue(index: number)
-    /// @param index {number} - Zero-based column index; must be in [0, columnCount).
+    /// @param index {number} - Zero-based column index; must be an integer in [0, columnCount).
     /// @returns {number|string|ArrayBuffer|null} - The column value by type (a BLOB as an ArrayBuffer), null for SQL
-    /// NULL.
+    /// NULL; undefined when this is not a DBStatement.
+    /// @throws {Error} - the statement is closed ("The statement is closed")
     /// @throws {Error} - if the statement is not ready (no current row)
-    /// @throws {RangeError} - if index is outside [0, columnCount)
+    /// @throws {Error} - index is missing or not an integer ("Invalid parameter for SQLiteStatement.getColumnValue")
+    /// @throws {Error} - index is outside [0, columnCount) ("Invalid column index")
     Method(
         isolate, proto, "getColumnValue", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            auto self = args.This();
-
-            if (!error::CheckArgCount(args, 1, "getColumnValue")) {
+            auto data = Unwrap(isolate, args.This());
+            if (!data) {
                 return;
             }
-
-            if (!args[0]->IsNumber()) {
-                error::ThrowTypeError(isolate, "getColumnValue() requires column index");
+            int32_t index = 0;
+            if (!CheckColumnArgs(args, *data, "getColumnValue", index)) {
                 return;
             }
-
-            auto data = Unwrap(isolate, self);
-            if (!data || !data->hasRow) {
-                error::ThrowError(isolate, "Statement is not ready");
-                return;
-            }
-
-            int32_t index = convert::To<int32_t>(isolate, args[0]);
-            if (index < 0 || index >= sqlite3_column_count(data->handle)) {
-                error::ThrowRangeError(isolate, "Column index out of range");
-                return;
-            }
-
-            switch (sqlite3_column_type(data->handle, index)) {
-                case SQLITE_INTEGER:
-                    args.GetReturnValue().Set(
-                        convert::ToJS(isolate, static_cast<double>(sqlite3_column_int64(data->handle, index))));
-                    break;
-                case SQLITE_FLOAT:
-                    args.GetReturnValue().Set(convert::ToJS(isolate, sqlite3_column_double(data->handle, index)));
-                    break;
-                case SQLITE_TEXT: {
-                    const char* text = reinterpret_cast<const char*>(sqlite3_column_text(data->handle, index));
-                    args.GetReturnValue().Set(convert::ToJS(isolate, text ? text : ""));
-                    break;
-                }
-                case SQLITE_BLOB:
-                    args.GetReturnValue().Set(ColumnBlob(isolate, data->handle, index));
-                    break;
-                case SQLITE_NULL:
-                default:
-                    args.GetReturnValue().SetNull();
-                    break;
-            }
+            args.GetReturnValue().Set(ColumnValue(isolate, data->handle, index));
         });
 
-    /// @description Executes a non-SELECT statement once, then finalizes it.
+    /// @description Executes a non-SELECT statement once, then closes it.
     /// @signature go()
-    /// @returns {boolean} - True if the statement ran to completion, false if it returned a row.
-    /// @throws {Error} - if stepping the statement fails
+    /// @returns {boolean} - True if the statement ran to completion, false if it returned a row (or this is not a
+    /// DBStatement).
+    /// @throws {Error} - the statement is closed ("The statement is closed")
+    /// @throws {Error} - if stepping the statement fails; the statement stays open and not ready
     Method(
         isolate, proto, "go", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            auto self = args.This();
-
-            auto data = Unwrap(isolate, self);
-            if (!data || !data->handle) {
-                error::ThrowError(isolate, "Invalid or finalized statement object");
+            auto data = Unwrap(isolate, args.This());
+            if (!data) {
+                args.GetReturnValue().SetFalse();
+                return;
+            }
+            if (!data->handle) {
+                error::ThrowError(isolate, STMT_CLOSED);
                 return;
             }
 
+            DropRow(*data);
             int32_t res = sqlite3_step(data->handle);
-
             if (res != SQLITE_ROW && res != SQLITE_DONE) {
-                if (data->parent && data->parent->handle) {
-                    error::ThrowError(isolate, sqlite3_errmsg(data->parent->handle));
-                } else {
-                    error::ThrowError(isolate, "SQLite error");
-                }
+                ThrowStepError(isolate, *data);
                 return;
             }
 
@@ -306,127 +317,119 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
 
     /// @description Advances the statement to the next result row.
     /// @signature next()
-    /// @returns {boolean} - True if a row is now available, false if no more rows.
+    /// @returns {boolean} - True if a row is now available, false if no more rows (or this is not a DBStatement).
+    /// @throws {Error} - the statement is closed ("The statement is closed")
     /// @throws {Error} - if stepping the statement fails
     Method(
         isolate, proto, "next", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            auto self = args.This();
-
-            auto data = Unwrap(isolate, self);
-            if (!data || !data->handle) {
-                error::ThrowError(isolate, "Invalid or finalized statement object");
+            auto data = Unwrap(isolate, args.This());
+            if (!data) {
+                args.GetReturnValue().SetFalse();
+                return;
+            }
+            if (!data->handle) {
+                error::ThrowError(isolate, STMT_CLOSED);
                 return;
             }
 
+            DropRow(*data);
             int32_t res = sqlite3_step(data->handle);
-
             if (res != SQLITE_ROW && res != SQLITE_DONE) {
-                if (data->parent && data->parent->handle) {
-                    error::ThrowError(isolate, sqlite3_errmsg(data->parent->handle));
-                } else {
-                    error::ThrowError(isolate, "SQLite error");
-                }
+                ThrowStepError(isolate, *data);
                 return;
             }
 
             data->hasRow = (res == SQLITE_ROW);
-
-            // Clear cached row
-            data->cachedRow.Reset();
-
             args.GetReturnValue().Set(res == SQLITE_ROW);
         });
 
-    /// @description Advances the statement past up to count result rows.
+    /// @description Advances the statement past up to count result rows, stopping at the end of the results.
     /// @signature skip(count: number)
-    /// @param count {number} - Maximum number of rows to skip.
-    /// @returns {number} - Count of rows actually skipped, which may be less than count.
+    /// @param count {number} - Maximum number of rows to skip, an integer; 0 or less skips nothing.
+    /// @returns {number} - Count of rows actually skipped, which may be less than count; 0 when this is not a
+    /// DBStatement.
+    /// @throws {Error} - the statement is closed ("The statement is closed")
+    /// @throws {Error} - count is missing or not an integer ("Invalid parameter to SQLiteStatement.skip")
     /// @throws {Error} - if stepping the statement fails
     Method(
         isolate, proto, "skip", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            auto self = args.This();
-
-            if (!error::CheckArgCount(args, 1, "skip")) {
+            auto data = Unwrap(isolate, args.This());
+            if (!data) {
+                args.GetReturnValue().Set(0);
+                return;
+            }
+            if (!data->handle) {
+                error::ThrowError(isolate, STMT_CLOSED);
+                return;
+            }
+            if (args.Length() < 1 || !args[0]->IsInt32()) {
+                error::ThrowError(isolate, "Invalid parameter to SQLiteStatement.skip");
                 return;
             }
 
-            if (!args[0]->IsNumber()) {
-                error::ThrowTypeError(isolate, "skip() requires a count argument");
-                return;
-            }
-
-            auto data = Unwrap(isolate, self);
-            if (!data || !data->handle) {
-                error::ThrowError(isolate, "Invalid or finalized statement object");
-                return;
-            }
-
-            int32_t count = convert::To<int32_t>(isolate, args[0]);
+            const int32_t count = args[0].As<v8::Int32>()->Value();
             int32_t skipped = 0;
-
-            for (int32_t i = 0; i < count; i++) {
-                int32_t res = sqlite3_step(data->handle);
-                if (res == SQLITE_ROW) {
-                    skipped++;
-                    data->hasRow = true;
-                } else if (res == SQLITE_DONE) {
-                    data->hasRow = false;
-                    break;
-                } else {
-                    if (data->parent && data->parent->handle) {
-                        error::ThrowError(isolate, sqlite3_errmsg(data->parent->handle));
-                    } else {
-                        error::ThrowError(isolate, "SQLite error");
+            if (count > 0) {
+                data->cachedRow.Reset();
+                // Stops at the end of the results: a further step would restart the statement at its first row.
+                for (; skipped < count; skipped++) {
+                    const int32_t res = sqlite3_step(data->handle);
+                    if (res == SQLITE_ROW) {
+                        data->hasRow = true;
+                        continue;
                     }
+                    data->hasRow = false;
+                    if (res == SQLITE_DONE) {
+                        break;
+                    }
+                    ThrowStepError(isolate, *data);
                     return;
                 }
             }
-
-            // Clear cached row (stale after skipping)
-            data->cachedRow.Reset();
 
             args.GetReturnValue().Set(convert::ToJS(isolate, skipped));
         });
 
     /// @description Resets the statement to its initial state for re-stepping, preserving bound parameters.
     /// @signature reset()
-    /// @returns {boolean} - True on successful reset.
-    /// @throws {Error} - if resetting the statement fails
+    /// @returns {boolean} - True on successful reset; false when this is not a DBStatement.
+    /// @throws {Error} - the statement is closed ("The statement is closed")
+    /// @throws {Error} - if resetting the statement fails (it reports the last step's error, and is rewound anyway)
     Method(
         isolate, proto, "reset", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            auto self = args.This();
-
-            auto data = Unwrap(isolate, self);
-            if (!data || !data->handle) {
-                error::ThrowError(isolate, "Invalid or finalized statement object");
+            auto data = Unwrap(isolate, args.This());
+            if (!data) {
+                args.GetReturnValue().SetFalse();
+                return;
+            }
+            if (!data->handle) {
+                error::ThrowError(isolate, STMT_CLOSED);
                 return;
             }
 
-            if (SQLITE_OK != sqlite3_reset(data->handle)) {
-                if (data->parent && data->parent->handle) {
-                    error::ThrowError(isolate, sqlite3_errmsg(data->parent->handle));
-                } else {
-                    error::ThrowError(isolate, "SQLite error");
-                }
+            // sqlite3_reset rewinds the statement even when it reports the last step's error.
+            const int32_t res = sqlite3_reset(data->handle);
+            DropRow(*data);
+            if (res != SQLITE_OK) {
+                ThrowStepError(isolate, *data);
                 return;
             }
-
-            data->hasRow = false;
-            data->cachedRow.Reset();
 
             args.GetReturnValue().Set(true);
         });
 
     /// @description Finalizes the statement, releasing its resources and detaching it from the parent connection.
+    /// Closing again does nothing.
     /// @signature close()
-    /// @returns {boolean} - Always true.
+    /// @returns {boolean} - True; false when this is not a DBStatement.
     Method(
         isolate, proto, "close", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto data = Unwrap(args.GetIsolate(), args.This());
             if (!data) {
+                args.GetReturnValue().SetFalse();
                 return;
             }
 
@@ -438,43 +441,45 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
     /// @signature bind(param: number, value: number|string|boolean|ArrayBuffer|ArrayBufferView|null)
     /// @param param {number} - 1-based parameter index.
     /// @param value {number|string|boolean|ArrayBuffer|ArrayBufferView|null} - Value to bind; null/undefined bind SQL
-    /// NULL, integers bind INTEGER, other numbers bind REAL, strings bind TEXT, booleans bind TEXT "true"/"false",
-    /// an ArrayBuffer or typed array / DataView binds a BLOB of its bytes.
+    /// NULL, integers bind INTEGER, other numbers bind REAL, strings bind TEXT, booleans bind INTEGER 1/0, an
+    /// ArrayBuffer or typed array / DataView binds a BLOB of its bytes.
     /// @signature bind(param: string, value: number|string|boolean|ArrayBuffer|ArrayBufferView|null)
     /// @param param {string} - Parameter name to resolve to an index (e.g. ":id").
     /// @param value {number|string|boolean|ArrayBuffer|ArrayBufferView|null} - Value to bind; null/undefined bind SQL
-    /// NULL, integers bind INTEGER, other numbers bind REAL, strings bind TEXT, booleans bind TEXT "true"/"false",
-    /// an ArrayBuffer or typed array / DataView binds a BLOB of its bytes.
-    /// @returns {boolean} - Always true on success.
-    /// @throws {Error} - if the parameter index/name does not resolve to a parameter (indexes start at 1)
-    /// @throws {TypeError} - if value is not a bindable type (number, string, boolean, ArrayBuffer, ArrayBufferView,
-    /// null/undefined)
+    /// NULL, integers bind INTEGER, other numbers bind REAL, strings bind TEXT, booleans bind INTEGER 1/0, an
+    /// ArrayBuffer or typed array / DataView binds a BLOB of its bytes.
+    /// @returns {boolean} - True on success; false when this is not a DBStatement.
+    /// @throws {Error} - the statement is closed ("The statement is closed")
+    /// @throws {Error} - not exactly two arguments, or param is neither an integer nor a string ("Invalid parameters
+    /// for SQLiteStatement.bind")
+    /// @throws {Error} - the parameter name does not resolve, or the index is 0 (indexes start at 1)
+    /// @throws {Error} - value is not a bindable type ("Invalid bound parameter")
+    /// @throws {Error} - SQLite refuses the binding, such as an index past the last parameter or a statement that has
+    /// stepped and not been reset ("Could not bind parameter N: ...")
     Method(
         isolate, proto, "bind", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
-            auto self = args.This();
-
-            if (!error::CheckArgCount(args, 2, "bind")) {
+            auto data = Unwrap(isolate, args.This());
+            if (!data) {
+                args.GetReturnValue().SetFalse();
                 return;
             }
-
-            auto data = Unwrap(isolate, self);
-            if (!data || !data->handle) {
-                error::ThrowError(isolate, "Invalid statement object");
+            if (!data->handle) {
+                error::ThrowError(isolate, STMT_CLOSED);
+                return;
+            }
+            if (args.Length() != 2 || !(args[0]->IsInt32() || args[0]->IsString())) {
+                error::ThrowError(isolate, "Invalid parameters for SQLiteStatement.bind");
                 return;
             }
 
             // First argument can be int32_t (column index) or string (parameter name)
             int32_t colNum = -1;
-
-            if (args[0]->IsNumber()) {
-                colNum = convert::To<int32_t>(isolate, args[0]);
-            } else if (args[0]->IsString()) {
+            if (args[0]->IsInt32()) {
+                colNum = args[0].As<v8::Int32>()->Value();
+            } else {
                 std::string paramName = convert::ToString(isolate, args[0]);
                 colNum = sqlite3_bind_parameter_index(data->handle, paramName.c_str());
-            } else {
-                error::ThrowTypeError(isolate, "bind() requires index or parameter name");
-                return;
             }
 
             if (colNum == 0) {
@@ -482,13 +487,16 @@ void JSDBStatement::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::Functi
                 return;
             }
 
-            // Bind based on value type
-            if (!BindValue(isolate, args[1], data->handle, colNum)) {
-                error::ThrowTypeError(isolate, "Invalid bound parameter type");
-                return;
+            switch (BindValue(isolate, args[1], data->handle, colNum)) {
+                case BindResult::Bound:
+                    args.GetReturnValue().Set(true);
+                    return;
+                case BindResult::BadType:
+                    error::ThrowError(isolate, "Invalid bound parameter");
+                    return;
+                case BindResult::Failed:
+                    return;
             }
-
-            args.GetReturnValue().Set(true);
         });
 }
 

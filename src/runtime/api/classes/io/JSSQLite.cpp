@@ -251,8 +251,9 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             }
 
             auto data = Unwrap(isolate, self);
+            // Reference: a foreign or prototype `this` has no database and gets a neutral result.
             if (!data) {
-                error::ThrowError(isolate, "Invalid SQLite object");
+                args.GetReturnValue().SetFalse();
                 return;
             }
 
@@ -277,12 +278,13 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
     /// @description Prepares a SQL query and returns a DBStatement for iterating its result set.
     /// @signature query(sql: string, ...params: (null|undefined|string|number|boolean|ArrayBuffer|ArrayBufferView)[])
     /// @param sql {string} - the SQL query (may contain ? / named placeholders)
-    /// @param params {null|undefined|string|number|boolean|ArrayBuffer|ArrayBufferView} - Values to bind, by JS type
-    /// (an ArrayBuffer or typed array / DataView binds a BLOB).
+    /// @param params {null|undefined|string|number|boolean|ArrayBuffer|ArrayBufferView} - Values to bind, by JS type:
+    /// null/undefined bind NULL, a boolean binds INTEGER 1/0, an ArrayBuffer or typed array / DataView binds a BLOB.
     /// @returns {DBStatement} - a statement for stepping through results; throws on error.
     /// @throws {Error} - if the database is not open
     /// @throws {Error} - if preparing the SQL fails or the statement has no effect
-    /// @throws {Error} - if a bound parameter value is unsupported / cannot be bound
+    /// @throws {Error} - a bound parameter value is unsupported ("Invalid bound parameter N"), or SQLite refuses it,
+    /// such as an argument past the statement's last parameter ("Could not bind parameter N: ...")
     Method(
         isolate, proto, "query", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
@@ -299,8 +301,9 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             }
 
             auto data = Unwrap(isolate, self);
+            // Reference: a foreign or prototype `this` has no database and gets a neutral result.
             if (!data) {
-                error::ThrowError(isolate, "Invalid SQLite object");
+                args.GetReturnValue().SetNull();
                 return;
             }
 
@@ -327,12 +330,15 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             // Bind any additional parameters (args[1], args[2], ...). Parameters
             // are 1-indexed in SQLite; args[i] maps to paramIdx = i.
             for (int32_t i = 1; i < args.Length(); i++) {
-                if (!BindValue(isolate, args[i], stmtHandle, i)) {
-                    sqlite3_finalize(stmtHandle);
-                    std::string msg = "Invalid bound parameter " + std::to_string(i);
-                    error::ThrowError(isolate, msg);
-                    return;
+                const auto bound = BindValue(isolate, args[i], stmtHandle, i);
+                if (bound == BindResult::Bound) {
+                    continue;
                 }
+                sqlite3_finalize(stmtHandle);
+                if (bound == BindResult::BadType) {
+                    error::ThrowError(isolate, "Invalid bound parameter " + std::to_string(i));
+                }
+                return;
             }
 
             auto stmtObj = JSDBStatement::CreateInstance(isolate, context, stmtHandle, data, sql);
@@ -356,8 +362,9 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             auto self = args.This();
 
             auto data = Unwrap(isolate, self);
+            // Reference: a foreign or prototype `this` has no database and gets a neutral result.
             if (!data) {
-                error::ThrowError(isolate, "Invalid SQLite object");
+                args.GetReturnValue().SetFalse();
                 return;
             }
 
@@ -387,8 +394,9 @@ void JSSQLite::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTem
             auto self = args.This();
 
             auto data = Unwrap(isolate, self);
+            // Reference: a foreign or prototype `this` has no database and gets a neutral result.
             if (!data) {
-                error::ThrowError(isolate, "Invalid SQLite object");
+                args.GetReturnValue().SetFalse();
                 return;
             }
 

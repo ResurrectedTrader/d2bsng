@@ -6,6 +6,7 @@
 #include <string>
 #include <utility>
 
+#include "api/classes/io/SQLiteBind.h"
 #include "api/globals/Constants.h"
 #include "components/characterstate/UnitJson.h"
 #include "components/dde/DdeService.h"
@@ -16,6 +17,27 @@
 #include "components/script/Script.h"
 #include "components/script/ScriptTypes.h"
 #include "utils/EnumNaming.h"
+
+namespace d2bs::runtime::api::classes {
+
+std::string EnumName(BindResult value) {
+    static constexpr auto ENTRIES = std::to_array<utils::EnumEntry>({
+        {.bits = utils::EnumBits(BindResult::Bound), .name = "Bound"},
+        {.bits = utils::EnumBits(BindResult::BadType), .name = "BadType"},
+        {.bits = utils::EnumBits(BindResult::Failed), .name = "Failed"},
+    });
+    return utils::NameEnumValue("BindResult", ENTRIES, std::to_underlying(value));
+}
+
+// NOLINTBEGIN(readability-identifier-naming) - fmt's customisation point name
+
+std::string format_as(BindResult value) {
+    return EnumName(value);
+}
+
+// NOLINTEND(readability-identifier-naming)
+
+}  // namespace d2bs::runtime::api::classes
 
 namespace d2bs::runtime::api::globals {
 
