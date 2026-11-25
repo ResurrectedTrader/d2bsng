@@ -6,6 +6,7 @@
 #include <optional>
 #include <span>
 #include <stop_token>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -180,7 +181,8 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param reject {function} - rejects a point; required when reductionType == 3
     /// @param reduce {function} - reduces the point list; required when reductionType == 3
     /// @param mutate {function} - mutates a point; required when reductionType == 3
-    /// @callback reject(x: number, y: number) -> {boolean} - return true to drop this point from the path
+    /// @callback reject(x: number, y: number) -> {boolean} - return true to drop this point from the path; asked at
+    /// most once per point of a search, and never about a point outside the act's levels
     /// @callback reduce(path: Array<{x: number, y: number}>) -> {Array<{x: number, y: number}>} - return the reduced
     /// point list
     /// @callback mutate(x: number, y: number) -> {[number, number]} - return the mutated point as a positional [x, y]
@@ -189,6 +191,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// callbacks are called with getPath's own `this`, and the path is empty when the game or the act changes while
     /// one runs.
     /// @throws {Error} - area is 0 (invalid level)
+    /// @throws {Error} - the level is not loaded: it is not in the player's current act ("Level Not loaded")
     /// @throws {RangeError} - reductionType is outside 0-3
     /// @throws {Error} - reductionType is 3 but reject/reduce/mutate functions are missing ("getPath reduction type 3
     /// needs reject, reduce and mutate functions")
@@ -234,6 +237,12 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             if (reductionType == static_cast<uint32_t>(navigation::ReductionType::JSCallback) &&
                 (args.Length() < 10 || !args[7]->IsFunction() || !args[8]->IsFunction() || !args[9]->IsFunction())) {
                 error::ThrowError(isolate, "getPath reduction type 3 needs reject, reduce and mutate functions");
+                return;
+            }
+
+            // Reference: a level outside the loaded act throws as getCollision does.
+            if (!game::Level::Get(area)) {
+                error::ThrowError(isolate, "Level Not loaded");
                 return;
             }
 
@@ -291,10 +300,16 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                     return true;
                 };
 
+                // reject's answer for each point it was asked about: as in d2bs it is asked at most once per point.
+                std::unordered_map<uint64_t, bool> verdicts;
                 request.jsReject = [&, isolate, context, rejectFunc, receiver](navigation::Position p) -> bool {
                     // A blocked point: a stopped search drains without calling script again.
                     if (isStopped) {
                         return true;
+                    }
+                    const uint64_t key = (static_cast<uint64_t>(p.x) << 32U) | p.y;
+                    if (const auto known = verdicts.find(key); known != verdicts.end()) {
+                        return known->second;
                     }
                     v8::HandleScope scope(isolate);
                     v8::TryCatch tryCatch(isolate);
@@ -305,7 +320,9 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                                     rejectFunc->Call(context, receiver, argv.size(), argv.data()).ToLocal(&result))) {
                         return true;
                     }
-                    return result->BooleanValue(isolate);
+                    const bool isBlocked = result->BooleanValue(isolate);
+                    verdicts.emplace(key, isBlocked);
+                    return isBlocked;
                 };
 
                 request.jsReduce =
@@ -439,7 +456,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 }
             }
             if (!isLevelLoaded) {
-                error::ThrowError(isolate, "Level not loaded");
+                error::ThrowError(isolate, "Level Not loaded");
                 return;
             }
             args.GetReturnValue().Set(std::to_underlying(collision));
@@ -447,32 +464,24 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
 
     /// @description Get the player's mercenary HP as a percentage (0-100).
     /// @signature getMercHP()
-    /// @returns {number} - Merc HP as a percent (0-100, 0 while the player is dead or with no max HP); undefined if
-    /// there is no player or merc, or the merc is dead or out of view.
+    /// @returns {number} - Merc HP as a percent (0-100; 0 while the merc lies dead in view, or with no max HP);
+    /// undefined if there is no player or no merc in view; false if the game was not ready.
     function::Register(
         isolate, global, "getMercHP", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             if (!game::WaitForGameReady(core::config::GetAppConfig().gameReadyTimeout)) {
                 error::WarnAndReturnFalse(args, "Game not ready");
                 return;
             }
-            // One lock across the player test and the merc reads, so they all see the same frame.
-            game::GameReadLock lock;
-            // Reference: global version always uses player unit
-            auto player = game::Unit::Player();
-            if (!player)
-                return;
-            auto merc = player.GetMerc(false);
-            if (!merc)
-                return;
-            // d2bs tests mode 12, which is a monster's dead mode but a player's kick.
-            if (player.Mode() == std::to_underlying(game::PlayerMode::Dead)) {
-                args.GetReturnValue().Set(0);
-                return;
+            std::optional<uint32_t> percent;
+            {
+                // One lock across the player test and the merc reads, so they all see the same frame.
+                const game::GameReadLock lock;
+                // Reference: global version always uses player unit
+                percent = JSUnit::MercHpPercent(game::Unit::Player());
             }
-            // A hireling's Hp() is the game's HP percent scaled to max HP and rounded down, so rounding back up
-            // recovers that percent (exactly whenever max HP is at least 100).
-            const uint32_t maxHp = merc->HpMax();
-            args.GetReturnValue().Set(maxHp > 0 ? ((100 * merc->Hp()) + maxHp - 1) / maxHp : 0U);
+            if (percent) {
+                args.GetReturnValue().Set(*percent);
+            }
         });
 
     /// @description Get the current cursor type.
@@ -2482,17 +2491,19 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description Reveal the player's current level on the automap.
     /// @signature revealLevel(drawPresets?: boolean)
     /// @param drawPresets {boolean} - true also reveals preset units (default false)
-    /// @returns {undefined} - no return value
+    /// @returns {boolean} - true when the level was revealed; false when the game was not ready (at the menu, or
+    /// during an area or act load) and nothing was revealed
     function::Register(
         isolate, global, "revealLevel", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
+            args.GetReturnValue().SetFalse();
 
             if (!game::IsGameReady()) {
                 return;
             }
 
             bool drawPresets = false;
-            if (args.Length() >= 1 && args[0]->IsBoolean()) {
+            if (args.Length() == 1 && args[0]->IsBoolean()) {
                 drawPresets = args[0]->BooleanValue(isolate);
             }
 
@@ -2506,7 +2517,7 @@ void RegisterGameFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
                 levelNo = player.Area();
             }
             // Outside the lock: RevealLevel waits on the game thread.
-            game::RevealLevel(levelNo, drawPresets);
+            args.GetReturnValue().Set(game::RevealLevel(levelNo, drawPresets));
         });
 }
 

@@ -612,11 +612,12 @@ std::vector<Position> WalkAStar(CollisionLookup& coll, Position start, Position 
 
             Position npPos = np.ToPosition();
 
-            if (np != endPt && (jsReject ? jsReject(npPos) : coll.IsBlocked(np)))
-                continue;
-
+            // The level first, so jsReject is never asked about a point outside every level.
             auto* nLevel = curLevel.Contains(npPos) ? &curLevel : getLevel(npPos);
             if (!nLevel)
+                continue;
+
+            if (np != endPt && (jsReject ? jsReject(npPos) : coll.IsBlocked(np)))
                 continue;
 
             int32_t nLocalIdx = nLevel->ToIdx(npPos);

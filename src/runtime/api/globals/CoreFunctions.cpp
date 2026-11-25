@@ -487,7 +487,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             int32_t low = convert::To<int32_t>(isolate, args[0]);
             int32_t high = convert::To<int32_t>(isolate, args[1]);
 
-            if (high > low + 1) {
+            if (high > static_cast<int64_t>(low) + 1) {
                 std::uniform_int_distribution dist(low, high);
                 args.GetReturnValue().Set(dist(rng));
             } else {
