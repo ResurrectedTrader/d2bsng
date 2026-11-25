@@ -128,7 +128,9 @@ void DrawFrame(PointF /*p1*/, PointF /*p2*/) {}
 
 // === Network ===
 void SendGamePacket(std::span<const uint8_t> /*data*/) {}
-void ReceiveGamePacket(std::span<const uint8_t> /*data*/) {}
+bool ReceiveGamePacket(std::span<const uint8_t> /*data*/) {
+    return false;
+}
 
 // === Chat ===
 void PrintGameString(const std::string& /*text*/, int32_t /*color*/) {}

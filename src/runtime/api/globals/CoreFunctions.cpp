@@ -739,9 +739,9 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @param buffer {ArrayBuffer|TypedArray} - raw packet bytes as a single object argument
     /// @signature getPacket(...sizeValuePairs: number)
     /// @param sizeValuePairs {number} - alternating size (1|2|4) and value entries; count must be even and >= 2
-    /// @returns {boolean} - true on success; false if the packet API is disabled or the argument shape is invalid (a
-    /// bad
-    ///                      buffer object, or a pair count that is < 2 or odd)
+    /// @returns {boolean} - true when the packet was passed to the game's incoming packet queue; false when nothing
+    /// was passed on: outside a game (no game session, or the client is at the menu), when the packet API is disabled,
+    /// or when the argument shape is invalid (a bad buffer object, or a pair count that is < 2 or odd)
     /// @throws {Error} - if a packet field size is not 1, 2, or 4, or the packet buffer overflows
     function::Register(
         isolate, global, "getPacket", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -749,10 +749,7 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             if (!BuildPacketFromArgs(args, packet)) {
                 return;
             }
-            if (!packet.empty()) {
-                game::ReceiveGamePacket(packet);
-            }
-            args.GetReturnValue().Set(true);
+            args.GetReturnValue().Set(packet.empty() || game::ReceiveGamePacket(packet));
         });
 
     /// @description Sends a game packet to the server (requires EnableUnsupported in d2bs.ini).

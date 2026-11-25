@@ -16,6 +16,10 @@ namespace d2bs::lod114d::imports::d2net {
 
 // Game.exe 1.14d 0x00882CE8: shared by the TCP producer and both incoming queue drains.
 inline GameVar<CRITICAL_SECTION> gIncomingPacketCriticalSection{0x482CE8};
+// Game.exe 1.14d 0x00882B34: the game connection, single player's included. The connect (0x0052A790) sets it and the
+// disconnect clears it inside the critical section above (0x0052A80B), and CLIENT_Send (0x0052AE50) sends nothing
+// while it is null.
+inline GameVar<void*> gpSession{0x482B34};
 
 // ---- Functions -------------------------------------------------------------
 // Pointer args declared `const` even though the underlying game functions
