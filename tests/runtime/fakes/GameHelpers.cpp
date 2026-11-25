@@ -127,7 +127,9 @@ void DrawLine(PointF /*p1*/, PointF /*p2*/, uint32_t /*color*/, uint32_t /*opaci
 void DrawFrame(PointF /*p1*/, PointF /*p2*/) {}
 
 // === Network ===
-void SendGamePacket(std::span<const uint8_t> /*data*/) {}
+bool SendGamePacket(std::span<const uint8_t> /*data*/) {
+    return false;
+}
 bool ReceiveGamePacket(std::span<const uint8_t> /*data*/) {
     return false;
 }

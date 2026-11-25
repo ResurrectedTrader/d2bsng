@@ -5,6 +5,8 @@
 #include <atomic>
 #include <chrono>
 #include <filesystem>
+#include <format>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <random>
@@ -43,66 +45,85 @@ namespace d2bs::runtime::api::globals {
 
 using namespace d2bs::runtime::api;
 
-// getPacket / sendPacket share packet-construction logic. This helper extracts
-// either an ArrayBuffer/TypedArray or (byteSize, value) pairs into `out`.
-static bool BuildPacketFromArgs(const v8::FunctionCallbackInfo<v8::Value>& args, std::vector<uint8_t>& out) {
+enum class PacketArgs : uint8_t {
+    Built,
+    // Refused with a warning and false already set.
+    Invalid,
+    // Longer than the caller's limit; nothing was copied.
+    TooLong,
+    // A conversion threw; its exception is pending.
+    Failed,
+};
+
+// getPacket / sendPacket build the script's packet into `out`: one ArrayBuffer or TypedArray, or (size, value) pairs,
+// each adding the value's low `size` bytes (1 to 4) little endian.
+static PacketArgs BuildPacketFromArgs(const v8::FunctionCallbackInfo<v8::Value>& args, size_t maxLength,
+                                      std::vector<uint8_t>& out) {
     auto* isolate = args.GetIsolate();
 
     if (!core::config::GetAppConfig().enableUnsupported.load()) {
         error::WarnAndReturnFalse(args, "Packet API requires EnableUnsupported = true in d2bs.ini");
-        return false;
+        return PacketArgs::Invalid;
     }
-
-    uint32_t len = 0;
 
     if (args.Length() >= 1 && args[0]->IsObject()) {
         v8::Local<v8::Object> obj = args[0].As<v8::Object>();
         std::shared_ptr<v8::BackingStore> backingStore;
         size_t byteOffset = 0;
+        size_t length = 0;
 
         if (obj->IsArrayBuffer()) {
             backingStore = obj.As<v8::ArrayBuffer>()->GetBackingStore();
-            len = backingStore->ByteLength();
+            length = backingStore->ByteLength();
         } else if (obj->IsTypedArray()) {
             auto typedArray = obj.As<v8::TypedArray>();
             backingStore = typedArray->Buffer()->GetBackingStore();
-            len = typedArray->ByteLength();
+            length = typedArray->ByteLength();
             byteOffset = typedArray->ByteOffset();
         } else {
             error::WarnAndReturnFalse(args, "invalid ArrayBuffer parameter");
-            return false;
+            return PacketArgs::Invalid;
         }
-
-        if (len > 0) {
-            out.resize(len);
-            const auto* start = static_cast<const uint8_t*>(backingStore->Data()) + byteOffset;
-            std::memcpy(out.data(), start, len);
-        }
-    } else {
-        if (args.Length() < 2 || args.Length() % 2 != 0) {
+        if (args.Length() != 1) {
             error::WarnAndReturnFalse(args, "invalid packet format");
-            return false;
+            return PacketArgs::Invalid;
         }
-
-        out.resize(args.Length() * 2);
-
-        for (int32_t i = 0; i < args.Length(); i += 2) {
-            uint32_t size = convert::To<uint32_t>(isolate, args[i]);
-            uint32_t value = convert::To<uint32_t>(isolate, args[i + 1]);
-            if (size != 1 && size != 2 && size != 4) {
-                error::ThrowError(isolate, "Invalid packet field size (must be 1, 2, or 4)");
-                return false;
-            }
-            if (len + size > out.size()) {
-                error::ThrowError(isolate, "Packet buffer overflow");
-                return false;
-            }
-            std::memcpy(&out[len], &value, size);
-            len += size;
+        if (length > maxLength) {
+            return PacketArgs::TooLong;
         }
-        out.resize(len);
+        const auto* start = static_cast<const uint8_t*>(backingStore->Data()) + byteOffset;
+        out.assign(start, start + length);
+        return PacketArgs::Built;
     }
-    return true;
+
+    if (args.Length() == 0 || args.Length() % 2 != 0) {
+        error::WarnAndReturnFalse(args, "invalid packet format");
+        return PacketArgs::Invalid;
+    }
+    const auto context = isolate->GetCurrentContext();
+    for (int32_t i = 0; i < args.Length(); i += 2) {
+        // Read as a number, not ToUint32, so 1.5 or 2^32 + 1 is refused rather than wrapped to a valid size.
+        double width = 0;
+        if (!args[i]->NumberValue(context).To(&width)) {
+            return PacketArgs::Failed;
+        }
+        if (width != 1 && width != 2 && width != 3 && width != 4) {
+            error::WarnAndReturnFalse(args, "invalid packet format");
+            return PacketArgs::Invalid;
+        }
+        const auto size = static_cast<size_t>(width);
+        if (size > maxLength - out.size()) {
+            return PacketArgs::TooLong;
+        }
+        uint32_t value = 0;
+        if (!args[i + 1]->Uint32Value(context).To(&value)) {
+            return PacketArgs::Failed;
+        }
+        for (size_t b = 0; b < size; b++) {
+            out.push_back(static_cast<uint8_t>(value >> (8 * b)));
+        }
+    }
+    return PacketArgs::Built;
 }
 
 // Resolve an include path: looks in libs/ subdirectory only. A library found once is not looked up on disk again,
@@ -736,43 +757,71 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
             }
         });
 
-    /// @description Injects a received game packet into the client (requires EnableUnsupported in d2bs.ini).
+    /// @description Passes packets to the client as if the server had sent them (requires EnableUnsupported in
+    /// d2bs.ini). The packets are queued as given: the client reads each with its own size table, so a malformed one
+    /// is the script's to avoid.
     /// @signature getPacket(buffer: ArrayBuffer | TypedArray)
-    /// @param buffer {ArrayBuffer|TypedArray} - raw packet bytes as a single object argument
+    /// @param buffer {ArrayBuffer|TypedArray} - one or more whole packets back to back, as the only argument
     /// @signature getPacket(...sizeValuePairs: number)
-    /// @param sizeValuePairs {number} - alternating size (1|2|4) and value entries; count must be even and >= 2
-    /// @returns {boolean} - true when the packet was passed to the game's incoming packet queue; false when nothing
-    /// was passed on: outside a game (no game session, or the client is at the menu), when the packet API is disabled,
-    /// or when the argument shape is invalid (a bad buffer object, or a pair count that is < 2 or odd)
-    /// @throws {Error} - if a packet field size is not 1, 2, or 4, or the packet buffer overflows
+    /// @param sizeValuePairs {number} - alternating size and value entries: each size (1 to 4) is the number of bytes
+    /// its value adds to the packet, little endian; the count must be even and at least 2
+    /// @returns {boolean} - true when the packets were passed to the game's incoming packet queue; false outside a game
+    /// (no game session, or the client is at the menu), and false with a warning when the packet API is disabled or
+    /// the input is refused: a bad buffer object, a buffer with other arguments, an odd or zero pair count, a size
+    /// other than 1 to 4, or an empty packet
+    /// @throws {*} - whatever a size or value throws while it is converted
     function::Register(
         isolate, global, "getPacket", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             std::vector<uint8_t> packet;
-            if (!BuildPacketFromArgs(args, packet)) {
+            switch (BuildPacketFromArgs(args, std::numeric_limits<size_t>::max(), packet)) {
+                case PacketArgs::Built:
+                    break;
+                case PacketArgs::Failed:
+                    return;
+                default:
+                    args.GetReturnValue().SetFalse();
+                    return;
+            }
+            if (packet.empty()) {
+                error::WarnAndReturnFalse(args, "getPacket: the packet is empty");
                 return;
             }
-            args.GetReturnValue().Set(packet.empty() || game::ReceiveGamePacket(packet));
+            args.GetReturnValue().Set(game::ReceiveGamePacket(packet));
         });
 
-    /// @description Sends a game packet to the server (requires EnableUnsupported in d2bs.ini).
+    /// @description Sends a packet to the server (requires EnableUnsupported in d2bs.ini). The packet must be 1 to
+    /// 516 bytes long.
     /// @signature sendPacket(buffer: ArrayBuffer | TypedArray)
-    /// @param buffer {ArrayBuffer|TypedArray} - raw packet bytes as a single object argument
+    /// @param buffer {ArrayBuffer|TypedArray} - the packet's bytes, as the only argument
     /// @signature sendPacket(...sizeValuePairs: number)
-    /// @param sizeValuePairs {number} - alternating size (1|2|4) and value entries; count must be even and >= 2
-    /// @returns {boolean} - true on success; false if the packet API is disabled or the argument shape is invalid (a
-    /// bad
-    ///                      buffer object, or a pair count that is < 2 or odd)
-    /// @throws {Error} - if a packet field size is not 1, 2, or 4, or the packet buffer overflows
+    /// @param sizeValuePairs {number} - alternating size and value entries: each size (1 to 4) is the number of bytes
+    /// its value adds to the packet, little endian; the count must be even and at least 2
+    /// @returns {boolean} - true when the game took the packet; false when it did not (outside a game, or a
+    /// gamepacketsent listener blocked it, with no warning), and false with a warning when the packet API is disabled
+    /// or the input is refused: a bad buffer object, a buffer with other arguments, an odd or zero pair count, a size
+    /// other than 1 to 4, or a packet that is empty or longer than 516 bytes
+    /// @throws {*} - whatever a size or value throws while it is converted
     function::Register(
         isolate, global, "sendPacket", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             std::vector<uint8_t> packet;
-            if (!BuildPacketFromArgs(args, packet)) {
+            switch (BuildPacketFromArgs(args, game::MAX_GAME_PACKET_SIZE, packet)) {
+                case PacketArgs::Built:
+                    break;
+                case PacketArgs::TooLong:
+                    packet.clear();
+                    break;
+                case PacketArgs::Failed:
+                    return;
+                default:
+                    args.GetReturnValue().SetFalse();
+                    return;
+            }
+            if (packet.empty()) {
+                error::WarnAndReturnFalse(
+                    args, std::format("sendPacket: a packet must be 1 to {} bytes", game::MAX_GAME_PACKET_SIZE));
                 return;
             }
-            if (!packet.empty()) {
-                game::SendGamePacket(packet);
-            }
-            args.GetReturnValue().Set(true);
+            args.GetReturnValue().Set(game::SendGamePacket(packet));
         });
 
     /// @description Returns the machine's public IP via a blocking HTTP request to api.ipify.org.

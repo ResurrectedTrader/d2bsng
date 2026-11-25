@@ -85,7 +85,11 @@ void DrawLine(PointF p1, PointF p2, uint32_t color, uint32_t opacity);
 void DrawFrame(PointF p1, PointF p2);
 
 // === Network ===
-void SendGamePacket(std::span<const uint8_t> data);
+// The largest packet the game takes in either direction.
+inline constexpr size_t MAX_GAME_PACKET_SIZE = 516;
+// Sends `data` to the server. False when the game did not take it: no game session, a failed send, single player's
+// server refused it, or a gamepacketsent listener blocked it.
+bool SendGamePacket(std::span<const uint8_t> data);
 // Queues `data` as a packet received from the server. False, with nothing queued, when there is no game session or
 // the client is at the menu.
 bool ReceiveGamePacket(std::span<const uint8_t> data);

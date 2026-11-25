@@ -27,8 +27,10 @@ inline GameVar<void*> gpSession{0x482B34};
 // lets callers pass `std::span<const uint8_t>::data()` without `const_cast`.
 // Bit-pattern identical at the ABI boundary.
 // MOO: CLIENT_Send(int32_t nUnused, const uint8_t* pBuffer, int32_t nBufferSize).
-// 1.14d reorders the args; arg 2 is read but never used in the body.
-inline StdcallFunc<void(size_t /*aLen*/, uint32_t /*nUnused*/, const uint8_t* /*aPacket*/)> CLIENT_Send{0x12AE50};
+// 1.14d reorders the args; arg 2 is read but never used in the body. Returns 0 when the packet was not taken: no
+// game session, single player's server refused it, a failed send, or a gamepacketsent listener blocked it (that hook
+// sits inside this function and zeroes aLen).
+inline StdcallFunc<int32_t(size_t /*aLen*/, uint32_t /*nUnused*/, const uint8_t* /*aPacket*/)> CLIENT_Send{0x12AE50};
 inline FastcallFunc<void(const uint8_t* /*aPacket*/, uint32_t /*aLen*/)> CLIENT_DequeueGamePacket{0x12AEB0};
 // Intercept-only: reference calls this via inline `call D2NET_ReceivePacket_I`,
 // the third arg is an out-pointer the function writes the parsed packet length

@@ -480,32 +480,35 @@ extern "C" uint32_t __fastcall OnGamePacketReceived(uint8_t* packet, uint32_t si
         }
         case 0x9C:
         case 0x9D: {  // item action
-            if (size >= 19 && cb->onItemAction != nullptr) {
+            if (size >= 14 && cb->onItemAction != nullptr) {
                 const uint8_t mode = packet[1];
                 uint32_t gid = 0;
                 std::memcpy(&gid, packet + 4, sizeof(uint32_t));
                 const uint8_t dest = (packet[13] & 0x1C) >> 2;
                 int64_t icode = 0;
-                const auto readCode = [&](size_t offset, int shift) {
-                    if (size >= offset + sizeof(icode)) {
-                        std::memcpy(&icode, packet + offset, sizeof(icode));
+                // The code is bits shift..shift+31 of the little-endian int64 at offset, and codeEnd is the byte after
+                // its last bit. Real 20- and 22-byte packets end right after their code, so the guard is codeEnd, not
+                // the int64's own end; the bytes past the packet stay zero and only reach bits the 4-byte copy drops.
+                const auto readCode = [&](size_t offset, int shift, size_t codeEnd) {
+                    if (size >= codeEnd) {
+                        std::memcpy(&icode, packet + offset, std::min(size - offset, sizeof(icode)));
                         icode >>= shift;
                     }
                 };
                 switch (dest) {
                     case 0:
                     case 2:
-                        readCode(15, 0x04);
+                        readCode(15, 0x04, 20);
                         break;
                     case 3:
                     case 4:
                     case 6:
                         if ((mode == 0 || mode == 2) && dest == 3) {
-                            readCode(17, 0x05);
+                            readCode(17, 0x05, 22);
                         } else if (mode != 0xF && mode != 1 && mode != 12) {
-                            readCode(17, 0x1C);
+                            readCode(17, 0x1C, 25);
                         } else {
-                            readCode(15, 0x04);
+                            readCode(15, 0x04, 20);
                         }
                         break;
                     default:
