@@ -47,10 +47,10 @@ Lines look like this:
 [S->C] [0] ItemAction[0x9c, 20](action=PutInBelt, component=16, itemId=0x2, flags=Identified|InStore|StartItem|CompactSave|JustSaved, format=101, mode=InBelt, bodyLocation=None, grid=(0, 0), page=-1, code=hp1)
 [S->C] [0] UnitWarp[0x15, 11](unitType=Player, unitId=0x1, position=(5343, 4253), reassign=true)
 [C->S] [1] RequestQuestData[0x40, 1] [script]
-[S->C] [0] [0x76,   6] 76 00 01 00 00 00
+[S->C] [0x76,   6] 76 00 01 00 00 00
 ```
 
-The last one is an id no class maps: its bytes, then the same tags.
+The last one is the Hex view (also how an id no class maps, or bytes that do not decode, are shown): the bytes, then the same tags.
 
 ## Packet classes
 

@@ -118,6 +118,7 @@
 #include "packets/server/RemoveRoomPacket.h"
 #include "packets/server/AssignWarpPacket.h"
 #include "packets/server/RemoveUnitPacket.h"
+#include "packets/server/SetPlayerUnitPacket.h"
 #include "packets/server/MonsterHitPacket.h"
 #include "packets/server/UnitStopPacket.h"
 #include "packets/server/ObjectModePacket.h"
@@ -152,6 +153,7 @@
 #include "packets/server/UnitCastOnUnitPacket.h"
 #include "packets/server/UnitCastAtLocationPacket.h"
 #include "packets/server/MercenaryForHirePacket.h"
+#include "packets/server/ClearMercenaryListPacket.h"
 #include "packets/server/QuestSpecialPacket.h"
 #include "packets/server/AssignObjectPacket.h"
 #include "packets/server/QuestLogPacket.h"
@@ -180,11 +182,13 @@
 #include "packets/server/MissileSyncPacket.h"
 #include "packets/server/AssignCorpsePacket.h"
 #include "packets/server/PartyRosterPacket.h"
+#include "packets/server/ClearHoverTextPacket.h"
 #include "packets/server/UiActionPacket.h"
 #include "packets/server/TradePartnerPacket.h"
 #include "packets/server/TradeGoldPacket.h"
 #include "packets/server/PetActionPacket.h"
 #include "packets/server/SkillHotkeyPacket.h"
+#include "packets/server/ClearItemPendingPacket.h"
 #include "packets/server/ItemFlagUpdatePacket.h"
 #include "packets/server/SpawnPlayerPacket.h"
 #include "packets/server/PartyMemberUpdatePacket.h"
@@ -331,6 +335,7 @@ LOD114D_SERVER_PACKET(0x07, AddRoomPacket)
 LOD114D_SERVER_PACKET(0x08, RemoveRoomPacket)
 LOD114D_SERVER_PACKET(0x09, AssignWarpPacket)
 LOD114D_SERVER_PACKET(0x0a, RemoveUnitPacket)
+LOD114D_SERVER_PACKET(0x0b, SetPlayerUnitPacket)
 LOD114D_SERVER_PACKET(0x0c, MonsterHitPacket)
 LOD114D_SERVER_PACKET(0x0d, UnitStopPacket)
 LOD114D_SERVER_PACKET(0x0e, ObjectModePacket)
@@ -365,6 +370,7 @@ LOD114D_SERVER_PACKET(0x48, RefreshInventoryPacket)
 LOD114D_SERVER_PACKET(0x4c, UnitCastOnUnitPacket)
 LOD114D_SERVER_PACKET(0x4d, UnitCastAtLocationPacket)
 LOD114D_SERVER_PACKET(0x4e, MercenaryForHirePacket)
+LOD114D_SERVER_PACKET(0x4f, ClearMercenaryListPacket)
 LOD114D_SERVER_PACKET(0x50, QuestSpecialPacket)
 LOD114D_SERVER_PACKET(0x51, AssignObjectPacket)
 LOD114D_SERVER_PACKET(0x52, QuestLogPacket)
@@ -393,11 +399,13 @@ LOD114D_SERVER_PACKET(0x6d, MonsterStopPacket)
 LOD114D_SERVER_PACKET(0x73, MissileSyncPacket)
 LOD114D_SERVER_PACKET(0x74, AssignCorpsePacket)
 LOD114D_SERVER_PACKET(0x75, PartyRosterPacket)
+LOD114D_SERVER_PACKET(0x76, ClearHoverTextPacket)
 LOD114D_SERVER_PACKET(0x77, UiActionPacket)
 LOD114D_SERVER_PACKET(0x78, TradePartnerPacket)
 LOD114D_SERVER_PACKET(0x79, TradeGoldPacket)
 LOD114D_SERVER_PACKET(0x7a, PetActionPacket)
 LOD114D_SERVER_PACKET(0x7b, SkillHotkeyPacket)
+LOD114D_SERVER_PACKET(0x7c, ClearItemPendingPacket)
 LOD114D_SERVER_PACKET(0x7d, ItemFlagUpdatePacket)
 LOD114D_SERVER_PACKET(0x7e, SpawnPlayerPacket)
 LOD114D_SERVER_PACKET(0x7f, PartyMemberUpdatePacket)

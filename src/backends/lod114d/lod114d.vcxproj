@@ -299,6 +299,10 @@
     <ClInclude Include="packets\server\InteractionResultPacket.h" />
     <ClInclude Include="packets\server\InteractionTargetPacket.h" />
     <ClInclude Include="packets\server\ItemActionPacket.h" />
+    <ClInclude Include="packets\server\SetPlayerUnitPacket.h" />
+    <ClInclude Include="packets\server\ClearMercenaryListPacket.h" />
+    <ClInclude Include="packets\server\ClearItemPendingPacket.h" />
+    <ClInclude Include="packets\server\ClearHoverTextPacket.h" />
     <ClInclude Include="packets\server\SpawnPlayerPacket.h" />
     <ClInclude Include="packets\server\RefreshInventoryPacket.h" />
     <ClInclude Include="packets\server\InventorySyncPacket.h" />
