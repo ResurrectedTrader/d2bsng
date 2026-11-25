@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
+#include <vector>
 
 #include "config/ProfileData.h"
 #include "game/Types.h"
@@ -119,6 +121,31 @@ bool SelectGateway(const std::string& gateway);
 // reference/d2bs/Control.cpp:179-228 (OOG_SelectCharacter). Returns true on
 // successful click + OK, false on any failure.
 bool SelectCharacter(const std::string& charName);
+
+// One character on the character-select screen.
+struct CharacterListEntry {
+    std::string name;
+    std::string realm;  // empty for single player
+    uint32_t classId = 0;
+    uint32_t level = 0;
+    bool isHardcore = false;
+    bool isExpansion = false;
+    bool isLadder = false;
+    bool isDead = false;   // a hardcore character that died
+    uint32_t expires = 0;  // the realm expiry, Unix time in seconds; 0 when there is none
+};
+
+// Every character on the expansion character-select screen, in the screen's
+// order (the realm's "more characters" row left out). nullopt when that screen
+// is not up, a realm is still sending its list, or the list is not readable.
+std::optional<std::vector<CharacterListEntry>> GetCharacterList();
+
+// Select the named character (case-insensitive) on the expansion
+// character-select screen and scroll the list to show it, without logging in.
+// False when it is not listed, the screen is not up, the list is still loading,
+// a character is being deleted or logged in, or a popup or the gateway list is
+// open.
+bool FocusCharacter(const std::string& name);
 
 // Create a new character on the char-select screen. Reference:
 // reference/d2bs/Control.cpp:134-177 (OOG_CreateCharacter). Returns true on

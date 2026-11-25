@@ -8,7 +8,10 @@
 #pragma clang diagnostic ignored "-Wmissing-braces"
 #include <D2Config.h>            // D2ConfigStrc
 #include <D2WinControlHeader.h>  // D2WinControlStrc
+#include <D2WinTextBox.h>        // D2WinTextBoxStrc
 #pragma clang diagnostic pop
+
+#include "imports/extras/CharSel.h"
 
 // All offsets below are Game.exe-relative for 1.14d. Calling conventions
 // sourced from reference/d2bs/D2Ptrs.h.
@@ -49,6 +52,37 @@ inline GameVar<D2WinControlStrc*> gpCharCreateHardcoreCheckbox{0x3795C4};
 // Ladder, Battle.net only: form 192 / 194 / 196 (319, 540 / 560 / 580, by
 // install and hardcore unlock); handler 0x30750.
 inline GameVar<D2WinControlStrc*> gpCharCreateLadderCheckbox{0x379348};
+
+// Character-select screen. The list lives only while the screen is up: leaving
+// or rebuilding it frees every row. Refill (0x38560) and update (0x39210) read
+// these.
+inline GameVar<extras::CharSelEntry*> gpCharSelList{0x379DBC};
+// Rows, the "create new" / "more characters" rows included.
+inline GameVar<int32_t> gnCharSelCount{0x379DC4};
+// The first visible row; the game keeps it even, one column per parity.
+inline GameVar<int32_t> gnCharSelFirst{0x379DC8};
+// The scroll bar position the scroll callback last saw; it scrolls by the change from it.
+inline GameVar<int32_t> gnCharSelScrollPos{0x379DCC};
+// The row OK logs in with.
+inline GameVar<int32_t> gnCharSelSelected{0x30CC00};
+// Rows on screen: 8 on the expansion screen, two to a line.
+inline GameVar<int32_t> gnCharSelVisible{0x30CC0C};
+// The text box around the list; its pScrollBar is the screen's scroll bar, made anew each time the screen opens.
+inline GameVar<D2WinTextBoxStrc*> gpCharSelListBox{0x379C84};
+// OK ignores clicks while set (a login, delete or convert in flight).
+inline GameVar<uint32_t> gbCharSelBusy{0x379DA0};
+// A realm's list request in flight: the list is torn down and refilled from the reply.
+inline GameVar<uint32_t> gbCharSelRealmRequest{0x379DAC};
+// The gateway list is open.
+inline GameVar<uint32_t> gbCharSelGatewayList{0x379C6C};
+// Controls of the open popup (the delete or convert confirmation, the difficulty choice, ...).
+inline GameVar<int32_t> gnPopupControls{0x379948};
+
+// ---- Functions -------------------------------------------------------------
+// Refill the visible rows from the list and gnCharSelFirst.
+inline CdeclFunc<void()> CHARSEL_RefillRows{0x38560};
+// Highlight the selected row, set the name label and enable the buttons for it.
+inline CdeclFunc<void()> CHARSEL_UpdateSelection{0x39210};
 
 }  // namespace d2bs::lod114d::imports::d2launch
 // NOLINTEND(readability-identifier-naming)
