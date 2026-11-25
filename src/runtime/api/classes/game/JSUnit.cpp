@@ -1031,8 +1031,9 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
 
     /// @description Returns all items in this unit's inventory as Unit handles.
     /// @signature getItems()
-    /// @returns {Unit[]} - Array of inventory items as Unit objects, undefined if empty, false if the game was not
-    /// ready.
+    /// @returns {Unit[]} - Array of inventory items as Unit objects; empty when there is nothing to list (no
+    /// inventory, an empty one, an item with nothing socketed, a unit that is gone, or a `this` that is no Unit);
+    /// false if the game was not ready.
     Method(
         isolate, proto, "getItems", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
@@ -1043,14 +1044,10 @@ void JSUnit::ConfigureTemplate(v8::Isolate* isolate, v8::Local<v8::FunctionTempl
             std::vector<game::Unit> items;
             {
                 const auto data = Unwrap(args.GetIsolate(), args.This());
-                if (!data || !*data) {
-                    return;
+                if (data && *data) {
+                    // Reference parity: GetItems() returns Regular kind (not InventoryItem).
+                    items = data->GetItems();
                 }
-                // Reference parity: GetItems() returns Regular kind (not InventoryItem).
-                items = data->GetItems();
-            }
-            if (items.empty()) {
-                return;
             }
             auto context = isolate->GetCurrentContext();
             auto arr = v8::Array::New(isolate, static_cast<int32_t>(items.size()));
