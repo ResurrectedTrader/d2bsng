@@ -153,6 +153,28 @@ TEST_CASE_FIXTURE(GameLoopFixture, "Town exclusion suppresses HP chicken") {
     CHECK(s.exitGameCount == 0);
 }
 
+TEST_CASE_FIXTURE(GameLoopFixture, "Town exclusion suppresses MP chicken") {
+    auto& cfg = d2bs::core::config::GetAppConfig();
+    cfg.chickenMp.store(100);
+
+    auto& s = d2bs::test::State();
+    s.clientState = GameState::InGame;
+    s.playerId = 42;
+    s.hp = 500;
+    s.mp = 50;  // below threshold on tick 1
+    s.areaId = d2bs::game::LevelId::RogueEncampment;
+    s.isTown = true;
+
+    GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
+    GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
+    CHECK(s.exitGameCount == 0);
+
+    s.areaId = d2bs::game::LevelId::BloodMoor;
+    s.isTown = false;
+    GameLoop::Instance().OnSleep(std::chrono::milliseconds{0});
+    CHECK(s.exitGameCount == 1);
+}
+
 TEST_CASE_FIXTURE(GameLoopFixture, "Town exclusion does not suppress maxGameTime chicken") {
     auto& cfg = d2bs::core::config::GetAppConfig();
     cfg.maxGameTime.store(std::chrono::milliseconds{1});  // 1 ms - will be exceeded almost immediately on the 2nd tick
