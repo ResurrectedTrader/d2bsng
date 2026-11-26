@@ -20,19 +20,19 @@ class HashVisitor final : public UnitVisitor {
    public:
     void Int(std::string_view /*key*/, int64_t value) override {
         Mark(Marker::Int);
-        Bytes(&value, sizeof value);
+        Bytes(std::as_bytes(std::span(&value, 1)));
     }
     void Str(std::string_view /*key*/, std::string_view value) override {
         Mark(Marker::Str);
         const size_t len = value.size();
-        Bytes(&len, sizeof len);
-        Bytes(value.data(), value.size());
+        Bytes(std::as_bytes(std::span(&len, 1)));
+        Bytes(std::as_bytes(std::span(value)));
     }
     void Ints(std::string_view /*key*/, std::span<const uint16_t> values) override {
         Mark(Marker::Ints);
         const size_t count = values.size();
-        Bytes(&count, sizeof count);
-        Bytes(values.data(), values.size_bytes());
+        Bytes(std::as_bytes(std::span(&count, 1)));
+        Bytes(std::as_bytes(values));
     }
     void BeginArray(std::string_view /*key*/) override { Mark(Marker::ArrayBegin); }
     void BeginElement() override { Mark(Marker::ElementBegin); }
@@ -42,7 +42,7 @@ class HashVisitor final : public UnitVisitor {
     // Folds an out-of-band scalar (a container's grid dims) into the same hash.
     void Raw(uint32_t value) {
         Mark(Marker::Raw);
-        Bytes(&value, sizeof value);
+        Bytes(std::as_bytes(std::span(&value, 1)));
     }
 
     [[nodiscard]] size_t Result() const { return static_cast<size_t>(hash_); }
@@ -52,10 +52,9 @@ class HashVisitor final : public UnitVisitor {
 
     void Mark(Marker marker) { Byte(static_cast<uint8_t>(marker)); }
     void Byte(uint8_t b) { hash_ = (hash_ ^ b) * FNV_PRIME; }
-    void Bytes(const void* data, size_t count) {
-        const auto* bytes = static_cast<const uint8_t*>(data);
-        for (size_t i = 0; i < count; ++i) {
-            Byte(bytes[i]);
+    void Bytes(std::span<const std::byte> bytes) {
+        for (const std::byte b : bytes) {
+            Byte(std::to_integer<uint8_t>(b));
         }
     }
 

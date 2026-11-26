@@ -258,17 +258,17 @@ void RewriteAnsiCommandLine(char* narrow, std::wstring_view scrubbed) {
 
 // CutTokens over a buffer the process already owns, whose page protection
 // belongs to whoever allocated it, so ask for write access and hand it back.
-size_t ScrubBuffer(wchar_t* text, size_t length, const std::vector<TokenRange>& ranges, size_t tokenCount) {
-    if (length == 0) {
+size_t ScrubBuffer(std::span<wchar_t> text, const std::vector<TokenRange>& ranges, size_t tokenCount) {
+    if (text.empty()) {
         return 0;
     }
-    const size_t bytes = length * sizeof(wchar_t);
+    const size_t bytes = text.size_bytes();
     DWORD previous = 0;
-    if (VirtualProtect(text, bytes, PAGE_READWRITE, &previous) == 0) {
-        return length;
+    if (VirtualProtect(text.data(), bytes, PAGE_READWRITE, &previous) == 0) {
+        return text.size();
     }
-    const size_t remaining = CutTokens(std::span<wchar_t>{text, length}, ranges, tokenCount);
-    VirtualProtect(text, bytes, previous, &previous);
+    const size_t remaining = CutTokens(text, ranges, tokenCount);
+    VirtualProtect(text.data(), bytes, previous, &previous);
     return remaining;
 }
 
@@ -337,7 +337,7 @@ void RemoveCommandLineOptions(std::span<const OptionName> options) {
         return;
     }
 
-    const size_t remaining = ScrubBuffer(wide, cmd.size(), ranges, tokenCount);
+    const size_t remaining = ScrubBuffer(std::span(wide, cmd.size()), ranges, tokenCount);
 
     // The PEB's copy is what a remote read, Task Manager and WMI report.
     // Usually the same storage GetCommandLineW returns, in which case the cut
@@ -346,7 +346,8 @@ void RemoveCommandLineOptions(std::span<const OptionName> options) {
         if (peb->Buffer == wide) {
             peb->Length = static_cast<USHORT>(remaining * sizeof(wchar_t));
         } else {
-            const size_t pebLength = ScrubBuffer(peb->Buffer, peb->Length / sizeof(wchar_t), ranges, tokenCount);
+            const size_t pebLength =
+                ScrubBuffer(std::span(peb->Buffer, peb->Length / sizeof(wchar_t)), ranges, tokenCount);
             peb->Length = static_cast<USHORT>(pebLength * sizeof(wchar_t));
         }
     }

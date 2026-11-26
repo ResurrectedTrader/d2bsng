@@ -50,9 +50,8 @@ namespace {
 
 // D2MOO types the grid as raw words; converted on the copy rather than read through
 // an enum pointer.
-std::vector<CollisionFlag> CopyCells(const uint16_t* cells, size_t count) {
-    return std::span(cells, count) |
-           std::views::transform([](uint16_t cell) { return static_cast<CollisionFlag>(cell); }) |
+std::vector<CollisionFlag> CopyCells(std::span<const uint16_t> cells) {
+    return cells | std::views::transform([](uint16_t cell) { return static_cast<CollisionFlag>(cell); }) |
            std::ranges::to<std::vector>();
 }
 
@@ -153,7 +152,7 @@ std::vector<std::vector<CollisionFlag>> Room::GetCollision() const {
     out.reserve(height);
     const uint16_t* p = grid->pCollisionMask;
     for (uint32_t j = 0; j < height; ++j) {
-        out.push_back(CopyCells(p, width));
+        out.push_back(CopyCells(std::span(p, width)));
         p += width;
     }
     return out;
@@ -176,7 +175,7 @@ std::vector<CollisionFlag> Room::GetCollisionFlat() const {
     const auto width = static_cast<uint32_t>(grid->pRoomCoords.nSubtileWidth);
     const auto height = static_cast<uint32_t>(grid->pRoomCoords.nSubtileHeight);
     const auto count = static_cast<size_t>(width) * height;
-    return CopyCells(grid->pCollisionMask, count);
+    return CopyCells(std::span(grid->pCollisionMask, count));
 }
 
 CollisionFlag Room::CollisionAt(Position pos) const {

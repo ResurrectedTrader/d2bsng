@@ -8,6 +8,7 @@
 #include <charconv>
 #include <cstdint>
 #include <cstring>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -61,12 +62,12 @@ bool IsRealmListValue(const char* valueName) {
 // Parse a server-list blob (NUL-separated strings: version, selected, then a
 // host/zone/name triple per entry). A short / malformed blob yields the
 // defaults with no entries.
-RealmList ParseBlob(const char* data, size_t len) {
+RealmList ParseBlob(std::span<const char> blob) {
     std::vector<std::string> strings;
-    for (size_t i = 0; i < len && data[i] != '\0';) {
+    for (size_t i = 0; i < blob.size() && blob[i] != '\0';) {
         // Bound by the buffer: a REG_MULTI_SZ / client write is not guaranteed
-        // NUL-terminated, so never scan past `len`.
-        std::string s(data + i, strnlen(data + i, len - i));
+        // NUL-terminated, so never scan past its end.
+        std::string s(blob.data() + i, strnlen(blob.data() + i, blob.size() - i));
         i += s.size() + 1;
         strings.push_back(std::move(s));
     }
@@ -214,7 +215,7 @@ int __stdcall HookedRead(const char* subkey, const char* valueName, int type, vo
     if (!ReadRealBlob(subkey, valueName, type, real)) {
         return readHook(subkey, valueName, type, buf, len, outLen);  // absent: let the client seed defaults
     }
-    RealmList list = ParseBlob(real.data(), real.size());
+    RealmList list = ParseBlob(real);
     EnsureValidVersion(list);
     MergeCustomRealms(list);
     const std::vector<char> merged = Serialize(list);
@@ -235,7 +236,7 @@ int __stdcall HookedStore(const char* subkey, const char* valueName, char type, 
     if (!IsRealmListValue(valueName) || data == nullptr || len <= 0) {
         return storeHook(subkey, valueName, type, data, len);
     }
-    RealmList list = ParseBlob(data, static_cast<size_t>(len));
+    RealmList list = ParseBlob(std::span(data, static_cast<size_t>(len)));
     StripCustomRealms(list);
     const std::vector<char> stripped = Serialize(list);
     return storeHook(subkey, valueName, type, stripped.data(), static_cast<int>(stripped.size()));
@@ -305,7 +306,7 @@ std::vector<RealmInfo> GetRealms() {
 
     std::vector<RealmInfo> result;
     if (!blob.empty()) {
-        const lod114d::hooks::realms::RealmList list = lod114d::hooks::realms::ParseBlob(blob.data(), blob.size());
+        const lod114d::hooks::realms::RealmList list = lod114d::hooks::realms::ParseBlob(blob);
         for (const auto& entry : list.entries) {
             result.push_back(RealmInfo{.name = entry.name, .host = entry.host});
         }
