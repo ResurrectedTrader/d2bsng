@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <mutex>
 #include <string>
+#include <system_error>
 
 #include "api/core/Class.h"
 #include "api/core/Convert.h"
@@ -99,15 +100,17 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
                 std::filesystem::rename(oldPath, newPath, ec);
             });
 
-        /// @description Copy a file within the script base directory (text-mode, so CRLF/LF translation may apply).
-        /// @signature copy(original: string, copy: string, skipIfExists?: boolean)
+        /// @description Copy a file byte for byte within the script base directory. An existing destination is
+        /// replaced only when overwrite is true, and a failed copy leaves no partial destination behind.
+        /// @signature copy(original: string, copy: string, overwrite?: boolean)
         /// @param original {string} - source file name relative to the script base directory.
         /// @param copy {string} - destination file name relative to the script base directory.
-        /// @param skipIfExists {boolean} - optional, default false; when true, skip the copy if the destination exists.
-        /// @returns {undefined} - throws "Invalid new file name", "Couldn't open file", or "File copy failed".
-        /// @throws {Error} - original or copy is empty or resolves outside the script base directory.
-        /// @throws {Error} - the source or destination file cannot be opened.
-        /// @throws {Error} - copying fails partway (a read or write error occurs).
+        /// @param overwrite {boolean} - optional, default false; true replaces an existing destination.
+        /// @returns {boolean} - true when the file was copied; false when it was not: a missing or unreadable source,
+        /// an existing destination without overwrite, a destination that is the source, or a destination that cannot be
+        /// written.
+        /// @throws {Error} - original or copy is empty or resolves outside the script base directory ("Invalid
+        /// original file name" / "Invalid new file name").
         StaticMethod(
             isolate, tpl, "copy", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
                 auto* isolate = args.GetIsolate();
@@ -125,56 +128,32 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
 
                 std::string original = convert::ToString(isolate, args[0]);
                 std::string copyName = convert::ToString(isolate, args[1]);
-                bool skipIfExists = convert::To<bool>(isolate, args.Length() > 2 ? args[2] : v8::Local<v8::Value>());
+                const bool overwrite = args.Length() > 2 && args[2]->IsBoolean() && args[2]->BooleanValue(isolate);
 
+                auto srcPath = filetools_detail::ResolveScriptPath(isolate, original, "Invalid original file name");
+                if (srcPath.empty()) {
+                    return;
+                }
                 auto dstPath = filetools_detail::ResolveScriptPath(isolate, copyName, "Invalid new file name");
                 if (dstPath.empty()) {
                     return;
                 }
 
-                // Reference: if "overwrite" is true and dest exists, skip (inverted semantic)
+                // Filesystem failures return false rather than throw: scripts copy files that may be missing.
+                args.GetReturnValue().SetFalse();
                 std::error_code ec;
-                if (skipIfExists && std::filesystem::exists(dstPath, ec)) {
+                // A self-copy is refused, as in the reference (equivalent fails, with ec set, when either is missing).
+                if (std::filesystem::equivalent(srcPath, dstPath, ec)) {
                     return;
                 }
-
-                // Text-mode char-by-char copy matching reference fgetc/fputc behavior
-                FILE* src = filetools_detail::FileOpenRelScript(isolate, original, L"r");
-                if (src == nullptr) {
-                    return;
-                }
-                FILE* dst = filetools_detail::FileOpenRelScript(isolate, copyName, L"w");
-                if (dst == nullptr) {
-                    fclose(src);
-                    return;
-                }
-
-                bool success = true;
-                while (!feof(src)) {
-                    int32_t ch = fgetc(src);
-                    if (ferror(src)) {
-                        success = false;
-                        break;
-                    }
-                    if (!feof(src)) {
-                        fputc(ch, dst);
-                        if (ferror(dst)) {
-                            success = false;
-                            break;
-                        }
-                    }
-                }
-
-                fflush(dst);
-                fclose(dst);
-                fclose(src);
-
-                if (!success) {
-                    std::error_code removeEc;
-                    std::filesystem::remove(dstPath, removeEc);
-                    error::ThrowError(isolate, "File copy failed");
-                    return;
-                }
+                ec.clear();
+                // CopyFile underneath fails atomically on an existing destination without overwrite, and removes a
+                // destination it could not finish.
+                const bool isCopied = std::filesystem::copy_file(
+                    srcPath, dstPath,
+                    overwrite ? std::filesystem::copy_options::overwrite_existing : std::filesystem::copy_options::none,
+                    ec);
+                args.GetReturnValue().Set(isCopied && !ec);
             });
 
         /// @description Test whether a file or directory exists under the script base directory.
