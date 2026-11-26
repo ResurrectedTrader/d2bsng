@@ -59,8 +59,15 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
                     return;
                 }
 
-                // Reference: _wremove, which removes files only; a missing file is a normal outcome, not an error.
-                args.GetReturnValue().Set(_wremove(fullPath.c_str()) == 0);
+                // Reference: files only (std::filesystem::remove would also take an empty folder); a missing file is a
+                // normal outcome, not an error.
+                std::error_code ec;
+                if (std::filesystem::is_directory(fullPath, ec)) {
+                    args.GetReturnValue().SetFalse();
+                    return;
+                }
+                const bool isRemoved = std::filesystem::remove(fullPath, ec);
+                args.GetReturnValue().Set(isRemoved && !ec);
             });
 
         /// @description Rename or move a file within the script base directory.
@@ -98,8 +105,16 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
                     return;
                 }
 
-                // Reference: _wrename, which fails rather than replace an existing newName.
-                args.GetReturnValue().Set(_wrename(oldPath.c_str(), newPath.c_str()) == 0);
+                // Reference: an existing newName is never replaced, which std::filesystem::rename would do on
+                // Windows. A newName that is oldName itself (a change of case only) is renamed.
+                std::error_code ec;
+                if (std::filesystem::exists(newPath, ec) && !std::filesystem::equivalent(oldPath, newPath, ec)) {
+                    args.GetReturnValue().SetFalse();
+                    return;
+                }
+                ec.clear();
+                std::filesystem::rename(oldPath, newPath, ec);
+                args.GetReturnValue().Set(!ec);
             });
 
         /// @description Copy a file byte for byte within the script base directory. An existing destination is

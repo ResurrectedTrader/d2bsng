@@ -5,6 +5,7 @@
 #include <format>
 #include <fstream>
 #include <functional>
+#include <span>
 #include <vector>
 
 #pragma comment(lib, "bcrypt.lib")
@@ -24,7 +25,7 @@ std::string BytesToHex(const std::vector<uint8_t> &bytes) {
 // Hash the data `feed` hands to its sink, in as many pieces as it likes, using BCrypt. `feed` returns false when it
 // could not read all of its data.
 std::string ComputeHash(const wchar_t *algorithmId,
-                        const std::function<bool(const std::function<bool(const uint8_t *, size_t)> &)> &feed) {
+                        const std::function<bool(const std::function<bool(std::span<const uint8_t>)> &)> &feed) {
     BCRYPT_ALG_HANDLE hAlgorithm = nullptr;
     BCRYPT_HASH_HANDLE hHash = nullptr;
 
@@ -45,9 +46,9 @@ std::string ComputeHash(const wchar_t *algorithmId,
         return {};
     }
 
-    const bool isFed = feed([hHash](const uint8_t *data, size_t dataLen) {
+    const bool isFed = feed([hHash](std::span<const uint8_t> data) {
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast) - BCrypt API takes non-const PUCHAR but doesn't modify
-        return BCryptHashData(hHash, const_cast<PUCHAR>(data), dataLen, 0) == 0;
+        return BCryptHashData(hHash, const_cast<PUCHAR>(data.data()), data.size(), 0) == 0;
     });
 
     std::vector<uint8_t> hashBytes(hashLength);
@@ -62,7 +63,7 @@ std::string ComputeHash(const wchar_t *algorithmId,
 
 std::string HashString(const wchar_t *algorithmId, const std::string &data) {
     return ComputeHash(algorithmId, [&data](const auto &sink) {
-        return sink(reinterpret_cast<const uint8_t *>(data.data()), data.size());
+        return sink(std::span(reinterpret_cast<const uint8_t *>(data.data()), data.size()));
     });
 }
 
@@ -77,7 +78,7 @@ std::string HashFile(const wchar_t *algorithmId, const std::filesystem::path &fi
         while (file) {
             file.read(chunk.data(), static_cast<std::streamsize>(chunk.size()));
             const auto count = static_cast<size_t>(file.gcount());
-            if (count > 0 && !sink(reinterpret_cast<const uint8_t *>(chunk.data()), count)) {
+            if (count > 0 && !sink(std::span(reinterpret_cast<const uint8_t *>(chunk.data()), count))) {
                 return false;
             }
         }
