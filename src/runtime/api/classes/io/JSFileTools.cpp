@@ -23,20 +23,6 @@ std::filesystem::path ResolveScriptPath(v8::Isolate* isolate, const std::string&
     return fullPath;
 }
 
-FILE* FileOpenRelScript(v8::Isolate* isolate, const std::string& relativePath, const wchar_t* mode) {
-    auto fullPath = core::config::GetPathRelScript(relativePath);
-    if (fullPath.empty()) {
-        error::ThrowError(isolate, "Invalid file name");
-        return nullptr;
-    }
-    FILE* fp = nullptr;
-    if (_wfopen_s(&fp, fullPath.c_str(), mode) != 0 || fp == nullptr) {
-        error::ThrowError(isolate, "Couldn't open file");
-        return nullptr;
-    }
-    return fp;
-}
-
 std::string ValueToString(v8::Isolate* isolate, v8::Local<v8::Value> value) {
     if (value->IsNullOrUndefined()) {
         // Reference writes sizeof(int) zero bytes for null/undefined

@@ -2,12 +2,12 @@
 
 #include <v8.h>
 
-#include <cstdio>
 #include <filesystem>
 #include <mutex>
 #include <string>
 #include <system_error>
 
+#include "api/classes/io/JSFile.h"
 #include "api/core/Class.h"
 #include "api/core/Convert.h"
 #include "api/core/Error.h"
@@ -20,7 +20,6 @@ namespace filetools_detail {
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern std::mutex fileMutex;
 std::filesystem::path ResolveScriptPath(v8::Isolate* isolate, const std::string& relativePath, const char* errorMsg);
-FILE* FileOpenRelScript(v8::Isolate* isolate, const std::string& relativePath, const wchar_t* mode);
 std::string ValueToString(v8::Isolate* isolate, v8::Local<v8::Value> value);
 }  // namespace filetools_detail
 
@@ -201,31 +200,28 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
                 }
 
                 std::string path = convert::ToString(isolate, args[0]);
-                FILE* fp = filetools_detail::FileOpenRelScript(isolate, path, L"r");
-                if (fp == nullptr) {
+                auto stream = file_detail::OpenScriptStream(isolate, path, std::ios::in);
+                if (!stream) {
                     return;
                 }
 
                 // Get file size (may overestimate due to CRLF->LF in text mode)
-                fseek(fp, 0, SEEK_END);
-                auto pos = ftell(fp);
+                file_detail::Seek(*stream, 0, std::ios::end);
+                auto pos = file_detail::Tell(*stream);
                 if (pos < 0) {
-                    fclose(fp);
                     error::ThrowError(isolate, "Read failed");
                     return;
                 }
                 auto size = static_cast<size_t>(pos);
-                fseek(fp, 0, SEEK_SET);
+                file_detail::Seek(*stream, 0, std::ios::beg);
 
                 std::string contents(size, '\0');
-                auto bytesRead = fread(contents.data(), 1, size, fp);
+                auto bytesRead = file_detail::Read(*stream, contents);
 
-                if (ferror(fp)) {
-                    fclose(fp);
+                if (stream->bad()) {
                     error::ThrowError(isolate, "Read failed");
                     return;
                 }
-                fclose(fp);
 
                 contents.resize(bytesRead);
 
@@ -260,8 +256,8 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
 
                 std::scoped_lock lock(filetools_detail::fileMutex);
 
-                FILE* fp = filetools_detail::FileOpenRelScript(isolate, path, L"w");
-                if (fp == nullptr) {
+                auto stream = file_detail::OpenScriptStream(isolate, path, std::ios::out | std::ios::trunc);
+                if (!stream) {
                     return;
                 }
 
@@ -269,14 +265,13 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
                 for (int32_t i = 1; i < args.Length(); i++) {
                     std::string text = filetools_detail::ValueToString(isolate, args[i]);
                     if (!text.empty()) {
-                        if (fwrite(text.data(), 1, text.size(), fp) != text.size()) {
+                        if (!file_detail::Write(*stream, text)) {
                             result = false;
                         }
                     }
                 }
 
-                fflush(fp);
-                fclose(fp);
+                file_detail::Flush(*stream);
 
                 args.GetReturnValue().Set(result);
             });
@@ -304,8 +299,9 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
 
                 std::scoped_lock lock(filetools_detail::fileMutex);
 
-                FILE* fp = filetools_detail::FileOpenRelScript(isolate, path, L"a+");
-                if (fp == nullptr) {
+                auto stream =
+                    file_detail::OpenScriptStream(isolate, path, std::ios::in | std::ios::out | std::ios::app);
+                if (!stream) {
                     return;
                 }
 
@@ -313,14 +309,13 @@ class JSFileTools : public ClassBase<JSFileTools, FileToolsData> {
                 for (int32_t i = 1; i < args.Length(); i++) {
                     std::string text = filetools_detail::ValueToString(isolate, args[i]);
                     if (!text.empty()) {
-                        if (fwrite(text.data(), 1, text.size(), fp) != text.size()) {
+                        if (!file_detail::Write(*stream, text)) {
                             result = false;
                         }
                     }
                 }
 
-                fflush(fp);
-                fclose(fp);
+                file_detail::Flush(*stream);
 
                 args.GetReturnValue().Set(result);
             });
