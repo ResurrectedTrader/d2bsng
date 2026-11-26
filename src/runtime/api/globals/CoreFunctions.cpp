@@ -346,9 +346,9 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @signature load(file: string, ...args: any)
     /// @param file {string} - script path relative to the script base path
     /// @param args {any} - optional serializable values forwarded to the new script
-    /// @returns {D2BSScript|boolean|null} - the started script on success; false if the file is not found or there is
-    /// no
-    ///                                  current script; null if the script failed to start
+    /// @returns {D2BSScript|boolean|null} - the started script on success (a running copy of the same file is stopped
+    /// and replaced, also when a script loads its own file); false if the file is not found or there is no current
+    /// script; null if the script failed to start. Truthy and falsy as legacy d2bs's true / false.
     /// @throws {Error} - if an extra argument cannot be serialized
     function::Register(
         isolate, global, "load", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {

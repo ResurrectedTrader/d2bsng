@@ -114,7 +114,9 @@ std::shared_ptr<Script> ScriptEngine::StartScript(const std::filesystem::path& p
     // Join outside the lock - the dying script's RemoveSelfFromEngine acquires
     // scriptsMutex_ (entry is already erased so it's a no-op, but the lock
     // acquisition still occurs).
-    if (staleScript) {
+    // A script that loads its own file is the stale copy: it has been told to stop and ends once load() returns, and
+    // its own thread cannot join itself.
+    if (staleScript && staleScript->GetThreadId() != std::this_thread::get_id()) {
         staleScript->Join();
     }
 
