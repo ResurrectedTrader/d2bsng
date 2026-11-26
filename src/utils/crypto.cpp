@@ -4,6 +4,8 @@
 #include <bcrypt.h>
 #include <format>
 #include <fstream>
+#include <functional>
+#include <span>
 #include <vector>
 
 #pragma comment(lib, "bcrypt.lib")
@@ -20,8 +22,10 @@ std::string BytesToHex(const std::vector<uint8_t> &bytes) {
     return result;
 }
 
-// Compute hash of raw data using BCrypt
-std::string ComputeHash(const wchar_t *algorithmId, const uint8_t *data, size_t dataLen) {
+// Hash the data `feed` hands to its sink, in as many pieces as it likes, using BCrypt. `feed` returns false when it
+// could not read all of its data.
+std::string ComputeHash(const wchar_t *algorithmId,
+                        const std::function<bool(const std::function<bool(std::span<const uint8_t>)> &)> &feed) {
     BCRYPT_ALG_HANDLE hAlgorithm = nullptr;
     BCRYPT_HASH_HANDLE hHash = nullptr;
 
@@ -42,40 +46,43 @@ std::string ComputeHash(const wchar_t *algorithmId, const uint8_t *data, size_t 
         return {};
     }
 
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast) - BCrypt API takes non-const PUCHAR but doesn't modify data
-    if (BCryptHashData(hHash, const_cast<PUCHAR>(data), dataLen, 0) != 0) {
-        BCryptDestroyHash(hHash);
-        BCryptCloseAlgorithmProvider(hAlgorithm, 0);
-        return {};
-    }
+    const bool isFed = feed([hHash](std::span<const uint8_t> data) {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast) - BCrypt API takes non-const PUCHAR but doesn't modify
+        return BCryptHashData(hHash, const_cast<PUCHAR>(data.data()), data.size(), 0) == 0;
+    });
 
     std::vector<uint8_t> hashBytes(hashLength);
-    if (BCryptFinishHash(hHash, hashBytes.data(), hashLength, 0) != 0) {
-        BCryptDestroyHash(hHash);
-        BCryptCloseAlgorithmProvider(hAlgorithm, 0);
-        return {};
-    }
+    const bool isFinished = isFed && BCryptFinishHash(hHash, hashBytes.data(), hashLength, 0) == 0;
 
     BCryptDestroyHash(hHash);
     BCryptCloseAlgorithmProvider(hAlgorithm, 0);
 
-    return BytesToHex(hashBytes);
+    return isFinished ? BytesToHex(hashBytes) : std::string{};
 }
 }  // namespace
 
 std::string HashString(const wchar_t *algorithmId, const std::string &data) {
-    return ComputeHash(algorithmId, reinterpret_cast<const uint8_t *>(data.data()), data.size());
+    return ComputeHash(algorithmId, [&data](const auto &sink) {
+        return sink(std::span(reinterpret_cast<const uint8_t *>(data.data()), data.size()));
+    });
 }
 
 std::string HashFile(const wchar_t *algorithmId, const std::filesystem::path &filePath) {
-    // Open in text mode to match reference behavior - CRLF is translated to LF before hashing
-    std::ifstream file(filePath);
+    std::ifstream file(filePath, std::ios::binary);
     if (!file.is_open()) {
         return {};
     }
-
-    std::string contents((std::istreambuf_iterator(file)), std::istreambuf_iterator<char>());
-
-    return ComputeHash(algorithmId, reinterpret_cast<const uint8_t *>(contents.data()), contents.size());
+    return ComputeHash(algorithmId, [&file](const auto &sink) {
+        constexpr size_t CHUNK_SIZE = 64 * 1024;
+        std::vector<char> chunk(CHUNK_SIZE);
+        while (file) {
+            file.read(chunk.data(), static_cast<std::streamsize>(chunk.size()));
+            const auto count = static_cast<size_t>(file.gcount());
+            if (count > 0 && !sink(std::span(reinterpret_cast<const uint8_t *>(chunk.data()), count))) {
+                return false;
+            }
+        }
+        return file.eof() && !file.bad();
+    });
 }
 }  // namespace d2bs::utils

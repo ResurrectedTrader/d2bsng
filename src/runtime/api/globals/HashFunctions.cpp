@@ -20,9 +20,11 @@ void HashStringCallback(const v8::FunctionCallbackInfo<v8::Value>& args, const c
     }
     std::string input = convert::ToString(isolate, args[0]);
     auto result = utils::HashString(algorithm, input);
-    if (!result.empty()) {
-        args.GetReturnValue().Set(convert::ToJS(isolate, result));
+    if (result.empty()) {
+        args.GetReturnValue().SetNull();
+        return;
     }
+    args.GetReturnValue().Set(convert::ToJS(isolate, result));
 }
 
 void HashFileCallback(const v8::FunctionCallbackInfo<v8::Value>& args, const char* funcName, const wchar_t* algorithm) {
@@ -37,9 +39,11 @@ void HashFileCallback(const v8::FunctionCallbackInfo<v8::Value>& args, const cha
         return;
     }
     auto result = utils::HashFile(algorithm, fullPath);
-    if (!result.empty()) {
-        args.GetReturnValue().Set(convert::ToJS(isolate, result));
+    if (result.empty()) {
+        args.GetReturnValue().SetNull();
+        return;
     }
+    args.GetReturnValue().Set(convert::ToJS(isolate, result));
 }
 }  // namespace
 
@@ -48,7 +52,7 @@ void RegisterHashFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description MD5 hash of a string.
     /// @signature md5(input: string)
     /// @param input {string} - data to hash
-    /// @returns {string} - MD5 digest as a lowercase hex string; undefined on failure
+    /// @returns {string|null} - MD5 digest as a lowercase hex string; null on failure
     function::Register(
         isolate, global, "md5", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             HashStringCallback(args, "md5", BCRYPT_MD5_ALGORITHM);
@@ -56,7 +60,7 @@ void RegisterHashFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description SHA-1 hash of a string.
     /// @signature sha1(input: string)
     /// @param input {string} - data to hash
-    /// @returns {string} - SHA-1 digest as a lowercase hex string; undefined on failure
+    /// @returns {string|null} - SHA-1 digest as a lowercase hex string; null on failure
     function::Register(
         isolate, global, "sha1", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             HashStringCallback(args, "sha1", BCRYPT_SHA1_ALGORITHM);
@@ -64,7 +68,7 @@ void RegisterHashFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description SHA-256 hash of a string.
     /// @signature sha256(input: string)
     /// @param input {string} - data to hash
-    /// @returns {string} - SHA-256 digest as a lowercase hex string; undefined on failure
+    /// @returns {string|null} - SHA-256 digest as a lowercase hex string; null on failure
     function::Register(
         isolate, global, "sha256", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             HashStringCallback(args, "sha256", BCRYPT_SHA256_ALGORITHM);
@@ -72,7 +76,7 @@ void RegisterHashFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description SHA-384 hash of a string.
     /// @signature sha384(input: string)
     /// @param input {string} - data to hash
-    /// @returns {string} - SHA-384 digest as a lowercase hex string; undefined on failure
+    /// @returns {string|null} - SHA-384 digest as a lowercase hex string; null on failure
     function::Register(
         isolate, global, "sha384", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             HashStringCallback(args, "sha384", BCRYPT_SHA384_ALGORITHM);
@@ -80,7 +84,7 @@ void RegisterHashFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description SHA-512 hash of a string.
     /// @signature sha512(input: string)
     /// @param input {string} - data to hash
-    /// @returns {string} - SHA-512 digest as a lowercase hex string; undefined on failure
+    /// @returns {string|null} - SHA-512 digest as a lowercase hex string; null on failure
     function::Register(
         isolate, global, "sha512", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             HashStringCallback(args, "sha512", BCRYPT_SHA512_ALGORITHM);
@@ -90,7 +94,8 @@ void RegisterHashFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description MD5 hash of a file's contents.
     /// @signature md5_file(path: string)
     /// @param path {string} - file path, resolved relative to the script directory
-    /// @returns {string} - MD5 digest as a lowercase hex string; undefined on failure (throws on invalid path)
+    /// @returns {string|null} - MD5 digest of the file's exact bytes as a lowercase hex string; null when the file
+    /// cannot be read (a missing file, for example)
     /// @throws {Error} - if path resolves empty (empty, traversal, or escapes the script directory)
     function::Register(
         isolate, global, "md5_file", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -99,7 +104,8 @@ void RegisterHashFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description SHA-1 hash of a file's contents.
     /// @signature sha1_file(path: string)
     /// @param path {string} - file path, resolved relative to the script directory
-    /// @returns {string} - SHA-1 digest as a lowercase hex string; undefined on failure (throws on invalid path)
+    /// @returns {string|null} - SHA-1 digest of the file's exact bytes as a lowercase hex string; null when the file
+    /// cannot be read (a missing file, for example)
     /// @throws {Error} - if path resolves empty (empty, traversal, or escapes the script directory)
     function::Register(
         isolate, global, "sha1_file", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -108,7 +114,8 @@ void RegisterHashFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description SHA-256 hash of a file's contents.
     /// @signature sha256_file(path: string)
     /// @param path {string} - file path, resolved relative to the script directory
-    /// @returns {string} - SHA-256 digest as a lowercase hex string; undefined on failure (throws on invalid path)
+    /// @returns {string|null} - SHA-256 digest of the file's exact bytes as a lowercase hex string; null when the file
+    /// cannot be read (a missing file, for example)
     /// @throws {Error} - if path resolves empty (empty, traversal, or escapes the script directory)
     function::Register(
         isolate, global, "sha256_file", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -117,7 +124,8 @@ void RegisterHashFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description SHA-384 hash of a file's contents.
     /// @signature sha384_file(path: string)
     /// @param path {string} - file path, resolved relative to the script directory
-    /// @returns {string} - SHA-384 digest as a lowercase hex string; undefined on failure (throws on invalid path)
+    /// @returns {string|null} - SHA-384 digest of the file's exact bytes as a lowercase hex string; null when the file
+    /// cannot be read (a missing file, for example)
     /// @throws {Error} - if path resolves empty (empty, traversal, or escapes the script directory)
     function::Register(
         isolate, global, "sha384_file", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -126,7 +134,8 @@ void RegisterHashFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
     /// @description SHA-512 hash of a file's contents.
     /// @signature sha512_file(path: string)
     /// @param path {string} - file path, resolved relative to the script directory
-    /// @returns {string} - SHA-512 digest as a lowercase hex string; undefined on failure (throws on invalid path)
+    /// @returns {string|null} - SHA-512 digest of the file's exact bytes as a lowercase hex string; null when the file
+    /// cannot be read (a missing file, for example)
     /// @throws {Error} - if path resolves empty (empty, traversal, or escapes the script directory)
     function::Register(
         isolate, global, "sha512_file", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {

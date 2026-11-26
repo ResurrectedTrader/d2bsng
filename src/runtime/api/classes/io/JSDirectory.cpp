@@ -8,6 +8,13 @@
 
 namespace d2bs::runtime::api::classes::directory_detail {
 
+bool IsValidSearchPattern(std::string_view pattern) {
+    if (pattern.find_first_of("\\/:") != std::string_view::npos) {
+        return false;
+    }
+    return pattern.empty() || pattern.find_first_not_of(". ") != std::string_view::npos;
+}
+
 std::vector<std::string> ListFiles(const std::filesystem::path& fullPath, const std::string& pattern) {
     std::vector<std::string> results;
     std::error_code ec;

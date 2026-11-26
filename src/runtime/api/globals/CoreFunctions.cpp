@@ -632,44 +632,55 @@ void RegisterCoreFunctions(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> g
         isolate, global, "stringToEUC", +[](const v8::FunctionCallbackInfo<v8::Value>& args) { ConvertToEuc(args); });
 
     /// @description Performs a DDE (Dynamic Data Exchange) transaction; mode 0/1/2 selects the type.
-    /// @signature sendDDE(mode: number, server: string, topic: string, item: string, data: string)
-    /// @param mode {number} - transaction type 0/1/2 (Request retrieves data)
+    /// @signature sendDDE(mode: number, server: string, topic?: string, item?: string, data?: string)
+    /// @param mode {number} - transaction type 0/1/2 (Request retrieves data); must be an integer
     /// @param server {string} - DDE server/service name
-    /// @param topic {string} - DDE topic
-    /// @param item {string} - DDE item
-    /// @param data {string} - DDE data payload
-    /// @returns {string|undefined} - the response payload for a successful Request; undefined otherwise
-    /// @throws When fewer than 5 arguments are given, or DDE cannot be initialised.
+    /// @param topic {string} - optional DDE topic
+    /// @param item {string} - optional DDE item
+    /// @param data {string} - optional DDE data payload
+    /// @returns {string|boolean} - for a Request (mode 0), the reply, or an empty string when the server could not be
+    /// reached or gave none; false for the other modes
+    /// @throws {Error} - fewer than 2 arguments ("sendDDE requires at least 2 arguments"), a mode that is not an
+    /// integer ("sendDDE mode must be an integer"), or DDE cannot be initialised
     function::Register(
         isolate, global, "sendDDE", +[](const v8::FunctionCallbackInfo<v8::Value>& args) {
             auto* isolate = args.GetIsolate();
+            args.GetReturnValue().SetFalse();
 
-            if (args.Length() < 5) {
-                error::ThrowError(isolate, "sendDDE requires 5 arguments");
+            if (args.Length() < 2) {
+                error::ThrowError(isolate, "sendDDE requires at least 2 arguments");
                 return;
             }
+            if (!args[0]->IsInt32()) {
+                error::ThrowError(isolate, "sendDDE mode must be an integer");
+                return;
+            }
+            const int32_t mode = args[0].As<v8::Int32>()->Value();
+            // Reference: a missing argument or one that is not a string is sent as the empty name.
+            const auto stringArg = [&](int32_t index) {
+                return index < args.Length() && args[index]->IsString() ? convert::ToString(isolate, args[index])
+                                                                        : std::string{};
+            };
+            const std::string server = stringArg(1);
+            const std::string topic = stringArg(2);
+            const std::string item = stringArg(3);
+            const std::string data = stringArg(4);
 
-            uint32_t mode = convert::To<uint32_t>(isolate, args[0]);
-            std::string server = convert::ToString(isolate, args[1]);
-            std::string topic = convert::ToString(isolate, args[2]);
-            std::string item = convert::ToString(isolate, args[3]);
-            std::string data = convert::ToString(isolate, args[4]);
-
-            // JS `mode` 0/1/2 maps 1:1 to the Transaction enum values.
-            if (mode > static_cast<uint32_t>(dde::Transaction::Evaluate)) {
+            // JS `mode` 0/1/2 maps 1:1 to the Transaction enum values; any other mode sends nothing.
+            if (mode < 0 || mode > static_cast<int32_t>(dde::Transaction::Evaluate)) {
                 return;
             }
             auto txn = static_cast<dde::Transaction>(mode);
 
             // As reference/d2bs JSCore.cpp my_sendDDE: only a failure to set DDE up throws; a failed
-            // connect or transaction is logged and leaves the result undefined.
+            // connect or transaction is logged.
             const auto result = dde::DdeService::Instance().Send(txn, server, topic, item, data);
             if (!result) {
                 error::ThrowError(isolate, "DDE Failed! Check the log for the error message.");
                 return;
             }
-            if (txn == dde::Transaction::Request && *result) {
-                args.GetReturnValue().Set(convert::ToJS(isolate, **result));
+            if (txn == dde::Transaction::Request) {
+                args.GetReturnValue().Set(convert::ToJS(isolate, result->value_or(std::string{})));
             }
         });
 

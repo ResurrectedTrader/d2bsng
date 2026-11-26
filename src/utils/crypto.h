@@ -10,8 +10,7 @@ namespace d2bs::utils {
 // Returns lowercase hex digest, or empty string on failure.
 std::string HashString(const wchar_t *algorithmId, const std::string &data);
 
-// Hash a file's contents using the specified BCrypt algorithm.
-// File is opened in text mode ("r") for CRLF->LF translation, matching reference behavior.
-// Returns lowercase hex digest, or empty string on failure.
+// Hash a file's exact bytes (binary mode, read in chunks) using the specified BCrypt algorithm.
+// Returns lowercase hex digest, or empty string on failure (a missing file, for example).
 std::string HashFile(const wchar_t *algorithmId, const std::filesystem::path &filePath);
 }  // namespace d2bs::utils
