@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <fstream>
 #include <mutex>
+#include <span>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -61,9 +62,8 @@ std::shared_ptr<spdlog::logger>& Logger() {
 // buffer into a synthetic DC6 cell. Allocates with `new BYTE[]`; ownership
 // passes to the caller (and ultimately the cache).
 //
-// Caller is responsible for ensuring `pixels` covers at least
-// `((width + 3) & ~3) * height` bytes; LoadFromBmp does the bounds check.
-void* WrapBmpAsDc6(const uint8_t* pixels, uint32_t width, uint32_t height) {
+// `pixels` covers the `((width + 3) & ~3) * height` bytes of the pixel array; LoadFromBmp does the bounds check.
+void* WrapBmpAsDc6(std::span<const uint8_t> pixels, uint32_t width, uint32_t height) {
     // Stride is 4-byte aligned per BMP convention. All multiplications below
     // are done in size_t to avoid 32-bit overflow on pathological inputs.
     const auto w = width;
@@ -76,7 +76,7 @@ void* WrapBmpAsDc6(const uint8_t* pixels, uint32_t width, uint32_t height) {
     // order (top scanline of pixels[] maps to top of the sprite); we keep
     // the same convention to stay binary-compatible with D2's renderer.
     for (uint32_t row = 0; row < height; ++row) {
-        const uint8_t* src = pixels + (row * stride);
+        const uint8_t* src = pixels.data() + (row * stride);
         const uint8_t* limit = src + width;
         while (src < limit) {
             const uint8_t* start = src;
@@ -160,7 +160,7 @@ void* LoadFromBmp(const std::filesystem::path& path) {
     if (offset > buf.size() || pixelBytes > buf.size() - offset) {
         return nullptr;
     }
-    void* raw = WrapBmpAsDc6(buf.data() + offset, width, height);
+    void* raw = WrapBmpAsDc6(std::span(buf).subspan(offset, pixelBytes), width, height);
     if (!raw) {
         return nullptr;
     }
