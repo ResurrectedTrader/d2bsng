@@ -62,6 +62,7 @@
 // ReSharper disable once CppUnusedIncludeDirective
 #include <DataTbls/InvTbls.h>    // D2InventoryGridInfoStrc
 #include <DataTbls/ItemsTbls.h>  // D2ItemsTxt
+#include <Packet.h>              // MAX_MSG_SIZE
 #include <Path/Path.h>           // D2DynamicPathStrc
 #include <Storm.h>               // SMSGHANDLER_PARAMS
 #include <Units/Units.h>         // D2UnitStrc
@@ -476,11 +477,13 @@ void DrawFrame(PointF p1, PointF p2) {
 
 // === Network ===
 
-void SendGamePacket(std::span<const uint8_t> data) {
+static_assert(MAX_GAME_PACKET_SIZE == MAX_MSG_SIZE);
+
+bool SendGamePacket(std::span<const uint8_t> data) {
     if (data.empty()) {
-        return;
+        return false;
     }
-    d2net::CLIENT_Send(data.size(), 1, data.data());
+    return d2net::CLIENT_Send(data.size(), 1, data.data()) != 0;
 }
 
 bool ReceiveGamePacket(std::span<const uint8_t> data) {
